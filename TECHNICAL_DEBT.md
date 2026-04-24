@@ -39,8 +39,39 @@
 
 ## DEBT-003 · Phase 1 Task 1.1 · Heroes fire/fireDelta asymmetry
 **Introduced:** 2026-04-24 · baseline observation
-**What:** `fire*` count (51) и `fireDelta*` count (49) не совпадают. Один герой имеет дубликат fire ИЛИ один не имеет fireDelta.
+**Resolved:** 2026-04-24 · Task #1.4
 
-**Why:** Не блокирует reduction. Resolution происходит естественно в Task #1.4 когда удаляется 35 из 50 героев.
+**Root cause (identified during Task #1.4 recon):**
+- `^async function fire[A-Z]` grep matched 51 because `fireHero(hero, counts)` — the meta-dispatcher — also starts with `fireH*`, inflating the count by 1 (50 hero abilities + 1 dispatcher).
+- `fireDelta*` was 49 instead of 50 because **HELIOS** (lion tank) had `fireTierDelta: null` — explicit design choice, no `fireDeltaHelios` function. HELIOS was removed as part of the lion faction in Task #1.4.
 
-**Resolution plan:** Task #1.4 verification: после удаления оставшиеся 10 героев должны иметь 10 `fire*` + 10 `fireDelta*` (1:1).
+**Post-1.4 symmetry (verified):**
+- 10 `fire*` hero functions (5 pirates + 5 rock)
+- 10 `fireDelta*` hero functions
+- 10 `ultTwist*` / 10 `ultDelta*`
+- Plus: `fireHero` (dispatcher), `firePlaceholder` / `ultPlaceholder` (Clockwork stubs)
+
+No further action required.
+
+## DEBT-004 · Phase 1 Task 1.3 · Hero-specific state variables
+**Introduced:** 2026-04-24 · commit ec4f253 (not fixed in 1.4 either)
+**What:** Hero-specific state variables for removed heroes remain as dead `let` declarations:
+- `tharaRageArmed`, `tharaRageUsedCount`, `blackfangPackRemaining`, `blackfangPackChain`, `grommarRallyWindow`, `frostweaverBonusDmg`, `glacierIceArmorHits`, `valeriusRadiantTurnOpen`
+- All `shade*`, `nyx*`, `vyra*`, `zarnok*`, `kaelen*` flags (umbra tier framework)
+- All `aurelius*`, `solaris*`, `lumia*`, `valerius*`, `seraphina*` flags (solar tier framework)
+- Plus equivalent blocks for grove/tide/ember removed factions
+
+**Why:** Variables are isolated `let` declarations with no callers (their reader functions — `fire*`/`ultDelta*` — were removed in Task #1.4). They occupy memory but cannot cause runtime errors or behavioral drift.
+
+**Resolution plan:**
+- Task #1.9 (regression) grep verification: `grep -cE "(tharaRage|blackfangPack|grommarRally|frostweaverBonusDmg|glacierIceArmor|valeriusRadiant|aureliusColumn|solarisRay|lumiaPanic|seraphinaMark|shadeUlt|nyxConvert|vyraShot|zarnokBolt|kaelenEn|bonelord|iceshot|glacier|rimehelm|leorex|solara|astarion|goldmane)[A-Z]"` should equal 0 after cleanup pass.
+
+## DEBT-005 · Phase 1 Task 1.4 · Chapter 2/3 boss-hero reward mappings
+**Introduced:** 2026-04-24 · Task #1.4
+**What:** `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` still map to removed hero ids (skeleton_hunter, golem_hunter, lion_hunter, skeleton_captain, golem_captain, lion_captain). They are unreachable in Ch1-only play because those bosses don't exist in the current `CHAPTERS` array until Task #1.5 restores or removes them.
+
+**Why:** Mapping entries are harmless while Ch2/Ch3 are disabled — `getBossHeroReward` returns `null` for unknown ids. Removing them surgically now would be premature; Task #1.5 will delete the Ch2/Ch3 data structures wholesale, taking these entries with them.
+
+**Resolution plan:**
+- Task #1.5 (Chapter trim) removes `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` entirely as part of the chapter data cull.
+- Task #1.9 (regression) verifies `Object.keys(BOSS_HERO_REWARDS)` returns `['1']`.
