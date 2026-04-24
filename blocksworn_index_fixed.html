@@ -7439,9 +7439,6 @@ button.season-tier-claim:active {
           <span class="a-chip-ic gem">◇</span><span id="vGemAmt">0</span>
           <span class="a-chip-plus">+</span>
         </button>
-        <button class="a-btn-chip" id="vEnergyChip">
-          <span class="a-chip-ic energy">⚡</span><span id="vEnergyAmt">120</span>
-        </button>
       </div>
       <button class="a-hub-burger" aria-label="Menu" onclick="aOpenHubDrawer()">☰</button>
     </div>
@@ -7487,8 +7484,7 @@ button.season-tier-claim:active {
     <!-- BATTLE CTA -->
     <div class="a-hub-cta-wrap">
       <button class="a-btn-cta a-hub-battle-btn" onclick="startBattleFromMenu()">
-        <span>BATTLE</span>
-        <span class="a-hub-cta-sub" id="vCtaSub">6⚡</span>
+        <span>▶ BATTLE</span>
       </button>
     </div>
 
@@ -7518,7 +7514,6 @@ button.season-tier-claim:active {
       <div class="a-hub-drawer-grid">
         <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToDailies();">📅 DAILY<span class="v-badge" id="vDailyBadge" style="display:none">0</span></button>
         <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToTower();">🗼 TOWER</button>
-        <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToSeason();">🗓 SEASON</button>
       </div>
     </div>
   </div>
@@ -7626,8 +7621,8 @@ button.season-tier-claim:active {
 </div>
 
 <!-- ============ V3.0 PHASE 3 BLOCK 3.1 · SHOP SCREEN ============ -->
-<!-- Three-tab shop: OFFERS (Block 3.2 paid packs), CONVENIENCE (Block 3.3 energy + pity bypass),
-     HEROES (future). Section rendering is lazy — empty sections show a "coming soon" message. -->
+<!-- Task #1.7: OFFERS (paid packs) and CONVENIENCE (energy refill / pity bypass)
+     tabs removed with Block 3.2 + 3.3 JS. Shop is a single coming-soon surface. -->
 <div class="screen v-shop a-shop" id="screenShop">
   <div class="v-shop-topbar a-shop-topbar">
     <button class="a-icon-btn" onclick="goToMenu()" aria-label="Back">‹</button>
@@ -7640,24 +7635,12 @@ button.season-tier-claim:active {
       <div class="a-btn-chip">
         <span class="a-chip-ic gem">◇</span>
         <span id="shopGemCount">0</span>
-        <span class="a-chip-plus">+</span>
       </div>
     </div>
   </div>
-  <div class="v-shop-tabs shop-tabs a-shop-tabs">
-    <button class="shop-tab active" data-shop-tab="offers"       onclick="switchShopTab('offers')">DEALS</button>
-    <button class="shop-tab"        data-shop-tab="convenience"  onclick="switchShopTab('convenience')">PACKS</button>
-    <button class="shop-tab"        data-shop-tab="heroes"       onclick="switchShopTab('heroes')">HEROES</button>
-  </div>
   <div class="v-shop-body shop-body a-shop-body">
-    <div class="shop-section"        id="shopSectionOffers">
-      <div class="shop-empty">No offers available right now. Keep battling — new packs appear as you progress.</div>
-    </div>
-    <div class="shop-section hidden" id="shopSectionConvenience">
-      <div class="shop-empty">Loading convenience options…</div>
-    </div>
-    <div class="shop-section hidden" id="shopSectionHeroes">
-      <div class="shop-empty">🚧 Direct hero purchases coming in a later update. Earn heroes via Floor 2 &amp; 3 clears, or finish recruitment with gems in CONVENIENCE.</div>
+    <div class="shop-section" id="shopSectionOffers">
+      <div class="shop-empty">New offers coming soon — keep playing to unlock heroes through gameplay.</div>
     </div>
   </div>
   <nav class="v-bottom-nav a-bottom-nav">
@@ -7901,31 +7884,7 @@ button.season-tier-claim:active {
   </div>
 </div>
 
-<!-- ============ V3.0 BLOCK 0.3 · NOT ENOUGH ENERGY MODAL ============ -->
-<div class="modal" id="noEnergyModal" onclick="if(event.target===this) closeNotEnoughEnergyModal()">
-  <div class="modal-box no-energy-box">
-    <div class="no-energy-icon">⚡</div>
-    <div class="no-energy-title">NOT ENOUGH ENERGY</div>
-    <div class="no-energy-stats">
-      <div class="no-energy-row">
-        <span class="no-energy-label">REQUIRED</span>
-        <span class="no-energy-val" id="noEnergyNeed">6</span>
-      </div>
-      <div class="no-energy-row">
-        <span class="no-energy-label">CURRENT</span>
-        <span class="no-energy-val warn" id="noEnergyHave">0</span>
-      </div>
-      <div class="no-energy-row">
-        <span class="no-energy-label">NEXT +1 IN</span>
-        <span class="no-energy-val" id="noEnergyTimer">5m 00s</span>
-      </div>
-    </div>
-    <button class="btn no-energy-refill" onclick="onEnergyRefillClick()">
-      REFILL · 50 💎
-    </button>
-    <button class="btn" onclick="closeNotEnoughEnergyModal()" style="margin-top: 8px">CLOSE</button>
-  </div>
-</div>
+<!-- Task #1.7: NOT ENOUGH ENERGY modal removed along with the Energy system. -->
 
 <!-- ============ V3.0 BLOCK 1.2 · DIALOG OVERLAY ============ -->
 <!-- Full-screen dialog for FTUE + future story beats. z-index 9999 so it sits
@@ -8785,21 +8744,13 @@ if (typeof window !== 'undefined') {
 
 // ===== V3.0 PHASE 0 BLOCK 0.3 — GOLD & ENERGY RESOURCES =====
 // Gold: soft currency, earned per boss win. No sink yet (wired in Phase 4 for hero levels).
-// Energy: time-gated battle entry cost. Regen is offline-aware via timestamps.
-// Both use their own localStorage keys (no coupling to blocksworn_progress).
+// Task #1.7: Energy system removed entirely. Gold remains as the only earned
+// currency at this layer (Scenario A focus — no energy gates in MVP).
 
-let gold   = 0;
-let energy = 120;
-let lastEnergyTimestamp = Date.now();
+let gold = 0;
 
-const MAX_ENERGY               = 120;
-const ENERGY_REGEN_INTERVAL_MS = 5 * 60 * 1000; // +1 energy per 5 real minutes
-const ENERGY_BATTLE_COST       = 6;             // stub; Phase 2 will differentiate by Floor
-const GOLD_PER_WIN             = 100;
-
-const GOLD_STORAGE_KEY      = 'blocksworn_gold';
-const ENERGY_STORAGE_KEY    = 'blocksworn_energy';
-const ENERGY_TS_STORAGE_KEY = 'blocksworn_energy_ts';
+const GOLD_PER_WIN     = 100;
+const GOLD_STORAGE_KEY = 'blocksworn_gold';
 
 function saveGoldToStorage() {
   try { localStorage.setItem(GOLD_STORAGE_KEY, String(gold)); }
@@ -8815,124 +8766,12 @@ function loadGoldFromStorage() {
   } catch (e) { console.warn('loadGoldFromStorage failed:', e); gold = 0; }
 }
 
-function saveEnergyToStorage() {
-  try {
-    localStorage.setItem(ENERGY_STORAGE_KEY, String(energy));
-    localStorage.setItem(ENERGY_TS_STORAGE_KEY, String(lastEnergyTimestamp));
-  } catch (e) { console.warn('saveEnergyToStorage failed:', e); }
-}
-
-function loadEnergyFromStorage() {
-  try {
-    const eRaw = localStorage.getItem(ENERGY_STORAGE_KEY);
-    const tRaw = localStorage.getItem(ENERGY_TS_STORAGE_KEY);
-    if (eRaw !== null) {
-      const n = parseInt(eRaw, 10);
-      energy = (Number.isFinite(n)) ? Math.max(0, Math.min(MAX_ENERGY, n)) : MAX_ENERGY;
-    } else {
-      energy = MAX_ENERGY; // first-time player starts full
-    }
-    if (tRaw !== null) {
-      const t = parseInt(tRaw, 10);
-      lastEnergyTimestamp = Number.isFinite(t) ? t : Date.now();
-    } else {
-      lastEnergyTimestamp = Date.now();
-    }
-  } catch (e) {
-    console.warn('loadEnergyFromStorage failed:', e);
-    energy = MAX_ENERGY;
-    lastEnergyTimestamp = Date.now();
-  }
-}
-
-// Timestamp-based catch-up. Advances timestamp by the exact number of consumed
-// ticks so residual sub-tick time carries forward (no drift).
-// Early returns when at MAX so the clock does NOT accumulate while capped —
-// player who sat at MAX for 2 hours won't instantly regen +24 on first spend.
-function catchUpEnergyRegen() {
-  const now = Date.now();
-  if (energy >= MAX_ENERGY) {
-    // Keep timestamp fresh so we don't leak stale time. Any future spend will
-    // reset it again via spendBattleEnergy, but this guards the idle edge case.
-    lastEnergyTimestamp = now;
-    return 0;
-  }
-  const elapsed = now - lastEnergyTimestamp;
-  if (elapsed < ENERGY_REGEN_INTERVAL_MS) return 0;
-  const ticks  = Math.floor(elapsed / ENERGY_REGEN_INTERVAL_MS);
-  const gained = Math.min(ticks, MAX_ENERGY - energy);
-  if (gained <= 0) return 0;
-  energy += gained;
-  // Advance timestamp by the consumed ticks only — residual time survives to next call
-  lastEnergyTimestamp += gained * ENERGY_REGEN_INTERVAL_MS;
-  saveEnergyToStorage();
-  return gained;
-}
-
-function msUntilNextEnergyTick() {
-  if (energy >= MAX_ENERGY) return 0;
-  const since = Date.now() - lastEnergyTimestamp;
-  const rem   = ENERGY_REGEN_INTERVAL_MS - (since % ENERGY_REGEN_INTERVAL_MS);
-  // If we somehow owe a tick already, surface 0 — catchUp will mop it up next call
-  return (since >= ENERGY_REGEN_INTERVAL_MS || rem <= 0) ? 0 : rem;
-}
-
-function formatNextEnergyIn(short) {
-  const ms = msUntilNextEnergyTick();
-  if (ms <= 0) return short ? '0:00' : '0s';
-  const totalSec = Math.ceil(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  if (short) return `${m}:${s.toString().padStart(2, '0')}`;
-  return `${m}m ${s.toString().padStart(2, '0')}s`;
-}
-
-function canAffordBattle() {
-  catchUpEnergyRegen(); // always settle before comparing
-  // V3.0 Phase 1 Block 1.1: FTUE battles cost 0 energy. typeof-guarded for parse-order
-  // safety — isFtueActive is declared later in the file (Block 1.1 backend), but any
-  // runtime call to canAffordBattle happens after full script parse.
-  const cost = (typeof isFtueActive === 'function' && isFtueActive()) ? 0 : ENERGY_BATTLE_COST;
-  return energy >= cost;
-}
-
-function spendBattleEnergy() {
-  catchUpEnergyRegen();
-  // V3.0 Phase 1 Block 1.1: cost is 0 during FTUE; resumes to ENERGY_BATTLE_COST after 'complete'
-  const cost = (typeof isFtueActive === 'function' && isFtueActive()) ? 0 : ENERGY_BATTLE_COST;
-  if (energy < cost) return false;
-  // V3.0 Block 0.3 trap 3: if spending from MAX (with cost > 0), reset regen clock to NOW so
-  // the next tick arrives after a full interval, not "for free" from stale time
-  if (energy === MAX_ENERGY && cost > 0) lastEnergyTimestamp = Date.now();
-  energy -= cost;
-  // If cost is 0 (FTUE), we still save + re-render — no harm, and keeps the UI
-  // consistent with any side reads. No storage write necessary if energy unchanged,
-  // but save is cheap and avoids subtle divergence.
-  saveEnergyToStorage();
-  renderResourceBar();
-  return true;
-}
-
 function awardWinGold() {
   gold += GOLD_PER_WIN;
   saveGoldToStorage();
   renderResourceBar();
-  // Stagger after existing essence/artifact/tier-up flashes so the stack doesn't overlap.
-  // onBossDefeated already fires vibrate + defeated-anim + sleep(1200) + showVictoryModal,
-  // so a +400ms delay slots the gold flash into a visible gap.
+  // Stagger after existing essence/tier-up flashes so the stack doesn't overlap.
   try { setTimeout(() => flashText(`+${GOLD_PER_WIN} 💰`, '#FFD53D'), 400); } catch (e) {}
-}
-
-// Console helpers. setEnergy clamps to [0, MAX] and syncs the timestamp so the
-// regen clock starts from NOW — mirrors the "spend from MAX" semantic.
-function setEnergy(n) {
-  const v = Math.max(0, Math.min(MAX_ENERGY, Math.floor(Number(n))));
-  if (!Number.isFinite(v)) { console.warn('setEnergy: invalid', n); return; }
-  energy = v;
-  lastEnergyTimestamp = Date.now();
-  saveEnergyToStorage();
-  renderResourceBar();
-  console.log(`setEnergy → ${energy}/${MAX_ENERGY}`);
 }
 
 function addGold(n) {
@@ -8945,79 +8784,19 @@ function addGold(n) {
 }
 
 // ===== Block 0.3 UI render =====
-// Updates the header resource strip + the "not enough energy" modal (if open).
-// Safe to call from any mutation path; all element lookups are defensive.
+// Updates the header resource strip (gold + gems).
 function renderResourceBar() {
-  // GOLD
   const gEl = document.getElementById('resGoldAmt');
   if (gEl) gEl.textContent = gold.toLocaleString('en-US');
-  // V3.0 Phase 3 Block 3.1: GEMS
   const gmEl = document.getElementById('gemCount');
   if (gmEl) gmEl.textContent = String(gems);
-  // ENERGY
-  catchUpEnergyRegen(); // refresh before reading for display
-  const eEl = document.getElementById('resEnergyAmt');
-  if (eEl) eEl.textContent = `${energy}/${MAX_ENERGY}`;
-  const tEl = document.getElementById('resEnergyTimer');
-  if (tEl) {
-    if (energy >= MAX_ENERGY) {
-      tEl.textContent = 'MAX';
-      tEl.classList.add('max');
-    } else {
-      tEl.textContent = `+1 in ${formatNextEnergyIn(true)}`;
-      tEl.classList.remove('max');
-    }
-  }
-  // Live update inside not-enough-energy modal if open
-  const noEnergyModal = document.getElementById('noEnergyModal');
-  if (noEnergyModal && noEnergyModal.classList.contains('active')) {
-    const nTimer = document.getElementById('noEnergyTimer');
-    if (nTimer) nTimer.textContent = formatNextEnergyIn(false);
-  }
-}
-
-function showNotEnoughEnergyModal() {
-  const modal = document.getElementById('noEnergyModal');
-  if (!modal) return;
-  const need = document.getElementById('noEnergyNeed');
-  if (need) need.textContent = `${ENERGY_BATTLE_COST}`;
-  const have = document.getElementById('noEnergyHave');
-  if (have) have.textContent = `${energy}`;
-  const timer = document.getElementById('noEnergyTimer');
-  if (timer) timer.textContent = formatNextEnergyIn(false);
-  modal.classList.remove('active'); void modal.offsetWidth; modal.classList.add('active');
-}
-
-function closeNotEnoughEnergyModal() {
-  const modal = document.getElementById('noEnergyModal');
-  if (modal) modal.classList.remove('active');
-}
-
-// V3.0 Phase 3 Block 3.3: wired. Calls refillEnergyWithGems which handles gem spend,
-// energy fill, flashText feedback, and closes this modal on success.
-function onEnergyRefillClick() {
-  try { refillEnergyWithGems(); } catch (e) { console.warn('refill failed:', e); }
 }
 
 // Load resource state immediately at parse time
 loadGoldFromStorage();
-loadEnergyFromStorage();
 
-// Catch up any offline regen since last save. Safe — clamped at MAX.
-catchUpEnergyRegen();
-
-// UI tick — every 30s refresh the regen timer display. Actual energy state
-// ALWAYS derives from lastEnergyTimestamp via catchUpEnergyRegen, so a long-open
-// tab never under-credits (spec trap 2). The interval is UI-only.
 if (typeof window !== 'undefined') {
-  try {
-    setInterval(() => {
-      catchUpEnergyRegen();
-      renderResourceBar();
-    }, 30000);
-  } catch (e) {}
-  window.setEnergy = setEnergy;
-  window.addGold   = addGold;
+  window.addGold = addGold;
 }
 // ===== END BLOCK 0.3 BACKEND =====
 
@@ -9762,16 +9541,7 @@ function launchFloor(chapter, bossIdx, floorId) {
   const floor = DUNGEON_FLOORS.find(f => f.id === floorId);
   if (!floor) return false;
 
-  // Energy gate BEFORE modifier mutation — failure leaves player state intact.
-  // startBattleFromMenu would also gate, but failing after stash would leave
-  // activeModifiers corrupted until the player returns to menu manually.
-  if (!canAffordBattle()) {
-    closeFloorSelector();
-    try { showNotEnoughEnergyModal(); } catch(e){}
-    return false;
-  }
-
-  // Stash current manual modifiers, apply floor preset
+  // Task #1.7: Energy gate removed. Stash current manual modifiers, apply floor preset
   _preFloorModifiers = new Set(activeModifiers);
   activeModifiers = new Set(floor.modifiers);
   currentFloorId = floorId;
@@ -10104,24 +9874,8 @@ function goToShop() {
     const sgm = document.getElementById('shopGemCount'); if (sgm) sgm.textContent = String(gems);
   } catch (e) {}
   showScreen('shop');
-  switchShopTab('offers');
-  // Block 3.2 will implement renderShopOffers; Block 3.3 renderShopConvenience.
-  // Soft-call via typeof guard so Block 3.1 alone boots cleanly.
-  try { if (typeof renderShopOffers === 'function') renderShopOffers(); } catch (e) {}
-  try { if (typeof renderShopConvenience === 'function') renderShopConvenience(); } catch (e) {}
-}
-
-function switchShopTab(tab) {
-  const tabs = document.querySelectorAll('.shop-tab');
-  tabs.forEach(t => t.classList.toggle('active', t.dataset.shopTab === tab));
-  const sections = ['offers', 'convenience', 'heroes'];
-  for (const s of sections) {
-    const el = document.getElementById('shopSection' + s.charAt(0).toUpperCase() + s.slice(1));
-    if (el) el.classList.toggle('hidden', s !== tab);
-  }
-  // Trigger section render on switch (Block 3.2/3.3 populate these)
-  if (tab === 'offers')      { try { if (typeof renderShopOffers === 'function')      renderShopOffers();      } catch(e){} }
-  if (tab === 'convenience') { try { if (typeof renderShopConvenience === 'function') renderShopConvenience(); } catch(e){} }
+  // Task #1.7: tab switch + renderShopOffers / renderShopConvenience removed —
+  // shop is a single coming-soon surface with only the balance chips populated.
 }
 
 // Load gems at parse time, alongside Phase 0 gold/energy
@@ -10136,619 +9890,6 @@ if (typeof window !== 'undefined') {
 }
 // ===== END BLOCK 3.1 BACKEND =====
 
-// ===== V3.0 PHASE 3 BLOCK 3.2 — PAID OFFER PACKS + CONTEXTUAL TRIGGERS =====
-// Four paid packs with triggered popups + permanent shop listings.
-// Stub payment flow: confirm() dialog → immediate grant. Real IAP is out of scope
-// for this phase. Every pack respects the constitution: gems accelerate, nothing
-// is gated by gems alone.
-//
-// STARTER pack note: spec originally awarded 10 `thara_brawler` fragments, but
-// Thara is a starter (already unlocked), so addHeroFragments would no-op (per
-// Phase 0 Block 0.2). Swapped to `pirate_warrior` (THORGAR) — thematically
-// coherent (player just fought Pyredrake, THORGAR is its F3 reward hero) and
-// actually moves the player along the Phase 2 F3 progression path.
-
-const PAID_PACKS = [
-  {
-    id: 'starter',
-    name: 'STARTER PACK',
-    priceUSD: 2.99,
-    priceDisplay: '$2.99',
-    gems: 500,
-    iconEmoji: '🎁',
-    description: 'Welcome bonus for new warchiefs.',
-    extras: {
-      gold: 2000,
-      energyRefill: 3,
-      heroFragments: { count: 10, heroId: 'pirate_warrior' }, // THORGAR — see note above
-    },
-    triggerType: 'ftue_first_clear',
-  },
-  {
-    id: 'growth',
-    name: 'GROWTH PACK',
-    priceUSD: 9.99,
-    priceDisplay: '$9.99',
-    gems: 2000,
-    iconEmoji: '📈',
-    description: 'Fuel for rising champions.',
-    extras: {
-      gold: 5000,
-      // V3.0 Phase 4 Block 4.1: spec-correct reward — +5 levels per orc hero.
-      // Phase 3 proxy (essencesAll: 100) removed now that hero levels exist.
-      // At avg level 1→6, this delta per hero ≈ 75+150+225+300+375=1125 gold-equivalent × 5 orcs = 5,625g value.
-      levelBonus: { filter: { race: 'orc' }, count: 5 },
-    },
-    triggerType: 'ch1_floor1_complete',
-  },
-  {
-    id: 'stihiya_focus',
-    name: 'STIHIYA FOCUS',
-    priceUSD: 4.99,
-    priceDisplay: '$4.99',
-    gems: 800,
-    iconEmoji: '🔥', // overridden dynamically per stihiya at trigger time
-    description: 'Targeted reinforcements.',
-    extras: {
-      dynamicStihiya: true, // see applyPackExtras for dynamic resolution
-    },
-    triggerType: 'floor3_struggle',
-  },
-  {
-    id: 'collector',
-    name: "COLLECTOR'S PACK",
-    priceUSD: 19.99,
-    priceDisplay: '$19.99',
-    gems: 5000,
-    iconEmoji: '💠',
-    description: 'For the dedicated warlord.',
-    extras: {
-      gold: 10000,
-      essencesAll: 30,
-      guaranteedT3Artifact: true,
-    },
-    triggerType: 'ch1_complete',
-  },
-];
-
-// Persistence state
-let ownedOffers         = new Set();
-let firstPurchaseUsed   = false;
-let offerTriggerCounters = {
-  floor3_attempts: { 1: {}, 2: {}, 3: {} },
-  shown: {},
-  dynamicContexts: {}, // trap 2 fix: persist dynamic pack context so reload preserves stihiya_focus
-};
-const OFFERS_OWNED_KEY     = 'blocksworn_owned_offers';
-const OFFERS_FIRST_KEY     = 'blocksworn_first_purchase_used';
-const OFFERS_TRIGGERS_KEY  = 'blocksworn_offer_triggers';
-
-// Stihiya-to-emoji map for dynamic STIHIYA FOCUS icon
-const STIHIYA_ICON_EMOJI = {
-  ember: '🔥',
-  tide:  '🌊',
-  grove: '🌿',
-  solar: '☀️',
-  umbra: '🌑',
-};
-
-function saveOffersState() {
-  try {
-    localStorage.setItem(OFFERS_OWNED_KEY, JSON.stringify([...ownedOffers]));
-    localStorage.setItem(OFFERS_FIRST_KEY, String(firstPurchaseUsed));
-    localStorage.setItem(OFFERS_TRIGGERS_KEY, JSON.stringify(offerTriggerCounters));
-  } catch (e) { console.warn('saveOffersState failed:', e); }
-}
-
-function loadOffersState() {
-  try {
-    const own = localStorage.getItem(OFFERS_OWNED_KEY);
-    if (own) {
-      const parsed = JSON.parse(own);
-      if (Array.isArray(parsed)) ownedOffers = new Set(parsed);
-    }
-    firstPurchaseUsed = localStorage.getItem(OFFERS_FIRST_KEY) === 'true';
-    const trg = localStorage.getItem(OFFERS_TRIGGERS_KEY);
-    if (trg) {
-      const parsed = JSON.parse(trg);
-      if (parsed && typeof parsed === 'object') {
-        offerTriggerCounters = parsed;
-      }
-    }
-    // Ensure required shape even on partial/missing state
-    if (!offerTriggerCounters.floor3_attempts) offerTriggerCounters.floor3_attempts = { 1: {}, 2: {}, 3: {} };
-    if (!offerTriggerCounters.shown)           offerTriggerCounters.shown = {};
-    if (!offerTriggerCounters.dynamicContexts) offerTriggerCounters.dynamicContexts = {};
-    // V3.0 Phase 3 Block 3.2 trap 2 fix: rehydrate dynamic contexts onto pack objects.
-    // Without this, a reload after stihiya_focus was triggered but before purchase
-    // leaves the pack visible in shop but with lost dynamicStihiya/dynamicBossContext.
-    for (const packId in offerTriggerCounters.dynamicContexts) {
-      const ctx = offerTriggerCounters.dynamicContexts[packId];
-      const pack = PAID_PACKS.find(p => p.id === packId);
-      if (pack && ctx) {
-        pack._dynamicStihiya = ctx.stihiya;
-        pack._dynamicBossContext = { chapter: ctx.chapter, bossIdx: ctx.bossIdx };
-        if (STIHIYA_ICON_EMOJI[ctx.stihiya]) pack.iconEmoji = STIHIYA_ICON_EMOJI[ctx.stihiya];
-      }
-    }
-  } catch (e) { console.warn('loadOffersState failed:', e); }
-}
-
-// Load offers state at parse time, alongside other Phase state
-loadOffersState();
-
-// ===== PURCHASE FLOW =====
-function isRepurchasable(pack) {
-  // All Phase 3 packs are single-purchase. Future: some could be repurchasable.
-  return false;
-}
-
-function purchasePack(packId) {
-  const pack = PAID_PACKS.find(p => p.id === packId);
-  if (!pack) { console.warn('purchasePack: unknown', packId); return; }
-  if (ownedOffers.has(packId) && !isRepurchasable(pack)) {
-    console.log('purchasePack: already owned', packId);
-    return;
-  }
-  // STUB: real IAP would happen here. Immediate grant in Phase 3.
-  grantPack(pack);
-}
-
-function grantPack(pack) {
-  let gemsToGrant = pack.gems;
-  const isFirstPurchase = !firstPurchaseUsed;
-  if (isFirstPurchase) {
-    gemsToGrant *= 2;
-    firstPurchaseUsed = true;
-  }
-  addGems(gemsToGrant);
-  applyPackExtras(pack);
-  ownedOffers.add(pack.id);
-  // If stihiya_focus, clean its dynamic context now — pack is consumed
-  if (pack.id === 'stihiya_focus' && offerTriggerCounters.dynamicContexts) {
-    delete offerTriggerCounters.dynamicContexts[pack.id];
-  }
-  saveOffersState();
-  try { renderShopOffers(); } catch(e){}
-  showPurchaseFlash(pack, gemsToGrant, isFirstPurchase);
-}
-
-function applyPackExtras(pack) {
-  const e = pack.extras;
-  if (!e) return;
-  // Each extra wrapped in try/catch — partial failure doesn't block pack grant (atomicity trap)
-  if (e.gold) {
-    try { gold += e.gold; saveGoldToStorage(); renderResourceBar(); } catch(err){ console.warn('pack gold failed:', err); }
-  }
-  if (e.energyRefill) {
-    try {
-      // energyRefill is a count of "full refills". Since energy caps at MAX_ENERGY,
-      // stacking refills is a no-op above cap (trap 5 per spec — intentional).
-      energy = MAX_ENERGY;
-      lastEnergyTimestamp = Date.now();
-      saveEnergyToStorage();
-      renderResourceBar();
-    } catch(err){ console.warn('pack energyRefill failed:', err); }
-  }
-  if (e.essencesAll) {
-    try {
-      for (const s of STIHIYAS) {
-        essences[s] = (essences[s] || 0) + e.essencesAll;
-      }
-      saveProgress();
-    } catch(err){ console.warn('pack essencesAll failed:', err); }
-  }
-  if (e.heroFragments && e.heroFragments.heroId) {
-    try { addHeroFragments(e.heroFragments.heroId, e.heroFragments.count); }
-    catch(err){ console.warn('pack heroFragments failed:', err); }
-  }
-  if (e.guaranteedT3Artifact) {
-    try { grantRandomT3Artifact(); } catch(err){ console.warn('pack T3 artifact failed:', err); }
-  }
-  // V3.0 Phase 4 Block 4.1: levelBonus extra — bulk level-up by filter.
-  // e.levelBonus = { filter: {race?, role?, stihiya?, ids?}, count: N }
-  if (e.levelBonus && typeof applyLevelBonusToHeroes === 'function') {
-    try {
-      applyLevelBonusToHeroes(e.levelBonus.filter || {}, e.levelBonus.count || 1);
-    } catch(err){ console.warn('pack levelBonus failed:', err); }
-  }
-  // Dynamic stihiya — stihiya_focus specifically
-  if (e.dynamicStihiya && pack._dynamicStihiya) {
-    try {
-      const s = pack._dynamicStihiya;
-      essences[s] = (essences[s] || 0) + 30;
-      saveProgress();
-      // One guaranteed T2 artifact of matching race
-      const race = STIHIYA_TO_RACE[s];
-      if (race) {
-        const type = ART_TYPES[Math.floor(Math.random() * ART_TYPES.length)];
-        addArtifact(artId(race, type), 2);
-      }
-      // Fragments of boss-mapped hero from the trigger context
-      if (pack._dynamicBossContext) {
-        const { chapter, bossIdx } = pack._dynamicBossContext;
-        const heroId = BOSS_HERO_REWARDS[chapter] && BOSS_HERO_REWARDS[chapter][bossIdx];
-        if (heroId) addHeroFragments(heroId, 20);
-      }
-    } catch(err){ console.warn('pack stihiya_focus extras failed:', err); }
-  }
-}
-
-// Stubs: Artifacts removed in Task #1.3. Paid-pack and login-streak T2/T3
-// artifact grants become no-ops until those monetization / retention hooks are
-// retired in Phase 1 Tasks #1.5 / #1.7.
-function grantRandomT3Artifact() { return null; }
-function grantRandomArtifactAtTier() { return null; }
-
-function showPurchaseConfirm(packId) {
-  const pack = PAID_PACKS.find(p => p.id === packId);
-  if (!pack) return;
-  let confirmed = false;
-  try {
-    confirmed = confirm(`Purchase ${pack.name} for ${pack.priceDisplay}?\n\nThis is a stub — no real payment will occur.`);
-  } catch (e) {
-    console.warn('confirm() blocked (some mobile browsers). Pack purchase skipped.');
-    return;
-  }
-  if (confirmed) purchasePack(packId);
-}
-
-function showPurchaseFlash(pack, gemsGranted, isFirstPurchase) {
-  const msg = isFirstPurchase
-    ? `✨ ${pack.name} — 2× FIRST-TIME BONUS — ${gemsGranted} 💎!`
-    : `✨ ${pack.name} — ${gemsGranted} 💎 + rewards!`;
-  try { flashText(msg, '#FFD53D'); } catch(e){}
-  try { vibrate([80, 60, 80, 60, 200]); } catch(e){}
-}
-
-// ===== SHOP OFFERS RENDER =====
-function renderShopOffers() {
-  const container = document.getElementById('shopSectionOffers');
-  if (!container) return;
-  // Only show packs that (a) have been triggered at least once and (b) not yet owned
-  const available = PAID_PACKS.filter(pack => {
-    if (ownedOffers.has(pack.id) && !isRepurchasable(pack)) return false;
-    return !!offerTriggerCounters.shown[pack.id];
-  });
-
-  if (available.length === 0) {
-    container.innerHTML = '<div class="shop-empty">No offers available right now. Keep battling — new packs appear as you progress.</div>';
-    return;
-  }
-
-  container.innerHTML = '';
-  for (const pack of available) {
-    const isFirstPurchaseHint = !firstPurchaseUsed;
-    const extras = pack.extras || {};
-    const rewardsParts = [];
-    rewardsParts.push(`💎 ${pack.gems}`);
-    if (isFirstPurchaseHint) rewardsParts.push(`<span class="pack-bonus">+${pack.gems} FIRST-TIME BONUS</span>`);
-    if (extras.gold)                rewardsParts.push(`💰 ${extras.gold.toLocaleString('en-US')}`);
-    if (extras.energyRefill)        rewardsParts.push(`⚡ ×${extras.energyRefill}`);
-    if (extras.essencesAll)         rewardsParts.push(`🔮 +${extras.essencesAll} all`);
-    if (extras.guaranteedT3Artifact) rewardsParts.push(`🌟 T3 artifact`);
-    // V3.0 Phase 4 Block 4.1: display levelBonus extras
-    if (extras.levelBonus && extras.levelBonus.count) {
-      const filter = extras.levelBonus.filter || {};
-      const scope = filter.race   ? `${filter.race.toUpperCase()}s`
-                  : filter.role   ? `${filter.role.toUpperCase()}s`
-                  : filter.stihiya ? `${filter.stihiya.toUpperCase()} heroes`
-                  : 'heroes';
-      rewardsParts.push(`⬆ +${extras.levelBonus.count} LVL ${scope}`);
-    }
-    if (extras.heroFragments && extras.heroFragments.heroId) {
-      const h = HERO_ROSTER.find(hr => hr.id === extras.heroFragments.heroId);
-      if (h) rewardsParts.push(`🗡 +${extras.heroFragments.count} ${h.name} frags`);
-    }
-    // Dynamic stihiya rewards are only valid if context is present
-    if (extras.dynamicStihiya && pack._dynamicStihiya) {
-      const sName = pack._dynamicStihiya.toUpperCase();
-      rewardsParts.push(`🔮 +30 ${sName}`);
-      rewardsParts.push(`🌟 T2 ${sName} artifact`);
-      if (pack._dynamicBossContext) {
-        const hid = BOSS_HERO_REWARDS[pack._dynamicBossContext.chapter] && BOSS_HERO_REWARDS[pack._dynamicBossContext.chapter][pack._dynamicBossContext.bossIdx];
-        if (hid) {
-          const h = HERO_ROSTER.find(hr => hr.id === hid);
-          if (h) rewardsParts.push(`🗡 +20 ${h.name} frags`);
-        }
-      }
-    }
-
-    const card = document.createElement('div');
-    card.className = 'pack-card';
-    card.innerHTML = `
-      <div class="pack-icon">${pack.iconEmoji}</div>
-      <div class="pack-body">
-        <div class="pack-name">${pack.name}</div>
-        <div class="pack-desc">${pack.description}</div>
-        <div class="pack-rewards">${rewardsParts.join(' · ')}</div>
-      </div>
-      <button class="pack-buy" onclick="showPurchaseConfirm('${pack.id}')">${pack.priceDisplay}</button>
-    `;
-    container.appendChild(card);
-  }
-}
-
-// ===== TRIGGER HANDLERS =====
-function maybeFireOfferTrigger(eventType, context = {}) {
-  // FTUE lockout — triggers silently suppressed. Phase 3 spec acceptance criterion 11.
-  if (isFtueActive()) return;
-
-  for (const pack of PAID_PACKS) {
-    if (ownedOffers.has(pack.id)) continue;
-    if (offerTriggerCounters.shown[pack.id]) continue;
-
-    let fire = false;
-    let dynamicContext = null;
-
-    switch (pack.triggerType) {
-      case 'ftue_first_clear':
-        // First post-FTUE Pyredrake (ch=1, boss=0) Floor 1 clear
-        if (eventType === 'floor1_clear' && context.chapter === 1 && context.bossIdx === 0) fire = true;
-        break;
-      case 'ch1_floor1_complete':
-        // All 5 Ch1 F1 cleared (chapterProgress[1] hits BOSSES.length via current fight)
-        if (eventType === 'floor1_clear' && context.chapter === 1 && context.allCh1Cleared) fire = true;
-        break;
-      case 'floor3_struggle':
-        if (eventType === 'floor3_loss' && context.attempts >= 3) {
-          fire = true;
-          dynamicContext = { chapter: context.chapter, bossIdx: context.bossIdx, stihiya: context.stihiya };
-        }
-        break;
-      case 'ch1_complete':
-        if (eventType === 'chapter_complete' && context.chapter === 1) fire = true;
-        break;
-    }
-
-    if (fire) {
-      offerTriggerCounters.shown[pack.id] = true;
-      if (dynamicContext) {
-        pack._dynamicStihiya = dynamicContext.stihiya;
-        pack._dynamicBossContext = { chapter: dynamicContext.chapter, bossIdx: dynamicContext.bossIdx };
-        if (STIHIYA_ICON_EMOJI[dynamicContext.stihiya]) pack.iconEmoji = STIHIYA_ICON_EMOJI[dynamicContext.stihiya];
-        // Trap 2 fix: persist for reload recovery
-        offerTriggerCounters.dynamicContexts[pack.id] = dynamicContext;
-      }
-      saveOffersState();
-      showOfferPopup(pack);
-      break; // One pack per event — spec trap 1 (prevents popup flood)
-    }
-  }
-}
-
-function showOfferPopup(pack) {
-  const bonusText = !firstPurchaseUsed
-    ? `${pack.gems} 💎 (+${pack.gems} FIRST-TIME BONUS!)`
-    : `${pack.gems} 💎`;
-  let confirmed = false;
-  try {
-    confirmed = confirm(
-      `🎁 ${pack.name} — ${pack.description}\n\n` +
-      `${bonusText}\n` +
-      `Price: ${pack.priceDisplay}\n\n` +
-      `Purchase now? (Or find it later in the Shop.)`
-    );
-  } catch (e) {
-    console.warn('showOfferPopup: confirm() blocked. Pack still available in shop.');
-    return;
-  }
-  if (confirmed) showPurchaseConfirm(pack.id);
-}
-
-// Cleanup: if player finally clears the F3 that triggered stihiya_focus, retract the pack
-// offer from shop so we don't try to sell to someone who just succeeded.
-function retractStihiyaFocusOnVictory(chapter, bossIdx) {
-  const pack = PAID_PACKS.find(p => p.id === 'stihiya_focus');
-  if (!pack) return;
-  if (ownedOffers.has(pack.id)) return;
-  if (!offerTriggerCounters.shown[pack.id]) return;
-  const ctx = pack._dynamicBossContext;
-  if (!ctx || ctx.chapter !== chapter || ctx.bossIdx !== bossIdx) return;
-  offerTriggerCounters.shown[pack.id] = false;
-  delete pack._dynamicStihiya;
-  delete pack._dynamicBossContext;
-  pack.iconEmoji = '🔥'; // reset default
-  if (offerTriggerCounters.dynamicContexts) delete offerTriggerCounters.dynamicContexts[pack.id];
-  saveOffersState();
-  try { renderShopOffers(); } catch(e){}
-}
-
-// Console helpers
-if (typeof window !== 'undefined') {
-  window.PAID_PACKS = PAID_PACKS;
-  window.purchasePack = purchasePack;
-  window.forceOfferTrigger = function(triggerType, ctxOverrides = {}) {
-    const ctx = Object.assign({
-      chapter: 1, bossIdx: 0, attempts: 3, stihiya: 'ember', allCh1Cleared: false,
-    }, ctxOverrides);
-    maybeFireOfferTrigger(triggerType, ctx);
-  };
-  window.resetOffers = function() {
-    ownedOffers = new Set();
-    firstPurchaseUsed = false;
-    offerTriggerCounters = { floor3_attempts: { 1: {}, 2: {}, 3: {} }, shown: {}, dynamicContexts: {} };
-    // Clear rehydrated state on all packs
-    for (const p of PAID_PACKS) {
-      delete p._dynamicStihiya;
-      delete p._dynamicBossContext;
-      if (p.id === 'stihiya_focus') p.iconEmoji = '🔥';
-    }
-    saveOffersState();
-    try { renderShopOffers(); } catch(e){}
-    console.log('Offers reset. All packs available for retrigger.');
-  };
-}
-// ===== END BLOCK 3.2 BACKEND =====
-
-// ===== V3.0 PHASE 3 BLOCK 3.3 — CONVENIENCE PURCHASES =====
-// Two gem sinks:
-//   1. Energy refill — 50 gems → full energy. Pure speed/convenience (no content gate).
-//   2. Fragment pity bypass — 10 gems per missing fragment (≤500 for full unlock).
-//      ONLY available for heroes the player has earned at least 1 fragment for.
-//      This preserves F2P progression feel: gems accelerate, can't skip progression.
-
-const ENERGY_REFILL_GEM_COST = 50;
-const FRAGMENT_GEM_COST       = 10; // gems per missing fragment (cap=50 → max 500)
-const FRAGMENT_BYPASS_MIN_FRAGS = 1; // must have earned at least this many to bypass
-
-function refillEnergyWithGems() {
-  // Direct access to Phase 0 energy primitives (no getEnergy/setEnergyToMax helpers — see Block 3.1 note)
-  catchUpEnergyRegen(); // ensure current value reflects real-time regen
-  if (energy >= MAX_ENERGY) {
-    try { flashText('⚡ ENERGY ALREADY FULL', '#A8A5B8'); } catch(e){}
-    return false;
-  }
-  if (!spendGems(ENERGY_REFILL_GEM_COST)) {
-    try { flashText('❌ NOT ENOUGH GEMS', '#E85D4A'); } catch(e){}
-    return false;
-  }
-  energy = MAX_ENERGY;
-  lastEnergyTimestamp = Date.now();
-  saveEnergyToStorage();
-  renderResourceBar();
-  try { flashText('⚡ ENERGY REFILLED!', '#FFD53D'); } catch(e){}
-  try { vibrate([60, 40, 60]); } catch(e){}
-  // Also close noEnergyModal if it was open (user bought refill from that modal)
-  try {
-    const noE = document.getElementById('noEnergyModal');
-    if (noE && noE.classList.contains('active')) noE.classList.remove('active');
-  } catch(e){}
-  try { renderShopConvenience(); } catch(e){}
-  return true;
-}
-
-function calculateFinishCost(heroId) {
-  const current = Math.min(50, (heroFragments && heroFragments[heroId]) || 0);
-  const needed = Math.max(0, 50 - current);
-  return needed * FRAGMENT_GEM_COST;
-}
-
-function finishHeroWithGems(heroId) {
-  const hero = HERO_ROSTER.find(h => h.id === heroId);
-  if (!hero) { console.warn('finishHeroWithGems: unknown hero', heroId); return false; }
-  if (hero.unlocked) {
-    try { flashText('HERO ALREADY UNLOCKED', '#A8A5B8'); } catch(e){}
-    return false;
-  }
-  const current = (heroFragments && heroFragments[heroId]) || 0;
-  if (current < FRAGMENT_BYPASS_MIN_FRAGS) {
-    // Constitution guard: you can't buy a hero you haven't earned any progress on
-    try { flashText('❌ EARN AT LEAST 1 FRAGMENT FIRST', '#E85D4A'); } catch(e){}
-    return false;
-  }
-  const cost = calculateFinishCost(heroId);
-  if (!spendGems(cost)) {
-    try { flashText('❌ NOT ENOUGH GEMS', '#E85D4A'); } catch(e){}
-    return false;
-  }
-  // Top up fragments to cap (Phase 0 addHeroFragments caps at 50 internally).
-  // addHeroFragments fires its own "+N NAME FRAGMENTS" flash — that's flash #1.
-  addHeroFragments(heroId, 50 - current);
-  // Stagger craft+reveal+final-flash by 800ms so the fragment flash has time to fade.
-  // Mirrors the Block 2.3 auto-craft stagger pattern for visual consistency.
-  setTimeout(() => {
-    try {
-      if (canCraftHero(heroId)) {
-        craftHero(heroId);          // internally calls unlockHero → flashes "NAME UNLOCKED"
-        if (typeof revealHero === 'function') revealHero(heroId); // flashes "NAME JOINS THE WARBAND"
-      }
-      flashText(`✨ ${hero.name} CRAFTED WITH GEMS!`, '#FF4D1F');
-      try { vibrate([80, 60, 80, 60, 200]); } catch(e){}
-      try { renderShopConvenience(); } catch(e){}
-    } catch (e) { console.warn('finishHeroWithGems stagger failed:', e); }
-  }, 800);
-  return true;
-}
-
-// ===== SHOP CONVENIENCE RENDER =====
-function renderShopConvenience() {
-  const container = document.getElementById('shopSectionConvenience');
-  if (!container) return;
-  container.innerHTML = '';
-
-  // --- Energy refill card (always present) ---
-  catchUpEnergyRegen();
-  const energyFull     = energy >= MAX_ENERGY;
-  const canAffordEnergy = gems >= ENERGY_REFILL_GEM_COST;
-  const eDisabled = energyFull || !canAffordEnergy;
-  const eDisabledReason = energyFull ? 'Full' : (!canAffordEnergy ? 'Not enough 💎' : '');
-
-  const eCard = document.createElement('div');
-  eCard.className = 'conv-card';
-  eCard.innerHTML = `
-    <div class="conv-icon">⚡</div>
-    <div class="conv-body">
-      <div class="conv-name">ENERGY REFILL</div>
-      <div class="conv-desc">Instantly fill energy · current ${energy}/${MAX_ENERGY}</div>
-      ${eDisabledReason ? `<div class="conv-disabled-reason">${eDisabledReason}</div>` : ''}
-    </div>
-    <button class="conv-buy" ${eDisabled ? 'disabled' : ''} onclick="refillEnergyWithGems()">
-      ${ENERGY_REFILL_GEM_COST} 💎
-    </button>
-  `;
-  container.appendChild(eCard);
-
-  // --- Fragment pity bypass cards ---
-  // Filter: not unlocked AND has earned ≥ 1 fragment
-  const heroesInProgress = HERO_ROSTER.filter(h => {
-    if (h.unlocked) return false;
-    const frags = (heroFragments && heroFragments[h.id]) || 0;
-    return frags >= FRAGMENT_BYPASS_MIN_FRAGS;
-  });
-
-  if (heroesInProgress.length === 0) {
-    const hint = document.createElement('div');
-    hint.className = 'shop-empty';
-    hint.style.padding = '18px 12px';
-    hint.style.marginTop = '8px';
-    hint.textContent = 'Earn hero fragments by clearing Floor 2 & 3. Once you have at least 1 fragment, you can finish recruitment with gems here.';
-    container.appendChild(hint);
-    return;
-  }
-
-  const header = document.createElement('div');
-  header.className = 'conv-section-label';
-  header.textContent = '— FINISH HERO RECRUITMENT —';
-  container.appendChild(header);
-
-  // Sort: most progress first (player sees near-complete heroes at top)
-  heroesInProgress.sort((a, b) => {
-    const fa = (heroFragments[a.id] || 0);
-    const fb = (heroFragments[b.id] || 0);
-    return fb - fa;
-  });
-
-  for (const hero of heroesInProgress) {
-    const frags = heroFragments[hero.id] || 0;
-    const needed = 50 - frags;
-    const cost = calculateFinishCost(hero.id);
-    const canAfford = gems >= cost;
-    const portraitSrc = ASSETS[hero.img] || '';
-    const card = document.createElement('div');
-    card.className = 'conv-card';
-    card.innerHTML = `
-      <img src="${portraitSrc}" class="conv-portrait" alt="${hero.name}" />
-      <div class="conv-body">
-        <div class="conv-name">${hero.name}</div>
-        <div class="conv-desc">${frags}/50 · ${needed} to go</div>
-        <div class="conv-progress"><div class="conv-progress-fill" style="width:${Math.min(100, (frags / 50) * 100).toFixed(0)}%"></div></div>
-      </div>
-      <button class="conv-buy" ${!canAfford ? 'disabled' : ''} onclick="finishHeroWithGems('${hero.id}')">
-        ${cost} 💎
-      </button>
-    `;
-    container.appendChild(card);
-  }
-}
-
-// Console helpers
-if (typeof window !== 'undefined') {
-  window.refillEnergyWithGems = refillEnergyWithGems;
-  window.finishHeroWithGems = finishHeroWithGems;
-  window.calculateFinishCost = calculateFinishCost;
-}
-// ===== END BLOCK 3.3 BACKEND =====
 
 // ===== V3.0 PHASE 4 BLOCK 4.1 — HERO LEVELS (MECHANICS) =====
 // Second progression axis for each hero, orthogonal to Tier:
@@ -12897,6 +12038,7 @@ function purchasePremiumPass() {
 }
 
 // ========= Screen + rendering =========
+// DEBT-010 (Task #1.7): Season entry removed from drawer; function retained for Phase 7+
 function goToSeason() {
   if (typeof isFtueActive === 'function' && isFtueActive()) {
     try { showToast('Finish the tutorial first'); } catch (e) {}
@@ -13182,7 +12324,7 @@ function migrateSave() {
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (!key) continue;
-    if (/arena|event_dungeon|awaken|achievement|codex|modifier|artifact/i.test(key)) {
+    if (/arena|event_dungeon|awaken|achievement|codex|modifier|artifact|^blocksworn_energy|offers_owned|offers_first|offers_triggers/i.test(key)) {
       deprecatedKeys.push(key);
     }
   }
@@ -13359,19 +12501,7 @@ function resetProgress() {
   gems = STARTER_GEMS;
   saveGemsToStorage();
   updateGemDisplay();
-  // V3.0 Phase 3 Block 3.2: wipe offers state (owned packs, first-purchase flag, triggers, dynamic ctx)
-  try { localStorage.removeItem(OFFERS_OWNED_KEY);     } catch(e){}
-  try { localStorage.removeItem(OFFERS_FIRST_KEY);     } catch(e){}
-  try { localStorage.removeItem(OFFERS_TRIGGERS_KEY);  } catch(e){}
-  ownedOffers = new Set();
-  firstPurchaseUsed = false;
-  offerTriggerCounters = { floor3_attempts: { 1: {}, 2: {}, 3: {} }, shown: {}, dynamicContexts: {} };
-  // Clear any rehydrated state on pack objects
-  for (const p of PAID_PACKS) {
-    delete p._dynamicStihiya;
-    delete p._dynamicBossContext;
-    if (p.id === 'stihiya_focus') p.iconEmoji = '🔥';
-  }
+  // Task #1.7: Paid offers state wipe retired with Block 3.2 removal.
   // V3.0 Phase 4 Block 4.1: wipe hero levels
   try { localStorage.removeItem(HERO_LEVELS_KEY); } catch(e){}
   heroLevels = {};
@@ -17042,24 +16172,8 @@ function showDefeatModal() {
   gameEnded = true;
   // V2.0 Stage 5 Block 5.1: award participation XP on LOSS (no ULT/kill-shot bonuses per cap logic)
   try { awardPostBattleXP(false); } catch (e) { console.warn('awardPostBattleXP (loss) failed:', e); }
-  // V3.0 Phase 3 Block 3.2: track Floor 3 losses per-boss for stihiya_focus trigger.
-  // On 3rd loss against the same F3 boss, STIHIYA FOCUS pack offers targeted help.
-  // Gated on currentFloorId === 3 so F1/F2 losses don't accumulate.
-  if (currentFloorId === 3 && !isFtueActive()) {
-    try {
-      const ch = currentChapter;
-      const b = currentBossIdx;
-      if (!offerTriggerCounters.floor3_attempts[ch]) offerTriggerCounters.floor3_attempts[ch] = {};
-      offerTriggerCounters.floor3_attempts[ch][b] = (offerTriggerCounters.floor3_attempts[ch][b] || 0) + 1;
-      saveOffersState();
-      const attempts = offerTriggerCounters.floor3_attempts[ch][b];
-      const bossData = CHAPTERS[ch - 1] && CHAPTERS[ch - 1].bosses[b];
-      const stihiya = bossData ? bossData.stihiya : null;
-      if (stihiya) {
-        maybeFireOfferTrigger('floor3_loss', { chapter: ch, bossIdx: b, attempts, stihiya });
-      }
-    } catch (e) { console.warn('floor3_loss trigger failed:', e); }
-  }
+  // Task #1.7: Floor 3 loss tracking for stihiya_focus paid-pack trigger removed
+  // with Block 3.2 (PAID_PACKS + offers state).
   const box = document.getElementById('modalBox');
   box.style.setProperty('--modal-accent', '#E85D4A');
   // Show boss emblem that killed the player (desaturated defeat style)
@@ -17140,16 +16254,7 @@ function onModalBtn() {
       goToMenu();
       return;
     }
-    // V3.0 Block 0.3: energy gate on victory-next flow. If not enough, surface modal
-    // and keep victory modal up — player can dismiss and return to menu via its button.
-    if (!canAffordBattle()) {
-      showNotEnoughEnergyModal();
-      return;
-    }
-    if (!spendBattleEnergy()) {
-      showNotEnoughEnergyModal();
-      return;
-    }
+    // Task #1.7: Energy gate removed on victory-next flow.
     currentBossIdx++;
     selectedBossIdx = null; // normal forward flow — clear pick so it doesn't desync
   }
@@ -20797,15 +19902,16 @@ function showScreen(name) {
     if (el) el.classList.toggle('active', key === name);
   }
   // FIX BUG-004: previously only 3 modals were closed on screen change (art picker,
-  // art inventory, synergy info). That left infoModal, lockedHeroModal, noEnergyModal,
+  // art inventory, synergy info). That left infoModal, lockedHeroModal,
   // heroDetailModal, leaderChoiceModal, and towerFloorClearModal stuck active on top
   // of whatever screen we transitioned to — most visible when resetProgress (inside
   // infoModal) triggered FTUE and the info modal remained over the battle screen.
   // Removing .active alone is sufficient — .modal CSS falls through to display:none.
   // Not touching #modal (victory/defeat modal) — it has its own explicit close flow
   // and some transitions (e.g. post-victory) legitimately keep it open.
+  // Task #1.7: noEnergyModal id removed from list (modal deleted with Energy system).
   ['artPickerModal', 'artInventoryModal', 'synergyInfoModal',
-   'infoModal', 'lockedHeroModal', 'noEnergyModal',
+   'infoModal', 'lockedHeroModal',
    'heroDetailModal', 'leaderChoiceModal', 'towerFloorClearModal'
   ].forEach(id => {
     const el = document.getElementById(id);
@@ -20860,16 +19966,7 @@ function startBattleFromMenu() {
     flashText(`SELECT ${SQUAD_MAX} HEROES`, '#E85D4A');
     return;
   }
-  // V3.0 Block 0.3: energy gate — refuse entry if below cost, show modal
-  if (!canAffordBattle()) {
-    showNotEnoughEnergyModal();
-    return;
-  }
-  if (!spendBattleEnergy()) {
-    // Defensive — shouldn't hit this because canAffordBattle passed
-    showNotEnoughEnergyModal();
-    return;
-  }
+  // Task #1.7: Energy gate removed.
   rebuildHeroDeck();
   showScreen('battle');
   // V18.19: honor player's boss pick if valid (<= bossesDefeated), else auto-pick next undefeated.
@@ -20978,15 +20075,13 @@ function renderMenu() {
 
 // ===== V3.0 PHASE 2 · VIVID RENDERERS =====
 function vRenderTopbar() {
-  catchUpEnergyRegen();
+  // Task #1.7: Energy system removed — no catchUpEnergyRegen / vEnergyAmt update.
   // V3.0 Phase 9 Vivid: animate resource deltas via CountUp, and keep plain
   // textContent as a fallback if the previous snapshot is unknown.
   const gEl = document.getElementById('vGoldAmt');
   if (gEl) { vCountUpNode('vGoldAmt', gold); _vLastCounters.gold = gold; }
   const mEl = document.getElementById('vGemAmt');
   if (mEl) { vCountUpNode('vGemAmt', gems); _vLastCounters.gem = gems; }
-  const eEl = document.getElementById('vEnergyAmt');
-  if (eEl) { vCountUpNode('vEnergyAmt', energy); _vLastCounters.energy = energy; }
   // Player level — rough proxy while no real level system exists.
   const lvlEl = document.getElementById('vPlayerLvl');
   if (lvlEl) {
@@ -21008,9 +20103,7 @@ function vRenderTopbar() {
   // V3.0 Phase 11: wordmark at the top of the Main Hub (lazy-set src once).
   const logoEl = document.getElementById('vMenuLogoImg');
   if (logoEl && ASSETS.Logo && !logoEl.src) logoEl.src = ASSETS.Logo;
-  // CTA sub-label — live energy cost.
-  const ctaSub = document.getElementById('vCtaSub');
-  if (ctaSub) ctaSub.textContent = `${ENERGY_BATTLE_COST}⚡`;
+  // Task #1.7: CTA sub-label (energy cost) removed with Energy system.
   // Daily badge — count unclaimed missions + streak.
   const db = document.getElementById('vDailyBadge');
   if (db) {
@@ -21480,11 +20573,11 @@ function vPlayLevelPulse(el) {
 
 // CountUp on the topbar resource chips — snapshots the last rendered values
 // and animates the numeric spans whenever values change.
-const _vLastCounters = { gold: null, gem: null, energy: null, lvl: null };
+const _vLastCounters = { gold: null, gem: null, lvl: null };
 function vCountUpNode(id, to) {
   const node = document.getElementById(id);
   if (!node) return;
-  const prev = _vLastCounters[id === 'vGoldAmt' ? 'gold' : id === 'vGemAmt' ? 'gem' : id === 'vEnergyAmt' ? 'energy' : 'lvl'];
+  const prev = _vLastCounters[id === 'vGoldAmt' ? 'gold' : id === 'vGemAmt' ? 'gem' : 'lvl'];
   if (prev === null || prev === undefined) { node.textContent = to.toLocaleString('en-US'); return; }
   if (prev === to) return;
   vAnimateNumber(node, prev, to, 700);

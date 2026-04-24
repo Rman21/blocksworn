@@ -118,6 +118,24 @@ narrator identity полностью под новую 3-faction структу�
 
 **Resolution:** Task #1.5 deleted both `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` entirely along with the Ch2/Ch3 CHAPTERS entries. Only `BOSS_HERO_REWARDS[1]` (Chapter 1, 2 hero grants) remains.
 
+## DEBT-010 · Phase 1 Task 1.7 · Season system retained as dead code
+**Introduced:** 2026-04-25 · Task #1.7
+**What:** Season system (`goToSeason()`, `screenSeason` HTML, related CSS and
+localStorage keys) сохранён в коде но недоступен через UI:
+- Drawer SEASON button удалён в Task #1.7
+- Underlying system inert (no trigger path)
+
+**Why:** Scenario A focus (MVP без monetization) не требует Season, но Phase 7+
+(post-launch LTV) потенциально вернёт Season Pass. Удаление entire system =
+double work в Phase 7.
+
+**Resolution plan:**
+- Option A (Phase 7+ needed): restore drawer SEASON button
+- Option B (deprecated post-launch): full removal as Phase 6 Launch Prep task
+
+**Action now:** none. Dead code annotated in source with `DEBT-010` comment at
+`goToSeason()` function declaration.
+
 ## DEBT-009 · Phase 1 Task 1.6 · Vivid class-name aliases retained
 **Introduced:** 2026-04-25 · Task #1.6
 **What removed (this task):**
