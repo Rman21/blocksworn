@@ -2993,6 +2993,29 @@
    The .active selectors below carry !important to beat any leftover overrides. */
 .v-secondary:not(.active) { display: none !important; }
 .v-secondary.active       { display: flex !important; }
+
+/* Task #1.7.1 hotfix: FTUE splash slide visibility — Task #1.6 VIVID STYLIZED
+   block removal took the `.v-splash-card.active { display: block }` baseline
+   with it, so all three intro slides rendered stacked at once (Roman's smoke
+   test). Gate display on .active with !important so any stale rule loses. */
+#vSplashTrack .v-splash-card:not(.active) { display: none !important; }
+#vSplashTrack .v-splash-card.active       { display: flex !important; }
+
+/* Task #1.7.1 hotfix: battle deck hero-card sizing — Task #1.6 removed the
+   Vivid `.game.v-battle .deck .hero-card { width: 58px; aspect-ratio: 1 }`
+   rule along with the BATTLE SCREEN block. Without it, `.hero-card` has only
+   `aspect-ratio: 3/4` and no width, so images balloon to natural size and one
+   card ended up ~600×800 in Roman's smoke test, pushing the tray off-screen.
+   Restore an Arena-scoped equivalent. */
+.a-battle .deck .hero-card {
+  flex: 0 0 58px;
+  width: 58px;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  border: 2px solid rgba(255,255,255,0.35);
+}
 .v-secondary > .back-btn,
 .v-secondary > .back-btn.v-btn-icon {
   position: absolute !important;
@@ -7835,7 +7858,7 @@ button.season-tier-claim:active {
       <div class="v-splash-card" data-slide="0">
         <div class="v-splash-icon">⚔</div>
         <h2>YOU ARE THE SUMMONER</h2>
-        <p>Lead a squad of five heroes into battle against elemental bosses.</p>
+        <p>Lead a squad of three heroes into battle against elemental bosses.</p>
       </div>
       <div class="v-splash-card" data-slide="1">
         <div class="v-splash-icon">🧩</div>
