@@ -118,6 +118,29 @@ narrator identity полностью под новую 3-faction структу�
 
 **Resolution:** Task #1.5 deleted both `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` entirely along with the Ch2/Ch3 CHAPTERS entries. Only `BOSS_HERO_REWARDS[1]` (Chapter 1, 2 hero grants) remains.
 
+## DEBT-011 · Phase 1 Task 1.8 · FTUE splash cards full-width
+**Introduced:** 2026-04-25 · Task #1.7.1 hotfix
+**What:** Splash cards в FTUE intro (3 slides: SUMMONER / PLACE BLOCKS / MATCH
+ELEMENTS) рендерятся при full available width вместо центрированного card
+с боковыми отступами как было до Task #1.6 Vivid removal.
+
+**Why:** Task #1.7.1 added `.v-splash-card.active { display: flex !important }`
+без `max-width`/`width` constraint. Original Vivid had explicit width rule
+(удалён в Task #1.6).
+
+**Severity:** Cosmetic only. Splash functionally works (CONTINUE button нажимается,
+текст читается). Не блокирует gameplay.
+
+**Resolution plan:** Phase 6 Launch Prep — add Arena Premium splash card sizing
+rules:
+```css
+.v-splash-card.active {
+  max-width: 380px;
+  margin: 0 auto;
+  padding: 24px;
+}
+```
+
 ## DEBT-010 · Phase 1 Task 1.7 · Season system retained as dead code
 **Introduced:** 2026-04-25 · Task #1.7
 **What:** Season system (`goToSeason()`, `screenSeason` HTML, related CSS and

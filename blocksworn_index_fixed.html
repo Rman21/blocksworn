@@ -2994,6 +2994,28 @@
 .v-secondary:not(.active) { display: none !important; }
 .v-secondary.active       { display: flex !important; }
 
+/* Task #1.8.1 hotfix: vertical scroll on Heroes + Dailies. The page is
+   `html, body { overflow: hidden }`, so inner screens can only scroll when
+   their height is bounded — `.screen { overflow-y: auto; min-height: 100vh }`
+   alone leaves height auto-sized to content, which means content grows past
+   the viewport with nowhere to scroll into. Cap `.screen.active` to viewport
+   height so its overflow-y kicks in. For `.v-secondary` (flex column), add
+   the same cap and let the inner `.*-wrap` flex child handle scroll via
+   the existing `flex: 1; overflow-y: auto` (now anchored against a real
+   parent height, with `min-height: 0` so the flex child can actually shrink). */
+.screen.active {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+.v-secondary.active {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+.v-secondary.active > [class$="-wrap"] {
+  min-height: 0;
+}
+
 /* Task #1.7.1 hotfix: FTUE splash slide visibility — Task #1.6 VIVID STYLIZED
    block removal took the `.v-splash-card.active { display: block }` baseline
    with it, so all three intro slides rendered stacked at once (Roman's smoke
