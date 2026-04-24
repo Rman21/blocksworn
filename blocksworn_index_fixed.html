@@ -10041,7 +10041,7 @@ img#bossImg.v-fx-boss-die {
     <div class="v-squad-strip a-squad-strip">
       <div class="v-squad-strip-head">
         <span class="a-label-kicker">MY SQUAD</span>
-        <span class="v-squad-strip-count a-squad-strip-count" id="vSquadCount">0/5</span>
+        <span class="v-squad-strip-count a-squad-strip-count" id="vSquadCount">0/3</span>
       </div>
       <div class="v-squad-strip-slots a-hub-squad-slots" id="vSquadSlots"></div>
     </div>
@@ -11024,6 +11024,11 @@ for (const h of HERO_ROSTER) {
 
 const HEROES_UNLOCKED_STORAGE_KEY = 'blocksworn_heroes_unlocked';
 
+// Task #1.4.2 hotfix: squad size reduced from 5 → 3 to match the new 2-faction
+// roster (4 starter heroes leave only 4 unlocks post-FTUE, which could not fill a
+// 5-slot squad). Tactical puzzle design supports 3 active heroes comfortably.
+const SQUAD_MAX = 3;
+
 function saveUnlockedHeroesToStorage() {
   try {
     // Persist only non-starter unlocks — starters are always unlocked by construction,
@@ -11038,7 +11043,17 @@ function saveUnlockedHeroesToStorage() {
 function loadUnlockedHeroesFromStorage() {
   try {
     const raw = localStorage.getItem(HEROES_UNLOCKED_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
+    if (!raw) {
+      // Task #1.4.2 hotfix: seed localStorage with starter heroes on first run.
+      // Previous build only wrote non-starter unlocks (starters were implicit),
+      // so fresh-install smoke tests saw `null` in localStorage even though the
+      // in-memory flags were correct. Seeding makes the persisted list concrete.
+      const starterIds = Array.from(STARTER_HEROES);
+      try { localStorage.setItem(HEROES_UNLOCKED_STORAGE_KEY, JSON.stringify(starterIds)); } catch (e) {}
+      for (const h of HERO_ROSTER) h.unlocked = STARTER_HEROES.has(h.id);
+      return;
+    }
+    const parsed = JSON.parse(raw);
     const storedSet = new Set(Array.isArray(parsed) ? parsed : []);
     for (const h of HERO_ROSTER) {
       h.unlocked = STARTER_HEROES.has(h.id) || storedSet.has(h.id);
@@ -11085,7 +11100,7 @@ function lockHero(heroId) {
     if (si >= 0) {
       activeSquad.splice(si, 1);
       for (const s of HERO_ROSTER) {
-        if (activeSquad.length >= 5) break;
+        if (activeSquad.length >= SQUAD_MAX) break;
         if (!STARTER_HEROES.has(s.id)) continue;
         if (activeSquad.includes(s.id)) continue;
         activeSquad.push(s.id);
@@ -11098,22 +11113,22 @@ function lockHero(heroId) {
 }
 
 // Squad reconciliation — strips any locked-hero IDs from activeSquad and pads
-// with starter heroes (in roster order) until length = 5. Called at load time
-// after unlock-state is restored, and defensively anywhere activeSquad origin
+// with starter heroes (in roster order) until length = SQUAD_MAX. Called at load
+// time after unlock-state is restored, and defensively anywhere activeSquad origin
 // is untrusted (e.g. migrated save, hand-edited localStorage).
 function reconcileSquadUnlocks() {
   if (typeof activeSquad === 'undefined') return;
   activeSquad = activeSquad.filter(id => isHeroUnlocked(id));
-  if (activeSquad.length < 5) {
+  if (activeSquad.length < SQUAD_MAX) {
     for (const h of HERO_ROSTER) {
-      if (activeSquad.length >= 5) break;
+      if (activeSquad.length >= SQUAD_MAX) break;
       if (!STARTER_HEROES.has(h.id)) continue;
       if (activeSquad.includes(h.id)) continue;
       activeSquad.push(h.id);
     }
   }
   // Trim in case caller handed us an over-length squad
-  if (activeSquad.length > 5) activeSquad.length = 5;
+  if (activeSquad.length > SQUAD_MAX) activeSquad.length = SQUAD_MAX;
 }
 
 // Load unlock state immediately — must happen before any UI renders so silhouette
@@ -11126,6 +11141,18 @@ if (typeof window !== 'undefined') {
   window.unlockHero     = unlockHero;
   window.lockHero       = lockHero;
   window.isHeroUnlocked = isHeroUnlocked;
+  // Task #1.4.2 hotfix: smoke-test helper — returns unlock list + squad + roster
+  // summary in a single call. Remove in Task #1.9 regression sweep.
+  window.__debugHeroes = () => ({
+    unlocked: HERO_ROSTER.filter(h => h.unlocked).map(h => h.id),
+    squad: (typeof activeSquad !== 'undefined') ? activeSquad.slice() : [],
+    storage: {
+      unlocked: (() => { try { return JSON.parse(localStorage.getItem(HEROES_UNLOCKED_STORAGE_KEY) || 'null'); } catch(e){ return null; } })(),
+      squad:    (() => { try { return JSON.parse(localStorage.getItem('blocksworn_squad') || 'null'); } catch(e){ return null; } })(),
+    },
+    roster: HERO_ROSTER.map(h => ({ id: h.id, name: h.name, unlocked: !!h.unlocked, locked: !!h.locked })),
+    squadMax: SQUAD_MAX,
+  });
 }
 // ===== END BLOCK 0.1 BACKEND =====
 
@@ -15518,12 +15545,12 @@ checkSeasonRotation();
 // ===== END BLOCK 7.5 BACKEND =====
 
 // HERO_DECK — active battle squad, rebuilt from activeSquad before each battle
-let HERO_DECK = HERO_ROSTER.slice(0, 5);
+let HERO_DECK = HERO_ROSTER.slice(0, SQUAD_MAX);
 
-// Squad state — IDs of 5 heroes selected for battle.
+// Squad state — IDs of SQUAD_MAX heroes selected for battle.
 // V3.0 Block 0.1: default derived from STARTER_HEROES so reshuffling HERO_ROSTER
 // can never leak a locked hero into the default squad (spec trap 3).
-let activeSquad = HERO_ROSTER.filter(h => STARTER_HEROES.has(h.id)).map(h => h.id).slice(0, 5);
+let activeSquad = HERO_ROSTER.filter(h => STARTER_HEROES.has(h.id)).map(h => h.id).slice(0, SQUAD_MAX);
 let favorites = new Set();
 // V18.5: roster filter state — null = show all of that axis
 let rosterFilter = { race: null, faction: null, role: null };
@@ -15670,7 +15697,7 @@ function migrateSave() {
             const squadIds = JSON.parse(savedSquadRaw);
             const validSquad = squadIds.filter(id => validHeroIds.has(id));
             if (validSquad.length !== squadIds.length) {
-              localStorage.setItem('blocksworn_squad', JSON.stringify(validSquad.slice(0, 5)));
+              localStorage.setItem('blocksworn_squad', JSON.stringify(validSquad.slice(0, SQUAD_MAX)));
             }
           }
         } catch (e) {}
@@ -15681,6 +15708,18 @@ function migrateSave() {
       }
     }
   } catch (e) { console.warn('[migrateSave-1.4] failed:', e); }
+
+  // Task #1.4.2 hotfix: squad size reduced from 5 → 3. Trim any over-size saved squad.
+  try {
+    const savedSquad = localStorage.getItem('blocksworn_squad');
+    if (savedSquad) {
+      const squadIds = JSON.parse(savedSquad);
+      if (Array.isArray(squadIds) && squadIds.length > SQUAD_MAX) {
+        localStorage.setItem('blocksworn_squad', JSON.stringify(squadIds.slice(0, SQUAD_MAX)));
+        console.info(`[migrateSave-1.4.2] trimmed squad from ${squadIds.length} → ${SQUAD_MAX}`);
+      }
+    }
+  } catch (e) { console.warn('[migrateSave-1.4.2] squad trim failed:', e); }
 }
 
 // Task #1.4: minimal migration modal — uses existing toast infrastructure when available,
@@ -15745,7 +15784,7 @@ function loadProgress() {
     // V3.0 Block 0.1: restore activeSquad, then strip any locked heroes and pad with starters.
     // Also runs on fresh defaults — harmless (default squad is all starters).
     if (Array.isArray(data.activeSquad) && data.activeSquad.length > 0) {
-      activeSquad = data.activeSquad.slice(0, 5);
+      activeSquad = data.activeSquad.slice(0, SQUAD_MAX);
     }
     reconcileSquadUnlocks();
   } catch(e) {
@@ -15768,7 +15807,7 @@ function resetProgress() {
   equippedArtifacts = [null, null, null, null, null];
   artDropPityCounter = 0; // V18.25: reset pity
   // V3.0 Block 0.1: restore starter squad on wipe
-  activeSquad = HERO_ROSTER.filter(h => STARTER_HEROES.has(h.id)).map(h => h.id).slice(0, 5);
+  activeSquad = HERO_ROSTER.filter(h => STARTER_HEROES.has(h.id)).map(h => h.id).slice(0, SQUAD_MAX);
   // V3.0 Block 0.3: reset resources to fresh-install state
   gold = 0;
   energy = MAX_ENERGY;
@@ -23290,8 +23329,8 @@ function goToSelect() {
 }
 
 function startBattleFromMenu() {
-  if (activeSquad.length < 5) {
-    flashText('SELECT 5 HEROES', '#E85D4A');
+  if (activeSquad.length < SQUAD_MAX) {
+    flashText(`SELECT ${SQUAD_MAX} HEROES`, '#E85D4A');
     return;
   }
   // V3.0 Block 0.3: energy gate — refuse entry if below cost, show modal
@@ -23972,7 +24011,7 @@ function vRenderSquadStrip() {
   if (!slotsEl) return;
   slotsEl.innerHTML = '';
   let filled = 0;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < SQUAD_MAX; i++) {
     const id = activeSquad[i];
     const h = id ? HERO_ROSTER.find(x => x.id === id) : null;
     const av = document.createElement('div');
@@ -24006,7 +24045,7 @@ function vRenderSquadStrip() {
     }
     slotsEl.appendChild(av);
   }
-  if (countEl) countEl.textContent = `${filled}/5`;
+  if (countEl) countEl.textContent = `${filled}/${SQUAD_MAX}`;
 }
 
 function vRenderSynergyRow() {
@@ -24547,7 +24586,7 @@ function toggleSquadMember(id) {
         return;
       }
     }
-    if (activeSquad.length >= 5) {
+    if (activeSquad.length >= SQUAD_MAX) {
       activeSquad.shift(); // remove oldest, push new
     }
     activeSquad.push(id);
