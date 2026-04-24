@@ -3047,9 +3047,14 @@
   color: var(--a-text-primary) !important;
   font-family: var(--a-font-body) !important;
   padding-top: max(12px, env(safe-area-inset-top, 0px) + 4px) !important;
-  display: flex !important;
   flex-direction: column !important;
 }
+/* Task #1.5.5 hotfix: visibility gated on .active — previous build had an
+   unconditional `display: flex !important` above which kept every v-secondary
+   screen painted simultaneously (Roman observed Tower stack underneath Dailies).
+   The .active selectors below carry !important to beat any leftover overrides. */
+.v-secondary:not(.active) { display: none !important; }
+.v-secondary.active       { display: flex !important; }
 .v-secondary > .back-btn,
 .v-secondary > .back-btn.v-btn-icon {
   position: absolute !important;
