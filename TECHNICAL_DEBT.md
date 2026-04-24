@@ -132,31 +132,107 @@ narrator identity полностью под новую 3-faction структу�
   fallback chain cleaned to `--a-font-display` only.
 
 **What is deferred (still Vivid-named):**
-- **`v-*` DOM class names** (67 unique, 309 CSS selector occurrences post-cleanup):
-  load-bearing architecture — Arena Premium CSS uses them as compound hooks (e.g.
-  `.a-battle .v-battle-boss-card { ... }`), and 36 `getElementById('v...')` +
-  7 `querySelector('.v-*')` JS call-sites depend on them. Renaming requires
-  lockstep touch of DOM + CSS + JS across ~400 sites.
+
+Three parallel coupling layers keep the `v-*` identifier space alive. All three
+must change in lockstep — touching one while leaving the others creates a broken
+selector chain.
+
+**Layer 1 — DOM class names (67 unique, preserved as architectural hooks):**
+
+Grouped by subsystem for Phase 6 rename planning:
+
+- *Battle (16):* `v-battle`, `v-battle-boss-card`, `v-battle-boss-hptext`,
+  `v-battle-boss-info`, `v-battle-boss-lvl`, `v-battle-boss-name`,
+  `v-battle-boss-portrait`, `v-battle-dmg-chip`, `v-battle-player-hp`,
+  `v-battle-player-hp-num`, `v-battle-topbar`, `v-battle-topbar-actions`,
+  `v-battle-tutorial`, `v-battle-tutorial-dots`, `v-battle-tutorial-step`,
+  `v-badge`
+- *Loadout / Heroes (6):* `v-loadout`, `v-loadout-search`, `v-loadout-topbar`,
+  `v-filter-bar`, `v-filter-sort`, `v-filter-subrow`, `v-filter-tab`,
+  `v-filter-tabs`, `v-roster-grid`
+- *Hero detail sheet (8):* `v-hero-sheet`, `v-hero-sheet-actions`,
+  `v-hero-sheet-box`, `v-hero-sheet-close`, `v-hero-sheet-handle`,
+  `v-hero-sheet-header`, `v-hero-sheet-portrait`, `v-hero-tab`, `v-hero-tab-body`,
+  `v-hero-tab-pane`, `v-hero-tabs`
+- *Hub / squad strip (5):* `v-squad-strip`, `v-squad-strip-count`,
+  `v-squad-strip-head`, `v-squad-strip-slots`, `v-synergy-row`
+- *Secondary screens (6):* `v-secondary`, `v-dailies`, `v-tower`, `v-season`,
+  `v-shop`, `v-shop-body`, `v-shop-tabs`, `v-shop-topbar`
+- *Navigation (2):* `v-bottom-nav`, `v-nav-item`
+- *Splash (11):* `v-splash`, `v-splash-card`, `v-splash-cta`, `v-splash-dots`,
+  `v-splash-icon`, `v-splash-intro`, `v-splash-logo`, `v-splash-logo-img`,
+  `v-splash-logo-sub`, `v-splash-skip`, `v-splash-track`
+- *Generic primitives (5):* `v-btn-primary`, `v-btn-icon`, `v-progress`,
+  `v-progress-fill`, `v-progress-lag`
+
+**Layer 2 — JS selector binds (43 total):**
+
+*36 `getElementById('v...')` sites (camelCase DOM ids):*
+`vAvatarBtn`, `vAvatarImg`, `vBattleTutorial`, `vBattleTutorialStep`, `vBossCard`,
+`vBossDiff`, `vBossImg`, `vBossName`, `vBossRewardsItems`, `vBossSub`,
+`vChapterFill`, `vChapterNodes`, `vChapterNum`, `vChapterOfN`, `vCtaSub`,
+`vDailyBadge`, `vEnergyAmt`, `vFilterSubrow`, `vGemAmt`, `vGoldAmt`,
+`vHeroSheetHandle`, `vLoadoutSearch`, `vMenuLogoImg`, `vPlayerLvl`, `vRosterGrid`,
+`vSearchInput`, `vSortLabel`, `vSplash`, `vSplashCta`, `vSplashIntro`,
+`vSplashLogo`, `vSplashLogoImg`, `vSquadAvatars`, `vSquadCount`, `vSquadSlots`,
+`vSynergyRow`.
+
+*7 `querySelector[All]('.v-*')` sites:*
+`.v-hero-sheet-box`, `.v-hero-tab-body`, `.v-battle-tutorial-dots .dot`,
+`.v-bottom-nav .v-nav-item`, `.v-filter-tab`, `.v-hero-tab`, `.v-result-extra`.
+
+**Layer 3 — CSS compound selectors (309 occurrences):**
+
+Arena Premium rules scope to the `v-*` class as a child under an `.a-*` parent,
+e.g.:
+```css
+.a-battle .v-battle-boss-card { ... }
+.a-hub-squad-slots .v-avatar { ... }
+.a-bottom-nav .v-nav-item.active { ... }
+.a-filter-subrow .v-sub-chip { ... }
+```
+These provide the actual Arena Premium *styling* — the `v-*` side of the compound
+is just a selector hook.
+
+**Other cosmetic residue:**
 - JS section comment `V3.0 PHASE 2 · VIVID RENDERERS` — cosmetic label only,
   underlying logic is Arena Premium.
-- 19 textual `VIVID` / `Vivid` occurrences in section comments and inline notes.
+- 20 textual `VIVID` / `Vivid` occurrences across Task #1.6 explanatory comments
+  and inline notes.
 
 **Why:** After Task #1.6 the Vivid *visual style* is gone — `--v-*` tokens are
-deleted, all Vivid baseline CSS rules stripped, and the compound selectors left
-behind (`.a-battle .v-battle-boss-card`) use the `v-*` class only as a scoped
-selector hook. The `v-*` names are effectively arbitrary identifiers now, no
-different from `#bossImgWrap` or `.modal-box`. Rename is cosmetic, not functional.
+deleted, all 2461 lines of Vivid baseline CSS rules stripped, and the compound
+selectors left behind use the `v-*` class only as a scoped selector hook. The
+`v-*` names are effectively arbitrary identifiers now, no different from
+`#bossImgWrap` or `.modal-box`. Rename is cosmetic, not functional — but it
+couples three layers (DOM + CSS + JS) that must move in lockstep.
 
-**Resolution plan:**
-- Phase 6 (Launch Prep) — dedicated sub-task for naming cleanup:
-  1. `v-*` class names → `a-*` (DOM + CSS + JS selectors in lockstep)
-  2. Remove remaining `VIVID` / `Vivid` comment strings + `VIVID RENDERERS` label
-  3. Visual smoke test across every screen, every modal
-- Task #1.9 (regression) verification: playtest confirms no screen still renders
-  in the Vivid palette (bright blue sky, cream cards, yellow chunky CTAs).
-  Pre-1.6 Roman playtest flagged Tutorial Complete / Defeat modal / Heroes screen
-  as still-Vivid — post-1.6 they should render Arena Premium via the remaining
-  compound selectors now that the baseline Vivid CSS is gone.
+Attempting the rename inside Task #1.6 would have touched ~400 sites during a
+task already carrying 2461 lines of CSS removal and a live risk of visual
+regressions on previously-approved screens (Hub / Battle / Tower). The size
+payoff is also small — `v-*` vs `a-*` is a 1-char-per-site delta.
+
+**Resolution plan — Phase 6 Launch Prep, dedicated sub-task:**
+
+1. **Rename pass** — atomic find/replace in lockstep across all three layers:
+   - DOM: `class="... v-foo ..."` → `class="... a-foo ..."` (67 class names)
+   - DOM ids: `id="vFoo"` → `id="aFoo"` (36 ids)
+   - CSS: `.v-foo` → `.a-foo` (309 occurrences, all inside compound selectors —
+     need regex that doesn't touch legitimate `.v-foo` standalone selectors if
+     any survived the Task #1.6 baseline strip)
+   - JS: `getElementById('vFoo')` → `getElementById('aFoo')` (36 sites)
+   - JS: `querySelector('.v-foo')` → `querySelector('.a-foo')` (7 sites)
+2. **Cleanup** — remove remaining `VIVID` / `Vivid` comment strings +
+   `VIVID RENDERERS` label (20 textual hits).
+3. **Visual smoke test** across every screen, every modal — same checklist as
+   Task #1.6 visual regression check.
+
+**Task #1.9 (Phase 1 regression) verification:**
+Playtest confirms no screen still renders in the Vivid palette (bright blue sky,
+cream cards, yellow chunky CTAs, Baloo 2 / Fredoka fonts). Pre-1.6 Roman playtest
+flagged Tutorial Complete / Defeat modal / Heroes screen as still-Vivid — post-1.6
+they should render Arena Premium via the remaining compound selectors now that
+the baseline Vivid CSS is gone.
 
 ## DEBT-008 · Phase 1 Task 1.4.2 · FTUE reveal does not unlock
 **Introduced:** 2026-04-24 · observed during Task #1.4.2 smoke test
