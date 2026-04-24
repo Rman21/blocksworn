@@ -6646,391 +6646,6 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .tfm-card { padding: 14px 16px; }
 }
 
-/* ===== V3.0 PHASE 7 BLOCK 7.2 — GHOST ARENA ===== */
-.menu-btn.arena-btn {
-  position: relative;
-  background: linear-gradient(180deg, rgba(255,77,31,0.2) 0%, rgba(185,242,255,0.15) 100%);
-  border: 1px solid #B9F2FF;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-}
-
-#screenArena {
-  padding: 40px 14px 24px;
-  overflow-y: auto;
-  display: flex; flex-direction: column;
-}
-.arena-wrap {
-  display: flex; flex-direction: column; gap: 12px;
-  max-width: 560px; width: 100%; margin: 0 auto;
-}
-.arena-header {
-  text-align: center; padding: 4px 0;
-}
-.arena-header h2 {
-  margin: 0; font-size: 22px; letter-spacing: 5px;
-  color: #F5F3EC; font-weight: 800;
-}
-.arena-tier-card {
-  background: rgba(0,0,0,0.32);
-  border-radius: 12px;
-  padding: 14px 16px;
-  border: 1px solid #3D3F5E;
-  text-align: center;
-}
-.arena-tier-label {
-  font-size: 9px; letter-spacing: 2.5px;
-  color: #A8A5B8; font-weight: 700;
-  margin-bottom: 4px;
-}
-.arena-tier-name {
-  font-size: 26px; font-weight: 800;
-  letter-spacing: 4px;
-  text-shadow: 0 0 12px currentColor;
-  margin-bottom: 8px;
-}
-.arena-tier-points {
-  font-size: 14px; color: #F5F3EC;
-  font-variant-numeric: tabular-nums;
-  margin-bottom: 10px;
-}
-.arena-prog-bar {
-  height: 5px;
-  background: rgba(0,0,0,0.45);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.arena-prog-fill {
-  height: 100%;
-  transition: width 0.4s ease-out;
-}
-
-.arena-stats {
-  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
-  padding: 10px;
-  background: rgba(0,0,0,0.32);
-  border-radius: 10px;
-  border: 1px solid #3D3F5E;
-}
-.arena-stat { text-align: center; padding: 4px 2px; }
-.arena-stat-label {
-  font-size: 9px; letter-spacing: 1.5px;
-  color: #A8A5B8; font-weight: 700;
-  margin-bottom: 4px;
-}
-.arena-stat-value {
-  font-size: 16px; font-weight: 800;
-  color: #F5F3EC;
-  font-variant-numeric: tabular-nums;
-}
-
-.arena-find-btn {
-  padding: 14px;
-  background: linear-gradient(180deg, #B9F2FF, #FFD53D);
-  color: #1A1A2E;
-  border: none; border-radius: 10px;
-  font-weight: 800; font-size: 15px;
-  letter-spacing: 3px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: transform 0.12s, filter 0.12s;
-}
-.arena-find-btn:hover,
-.arena-find-btn:active { transform: translateY(-1px); filter: brightness(1.08); }
-
-.arena-history {
-  background: rgba(0,0,0,0.3);
-  border-radius: 10px;
-  padding: 10px 12px;
-  border: 1px solid #3D3F5E;
-}
-.arena-history h3 {
-  margin: 0 0 8px 0;
-  font-size: 11px; color: #A8A5B8;
-  letter-spacing: 2.5px; font-weight: 700;
-}
-.arena-history-list {
-  display: flex; flex-direction: column; gap: 4px;
-}
-.arena-history-row {
-  display: grid; grid-template-columns: 1fr auto auto; gap: 8px;
-  padding: 5px 8px;
-  background: rgba(255,255,255,0.03);
-  border-radius: 5px;
-  font-size: 10.5px;
-  letter-spacing: 0.4px;
-  border-left: 3px solid transparent;
-}
-.arena-history-row.win  { border-left-color: #78E09E; }
-.arena-history-row.loss { border-left-color: #E85D4A; }
-.arena-history-opponent { color: #F5F3EC; font-weight: 700; }
-.arena-history-outcome { color: #A8A5B8; font-weight: 700; letter-spacing: 1px; }
-.arena-history-row.win  .arena-history-outcome { color: #78E09E; }
-.arena-history-row.loss .arena-history-outcome { color: #E85D4A; }
-.arena-history-delta {
-  color: #F5F3EC; font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-.arena-history-empty {
-  font-size: 10px; color: #6D6B7D;
-  text-align: center; padding: 8px 0;
-  font-style: italic;
-}
-
-@media (max-height: 720px) {
-  #screenArena { padding: 30px 10px 20px; }
-  .arena-header h2 { font-size: 18px; }
-  .arena-tier-name { font-size: 22px; }
-  .arena-stats { padding: 8px; }
-  .arena-stat-value { font-size: 14px; }
-  .arena-find-btn { padding: 12px; font-size: 13px; }
-}
-
-/* ===== V3.0 PHASE 7 BLOCK 7.3 — EVENT DUNGEONS ===== */
-.menu-btn.event-btn {
-  position: relative;
-  background: linear-gradient(180deg, rgba(120,224,158,0.2) 0%, rgba(255,213,61,0.25) 100%);
-  border: 1px solid #78E09E;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-}
-
-#screenEvent {
-  padding: 40px 14px 24px;
-  overflow-y: auto;
-  display: flex; flex-direction: column;
-}
-.event-wrap {
-  display: flex; flex-direction: column; gap: 12px;
-  max-width: 560px; width: 100%; margin: 0 auto;
-}
-.event-header {
-  text-align: center; padding: 4px 0;
-}
-.event-header h2 {
-  margin: 0; font-size: 22px; letter-spacing: 5px;
-  color: #F5F3EC; font-weight: 800;
-}
-.event-card {
-  background: rgba(0,0,0,0.35);
-  border-radius: 14px;
-  padding: 16px 18px;
-  border: 1px solid #3D3F5E;
-  transition: border-color 0.4s, box-shadow 0.4s;
-}
-.event-card-icon {
-  font-size: 48px; text-align: center;
-  line-height: 1;
-  filter: drop-shadow(0 0 12px currentColor);
-  margin-bottom: 6px;
-}
-.event-card-name {
-  text-align: center;
-  font-size: 20px; font-weight: 800;
-  letter-spacing: 4px; color: #F5F3EC;
-  margin-bottom: 10px;
-}
-.event-card-desc {
-  font-size: 11.5px; color: #A8A5B8;
-  line-height: 1.45; letter-spacing: 0.3px;
-  text-align: center;
-  margin-bottom: 12px;
-  padding: 0 6px;
-}
-.event-card-timer {
-  background: rgba(0,0,0,0.45);
-  border-radius: 8px;
-  padding: 10px;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-}
-.event-card-timer-label {
-  font-size: 9px; letter-spacing: 2.5px;
-  color: #A8A5B8; font-weight: 700;
-}
-.event-card-timer-value {
-  font-size: 16px; color: #FFD53D;
-  font-weight: 800; font-variant-numeric: tabular-nums;
-  letter-spacing: 2px;
-}
-
-.event-stats {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-  padding: 10px;
-  background: rgba(0,0,0,0.32);
-  border-radius: 10px;
-  border: 1px solid #3D3F5E;
-}
-.event-stat { text-align: center; padding: 4px 2px; }
-.event-stat-label {
-  font-size: 9px; letter-spacing: 1.5px;
-  color: #A8A5B8; font-weight: 700;
-  margin-bottom: 4px;
-}
-.event-stat-value {
-  font-size: 17px; font-weight: 800;
-  color: #FFD53D;
-  font-variant-numeric: tabular-nums;
-}
-
-.event-shop-btn {
-  padding: 10px;
-  background: rgba(0,0,0,0.32);
-  color: #FFD53D;
-  border: 1px solid #FFD53D;
-  border-radius: 8px;
-  font-weight: 700; font-size: 12px;
-  letter-spacing: 2px;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-@media (max-height: 720px) {
-  #screenEvent { padding: 30px 10px 20px; }
-  .event-header h2 { font-size: 18px; }
-  .event-card { padding: 13px 14px; }
-  .event-card-icon { font-size: 38px; }
-  .event-card-name { font-size: 17px; }
-  .event-card-desc { font-size: 10.5px; }
-  .event-card-timer-value { font-size: 14px; }
-  .event-stat-value { font-size: 15px; }
-}
-
-@media (max-height: 720px) {
-  #screenDailies { padding: 30px 10px 20px; }
-  .dailies-header h2 { font-size: 17px; }
-  .streak-section, .missions-section { padding: 10px; }
-  .streak-day { padding: 5px 2px; }
-  .streak-day-label { font-size: 8px; }
-  .streak-day-reward { font-size: 9px; }
-  .claim-streak-btn { padding: 9px; font-size: 11px; }
-  .mission-card { padding: 9px 10px; }
-  .mission-desc { font-size: 10px; }
-}
-
-/* ===== V3.0 PHASE 7 BLOCK 7.4 — AWAKENING ===== */
-.menu-btn.awaken-btn {
-  position: relative;
-  background: linear-gradient(180deg, rgba(255,213,61,0.2) 0%, rgba(255,77,31,0.25) 100%);
-  border: 1px solid #FFD53D;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-}
-
-#screenAwaken {
-  padding: 40px 14px 24px;
-  overflow-y: auto;
-  display: flex; flex-direction: column;
-}
-#screenAwaken.active { display: flex; }
-.awaken-wrap {
-  display: flex; flex-direction: column; gap: 12px;
-  max-width: 560px; width: 100%; margin: 0 auto;
-}
-.awaken-header { text-align: center; }
-.awaken-header h2 {
-  font-size: 20px; letter-spacing: 5px; color: #FFD53D;
-  text-shadow: 0 0 12px rgba(255,213,61,0.4);
-  margin: 0 0 4px;
-}
-.awaken-subtitle { font-size: 11px; color: #A8A5B8; letter-spacing: 2px; }
-
-.awaken-stats {
-  display: flex; gap: 8px;
-  background: rgba(0,0,0,0.3); border: 1px solid #FFD53D;
-  border-radius: 10px; padding: 10px;
-}
-.awaken-stat { flex: 1; text-align: center; }
-.awaken-stat-label { font-size: 10px; color: #A8A5B8; letter-spacing: 2px; margin-bottom: 4px; }
-.awaken-stat-value { font-size: 15px; color: #FFD53D; font-weight: 800; }
-
-.awaken-section {
-  background: rgba(0,0,0,0.25); border: 1px solid #3D3F5E;
-  border-radius: 10px; padding: 10px;
-}
-.awaken-section h3 {
-  font-size: 12px; letter-spacing: 3px; color: #F5F3EC;
-  margin: 0 0 8px;
-}
-.awaken-list { display: flex; flex-direction: column; gap: 6px; }
-.awaken-list.awakened { border-left: 2px solid #FFD53D; padding-left: 8px; }
-.awaken-list.eligible { border-left: 2px solid #78E09E; padding-left: 8px; }
-.awaken-list.candidates { border-left: 2px solid #8C3BFF; padding-left: 8px; }
-.awaken-empty { font-size: 11px; color: #A8A5B8; font-style: italic; padding: 4px 0; }
-
-.awaken-row {
-  display: flex; align-items: center; gap: 8px;
-  background: rgba(255,255,255,0.03);
-  padding: 8px 10px; border-radius: 6px;
-  font-size: 11px;
-}
-.awaken-row.awakened { background: rgba(255,213,61,0.08); border: 1px solid rgba(255,213,61,0.4); }
-.awaken-row.eligible { background: rgba(120,224,158,0.06); border: 1px solid rgba(120,224,158,0.3); }
-.awaken-row-name   { flex: 1; color: #F5F3EC; font-weight: 700; letter-spacing: 1px; }
-.awaken-row-star   { color: #FFD53D; font-size: 14px; }
-.awaken-row-meta   { color: #A8A5B8; font-size: 10px; }
-.awaken-row-gaps   { color: #E85D4A; font-size: 10px; font-weight: 700; }
-
-.awaken-hint {
-  font-size: 10px; color: #A8A5B8; text-align: center;
-  padding: 8px; line-height: 1.5; font-style: italic;
-}
-
-/* Awakened hero visual markers on roster card (applied by renderRoster via class) */
-.roster-card.awakened {
-  position: relative;
-  box-shadow: 0 0 12px rgba(255,213,61,0.3), inset 0 0 0 1px rgba(255,213,61,0.4);
-}
-.roster-card.awakened::after {
-  content: '★';
-  position: absolute;
-  top: 3px; right: 4px;
-  color: #FFD53D;
-  font-size: 14px;
-  text-shadow: 0 0 6px rgba(255,213,61,0.8);
-  z-index: 2;
-  pointer-events: none;
-}
-
-/* Detail-modal AWAKEN button (injected by Phase 4.2 level section refresh) */
-.detail-awaken-btn {
-  width: 100%;
-  padding: 10px 14px;
-  margin-top: 8px;
-  background: linear-gradient(180deg, rgba(255,213,61,0.25) 0%, rgba(255,77,31,0.3) 100%);
-  color: #FFD53D;
-  border: 1px solid #FFD53D;
-  border-radius: 8px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: transform 0.15s, filter 0.15s;
-}
-.detail-awaken-btn:hover:not(:disabled),
-.detail-awaken-btn:active:not(:disabled) {
-  transform: translateY(-1px);
-  filter: brightness(1.15);
-  box-shadow: 0 4px 12px rgba(255,213,61,0.25);
-}
-.detail-awaken-btn:disabled {
-  opacity: 0.45; cursor: not-allowed;
-  background: rgba(255,255,255,0.05);
-  border-color: #3D3F5E; color: #A8A5B8;
-}
-.detail-awaken-btn.awakened {
-  background: linear-gradient(180deg, rgba(255,213,61,0.4), rgba(232,157,31,0.5));
-  color: #1A1B2E; border-color: #FFD53D;
-  cursor: default;
-}
-.detail-awaken-reason {
-  font-size: 10px; color: #A8A5B8; text-align: center;
-  margin-top: 4px; letter-spacing: 1px;
-}
-
-@media (max-height: 720px) {
-  #screenAwaken { padding: 30px 10px 20px; }
-  .awaken-header h2 { font-size: 17px; }
-  .awaken-stat-value { font-size: 13px; }
-  .awaken-section h3 { font-size: 11px; }
-}
-
 /* ===== V3.0 PHASE 7 BLOCK 7.5 — SEASON PASS ===== */
 .menu-btn.season-btn {
   position: relative;
@@ -11073,9 +10688,6 @@ img#bossImg.v-fx-boss-die {
         <span class="a-bottom-nav__icon">💎</span>SHOP
         <span class="v-badge" id="vShopBadge" style="display:none">0</span>
       </button>
-      <button class="v-nav-item" data-nav="events" onclick="goToEvent()">
-        <span class="a-bottom-nav__icon">✦</span>EVENTS
-      </button>
     </nav>
   </div>
 
@@ -11092,8 +10704,6 @@ img#bossImg.v-fx-boss-die {
         <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToAchievements();">🏆 ACH</button>
         <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToCodex();">📖 CODEX</button>
         <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToTower();">🗼 TOWER</button>
-        <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToArena();">⚔ ARENA</button>
-        <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToAwaken();">✨ AWAKEN</button>
         <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToSeason();">🗓 SEASON</button>
         <button class="a-btn-ghost" onclick="aCloseHubDrawer(); openModifiersSheet();">⚙ MODS</button>
       </div>
@@ -11146,7 +10756,6 @@ img#bossImg.v-fx-boss-die {
       <button class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="a-bottom-nav__icon">⌂</span>HOME</button>
       <button class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="a-bottom-nav__icon">⚔</span>HEROES</button>
       <button class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="a-bottom-nav__icon">💎</span>SHOP</button>
-      <button class="v-nav-item" data-nav="events" onclick="goToEvent()"><span class="a-bottom-nav__icon">✦</span>EVENTS</button>
     </nav>
   </div>
 </div>
@@ -11243,7 +10852,6 @@ img#bossImg.v-fx-boss-die {
     <button class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="a-bottom-nav__icon">⌂</span>HOME</button>
     <button class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="a-bottom-nav__icon">⚔</span>HEROES</button>
     <button class="v-nav-item active" data-nav="shop" onclick="goToShop()"><span class="a-bottom-nav__icon">💎</span>SHOP</button>
-    <button class="v-nav-item" data-nav="events" onclick="goToEvent()"><span class="a-bottom-nav__icon">✦</span>EVENTS</button>
   </nav>
 </div>
 
@@ -11282,7 +10890,6 @@ img#bossImg.v-fx-boss-die {
     <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
     <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
-    <div class="v-nav-item" data-nav="events" onclick="goToEvent()"><span class="icn">✦</span>EVENTS</div>
   </nav>
 </div>
 
@@ -11308,7 +10915,6 @@ img#bossImg.v-fx-boss-die {
     <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
     <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
-    <div class="v-nav-item" data-nav="events" onclick="goToEvent()"><span class="icn">✦</span>EVENTS</div>
   </nav>
 </div>
 
@@ -11339,7 +10945,6 @@ img#bossImg.v-fx-boss-die {
     <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
     <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
-    <div class="v-nav-item" data-nav="events" onclick="goToEvent()"><span class="icn">✦</span>EVENTS</div>
   </nav>
 </div>
 
@@ -11363,10 +10968,6 @@ img#bossImg.v-fx-boss-die {
         <div class="tower-stat-label">🗼 PTS</div>
         <div class="tower-stat-value" id="towerPoints">0</div>
       </div>
-      <div class="tower-stat">
-        <div class="tower-stat-label">✦ SHARDS</div>
-        <div class="tower-stat-value" id="towerShards">0</div>
-      </div>
     </div>
     <div class="tower-current" id="towerCurrent"></div>
     <button class="tower-enter-btn" id="towerEnterBtn" onclick="startTowerRun()">▲ ENTER TOWER</button>
@@ -11380,7 +10981,6 @@ img#bossImg.v-fx-boss-die {
     <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
     <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
-    <div class="v-nav-item" data-nav="events" onclick="goToEvent()"><span class="icn">✦</span>EVENTS</div>
   </nav>
 </div>
 
@@ -11409,141 +11009,6 @@ img#bossImg.v-fx-boss-die {
       <button class="tfm-btn tfm-btn-continue" onclick="onTowerContinue()">CONTINUE ▲</button>
     </div>
   </div>
-</div>
-
-<!-- ============ V3.0 PHASE 7 BLOCK 7.2 · GHOST ARENA ============ -->
-<div class="screen v-secondary v-arena" id="screenArena">
-  <button class="back-btn v-btn-icon" onclick="goToMenu()">←</button>
-  <div class="arena-wrap">
-    <div class="arena-header">
-      <h2>⚔ GHOST ARENA</h2>
-    </div>
-    <div class="arena-tier-card">
-      <div class="arena-tier-label">CURRENT TIER</div>
-      <div class="arena-tier-name" id="arenaTier">BRONZE</div>
-      <div class="arena-tier-points"><span id="arenaPts">0</span> ★</div>
-      <div class="arena-prog-bar">
-        <div class="arena-prog-fill" id="arenaProgFill" style="width:0%"></div>
-      </div>
-    </div>
-    <div class="arena-stats">
-      <div class="arena-stat">
-        <div class="arena-stat-label">MATCHES</div>
-        <div class="arena-stat-value" id="arenaMatches">5</div>
-      </div>
-      <div class="arena-stat">
-        <div class="arena-stat-label">🪙 CREDITS</div>
-        <div class="arena-stat-value" id="arenaCredits">0</div>
-      </div>
-      <div class="arena-stat">
-        <div class="arena-stat-label">PEAK</div>
-        <div class="arena-stat-value" id="arenaPeak">BRONZE</div>
-      </div>
-    </div>
-    <button class="arena-find-btn" onclick="startArenaMatch()">⚔ FIND OPPONENT</button>
-    <div class="arena-history">
-      <h3>RECENT MATCHES</h3>
-      <div class="arena-history-list" id="arenaHistoryList"></div>
-    </div>
-  </div>
-  <nav class="v-bottom-nav">
-    <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
-    <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
-    <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
-    <div class="v-nav-item" data-nav="events" onclick="goToEvent()"><span class="icn">✦</span>EVENTS</div>
-  </nav>
-</div>
-
-<!-- ============ V3.0 PHASE 7 BLOCK 7.3 · EVENT DUNGEONS ============ -->
-<div class="screen v-secondary v-event" id="screenEvent">
-  <button class="back-btn v-btn-icon" onclick="goToMenu()">←</button>
-  <div class="event-wrap">
-    <div class="event-header">
-      <h2>⚡ EVENTS</h2>
-    </div>
-    <div class="event-card" id="eventCard">
-      <div class="event-card-icon" id="eventIcon">⚡</div>
-      <div class="event-card-name" id="eventName">—</div>
-      <div class="event-card-desc" id="eventDesc">Loading active event…</div>
-      <div class="event-card-timer">
-        <span class="event-card-timer-label">ENDS IN</span>
-        <span class="event-card-timer-value" id="eventTimer">--:--:--</span>
-      </div>
-    </div>
-    <div class="event-stats">
-      <div class="event-stat">
-        <div class="event-stat-label">⚡ TOKENS</div>
-        <div class="event-stat-value" id="eventTokens">0</div>
-      </div>
-      <div class="event-stat">
-        <div class="event-stat-label">BATTLES</div>
-        <div class="event-stat-value" id="eventBattleCount">0</div>
-      </div>
-    </div>
-    <button class="event-shop-btn" onclick="openEventShop()">⚡ EVENT SHOP</button>
-  </div>
-  <nav class="v-bottom-nav">
-    <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
-    <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
-    <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
-    <div class="v-nav-item" data-nav="events" onclick="goToEvent()"><span class="icn">✦</span>EVENTS</div>
-  </nav>
-</div>
-
-<!-- ============ V3.0 PHASE 7 BLOCK 7.4 · AWAKENING HUB ============ -->
-<!-- Primary Awakening UI lives in the hero detail modal (a new "AWAKEN" button   -->
-<!-- appears below the level-up controls when eligibility passes). This standalone -->
-<!-- screen is a secondary overview — shows all awakened heroes, shard count, and  -->
-<!-- eligibility candidates (heroes who need only N more shards/essence).           -->
-<div class="screen v-secondary v-awaken" id="screenAwaken">
-  <button class="back-btn v-btn-icon" onclick="goToMenu()">←</button>
-  <div class="awaken-wrap">
-    <div class="awaken-header">
-      <h2>★ AWAKENING ★</h2>
-      <div class="awaken-subtitle">L60 · T4 · matching artifact required</div>
-    </div>
-    <div class="awaken-stats">
-      <div class="awaken-stat">
-        <div class="awaken-stat-label">AWAKENED</div>
-        <div class="awaken-stat-value"><span id="awakenedCount">0</span>/50</div>
-      </div>
-      <div class="awaken-stat">
-        <div class="awaken-stat-label">✦ SHARDS</div>
-        <div class="awaken-stat-value" id="awakenShards">0</div>
-      </div>
-      <div class="awaken-stat">
-        <div class="awaken-stat-label">COST</div>
-        <div class="awaken-stat-value">10✦ · 200🔮</div>
-      </div>
-    </div>
-    <div class="awaken-section">
-      <h3>AWAKENED HEROES</h3>
-      <div class="awaken-list awakened" id="awakenedList">
-        <div class="awaken-empty">None yet. Awaken a hero from the roster detail screen.</div>
-      </div>
-    </div>
-    <div class="awaken-section">
-      <h3>ELIGIBLE NOW</h3>
-      <div class="awaken-list eligible" id="eligibleList">
-        <div class="awaken-empty">No heroes currently eligible. Level up, tier up, and equip a matching-race artifact.</div>
-      </div>
-    </div>
-    <div class="awaken-section">
-      <h3>NEARLY ELIGIBLE</h3>
-      <div class="awaken-list candidates" id="candidateList">
-        <div class="awaken-empty">Keep playing.</div>
-      </div>
-    </div>
-    <div class="awaken-hint">
-      Shards drop from Tower F25/F50/F75/F100… Event Shop, Season Pass premium tiers.
-    </div>
-  </div>
-  <nav class="v-bottom-nav">
-    <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
-    <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
-    <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
-    <div class="v-nav-item" data-nav="events" onclick="goToEvent()"><span class="icn">✦</span>EVENTS</div>
-  </nav>
 </div>
 
 <!-- ============ V3.0 PHASE 7 BLOCK 7.5 · SEASON PASS ============ -->
@@ -11585,7 +11050,6 @@ img#bossImg.v-fx-boss-die {
     <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
     <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
-    <div class="v-nav-item" data-nav="events" onclick="goToEvent()"><span class="icn">✦</span>EVENTS</div>
   </nav>
 </div>
 
@@ -16133,8 +15597,7 @@ const EFFECT_HANDLERS = {
     // Block 6.2 replaces the stub below with real DIALOG_LINES lookup.
     // V3.0 Phase 7 Block 7.1: Tower battles skip phase narrative dialogs
     // (bosses rotate per floor so mid-fight monologues break immersion).
-    // V3.0 Phase 7 Block 7.2: Arena skips too — synthetic bosses have no dialogs.
-    if (currentBoss && (currentBoss._isTowerBattle || currentBoss._isArenaBattle)) return;
+    if (currentBoss && currentBoss._isTowerBattle) return;
     if (typeof showBossPhaseDialog === 'function') {
       try { showBossPhaseDialog(param); } catch(e){ console.warn('phase dialog failed:', e); }
     }
@@ -16801,45 +16264,6 @@ if (typeof ACHIEVEMENTS !== 'undefined' && !ACHIEVEMENTS.find(a => a.id === 'sky
   });
 }
 
-// V3.0 Phase 7 Block 7.2: Arena Champion — reach Master tier (3500+ points).
-// Crown trophy. Checks current arenaState.points retroactively so save-migration
-// users who already passed threshold get credit on first Arena screen load.
-if (typeof ACHIEVEMENTS !== 'undefined' && !ACHIEVEMENTS.find(a => a.id === 'arena_champion')) {
-  ACHIEVEMENTS.push({
-    id: 'arena_champion',
-    category: 'crown',
-    icon: '⚔',
-    name: 'ARENA CHAMPION',
-    description: 'Reach Master tier in the Ghost Arena',
-    target: 1,
-    check: () => {
-      if (typeof arenaState !== 'undefined' && arenaState && arenaState.points >= 3500) return 1;
-      // Also credit if peak was ever Master (stays unlocked even after dropping)
-      if (typeof arenaState !== 'undefined' && arenaState && arenaState.peakTier === 'master') return 1;
-      return 0;
-    },
-    reward: { gems: 400, gold: 6000 },
-  });
-}
-
-// V3.0 Phase 7 Block 7.3: Event Seasoned — complete 30 battles during any active event.
-// Battle counter increments in maybeTriggerEventOnBossDefeat (fires in story + tower + arena).
-if (typeof ACHIEVEMENTS !== 'undefined' && !ACHIEVEMENTS.find(a => a.id === 'event_seasoned')) {
-  ACHIEVEMENTS.push({
-    id: 'event_seasoned',
-    category: 'progress',
-    icon: '⚡',
-    name: 'EVENT SEASONED',
-    description: 'Complete 30 battles during active events',
-    target: 30,
-    check: () => {
-      if (typeof eventBattleCount !== 'undefined') return Math.min(eventBattleCount, 30);
-      return 0;
-    },
-    reward: { gems: 150, gold: 2500 },
-  });
-}
-
 // ========= Console helpers =========
 if (typeof window !== 'undefined') {
   window.shroudTick            = shroudTick;
@@ -16882,29 +16306,6 @@ if (typeof window !== 'undefined') {
 // Architecture: bypasses Phase 2 dungeon routing via direct startBossBattle()
 // after setting currentBoss + _isTowerBattle flag. startBossBattle patched to
 // skip BOSSES[idx] reassignment when _isTowerBattle is active.
-
-// ========= Shared currency: Awakening Shards =========
-// Defined in 7.1 (Tower pays shards at milestones). 7.4 (Awakening) extends
-// with spend/sink logic. 7.2/7.3/7.5 also deposit via this shared currency.
-let awakeningShards = 0;
-const AWAKENING_SHARDS_KEY = 'blocksworn_awakening_shards';
-
-function loadAwakeningShards() {
-  try {
-    const raw = localStorage.getItem(AWAKENING_SHARDS_KEY);
-    awakeningShards = raw ? Math.max(0, parseInt(raw, 10) || 0) : 0;
-  } catch (e) { awakeningShards = 0; }
-}
-function saveAwakeningShards() {
-  try { localStorage.setItem(AWAKENING_SHARDS_KEY, String(awakeningShards)); } catch (e) {}
-}
-function addAwakeningShards(n) {
-  const v = Math.floor(Number(n));
-  if (!Number.isFinite(v) || v <= 0) return;
-  awakeningShards += v;
-  saveAwakeningShards();
-}
-loadAwakeningShards();
 
 // ========= Tower state =========
 let towerState = {
@@ -17053,12 +16454,6 @@ function onTowerFloorClear() {
   const ptsReward = 5 * floor + (floor % 10 === 0 ? 50 : 0);
   try { addGold(goldReward); } catch (e) {}
   towerState.towerPoints += ptsReward;
-  // Awakening Shards at milestone floors F25, F50, F75, F100, then every F25
-  let gotShard = false;
-  if (floor === 25 || floor === 50 || floor === 75 || floor === 100 || (floor > 100 && floor % 25 === 0)) {
-    addAwakeningShards(1);
-    gotShard = true;
-  }
   // Update bests
   if (floor > towerState.weeklyBest)  towerState.weeklyBest  = floor;
   if (floor > towerState.allTimeBest) towerState.allTimeBest = floor;
@@ -17066,11 +16461,8 @@ function onTowerFloorClear() {
   saveTowerState();
   // Consolidated flash (Trap 4 mitigation — single message per floor vs stacking)
   const parts = [`+${goldReward}💰`, `+${ptsReward}🗼`];
-  if (gotShard) parts.push('+1✦');
   try { flashText(`▲ FLOOR ${floor} CLEARED · ${parts.join(' ')}`, '#FFD53D'); } catch (e) {}
   try { vibrate([60, 40, 60, 40, 120]); } catch (e) {}
-  // V3.0 Phase 7 Block 7.3: event tokens accrue from tower clears too
-  try { maybeTriggerEventOnBossDefeat(currentBoss); } catch (e) {}
   // V3.0 Phase 7 Block 7.5: Season XP (+10 per floor, scaling)
   try { if (typeof addSeasonXP === 'function') addSeasonXP(10 * floor); } catch (e) {}
   // Achievement: Sky Climber at F50 (Phase 5 hook)
@@ -17121,7 +16513,6 @@ function renderTowerScreen() {
   const at = document.getElementById('towerAllTime'); if (at) at.textContent = String(towerState.allTimeBest);
   const wk = document.getElementById('towerWeekly');  if (wk) wk.textContent = String(towerState.weeklyBest);
   const pt = document.getElementById('towerPoints');  if (pt) pt.textContent = String(towerState.towerPoints);
-  const sh = document.getElementById('towerShards');  if (sh) sh.textContent = String(awakeningShards);
   const btn     = document.getElementById('towerEnterBtn');
   const current = document.getElementById('towerCurrent');
   if (btn && current) {
@@ -17195,7 +16586,6 @@ const TOWER_SHOP_ITEMS = [
       try { saveProgress(); } catch (e) {}
     }
   },
-  { id: 'tp_shard_1',    label: '✦ 1 AWAKENING SHARD',       cost: 250, grant: () => addAwakeningShards(1) },
 ];
 
 function openTowerShop() {
@@ -17252,1054 +16642,6 @@ if (typeof window !== 'undefined') {
 }
 // ===== END BLOCK 7.1 BACKEND =====
 
-// ===== V3.0 PHASE 7 BLOCK 7.2 — GHOST ARENA =====
-// Simulated competitive ladder. 5 daily free matches (+extra via gems) against
-// fabricated "ghost" opponents. 5-tier rank (Bronze → Master) with point-based
-// progression. Peak tier persists; weekly peak snapshot for cosmetic badge.
-//
-// Unlock: Chapter 1 complete (all 5 F1 clears). Softer gate than Tower.
-// Architecture: synthetic boss built from opponent.powerLevel, battle flows
-// through startBossBattle with _isArenaBattle flag (parallel to Tower pattern).
-
-const ARENA_TIERS = [
-  { id: 'bronze',  name: 'BRONZE',  min: 0,    max: 499,   color: '#B87333', winPts: 20, lossPts: 10 },
-  { id: 'silver',  name: 'SILVER',  min: 500,  max: 999,   color: '#C0C0C0', winPts: 25, lossPts: 15 },
-  { id: 'gold',    name: 'GOLD',    min: 1000, max: 1999,  color: '#FFD53D', winPts: 30, lossPts: 20 },
-  { id: 'diamond', name: 'DIAMOND', min: 2000, max: 3499,  color: '#B9F2FF', winPts: 35, lossPts: 25 },
-  { id: 'master',  name: 'MASTER',  min: 3500, max: 99999, color: '#FF4D1F', winPts: 40, lossPts: 30 },
-];
-
-// 35 opponents distributed across power tiers + stihiyas. Matchmaking picks
-// within ±30% of player power; with this density Bronze players see 4-6 variants
-// per day, Master players see 3-5. Flavor adds world-building ambience.
-const ARENA_OPPONENTS = [
-  // Bronze range (powerLevel 100-400)
-  { id: 'op_01', name: 'IRONFIST',      banner: '⚔', powerLevel: 150, stihiyaBias: 'ember', flavor: 'Clan Flame-Forge. Raiders of the wastes.' },
-  { id: 'op_02', name: 'DEEPCHANT',     banner: '🌊', powerLevel: 220, stihiyaBias: 'tide',  flavor: 'Singers of the abyss. Silent, deadly.' },
-  { id: 'op_03', name: 'GROVESCION',    banner: '🌿', powerLevel: 290, stihiyaBias: 'grove', flavor: 'Ancient thorn-clan. Patient and rooted.' },
-  { id: 'op_04', name: 'SUNHERALD',     banner: '☀', powerLevel: 360, stihiyaBias: 'solar', flavor: 'Warband of the golden dawn.' },
-  { id: 'op_05', name: 'NIGHTSHROUD',   banner: '🌑', powerLevel: 420, stihiyaBias: 'umbra', flavor: 'Cult of the waning moon.' },
-  { id: 'op_06', name: 'ASHBORNE',      banner: '⚔', powerLevel: 180, stihiyaBias: 'ember', flavor: 'Rises from charred battlefields.' },
-  { id: 'op_07', name: 'FOAMWALKER',    banner: '🌊', powerLevel: 340, stihiyaBias: 'tide',  flavor: 'Never seen, always heard.' },
-  // Silver range (500-900)
-  { id: 'op_08', name: 'CROWNWOOD',     banner: '🌿', powerLevel: 560, stihiyaBias: 'grove', flavor: 'Wooden crown, iron will.' },
-  { id: 'op_09', name: 'DAWNSTALKER',   banner: '☀', powerLevel: 640, stihiyaBias: 'solar', flavor: 'Strikes at first light.' },
-  { id: 'op_10', name: 'HOLLOWKING',    banner: '🌑', powerLevel: 720, stihiyaBias: 'umbra', flavor: 'Ruled a kingdom of whispers.' },
-  { id: 'op_11', name: 'CINDERLORD',    banner: '⚔', powerLevel: 510, stihiyaBias: 'ember', flavor: 'Every step burns the earth.' },
-  { id: 'op_12', name: 'TIDECLAW',      banner: '🌊', powerLevel: 790, stihiyaBias: 'tide',  flavor: 'Hunts in the shallows.' },
-  { id: 'op_13', name: 'MOSSHEART',     banner: '🌿', powerLevel: 860, stihiyaBias: 'grove', flavor: 'The forest remembers.' },
-  // Gold range (1000-1800)
-  { id: 'op_14', name: 'BRIGHTBLADE',   banner: '☀', powerLevel: 1050, stihiyaBias: 'solar', flavor: 'The sun forged this blade.' },
-  { id: 'op_15', name: 'WRAITHSONG',    banner: '🌑', powerLevel: 1180, stihiyaBias: 'umbra', flavor: 'Her song ends battles.' },
-  { id: 'op_16', name: 'MAGMAHEART',    banner: '⚔', powerLevel: 1280, stihiyaBias: 'ember', flavor: 'Volcano for a heart.' },
-  { id: 'op_17', name: 'STORMCALLER',   banner: '🌊', powerLevel: 1390, stihiyaBias: 'tide',  flavor: 'Summons the deep tempest.' },
-  { id: 'op_18', name: 'ROOTWRAITH',    banner: '🌿', powerLevel: 1490, stihiyaBias: 'grove', flavor: 'Bound to the oldest tree.' },
-  { id: 'op_19', name: 'GOLDENSWORN',   banner: '☀', powerLevel: 1620, stihiyaBias: 'solar', flavor: 'Vowed to the sun itself.' },
-  { id: 'op_20', name: 'DIRGEWEAVER',   banner: '🌑', powerLevel: 1750, stihiyaBias: 'umbra', flavor: 'Weaves funeral songs mid-battle.' },
-  { id: 'op_21', name: 'EMBERFANG',     banner: '⚔', powerLevel: 1880, stihiyaBias: 'ember', flavor: 'Wolves of the burning steppe.' },
-  // Diamond range (2000-3400)
-  { id: 'op_22', name: 'DEEPSOVEREIGN', banner: '🌊', powerLevel: 2100, stihiyaBias: 'tide',  flavor: 'Rules the Mariana Court.' },
-  { id: 'op_23', name: 'ELDERBARK',     banner: '🌿', powerLevel: 2340, stihiyaBias: 'grove', flavor: 'Older than the mountains.' },
-  { id: 'op_24', name: 'SOLSCARRED',    banner: '☀', powerLevel: 2560, stihiyaBias: 'solar', flavor: 'Marked by a sun that bled.' },
-  { id: 'op_25', name: 'VOIDTHRONE',    banner: '🌑', powerLevel: 2790, stihiyaBias: 'umbra', flavor: 'Sits a throne made of silence.' },
-  { id: 'op_26', name: 'INFERNALKIN',   banner: '⚔', powerLevel: 3020, stihiyaBias: 'ember', flavor: 'Blood-kin of the first flame.' },
-  { id: 'op_27', name: 'ABYSSHERALD',   banner: '🌊', powerLevel: 3240, stihiyaBias: 'tide',  flavor: 'Messenger from the deepest trench.' },
-  { id: 'op_28', name: 'GREENGLORY',    banner: '🌿', powerLevel: 3420, stihiyaBias: 'grove', flavor: 'Last of the glade-wardens.' },
-  // Master range (3500+)
-  { id: 'op_29', name: 'SUNHAMMER',     banner: '☀', powerLevel: 3800, stihiyaBias: 'solar', flavor: 'Hammer forged in stellar fire.' },
-  { id: 'op_30', name: 'NIGHTLORD',     banner: '🌑', powerLevel: 4100, stihiyaBias: 'umbra', flavor: 'Commander of the eternal night.' },
-  { id: 'op_31', name: 'ASHKING',       banner: '⚔', powerLevel: 4400, stihiyaBias: 'ember', flavor: 'Crowned in coals, armored in ash.' },
-  { id: 'op_32', name: 'OCEANWRAITH',   banner: '🌊', powerLevel: 4700, stihiyaBias: 'tide',  flavor: 'Drowned legends answer her call.' },
-  { id: 'op_33', name: 'FORESTMYTH',    banner: '🌿', powerLevel: 5000, stihiyaBias: 'grove', flavor: 'Once thought a legend. Now a threat.' },
-  { id: 'op_34', name: 'STARFORGED',    banner: '☀', powerLevel: 5400, stihiyaBias: 'solar', flavor: 'Made of sundered starlight.' },
-  { id: 'op_35', name: 'VOIDSCION',     banner: '🌑', powerLevel: 5900, stihiyaBias: 'umbra', flavor: 'Born of Voidfang\'s final breath.' },
-];
-
-let arenaState = {
-  points: 0,
-  dailyMatchesRemaining: 5,
-  lastMatchDate: null,
-  credits: 0,
-  matchHistory: [],
-  peakTier: 'bronze',
-  weeklyPeakTier: 'bronze',
-  currentWeekStart: null,
-};
-const ARENA_KEY = 'blocksworn_arena_state';
-let _isArenaBattle = false;
-let _arenaPreMatch = null;    // stash pre-arena modifiers (Trap 1 equivalent)
-let _currentArenaOpponent = null;
-
-function saveArenaState() {
-  try { localStorage.setItem(ARENA_KEY, JSON.stringify(arenaState)); } catch (e) { console.warn('saveArenaState:', e); }
-}
-function loadArenaState() {
-  try {
-    const raw = localStorage.getItem(ARENA_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') arenaState = Object.assign(arenaState, parsed);
-    }
-    if (!Array.isArray(arenaState.matchHistory)) arenaState.matchHistory = [];
-  } catch (e) { console.warn('loadArenaState:', e); }
-}
-loadArenaState();
-
-function isArenaUnlocked() {
-  if (typeof getFloorCleared !== 'function') return false;
-  // All 5 Ch1 bosses cleared on F1+ = "chapter 1 complete" (matches Phase 5.2 ach)
-  for (let b = 0; b < 5; b++) { if (getFloorCleared(1, b) < 1) return false; }
-  return true;
-}
-
-// Avoids name collision with Phase 5.2 hero tier concept — explicit arena tier getter.
-function getArenaTier() {
-  for (const t of ARENA_TIERS) {
-    if (arenaState.points >= t.min && arenaState.points <= t.max) return t;
-  }
-  return ARENA_TIERS[0];
-}
-
-function getPlayerPower() {
-  // Sum of squad levels × tiers + floor(awakening count × 200)
-  // Baseline 100 ensures fresh-account players still matchmake into Bronze pool.
-  let total = 100;
-  try {
-    for (const id of (activeSquad || [])) {
-      if (!id) continue;
-      const level = (typeof getHeroLevel === 'function') ? getHeroLevel(id) : 1;
-      const tier = (heroUpgrades && heroUpgrades[id]) || 0;
-      total += level * 10 + tier * 100;
-    }
-  } catch (e) {}
-  return total;
-}
-
-function findMatchingOpponents(playerPower) {
-  const range = playerPower * 0.3; // ±30% matchmaking window
-  const matched = ARENA_OPPONENTS.filter(o => Math.abs(o.powerLevel - playerPower) <= range);
-  // Fallback: if no matches in range, widen to ±80%
-  if (matched.length === 0) {
-    const wideRange = playerPower * 0.8;
-    return ARENA_OPPONENTS.filter(o => Math.abs(o.powerLevel - playerPower) <= wideRange);
-  }
-  return matched;
-}
-
-function selectOpponent() {
-  const power = getPlayerPower();
-  const candidates = findMatchingOpponents(power);
-  if (candidates.length === 0) return ARENA_OPPONENTS[0];
-  return candidates[Math.floor(Math.random() * candidates.length)];
-}
-
-// ========= Daily reset + match entry =========
-function checkArenaDailyReset() {
-  if (typeof getTodayDateKey !== 'function') return;
-  const today = getTodayDateKey();
-  if (arenaState.lastMatchDate !== today) {
-    arenaState.dailyMatchesRemaining = 5;
-    arenaState.lastMatchDate = today;
-    saveArenaState();
-  }
-}
-
-function canStartArenaMatch() {
-  return arenaState.dailyMatchesRemaining > 0;
-}
-
-function checkArenaWeeklyReset() {
-  if (typeof getCurrentWeekStart !== 'function') return;
-  const now = getCurrentWeekStart();
-  if (!arenaState.currentWeekStart) {
-    arenaState.currentWeekStart = now;
-    saveArenaState();
-    return;
-  }
-  if (arenaState.currentWeekStart !== now) {
-    // Weekly peak snapshot — reset weeklyPeakTier to current tier (floor for new week)
-    arenaState.weeklyPeakTier = getArenaTier().id;
-    arenaState.currentWeekStart = now;
-    saveArenaState();
-  }
-}
-
-function startArenaMatch() {
-  if (!isArenaUnlocked()) { showToast('Complete Chapter 1 first'); return; }
-  if (typeof isFtueActive === 'function' && isFtueActive()) return;
-  if (_isTowerBattle) { showToast('Finish Tower run first'); return; }
-  checkArenaDailyReset();
-  if (!canStartArenaMatch()) {
-    const buyMore = confirm('Out of daily matches.\nSpend 100 💎 for 1 more?');
-    if (!buyMore) return;
-    if (typeof spendGems !== 'function' || !spendGems(100)) { showToast('Not enough gems'); return; }
-    arenaState.dailyMatchesRemaining += 1;
-  }
-  const opponent = selectOpponent();
-  // MVP: native confirm for opponent preview (custom modal can replace in polish pass)
-  const confirmed = confirm(
-    `OPPONENT: ${opponent.name} ${opponent.banner}\n` +
-    `Power: ${opponent.powerLevel}\n` +
-    `Stihiya: ${opponent.stihiyaBias.toUpperCase()}\n\n` +
-    `"${opponent.flavor}"\n\n` +
-    `Engage?`
-  );
-  if (!confirmed) return;
-  arenaState.dailyMatchesRemaining -= 1;
-  saveArenaState();
-  launchArenaMatch(opponent);
-}
-
-// ========= Match flow =========
-function launchArenaMatch(opponent) {
-  _currentArenaOpponent = opponent;
-  _arenaPreMatch = { mods: new Set(activeModifiers) };
-  // Synthetic boss — maps opponent.id to a random Boss_N portrait deterministically
-  const portraitIdx = 1 + (Math.abs(parseInt(opponent.id.slice(3), 10) || 0) % 15);
-  const tier = getArenaTier();
-  const syntheticBoss = {
-    name: opponent.name,
-    title: `Arena · ${opponent.banner}`,
-    hp: Math.floor(opponent.powerLevel * 50),
-    attackInterval: Math.max(3, 7 - Math.floor(opponent.powerLevel / 500)),
-    img: 'Boss_' + portraitIdx,
-    color: tier.color,
-    stihiya: opponent.stihiyaBias,
-    _isArenaBattle: true,
-  };
-  currentBoss = syntheticBoss;
-  currentBossIdx = 0;  // nominal
-  currentFloorId = null;
-  activeModifiers.clear();
-  // Modifier escalation based on opponent power — Diamond+ gets speedup, Master+ gets hpMult
-  if (opponent.powerLevel > 2500) activeModifiers.add('bloodlust');
-  if (opponent.powerLevel > 1500) activeModifiers.add('doubleTime');
-  _isArenaBattle = true;
-  try { startBossBattle(); } catch (e) { console.warn('launchArenaMatch startBossBattle failed:', e); }
-}
-
-function onArenaMatchWin() {
-  const tier = getArenaTier();
-  arenaState.points += tier.winPts;
-  arenaState.credits += 50;
-  arenaState.matchHistory.unshift({
-    opponent: _currentArenaOpponent ? _currentArenaOpponent.name : '???',
-    outcome: 'WIN',
-    delta: `+${tier.winPts}`,
-    date: (typeof getTodayDateKey === 'function') ? getTodayDateKey() : '',
-  });
-  arenaState.matchHistory = arenaState.matchHistory.slice(0, 20);
-  updatePeakTier();
-  saveArenaState();
-  try { flashText(`✦ ARENA WIN · +${tier.winPts}★ +50🪙`, '#FFD53D'); } catch (e) {}
-  try { vibrate([80, 50, 80, 50, 120]); } catch (e) {}
-  // V3.0 Phase 7 Block 7.3: event tokens accrue from arena wins too
-  try { maybeTriggerEventOnBossDefeat(currentBoss); } catch (e) {}
-  // V3.0 Phase 7 Block 7.5: Season XP (+75 per arena win)
-  try { if (typeof addSeasonXP === 'function') addSeasonXP(75); } catch (e) {}
-  // Restore modifiers
-  if (_arenaPreMatch && _arenaPreMatch.mods instanceof Set) {
-    activeModifiers.clear();
-    _arenaPreMatch.mods.forEach(m => activeModifiers.add(m));
-  }
-  _arenaPreMatch = null;
-  _isArenaBattle = false;
-  setTimeout(() => { try { goToArena(); } catch (e) {} }, 1200);
-}
-
-function onArenaMatchLoss() {
-  const tier = getArenaTier();
-  // Floor at tier.min — losing never drops below current tier's base
-  arenaState.points = Math.max(tier.min, arenaState.points - tier.lossPts);
-  arenaState.matchHistory.unshift({
-    opponent: _currentArenaOpponent ? _currentArenaOpponent.name : '???',
-    outcome: 'LOSS',
-    delta: `-${tier.lossPts}`,
-    date: (typeof getTodayDateKey === 'function') ? getTodayDateKey() : '',
-  });
-  arenaState.matchHistory = arenaState.matchHistory.slice(0, 20);
-  saveArenaState();
-  try { flashText(`⚠ ARENA LOSS · -${tier.lossPts}★`, '#E85D4A'); } catch (e) {}
-  if (_arenaPreMatch && _arenaPreMatch.mods instanceof Set) {
-    activeModifiers.clear();
-    _arenaPreMatch.mods.forEach(m => activeModifiers.add(m));
-  }
-  _arenaPreMatch = null;
-  _isArenaBattle = false;
-  setTimeout(() => { try { goToArena(); } catch (e) {} }, 1200);
-}
-
-function updatePeakTier() {
-  const cur = getArenaTier();
-  const peakIdx    = ARENA_TIERS.findIndex(t => t.id === arenaState.peakTier);
-  const weekIdx    = ARENA_TIERS.findIndex(t => t.id === arenaState.weeklyPeakTier);
-  const curIdx     = ARENA_TIERS.findIndex(t => t.id === cur.id);
-  if (curIdx > peakIdx) arenaState.peakTier       = cur.id;
-  if (curIdx > weekIdx) arenaState.weeklyPeakTier = cur.id;
-  // Arena Champion achievement — reached Master
-  if (cur.id === 'master' && typeof ACHIEVEMENTS !== 'undefined') {
-    try {
-      const ach = ACHIEVEMENTS.find(a => a.id === 'arena_champion');
-      if (ach && achievementsState && !achievementsState.unlockedIds.includes('arena_champion')) {
-        unlockAchievement(ach);
-      }
-    } catch (e) {}
-  }
-}
-
-// ========= Screen + rendering =========
-function goToArena() {
-  if (!isArenaUnlocked()) { showToast('Complete Chapter 1 first'); return; }
-  if (typeof isFtueActive === 'function' && isFtueActive()) { showToast('Finish the tutorial first'); return; }
-  checkArenaDailyReset();
-  checkArenaWeeklyReset();
-  if (typeof showScreen === 'function') {
-    showScreen('arena');
-  } else {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById('screenArena').classList.add('active');
-  }
-  renderArenaScreen();
-}
-
-function renderArenaScreen() {
-  const tier = getArenaTier();
-  const tierEl   = document.getElementById('arenaTier');
-  const ptsEl    = document.getElementById('arenaPts');
-  const matchesEl = document.getElementById('arenaMatches');
-  const creditsEl = document.getElementById('arenaCredits');
-  const peakEl    = document.getElementById('arenaPeak');
-  if (tierEl) {
-    tierEl.textContent = tier.name;
-    tierEl.style.color = tier.color;
-  }
-  if (ptsEl)     ptsEl.textContent     = String(arenaState.points);
-  if (matchesEl) matchesEl.textContent = String(arenaState.dailyMatchesRemaining);
-  if (creditsEl) creditsEl.textContent = String(arenaState.credits);
-  if (peakEl) {
-    const peakT = ARENA_TIERS.find(t => t.id === arenaState.peakTier) || ARENA_TIERS[0];
-    peakEl.textContent = peakT.name;
-    peakEl.style.color = peakT.color;
-  }
-  // Tier progress bar — fill to current tier's max
-  const progEl = document.getElementById('arenaProgFill');
-  if (progEl) {
-    if (tier.max === 99999) {
-      progEl.style.width = '100%';
-    } else {
-      const span = tier.max - tier.min;
-      const progIn = arenaState.points - tier.min;
-      progEl.style.width = Math.min(100, Math.max(0, (progIn / span) * 100)) + '%';
-    }
-    progEl.style.background = `linear-gradient(90deg, ${tier.color}, #FFD53D)`;
-  }
-  // Match history (recent 8)
-  const listEl = document.getElementById('arenaHistoryList');
-  if (listEl) {
-    listEl.innerHTML = '';
-    const history = (arenaState.matchHistory || []).slice(0, 8);
-    if (history.length === 0) {
-      listEl.innerHTML = '<div class="arena-history-empty">No matches yet</div>';
-    } else {
-      for (const h of history) {
-        const row = document.createElement('div');
-        row.className = 'arena-history-row ' + (h.outcome === 'WIN' ? 'win' : 'loss');
-        row.innerHTML = `
-          <span class="arena-history-opponent">${h.opponent}</span>
-          <span class="arena-history-outcome">${h.outcome}</span>
-          <span class="arena-history-delta">${h.delta}</span>
-        `;
-        listEl.appendChild(row);
-      }
-    }
-  }
-}
-
-function updateArenaButtonVisibility() {
-  const btn = document.getElementById('arenaBtn');
-  if (!btn) return;
-  const ftue = (typeof isFtueActive === 'function') && isFtueActive();
-  btn.style.display = (isArenaUnlocked() && !ftue) ? '' : 'none';
-}
-
-// ========= Console helpers =========
-if (typeof window !== 'undefined') {
-  window.goToArena          = goToArena;
-  window.startArenaMatch    = startArenaMatch;
-  window.arenaState         = () => arenaState;
-  window.forceArenaUnlock   = function() {
-    // Simulates Ch1 F1 clears by setting dungeonProgress
-    try {
-      if (!dungeonProgress[1]) dungeonProgress[1] = {};
-      for (let b = 0; b < 5; b++) {
-        dungeonProgress[1][b] = Math.max(1, dungeonProgress[1][b] || 0);
-      }
-      saveProgress();
-    } catch (e) {}
-    try { updateArenaButtonVisibility(); } catch (e) {}
-    console.log('Arena unlocked.');
-  };
-  window.resetArenaState    = function() {
-    arenaState = { points: 0, dailyMatchesRemaining: 5, lastMatchDate: null, credits: 0, matchHistory: [], peakTier: 'bronze', weeklyPeakTier: 'bronze', currentWeekStart: null };
-    try { localStorage.removeItem(ARENA_KEY); } catch (e) {}
-    console.log('Arena state wiped.');
-  };
-  window.giveArenaPoints    = function(n) { arenaState.points += n; updatePeakTier(); saveArenaState(); console.log('Arena points:', arenaState.points, 'tier:', getArenaTier().name); };
-}
-// ===== END BLOCK 7.2 BACKEND =====
-
-// ===== V3.0 PHASE 7 BLOCK 7.3 — EVENT DUNGEONS =====
-// Limited-time rotating events. One active at any moment; cycles every 3 days.
-// Events piggyback on existing combat — pre-battle hook applies boosts, post-
-// battle hook awards event tokens. Rotation is deterministic per epoch day
-// (no state needed), so all offline clients share the same active event.
-//
-// Architecture notes:
-//   - Boosts apply only to STORY battles (Tower/Arena have their own systems)
-//   - Token rewards fire on ALL mode victories (story, tower, arena)
-//   - Blood Moon stacks modifiers on F3 battles (Trap 1 accepted: brutal by design)
-//   - Echoes Voidfang spawn-swap deferred — current impl only awards tokens/shards
-//     on Voidfang defeats during active event (story/tower/arena all count)
-//   - Hero's Gauntlet launch is stubbed — event visible in rotation, tokens still
-//     accrue from any clear, but no 10-floor mini-tower launch (defer to polish)
-
-const EVENT_POOL = [
-  {
-    id: 'ember_festival',
-    name: 'EMBER FESTIVAL',
-    icon: '🔥',
-    color: '#E85D4A',
-    description: 'Ember-stihiya boss rewards doubled. Earn Ember Tokens.',
-    applyBoosts: () => {
-      // no modifier mutation; reward doubling applied in handleBossDefeat
-    },
-    handleBossDefeat: (boss) => {
-      if (boss && boss.stihiya === 'ember') {
-        addEventTokens(20);
-        try { addGold(100); } catch (e) {} // bonus reward for ember boss
-      } else {
-        addEventTokens(5); // participation token
-      }
-    },
-  },
-  {
-    id: 'blood_moon',
-    name: 'BLOOD MOON',
-    icon: '🌑',
-    color: '#A84AE8',
-    description: 'All story bosses gain Bloodlust + Double Time. Survive for 30 tokens per clear.',
-    applyBoosts: (mode) => {
-      // Apply only to story battles — Tower/Arena have curated modifier systems.
-      if (mode !== 'story') return;
-      try { activeModifiers.add('bloodlust');  } catch (e) {}
-      try { activeModifiers.add('doubleTime'); } catch (e) {}
-    },
-    handleBossDefeat: () => addEventTokens(30),
-  },
-  {
-    id: 'wealth_festival',
-    name: 'WEALTH FESTIVAL',
-    icon: '💰',
-    color: '#FFD53D',
-    description: 'All boss gold rewards ×3. Every victory earns tokens.',
-    applyBoosts: () => {},
-    handleBossDefeat: () => {
-      // Base gold already granted by onBossDefeated's GOLD_PER_WIN; add 2× more = 3× total
-      try { addGold(200); } catch (e) {}
-      addEventTokens(15);
-    },
-  },
-  {
-    id: 'heros_gauntlet',
-    name: "HERO'S GAUNTLET",
-    icon: '⚔',
-    color: '#78E09E',
-    description: 'Tokens from any clear (full 10-floor Gauntlet arriving in a future update).',
-    applyBoosts: () => {},
-    handleBossDefeat: () => addEventTokens(10),
-    isStub: true, // full Gauntlet launch deferred; event still awards tokens
-  },
-  {
-    id: 'echoes_voidfang',
-    name: 'ECHOES OF VOIDFANG',
-    icon: '✦',
-    color: '#BB60FF',
-    description: 'Defeat Voidfang during the event for Awakening Shards + bonus tokens.',
-    applyBoosts: () => {
-      // Spawn-swap logic deferred (Trap 2): only award-side active now
-    },
-    handleBossDefeat: (boss) => {
-      if (boss && boss.name === 'VOIDFANG') {
-        addEventTokens(50);
-        try { addAwakeningShards(1); } catch (e) {}
-        try { flashText('✦ ECHO BONUS · +1 SHARD', '#BB60FF'); } catch (e) {}
-      } else {
-        addEventTokens(5);
-      }
-    },
-  },
-];
-
-// ========= Currency: Event Tokens =========
-let eventTokens = 0;
-const EVENT_TOKENS_KEY     = 'blocksworn_event_tokens';
-const EVENT_BATTLE_COUNT_KEY = 'blocksworn_event_battle_count';
-let eventBattleCount = 0; // for event_seasoned achievement
-
-function loadEventState() {
-  try {
-    const raw = localStorage.getItem(EVENT_TOKENS_KEY);
-    eventTokens = raw ? Math.max(0, parseInt(raw, 10) || 0) : 0;
-  } catch (e) { eventTokens = 0; }
-  try {
-    const raw2 = localStorage.getItem(EVENT_BATTLE_COUNT_KEY);
-    eventBattleCount = raw2 ? Math.max(0, parseInt(raw2, 10) || 0) : 0;
-  } catch (e) { eventBattleCount = 0; }
-}
-function saveEventTokens() {
-  try { localStorage.setItem(EVENT_TOKENS_KEY, String(eventTokens)); } catch (e) {}
-}
-function saveEventBattleCount() {
-  try { localStorage.setItem(EVENT_BATTLE_COUNT_KEY, String(eventBattleCount)); } catch (e) {}
-}
-function addEventTokens(n) {
-  const v = Math.floor(Number(n));
-  if (!Number.isFinite(v) || v <= 0) return;
-  eventTokens += v;
-  saveEventTokens();
-}
-loadEventState();
-
-// ========= Active event rotation =========
-// Deterministic per-epoch-day — no state persistence needed. All offline clients
-// share the same active event on any given date.
-function getActiveEvent() {
-  const now = Date.now();
-  const epochDay = Math.floor(now / (1000 * 60 * 60 * 24));
-  const cycleIdx = Math.floor(epochDay / 3) % EVENT_POOL.length;
-  return EVENT_POOL[cycleIdx];
-}
-
-function getEventExpiryMs() {
-  const now = Date.now();
-  const epochDay = Math.floor(now / (1000 * 60 * 60 * 24));
-  const nextCycleDay = Math.floor(epochDay / 3) * 3 + 3; // next 3-day boundary
-  return (nextCycleDay * 24 * 60 * 60 * 1000) - now;
-}
-
-function formatEventCountdown(ms) {
-  if (ms <= 0) return '--:--:--';
-  const days  = Math.floor(ms / (24 * 60 * 60 * 1000));
-  const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-  const mins  = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${mins}m`;
-  return `${mins}m`;
-}
-
-// ========= Battle hooks =========
-// Pre-battle boost application. `mode` indicates which battle flow ('story' / 'tower' / 'arena').
-// Boosts that mutate activeModifiers apply only in story mode to avoid doubling up with
-// Tower's config-based modifiers or Arena's power-scaled modifier ladder.
-function maybeApplyEventBoosts(mode) {
-  if (typeof isFtueActive === 'function' && isFtueActive()) return;
-  const evt = getActiveEvent();
-  if (!evt || !evt.applyBoosts) return;
-  try { evt.applyBoosts(mode || 'story'); } catch (e) { console.warn('Event applyBoosts failed:', e); }
-}
-
-function maybeTriggerEventOnBossDefeat(boss) {
-  if (typeof isFtueActive === 'function' && isFtueActive()) return;
-  const evt = getActiveEvent();
-  if (!evt || !evt.handleBossDefeat) return;
-  try { evt.handleBossDefeat(boss); } catch (e) { console.warn('Event handleBossDefeat failed:', e); }
-  // V3.0 Phase 7 Block 7.5: Season XP (+50 per event battle)
-  try { if (typeof addSeasonXP === 'function') addSeasonXP(50); } catch (e) {}
-  // Track battles-during-events counter for achievement
-  eventBattleCount++;
-  saveEventBattleCount();
-  // Check event_seasoned achievement
-  try {
-    if (typeof ACHIEVEMENTS !== 'undefined') {
-      const ach = ACHIEVEMENTS.find(a => a.id === 'event_seasoned');
-      if (ach && achievementsState && !achievementsState.unlockedIds.includes('event_seasoned')) {
-        achievementsState.progress['event_seasoned'] = eventBattleCount;
-        saveAchievementsState();
-        if (eventBattleCount >= ach.target) unlockAchievement(ach);
-      }
-    }
-  } catch (e) {}
-}
-
-// ========= Screen + rendering =========
-function goToEvent() {
-  if (typeof isFtueActive === 'function' && isFtueActive()) { showToast('Finish the tutorial first'); return; }
-  if (typeof showScreen === 'function') {
-    showScreen('event');
-  } else {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById('screenEvent').classList.add('active');
-  }
-  renderEventScreen();
-}
-
-// Per-second countdown interval handle
-let _eventCountdownInterval = null;
-
-function renderEventScreen() {
-  const evt = getActiveEvent();
-  const iconEl = document.getElementById('eventIcon');
-  const nameEl = document.getElementById('eventName');
-  const descEl = document.getElementById('eventDesc');
-  const tokensEl = document.getElementById('eventTokens');
-  const battleCountEl = document.getElementById('eventBattleCount');
-  const cardEl = document.getElementById('eventCard');
-  if (iconEl)        iconEl.textContent = evt.icon;
-  if (nameEl)        nameEl.textContent = evt.name;
-  if (descEl)        descEl.textContent = evt.description + (evt.isStub ? ' (Tokens awarded from any clear.)' : '');
-  if (tokensEl)      tokensEl.textContent = String(eventTokens);
-  if (battleCountEl) battleCountEl.textContent = String(eventBattleCount);
-  if (cardEl) {
-    cardEl.style.borderColor = evt.color;
-    cardEl.style.boxShadow = `0 0 18px ${evt.color}44`;
-  }
-  // Live countdown — refresh every second while screen is active
-  updateEventCountdown();
-  if (_eventCountdownInterval) clearInterval(_eventCountdownInterval);
-  _eventCountdownInterval = setInterval(() => {
-    const el = document.getElementById('screenEvent');
-    if (!el || !el.classList.contains('active')) {
-      clearInterval(_eventCountdownInterval);
-      _eventCountdownInterval = null;
-      return;
-    }
-    updateEventCountdown();
-  }, 30000); // 30s tick — don't need per-second precision
-}
-
-function updateEventCountdown() {
-  const timerEl = document.getElementById('eventTimer');
-  if (!timerEl) return;
-  timerEl.textContent = formatEventCountdown(getEventExpiryMs());
-}
-
-function updateEventButtonVisibility() {
-  const btn = document.getElementById('eventBtn');
-  if (!btn) return;
-  const ftue = (typeof isFtueActive === 'function') && isFtueActive();
-  btn.style.display = ftue ? 'none' : '';
-}
-
-// ========= Event Shop (prompt-based MVP) =========
-const EVENT_SHOP_ITEMS = [
-  { id: 'ev_gold_2k',    label: '💰 2,000 GOLD',        cost: 40,  grant: () => addGold(2000) },
-  { id: 'ev_gems_30',    label: '💎 30 GEMS',           cost: 120, grant: () => addGems(30) },
-  { id: 'ev_essence_80', label: '🔮 80 ESSENCE × ALL',  cost: 90,  grant: () => {
-      ['ember','tide','grove','solar','umbra'].forEach(s => { essences[s] = (essences[s] || 0) + 80; });
-      try { saveProgress(); } catch (e) {}
-    }
-  },
-  { id: 'ev_shard_2',    label: '✦ 2 AWAKENING SHARDS', cost: 300, grant: () => addAwakeningShards(2) },
-];
-
-function openEventShop() {
-  if (typeof isFtueActive === 'function' && isFtueActive()) return;
-  const listing = EVENT_SHOP_ITEMS.map(i => `  ${i.id}  →  ${i.label} · ${i.cost}⚡`).join('\n');
-  const choice = prompt(`EVENT SHOP · Balance: ${eventTokens}⚡\n\n${listing}\n\nEnter item id to buy:`);
-  if (!choice) return;
-  const item = EVENT_SHOP_ITEMS.find(i => i.id === choice.trim());
-  if (!item) { showToast('Unknown item'); return; }
-  if (eventTokens < item.cost) { showToast('Not enough Event Tokens'); return; }
-  eventTokens -= item.cost;
-  saveEventTokens();
-  try { item.grant(); } catch (e) { console.warn('Event shop grant failed:', e); }
-  try { flashText(`✦ ${item.label} GRANTED`, '#FFD53D'); } catch (e) {}
-  renderEventScreen();
-}
-
-// ========= Console helpers =========
-if (typeof window !== 'undefined') {
-  window.goToEvent         = goToEvent;
-  window.openEventShop     = openEventShop;
-  window.getActiveEvent    = getActiveEvent;
-  window.getEventExpiryMs  = getEventExpiryMs;
-  window.eventTokens       = () => eventTokens;
-  window.eventBattleCount  = () => eventBattleCount;
-  window.giveEventTokens   = function(n) { addEventTokens(n); renderEventScreen && renderEventScreen(); };
-  window.simulateEventDay  = function(offset) {
-    // Debug: peek what event is active N days from now
-    const faked = Date.now() + (offset || 0) * 24 * 60 * 60 * 1000;
-    const epochDay = Math.floor(faked / (1000 * 60 * 60 * 24));
-    const cycleIdx = Math.floor(epochDay / 3) % EVENT_POOL.length;
-    console.log(`Day +${offset || 0}: ${EVENT_POOL[cycleIdx].name}`);
-  };
-}
-// ===== END BLOCK 7.3 BACKEND =====
-
-// ===== V3.0 PHASE 7 BLOCK 7.4 — AWAKENING =====
-// Mythic progression tier — extends the L60/T4 ceiling from Phase 4 for endgame
-// heroes. Awakening a hero costs 10 Awakening Shards + 200 essence of the hero's
-// stihiya. Eligibility gate (all must hold):
-//   - Hero unlocked
-//   - Level 60 (Phase 4 ceiling)
-//   - Tier 4 (Phase 4 ARCANE RESONANCE)
-//   - Matching-race artifact currently equipped (uses _currentRacesWithArtifact
-//     populated by computeSynergies — same signal as Tier 4 gate)
-//   - 10 Awakening Shards available
-//   - 200 essence of hero's stihiya available
-//
-// awakeningShards currency is already defined by Block 7.1 (load/save/add). This
-// block only adds the spend/sink side. Tower + Events + future Season Pass premium
-// pay into the same currency — no separation.
-//
-// Awakening effects (applied via getHeroStats extension, additive on top of
-// level+tier stack):
-//   ember : s.hpBonus += ceil(MAX_HP * 0.5)   (≈ +1-2 HP on top of level stack)
-//   tide  : s.ultMult *= 1.30                 (+30% ult for MVP; double-proc deferred)
-//   grove : s.shieldBonus += 2                (+2 max shield)
-//   solar : s.critMult   *= 2                 (×2 crit multiplier; halved combo flag)
-//   umbra : adjacent-chain flag set           (ult chains 50% to adjacent hero)
-//
-// Solar/umbra extra flags (critHalveCombo, umbraChain) are stored on the stats
-// object but only consumed by downstream systems that recognize them. For MVP
-// only the direct numeric stats (hpBonus, shieldBonus, ultMult) are guaranteed
-// to affect gameplay; critMult and chain flags are reserved hooks for future
-// polish passes.
-//
-// UI:
-//   - AWAKEN button in the hero detail modal (rendered by Phase 4.2 level section
-//     refresh) — visible when eligibility check passes, disabled with reason when not
-//   - Gold aura on awakened roster cards + ★ prefix on name
-//   - Flash + vibrate on awakening
-
-const AWAKENING_COST_SHARDS  = 10;
-const AWAKENING_COST_ESSENCE = 200;
-const HERO_AWAKENED_KEY      = 'blocksworn_hero_awakened';
-
-// Map heroId -> true. Persisted.
-let heroAwakened = {};
-
-function loadHeroAwakened() {
-  try {
-    const raw = localStorage.getItem(HERO_AWAKENED_KEY);
-    if (raw) {
-      const obj = JSON.parse(raw);
-      if (obj && typeof obj === 'object') heroAwakened = obj;
-    }
-  } catch (e) { heroAwakened = {}; }
-}
-function saveHeroAwakened() {
-  try { localStorage.setItem(HERO_AWAKENED_KEY, JSON.stringify(heroAwakened)); } catch (e) {}
-}
-function isAwakened(heroId) { return !!heroAwakened[heroId]; }
-loadHeroAwakened();
-
-// Eligibility check. Returns { can: boolean, reason: string }.
-// Order matters — reports first failure so UI can show the player what's needed.
-function canAwakenHero(heroId) {
-  const hero = HERO_ROSTER.find(h => h.id === heroId);
-  if (!hero) return { can: false, reason: 'Unknown hero' };
-  if (!hero.unlocked)        return { can: false, reason: 'Hero locked' };
-  if (isAwakened(heroId))    return { can: false, reason: 'Already awakened' };
-  const lvl = (typeof getHeroLevel === 'function') ? getHeroLevel(heroId) : 1;
-  if (lvl < 60)              return { can: false, reason: 'Requires Level 60' };
-  const tier = (heroUpgrades && heroUpgrades[heroId]) || 0;
-  if (tier < 4)              return { can: false, reason: 'Requires Tier 4' };
-  // Matching artifact — computed by computeSynergies and cached on _currentRacesWithArtifact
-  if (!_currentRacesWithArtifact || !_currentRacesWithArtifact.has(hero.race)) {
-    return { can: false, reason: `Equip ${hero.race.toUpperCase()} artifact` };
-  }
-  if ((awakeningShards || 0) < AWAKENING_COST_SHARDS) {
-    return { can: false, reason: `Need ${AWAKENING_COST_SHARDS}✦ (have ${awakeningShards || 0})` };
-  }
-  const essNeeded = AWAKENING_COST_ESSENCE;
-  const essHave = (essences && essences[hero.stihiya]) || 0;
-  if (essHave < essNeeded) {
-    return { can: false, reason: `Need ${essNeeded} ${hero.stihiya} essence (have ${essHave})` };
-  }
-  return { can: true, reason: '' };
-}
-
-// Perform awakening. Atomicity: all checks pass → all debits commit → state saved.
-// If any step fails mid-way (shouldn't, but defensive), the function rolls back.
-function awakenHero(heroId) {
-  const check = canAwakenHero(heroId);
-  if (!check.can) {
-    try { flashText(check.reason, '#E85D4A'); } catch (e) {}
-    return false;
-  }
-  const hero = HERO_ROSTER.find(h => h.id === heroId);
-  // Debit
-  const prevShards = awakeningShards;
-  const prevEssence = essences[hero.stihiya] || 0;
-  awakeningShards -= AWAKENING_COST_SHARDS;
-  essences[hero.stihiya] = prevEssence - AWAKENING_COST_ESSENCE;
-  heroAwakened[heroId] = true;
-  // Persist
-  try {
-    saveAwakeningShards();
-    saveHeroAwakened();
-    try { saveProgress(); } catch (e) {}
-  } catch (e) {
-    // Rollback
-    awakeningShards = prevShards;
-    essences[hero.stihiya] = prevEssence;
-    delete heroAwakened[heroId];
-    console.warn('awakenHero: save failed, rolled back:', e);
-    try { flashText('SAVE FAILED', '#E85D4A'); } catch (ex) {}
-    return false;
-  }
-  // FX
-  try { flashText(`★ ${hero.name} AWAKENED ★`, '#FFD53D'); } catch (e) {}
-  try { vibrate([200, 100, 200, 100, 300]); } catch (e) {}
-  // Achievement eval (first-time: ascended, 5-count: pantheon)
-  try { if (typeof evaluateAchievements === 'function') evaluateAchievements(); } catch (e) {}
-  // Refresh UI surfaces
-  try { if (typeof renderResourceBar === 'function') renderResourceBar(); } catch (e) {}
-  try { if (typeof renderRoster === 'function') renderRoster(); } catch (e) {}
-  try { if (typeof refreshLevelSection === 'function') refreshLevelSection(); } catch (e) {}
-  // Phase 7.5 Season XP reward — big one-time grant for awakening
-  try { if (typeof addSeasonXP === 'function') addSeasonXP(500); } catch (e) {}
-  return true;
-}
-
-// Count awakened heroes (used by pantheon achievement)
-function countAwakenedHeroes() {
-  return Object.keys(heroAwakened || {}).filter(k => heroAwakened[k]).length;
-}
-
-// Extend ACHIEVEMENTS with Awakening crown entries. Deferred push so load order
-// doesn't matter — if Phase 5.2 pushed ACHIEVEMENTS already, we find/skip dupes.
-// Both are crown-trophy (no captain unlock — the reward IS the act of awakening).
-if (typeof ACHIEVEMENTS !== 'undefined' && !ACHIEVEMENTS.find(a => a.id === 'ascended')) {
-  ACHIEVEMENTS.push({
-    id: 'ascended',
-    category: 'crown',
-    icon: '★',
-    name: 'ASCENDED',
-    description: 'Awaken your first hero',
-    target: 1,
-    check: () => countAwakenedHeroes() >= 1 ? 1 : 0,
-    reward: { gems: 200 },
-  });
-}
-if (typeof ACHIEVEMENTS !== 'undefined' && !ACHIEVEMENTS.find(a => a.id === 'pantheon')) {
-  ACHIEVEMENTS.push({
-    id: 'pantheon',
-    category: 'crown',
-    icon: '★',
-    name: 'PANTHEON',
-    description: 'Awaken 5 heroes',
-    target: 5,
-    check: () => Math.min(5, countAwakenedHeroes()),
-    reward: { gems: 500, gold: 10000 },
-  });
-}
-
-// Console helpers
-if (typeof window !== 'undefined') {
-  window.canAwakenHero      = canAwakenHero;
-  window.awakenHero         = awakenHero;
-  window.isAwakened         = isAwakened;
-  window.countAwakenedHeroes = countAwakenedHeroes;
-  window.awakeningShards    = () => awakeningShards;
-  window.giveAwakeningShards = function(n) { addAwakeningShards(n || 1); try { renderResourceBar && renderResourceBar(); } catch (e) {} };
-  window.forceAwaken        = function(heroId) {
-    // Debug: bypass gates, grant awakening directly
-    if (!heroAwakened[heroId]) {
-      heroAwakened[heroId] = true;
-      saveHeroAwakened();
-      try { if (typeof evaluateAchievements === 'function') evaluateAchievements(); } catch (e) {}
-      try { if (typeof renderRoster === 'function') renderRoster(); } catch (e) {}
-      console.log(`Force-awakened: ${heroId}`);
-    }
-  };
-  window.unAwaken = function(heroId) {
-    if (heroAwakened[heroId]) {
-      delete heroAwakened[heroId];
-      saveHeroAwakened();
-      try { if (typeof renderRoster === 'function') renderRoster(); } catch (e) {}
-    }
-  };
-}
-
-// ========= Awakening screen (standalone hub) =========
-// Secondary UI — primary Awakening action is the button in the hero detail modal.
-// This screen provides an overview: awakened count, eligible list, candidates-in-progress.
-function goToAwaken() {
-  if (typeof isFtueActive === 'function' && isFtueActive()) {
-    try { showToast('Finish the tutorial first'); } catch (e) {}
-    return;
-  }
-  if (typeof showScreen === 'function') {
-    showScreen('awaken');
-  } else {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    const scr = document.getElementById('screenAwaken');
-    if (scr) scr.classList.add('active');
-  }
-  renderAwakenScreen();
-}
-
-function renderAwakenScreen() {
-  const scr = document.getElementById('screenAwaken');
-  if (!scr) return;
-  const countEl = document.getElementById('awakenedCount');
-  const shardsEl = document.getElementById('awakenShards');
-  if (countEl)  countEl.textContent  = String(countAwakenedHeroes());
-  if (shardsEl) shardsEl.textContent = String(awakeningShards || 0);
-
-  const awakenedList  = document.getElementById('awakenedList');
-  const eligibleList  = document.getElementById('eligibleList');
-  const candidateList = document.getElementById('candidateList');
-  if (!awakenedList || !eligibleList || !candidateList) return;
-  awakenedList.innerHTML = '';
-  eligibleList.innerHTML = '';
-  candidateList.innerHTML = '';
-
-  const awakenedRows  = [];
-  const eligibleRows  = [];
-  const candidateRows = [];
-
-  for (const hero of HERO_ROSTER) {
-    if (!hero.unlocked) continue;
-    if (isAwakened(hero.id)) {
-      awakenedRows.push(hero);
-      continue;
-    }
-    // Check eligibility reason
-    const check = canAwakenHero(hero.id);
-    if (check.can) {
-      eligibleRows.push(hero);
-    } else {
-      // Track near-eligible: L60 + T4 but missing shards/essence/artifact
-      const lvl = (typeof getHeroLevel === 'function') ? getHeroLevel(hero.id) : 1;
-      const tier = (heroUpgrades && heroUpgrades[hero.id]) || 0;
-      if (lvl >= 60 && tier >= 4) {
-        candidateRows.push({ hero, reason: check.reason });
-      }
-    }
-  }
-
-  // Render awakened
-  if (awakenedRows.length === 0) {
-    awakenedList.innerHTML = '<div class="awaken-empty">None yet. Awaken a hero from the roster detail screen.</div>';
-  } else {
-    for (const h of awakenedRows) {
-      const row = document.createElement('div');
-      row.className = 'awaken-row awakened';
-      row.innerHTML = `
-        <span class="awaken-row-star">★</span>
-        <span class="awaken-row-name">${h.name}</span>
-        <span class="awaken-row-meta">${(h.stihiya || '').toUpperCase()} · ${(h.race || '').toUpperCase()}</span>
-      `;
-      awakenedList.appendChild(row);
-    }
-  }
-
-  // Render eligible
-  if (eligibleRows.length === 0) {
-    eligibleList.innerHTML = '<div class="awaken-empty">No heroes currently eligible. Level up, tier up, and equip a matching-race artifact.</div>';
-  } else {
-    for (const h of eligibleRows) {
-      const row = document.createElement('div');
-      row.className = 'awaken-row eligible';
-      row.innerHTML = `
-        <span class="awaken-row-name">${h.name}</span>
-        <span class="awaken-row-meta">READY · ${(h.stihiya || '').toUpperCase()}</span>
-      `;
-      // Make row tappable — navigate to roster detail
-      row.style.cursor = 'pointer';
-      row.onclick = () => {
-        try {
-          if (typeof openHeroDetail === 'function') {
-            openHeroDetail(h.id);
-          } else if (typeof showHeroDetail === 'function') {
-            showHeroDetail(h.id);
-          }
-        } catch (e) { console.warn('openHeroDetail failed:', e); }
-      };
-      eligibleList.appendChild(row);
-    }
-  }
-
-  // Render candidates
-  if (candidateRows.length === 0) {
-    candidateList.innerHTML = '<div class="awaken-empty">Keep playing — level heroes to 60 and tier them up to T4.</div>';
-  } else {
-    for (const c of candidateRows) {
-      const row = document.createElement('div');
-      row.className = 'awaken-row';
-      row.innerHTML = `
-        <span class="awaken-row-name">${c.hero.name}</span>
-        <span class="awaken-row-gaps">${c.reason}</span>
-      `;
-      candidateList.appendChild(row);
-    }
-  }
-}
-
-// FTUE hide for awaken menu button (parallel pattern to season-btn)
-function updateAwakenButtonVisibility() {
-  const btn = document.getElementById('awakenBtn');
-  if (!btn) return;
-  const ftue = (typeof isFtueActive === 'function') && isFtueActive();
-  btn.style.display = ftue ? 'none' : '';
-}
-
-// Hero detail modal integration — inject an AWAKEN button below level-up controls.
-// Called from the level-section render path (Phase 4.2). Idempotent: removes any
-// existing awaken button before re-injecting, so repeated calls don't stack.
-function injectAwakenButtonIntoDetail(heroId) {
-  const levelSection = document.getElementById('detailLevelSection');
-  if (!levelSection) return;
-  // Remove any existing awaken controls first
-  const existingBtn = levelSection.querySelector('.detail-awaken-btn');
-  if (existingBtn) existingBtn.remove();
-  const existingReason = levelSection.querySelector('.detail-awaken-reason');
-  if (existingReason) existingReason.remove();
-
-  const hero = HERO_ROSTER.find(h => h.id === heroId);
-  if (!hero || !hero.unlocked) return;
-
-  const btn = document.createElement('button');
-  btn.className = 'detail-awaken-btn';
-
-  if (isAwakened(heroId)) {
-    btn.classList.add('awakened');
-    btn.textContent = '★ AWAKENED ★';
-    btn.disabled = true;
-    levelSection.appendChild(btn);
-    return;
-  }
-
-  const check = canAwakenHero(heroId);
-  btn.textContent = `★ AWAKEN · 10✦ 200🔮`;
-  btn.disabled = !check.can;
-  btn.onclick = () => {
-    if (!check.can) return;
-    const ok = awakenHero(heroId);
-    if (ok) {
-      try { injectAwakenButtonIntoDetail(heroId); } catch (e) {}
-    }
-  };
-  levelSection.appendChild(btn);
-
-  if (!check.can && check.reason) {
-    const reasonEl = document.createElement('div');
-    reasonEl.className = 'detail-awaken-reason';
-    reasonEl.textContent = check.reason;
-    levelSection.appendChild(reasonEl);
-  }
-}
-
-if (typeof window !== 'undefined') {
-  window.goToAwaken                 = goToAwaken;
-  window.renderAwakenScreen         = renderAwakenScreen;
-  window.injectAwakenButtonIntoDetail = injectAwakenButtonIntoDetail;
-  window.updateAwakenButtonVisibility = updateAwakenButtonVisibility;
-}
-// ===== END BLOCK 7.4 BACKEND =====
 
 
 // ===== V3.0 PHASE 7 BLOCK 7.5 — SEASON PASS =====
@@ -18315,7 +16657,7 @@ if (typeof window !== 'undefined') {
 // XP sources are wired from all prior phases via `addSeasonXP(n)` calls placed
 // at existing event chokepoints (see separate patches to claimMissionReward,
 // claimWeeklyMissionReward, unlockAchievement, onBossDefeated, onTowerFloorClear,
-// onArenaMatchWin, maybeTriggerEventOnBossDefeat, levelUpHero, awakenHero).
+// levelUpHero).
 //
 // Premium pass purchase is stubbed through gems (2000 cost). Real IAP flow
 // belongs in Phase 3 economy — out of scope here. `purchasePremiumPass` spends
@@ -18539,7 +16881,6 @@ function _applySeasonReward(reward) {
     essences[s] = (essences[s] || 0) + reward.essenceRandom;
     try { saveProgress(); } catch (e) {}
   }
-  if (reward.shards) { try { addAwakeningShards(reward.shards); } catch (e) {} }
   // label is a cosmetic stub — just log for now
   if (reward.label) console.log(`[Season Pass] cosmetic unlocked: ${reward.label}`);
 }
@@ -18566,7 +16907,6 @@ function claimSeasonTier(tier, track) {
   const parts = [];
   if (reward.gold)    parts.push(`+${reward.gold}💰`);
   if (reward.gems)    parts.push(`+${reward.gems}💎`);
-  if (reward.shards)  parts.push(`+${reward.shards}✦`);
   if (reward.essenceRandom) parts.push(`+${reward.essenceRandom}🔮`);
   try { flashText(`T${tier} ${track.toUpperCase()} · ${parts.join(' ')}`, '#FFD53D'); } catch (e) {}
   try { vibrate([60, 30, 60]); } catch (e) {}
@@ -19041,6 +17381,24 @@ function saveProgress() {
   } catch(e) { /* storage unavailable — silent */ }
 }
 
+// Phase 1 reduction: drop localStorage keys from removed modes (Arena, Event,
+// Awakening). Runs once at startup before loadProgress so stale keys never
+// re-enter the live save. Idempotent — safe if already clean.
+function migrateSave() {
+  const deprecatedKeys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (/arena|event_dungeon|awaken/i.test(key)) {
+      deprecatedKeys.push(key);
+    }
+  }
+  deprecatedKeys.forEach(k => localStorage.removeItem(k));
+  if (deprecatedKeys.length > 0) {
+    console.info(`[migrateSave] removed ${deprecatedKeys.length} deprecated keys`);
+  }
+}
+
 function loadProgress() {
   try {
     const raw = localStorage.getItem('blocksworn_progress');
@@ -19186,30 +17544,12 @@ function resetProgress() {
   // full reset also wipes dungeonProgress (so getFloorCleared returns 0).
   try { localStorage.removeItem(VOIDFANG_DEFEATED_KEY); } catch(e){}
   voidfangDefeated = false;
-  // V3.0 Phase 7 Block 7.1: wipe Tower state + awakening shards currency.
+  // V3.0 Phase 7 Block 7.1: wipe Tower state.
   // Tower becomes re-locked because voidfangDefeated flag is cleared above.
   try { localStorage.removeItem(TOWER_KEY); } catch(e){}
-  try { localStorage.removeItem(AWAKENING_SHARDS_KEY); } catch(e){}
   towerState = { currentFloor: 0, currentRunStarted: false, allTimeBest: 0, weeklyBest: 0, currentWeekStart: null, towerPoints: 0, runHistory: [] };
-  awakeningShards = 0;
   _isTowerBattle = false;
   _towerPreFloor = null;
-  // V3.0 Phase 7 Block 7.2: wipe Arena state. Unlock is re-gated on Ch1 complete
-  // (dungeonProgress wipe above will re-lock naturally).
-  try { localStorage.removeItem(ARENA_KEY); } catch(e){}
-  arenaState = { points: 0, dailyMatchesRemaining: 5, lastMatchDate: null, credits: 0, matchHistory: [], peakTier: 'bronze', weeklyPeakTier: 'bronze', currentWeekStart: null };
-  _isArenaBattle = false;
-  _arenaPreMatch = null;
-  _currentArenaOpponent = null;
-  // V3.0 Phase 7 Block 7.3: wipe event tokens + battle count. Active event remains
-  // deterministic (based on system clock) so no state needed to reset there.
-  try { localStorage.removeItem(EVENT_TOKENS_KEY); } catch(e){}
-  try { localStorage.removeItem(EVENT_BATTLE_COUNT_KEY); } catch(e){}
-  eventTokens = 0;
-  eventBattleCount = 0;
-  // V3.0 Phase 7 Block 7.4: wipe Awakening state (shards already wiped above via AWAKENING_SHARDS_KEY).
-  try { localStorage.removeItem(HERO_AWAKENED_KEY); } catch(e){}
-  heroAwakened = {};
   // V3.0 Phase 7 Block 7.5: wipe Season Pass state (XP + claims + premium flag).
   try { localStorage.removeItem(SEASON_KEY); } catch(e){}
   seasonState = {
@@ -19272,35 +17612,6 @@ function getHeroStats(hero) {
   s.dmgMult += lvlBonus.dmgBonus;
   s.hpBonus += lvlBonus.hpBonus;
   s.ultMult += lvlBonus.ultBonus;
-  // V3.0 Phase 7 Block 7.4: AWAKENING bonuses — additive on top of tier+level stack.
-  // Applied only when hero is awakened. Per-stihiya effect table:
-  //   ember  : +50% MAX_HP as bonus HP (ceil)
-  //   tide   : ult multiplier ×1.30 (ult charge/damage boost)
-  //   grove  : +2 shield bonus
-  //   solar  : critMult ×2 (reserved field; critHalveCombo flag set)
-  //   umbra  : umbraChain flag set (ult chains 50% to adjacent hero — reserved)
-  // Guarded: isAwakened may not exist if Block 7.4 backend failed to load.
-  if (typeof isAwakened === 'function' && isAwakened(hero.id)) {
-    s.awakened = true;
-    switch (hero.stihiya) {
-      case 'ember':
-        s.hpBonus += Math.ceil((typeof MAX_HP !== 'undefined' ? MAX_HP : 3) * 0.5);
-        break;
-      case 'tide':
-        s.ultMult *= 1.30;
-        break;
-      case 'grove':
-        s.shieldBonus += 2;
-        break;
-      case 'solar':
-        s.critMult = (s.critMult || 1) * 2;
-        s.critHalveCombo = true;  // reserved hook — consumed by future crit code
-        break;
-      case 'umbra':
-        s.umbraChain = true;      // reserved hook — consumed by future chain code
-        break;
-    }
-  }
   return s;
 }
 // Populated by computeSynergies() — read by getHeroStats for tier 4 gating.
@@ -21307,6 +19618,9 @@ function init() {
     })();
     ov.textContent += `⚠ JS ERROR: ${e.message}\n  at ${(e.filename||'').split('/').pop()}:${e.lineno}:${e.colno}\n\n`;
   });
+  // Phase 1 reduction: drop deprecated Arena/Event/Awakening localStorage keys
+  // before reading the main save, so stale state never re-enters runtime.
+  try { migrateSave(); } catch(e) { console.warn('migrateSave failed:', e); }
   // Load progression state from localStorage (or grant starter essences for first-time players)
   loadProgress();
   // V3.0 Block 0.3: paint resource strip with current (just-loaded) values.
@@ -21420,11 +19734,9 @@ function startBossBattle() {
   // keep it as-is; otherwise do the normal lookup.
   // V3.0 Phase 7 Block 7.1: analogous gate for Tower — Tower sets currentBoss
   // directly with `_isTowerBattle` flag before calling startBossBattle. Preserve it.
-  // V3.0 Phase 7 Block 7.2: same pattern for Arena via `_isArenaBattle` flag.
   const _preserveFtueBoss  = (ftueBeat === 'grunt_fight' && currentBoss && currentBoss._isFtueOnly);
   const _preserveTowerBoss = (currentBoss && currentBoss._isTowerBattle);
-  const _preserveArenaBoss = (currentBoss && currentBoss._isArenaBattle);
-  if (!_preserveFtueBoss && !_preserveTowerBoss && !_preserveArenaBoss) {
+  if (!_preserveFtueBoss && !_preserveTowerBoss) {
     currentBoss = BOSSES[currentBossIdx];
   }
   // V3.0 Block 1.1: apply FTUE overrides non-destructively. For Pyredrake during
@@ -21456,13 +19768,6 @@ function startBossBattle() {
     justUnlockedChapter2: false, justUnlockedChapter3: false,
     floorId: null, floorName: null, floorColor: null, floorBonusEssence: 0,
   };
-  // V3.0 Phase 7 Block 7.3: apply active event boosts BEFORE modifier-based HP/speed
-  // mutations so Blood Moon's activeModifiers.add calls take effect in this frame.
-  // Mode inferred from tower/arena flags (set by launchTowerFloor / launchArenaMatch).
-  try {
-    const _mode = _isTowerBattle ? 'tower' : (_isArenaBattle ? 'arena' : 'story');
-    if (typeof maybeApplyEventBoosts === 'function') maybeApplyEventBoosts(_mode);
-  } catch (e) {}
   // MODIFIER: Bloodlust — +50% boss HP
   if (activeModifiers.has('bloodlust')) bossMaxHP = Math.floor(bossMaxHP * MODIFIERS.bloodlust.hpMult);
   bossHP = bossMaxHP;
@@ -21581,7 +19886,7 @@ function startBossBattle() {
   // V3.0 Phase 7 Block 7.2: also skip for Arena (synthetic bosses have opponent
   // names, not canonical boss names — dialog lookup would miss anyway).
   try {
-    if (currentBoss && currentBoss.name && !currentBoss._isTowerBattle && !currentBoss._isArenaBattle) {
+    if (currentBoss && currentBoss.name && !currentBoss._isTowerBattle) {
       const prefix = getBossDialogPrefix(currentBoss.name);
       if (prefix && currentFloorId !== 1 && (typeof isFtueActive !== 'function' || !isFtueActive())) {
         const introId = `${prefix}_intro`;
@@ -22461,14 +20766,6 @@ async function onBossDefeated() {
     try { onTowerFloorClear(); } catch (e) { console.warn('onTowerFloorClear failed:', e); }
     return;
   }
-  // V3.0 Phase 7 Block 7.2: Arena win — synthetic boss, no story hooks fire.
-  // onArenaMatchWin awards points + credits + navigates back to Arena screen.
-  if (_isArenaBattle) {
-    _isArenaBattle = false;
-    gameEnded = true;
-    try { onArenaMatchWin(); } catch (e) { console.warn('onArenaMatchWin failed:', e); }
-    return;
-  }
   // V2.0 Block 1.3: PHOENIX ARCHETYPE revive — one-time, 60% HP + 2-turn motif immunity
   if (maybePhoenixRevive()) return;
   // PHOENIX REVIVE: boss comes back with full HP before actually dying (legacy multi-phase)
@@ -22807,14 +21104,6 @@ async function onBossDefeated() {
       }
     }
   } catch (e) { console.warn('Phase 6.3 Voidfang defeat chain failed:', e); }
-  // V3.0 Phase 7 Block 7.3: event token awards for story battles. Fires AFTER
-  // Phase 6 narrative chains complete so flash messages don't overlap. Event
-  // handlers self-gate on boss.stihiya / boss.name as appropriate.
-  try {
-    if (!currentBoss || !currentBoss._isFtueOnly) {
-      maybeTriggerEventOnBossDefeat(currentBoss);
-    }
-  } catch (e) { console.warn('event token trigger (story) failed:', e); }
 }
 // Scratch — populated by onBossDefeated, read by showVictoryModal
 // V3.0 Phase 2 Block 2.2: extended with floor metadata for victory modal display
@@ -28776,11 +27065,6 @@ async function afterPlacement(piece) {
       _isTowerBattle = false;
       gameEnded = true;
       try { endTowerRun(); } catch (e) { console.warn('endTowerRun failed:', e); }
-    } else if (_isArenaBattle) {
-      // V3.0 Phase 7 Block 7.2: Arena loss — award negative points, return to arena.
-      _isArenaBattle = false;
-      gameEnded = true;
-      try { onArenaMatchLoss(); } catch (e) { console.warn('onArenaMatchLoss failed:', e); }
     } else {
       showDefeatModal();
     }
@@ -29319,9 +27603,9 @@ function speakNarrator(trigger) {
 function showScreen(name) {
   currentScreen = name;
   // V3.0 Phase 3 Block 3.1: added 'shop' route for Shop screen
-  // FIX BUG-001: added 'awaken' and 'season' — without them, goToAwaken()/goToSeason()
-  // produced a black screen (no .screen had .active, user was soft-locked).
-  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', achievements: 'screenAchievements', codex: 'screenCodex', tower: 'screenTower', arena: 'screenArena', event: 'screenEvent', awaken: 'screenAwaken', season: 'screenSeason' };
+  // FIX BUG-001: added 'season' — without it, goToSeason() produced a black
+  // screen (no .screen had .active, user was soft-locked).
+  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', achievements: 'screenAchievements', codex: 'screenCodex', tower: 'screenTower', season: 'screenSeason' };
   for (const key in map) {
     const el = document.getElementById(map[key]);
     if (el) el.classList.toggle('active', key === name);
@@ -29377,15 +27661,6 @@ function goToMenu() {
     // also respects FTUE state. Both idempotent.
     if (typeof checkTowerWeeklyReset === 'function') checkTowerWeeklyReset();
     if (typeof updateTowerButtonVisibility === 'function') updateTowerButtonVisibility();
-    // V3.0 Phase 7 Block 7.2: Arena daily + weekly reset + button visibility.
-    // Unlock gate: Ch1 complete. Daily reset refills matches; weekly rollover
-    // snapshots peakTier → weeklyPeakTier for the coming week.
-    if (typeof checkArenaDailyReset === 'function') checkArenaDailyReset();
-    if (typeof checkArenaWeeklyReset === 'function') checkArenaWeeklyReset();
-    if (typeof updateArenaButtonVisibility === 'function') updateArenaButtonVisibility();
-    // V3.0 Phase 7 Block 7.3: Events button visibility (any time post-FTUE).
-    // No state refresh needed — getActiveEvent is stateless (epoch-day-based).
-    if (typeof updateEventButtonVisibility === 'function') updateEventButtonVisibility();
   } catch (e) { console.warn('Phase 5/6/7 menu refresh failed:', e); }
   showScreen('menu');
 }
@@ -30111,7 +28386,6 @@ let vSearch = '';
 
 // ===== V3.0 PHASE 3 · HELPERS =====
 function vHeroRarity(h) {
-  try { if (typeof isAwakened === 'function' && isAwakened(h.id)) return 'mythic'; } catch(e){}
   const tier = heroUpgrades[h.id] || 0;
   if (tier >= 3) return 'legendary';
   if (tier >= 2) return 'epic';
@@ -30317,7 +28591,6 @@ function vRenderRoster() {
     const craftable = locked && fragCount >= HERO_FRAGMENT_CAP;
     if (craftable) card.classList.add('craftable');
     if (activeSquad.includes(h.id)) card.classList.add('in-squad');
-    try { if (typeof isAwakened === 'function' && isAwakened(h.id)) card.classList.add('awakened'); } catch(e){}
     // Portrait
     if (ASSETS[h.img]) {
       const im = document.createElement('img');
@@ -30802,9 +29075,6 @@ function renderHeroDetailLevel(hero) {
     btn.disabled = (gold || 0) < cost;
     btn.title = btn.disabled ? 'Not enough gold' : '';
   }
-  // V3.0 Phase 7 Block 7.4: inject AWAKEN button after level controls.
-  // Guarded — function may not exist if 7.4 backend failed to load.
-  try { if (typeof injectAwakenButtonIntoDetail === 'function') injectAwakenButtonIntoDetail(hero.id); } catch (e) {}
 }
 
 // Called by the LEVEL UP button. On success, re-render the section (including new cost
