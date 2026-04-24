@@ -113,10 +113,16 @@ narrator identity полностью под новую 3-faction структу�
 
 ## DEBT-005 · Phase 1 Task 1.4 · Chapter 2/3 boss-hero reward mappings
 **Introduced:** 2026-04-24 · Task #1.4
-**What:** `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` still map to removed hero ids (skeleton_hunter, golem_hunter, lion_hunter, skeleton_captain, golem_captain, lion_captain). They are unreachable in Ch1-only play because those bosses don't exist in the current `CHAPTERS` array until Task #1.5 restores or removes them.
+**Resolved:** 2026-04-24 · Task #1.5
+**What:** `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` mapped to removed hero ids (skeleton_hunter, golem_hunter, lion_hunter, skeleton_captain, golem_captain, lion_captain). Unreachable in Ch1-only play.
 
-**Why:** Mapping entries are harmless while Ch2/Ch3 are disabled — `getBossHeroReward` returns `null` for unknown ids. Removing them surgically now would be premature; Task #1.5 will delete the Ch2/Ch3 data structures wholesale, taking these entries with them.
+**Resolution:** Task #1.5 deleted both `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` entirely along with the Ch2/Ch3 CHAPTERS entries. Only `BOSS_HERO_REWARDS[1]` (Chapter 1, 2 hero grants) remains.
 
-**Resolution plan:**
-- Task #1.5 (Chapter trim) removes `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` entirely as part of the chapter data cull.
-- Task #1.9 (regression) verifies `Object.keys(BOSS_HERO_REWARDS)` returns `['1']`.
+## DEBT-008 · Phase 1 Task 1.4.2 · FTUE reveal does not unlock
+**Introduced:** 2026-04-24 · observed during Task #1.4.2 smoke test
+**Resolved:** 2026-04-24 · Task #1.5 (Part B)
+**What:** After FTUE reveal cinematic, `pirate_hunter` (Blacktooth) was shown as "JOINS THE WARBAND" but `hero.unlocked` remained `false`. Player saw the new hero in the reveal dialog but could not add them to squad.
+
+**Root cause:** `revealHero()` managed only the cosmetic `revealedHeroes` Set + its storage key. It never called `unlockHero()` nor flipped `hero.unlocked`, leaving reveal and unlock as separate paths.
+
+**Resolution:** `revealHero()` now flips `hero.unlocked = true` and appends the id to `HEROES_UNLOCKED_STORAGE_KEY` array (idempotent append, guarded to skip Clockwork placeholders via `!hero.locked`). Clockwork heroes stay locked until Phase 2 spawns real implementations.
