@@ -118,6 +118,32 @@ narrator identity полностью под новую 3-faction структу�
 
 **Resolution:** Task #1.5 deleted both `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` entirely along with the Ch2/Ch3 CHAPTERS entries. Only `BOSS_HERO_REWARDS[1]` (Chapter 1, 2 hero grants) remains.
 
+## DEBT-012 · Phase 1 Task 1.9 · Orphan Ch2/Ch3 DIALOG_LINES entries
+**Introduced:** 2026-04-25 · observed during Task #1.9 regression audit
+**What:** 44 dialog data entries в `DIALOG_LINES` для Chapter 2 (TIDAL LEVIATHAN /
+VERDANT COLOSSUS / SERAPH JUDICATOR / WRAITH OF CHAINS / EMBERBEARD) и Chapter 3
+(PYRESPIRE / GLACIAL MONARCH / STONEMAGUS / SUNFORGED / VOIDFANG) bosses осталось
+после Task #1.5 chapter trim. Каждый boss has intro + 1-2 phase + defeat dialog
+entries. Все они reference `portraitKey: 'Boss_6'..'Boss_15'` — assets
+which were removed in Task #1.5.
+
+**Why deferred:** Functionally inert — DIALOG_LINES lookups happen via dialog id,
+and никакой trigger path не активирует Ch2/Ch3 dialog ids в current Ch1-only
+gameplay. ASSETS lookup для Boss_6..15 portrait keys возвращает undefined →
+dialog player handles missing portraits gracefully. ~50 lines / ~5KB of dead
+text data.
+
+**Resolution plan:** Phase 5 (Onboarding Rebuild) — Creative Director переписывает
+все DIALOG_LINES под new 15-hero / 5-boss roster. Orphan Ch2/Ch3 entries
+naturally removed в этом процессе.
+
+**Action now:** none. Documented for traceability. Cleanup grep pattern for
+Phase 5 verification:
+```bash
+grep -cE "leviathan_|colossus_|seraph_|wraith_|emberbeard_|pyrespire_|monarch_|stone_|sunforged_|voidfang_" blocksworn_index_fixed.html
+# Expected post-Phase-5: 0
+```
+
 ## DEBT-011 · Phase 1 Task 1.8 · FTUE splash cards full-width
 **Introduced:** 2026-04-25 · Task #1.7.1 hotfix
 **What:** Splash cards в FTUE intro (3 slides: SUMMONER / PLACE BLOCKS / MATCH
