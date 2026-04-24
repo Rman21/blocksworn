@@ -10445,7 +10445,8 @@ img#bossImg.v-fx-boss-die {
     <div class="leader-choice-options">
       <!-- Task #1.4: Crimson (pirate captain, ember) vs Nightlord (rock captain, umbra).
            DOM element IDs + CSS class names (.grommar / .skarn) kept stable so existing
-           CSS continues to apply without a stylesheet rewrite. -->
+           CSS continues to apply without a stylesheet rewrite.
+           TODO(phase-5): leader choice candidates re-chosen by Creative Director per Phase 5 Task 5.1 (see DEBT-007) -->
       <button class="leader-choice-option grommar" onclick="onLeaderChosen('pirate_captain')">
         <img id="leaderChoiceGrommarImg" class="leader-choice-portrait" alt="CRIMSON" />
         <div class="leader-choice-name">CRIMSON</div>
@@ -11726,7 +11727,8 @@ if (typeof window !== 'undefined') {
 // the overlay advances a line; mid-typing tap reveals the full current line.
 // A 200ms debounce prevents double-tap from skipping past lines.
 
-let revealedHeroes = new Set(['pirate_warrior']); // V3.0 Phase 0.1 post-refit: Grommar is the FTUE narrator (pre-reveal default)
+// TODO(phase-5): narrator identity re-chosen by Creative Director per Phase 5 Task 5.1 (see DEBT-007)
+let revealedHeroes = new Set(['pirate_warrior']); // Task #1.4: narrator swapped from grommar_warchief → pirate_warrior (THORGAR)
 let leaderHeroId   = null;
 const REVEALED_STORAGE_KEY = 'blocksworn_revealed_heroes';
 const LEADER_STORAGE_KEY   = 'blocksworn_leader_hero';
@@ -11825,11 +11827,13 @@ const FTUE_SCRIPTS = {
   ],
   // Block 1.2 — post-Pyredrake reveal chain
   // Task #1.4: script keys kept as hero_reveals_thara/_urzog for FTUE state-machine stability.
+  // TODO(phase-5): FTUE narrative re-designed by Creative Director per Phase 5 Task 5.1 (see DEBT-006)
   // Reveal 1 — Blacktooth arrives (pirate hunter, ember)
   hero_reveals_thara: [
     { speakerId: 'pirate_warrior', text: 'A sail cuts the smoke. One of the free captains survived.' },
     { speakerId: 'pirate_hunter',  text: 'Heard the dragon-scream from six leagues out. My shot finds what yours missed.' },
   ],
+  // TODO(phase-5): FTUE narrative re-designed by Creative Director per Phase 5 Task 5.1 (see DEBT-006)
   // Reveal 2 — Keycrypt arrives (rock mage, umbra)
   hero_reveals_urzog: [
     { speakerId: 'pirate_warrior', text: 'A cold walks through the ash. The deep beat answers.' },
@@ -12471,6 +12475,7 @@ if (typeof window !== 'undefined') {
 // from removed races (VERDANIA/VALERIUS/GOLDMANE/NYX). Set to null so the grant path
 // no-ops — the 4 starter heroes already cover both surviving factions. Phase 2
 // Clockwork heroes will repopulate these hooks when they ship.
+// TODO(phase-5): restore FTUE-complete gift hero per Phase 5 Task 5.1 narrative plan (see DEBT-007)
 const POST_FTUE_GIFT_HERO_ID = null;
 const POST_FTUE_BOSS_REWARDS = {
   // Chapter 1 ONLY. Only Crypt Lich (idx 4) still grants a unique hero (RIFFBLADE).

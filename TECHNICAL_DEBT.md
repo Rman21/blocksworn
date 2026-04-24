@@ -66,6 +66,51 @@ No further action required.
 **Resolution plan:**
 - Task #1.9 (regression) grep verification: `grep -cE "(tharaRage|blackfangPack|grommarRally|frostweaverBonusDmg|glacierIceArmor|valeriusRadiant|aureliusColumn|solarisRay|lumiaPanic|seraphinaMark|shadeUlt|nyxConvert|vyraShot|zarnokBolt|kaelenEn|bonelord|iceshot|glacier|rimehelm|leorex|solara|astarion|goldmane)[A-Z]"` should equal 0 after cleanup pass.
 
+## DEBT-006 · Phase 1 Task 1.4 · FTUE script content placeholders
+**Introduced:** 2026-04-24 · commit 6bd3744
+**What:** Keys `hero_reveals_thara` and `hero_reveals_urzog` in `FTUE_SCRIPTS` были
+восстановлены с ad-hoc content адаптированным под новый roster (pirate_warrior +
+rock_mage speakers). Original content потерян либо deleted within Task #1.4
+working state.
+
+**Forensic audit (2026-04-24):** Keys + array literals присутствовали во всех
+commit boundaries baseline → 6bd3744 (FTUE_SCRIPTS bracket balance 6/6 at every
+commit). Transient corruption наблюдался только в моём in-task working state
+перед финальным restoration edit. Root cause: inadvertent deletion между
+uncommitted edits; точный источник не идентифицирован. Финальный commit 6bd3744
+структурно корректен.
+
+**Why:** Восстановление было необходимо для resolution наблюдаемого syntax error
+(4 `[` / 6 `]` в FTUE_SCRIPTS object literal). Без полного контекста оригинала
+content был написан на основе типичной FTUE flow (narrator introduces new hero).
+
+**Resolution plan:** Phase 5 (Onboarding Rebuild) — FTUE_SCRIPTS полностью
+переписываются через Creative Director под новый 15-hero roster. Ad-hoc content
+этой записи будет заменён в рамках Phase 5 Task 5.1 или 5.2.
+
+**Action now:** Inline `// TODO(phase-5):` comments помечают relevant keys.
+
+## DEBT-007 · Phase 1 Task 1.4 · Narrative elements adapted ad-hoc
+**Introduced:** 2026-04-24 · commit 6bd3744
+**What:** Следующие narrative elements были переделаны под новый roster без явной
+MGD approval перед изменением:
+- Leader choice options: LIORA (elf hunter) / OAKROOT (troll druid) → CRIMSON (pirate captain) / NIGHTLORD (rock captain)
+- Leader narrator / FTUE storyteller: `grommar_warchief` (orc tank) → `pirate_warrior` (THORGAR) — 21 reference sites
+- `POST_FTUE_GIFT_HERO_ID` set to `null` (was `'golem_mage'` — VERDANIA)
+- FTUE post-battle reveals: `skeleton_mage` (FROSTWEAVER) → `rock_mage` (KEYCRYPT)
+
+**Why:** Полностью orphaned references после удаления 8 factions в Task #1.4.
+Без немедленной адаптации:
+- Leader choice modal показывал бы два dead hero IDs → dead-click state
+- FTUE narrator dispatch `HERO_ROSTER.find(...)` returned undefined → broken speaker portrait + name
+- Post-FTUE gift grant пытался бы разблокировать несуществующего героя
+
+**Resolution plan:** Phase 5 Onboarding Rebuild переосмысляет leader choice и
+narrator identity полностью под новую 3-faction структуру. Текущие substitutions
+— interim, не final narrative design.
+
+**Action now:** Inline `// TODO(phase-5):` comments помечают каждый из 4 блоков.
+
 ## DEBT-005 · Phase 1 Task 1.4 · Chapter 2/3 boss-hero reward mappings
 **Introduced:** 2026-04-24 · Task #1.4
 **What:** `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` still map to removed hero ids (skeleton_hunter, golem_hunter, lion_hunter, skeleton_captain, golem_captain, lion_captain). They are unreachable in Ch1-only play because those bosses don't exist in the current `CHAPTERS` array until Task #1.5 restores or removes them.
