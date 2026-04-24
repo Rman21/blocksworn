@@ -3001,6 +3001,22 @@
 #vSplashTrack .v-splash-card:not(.active) { display: none !important; }
 #vSplashTrack .v-splash-card.active       { display: flex !important; }
 
+/* Task #1.8: TOWER nav-button lock state on the Hub. Driven by `.locked` class
+   from updateTowerNavButton(). Other screens' Tower buttons don't carry the
+   lock visual — by design (only menu has id="navTowerBtn"). */
+#navTowerBtn.locked {
+  opacity: 0.5;
+  position: relative;
+}
+#navTowerBtn.locked::after {
+  content: "🔒";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 10px;
+  pointer-events: none;
+}
+
 /* Task #1.7.1 hotfix: battle deck hero-card sizing — Task #1.6 removed the
    Vivid `.game.v-battle .deck .hero-card { width: 58px; aspect-ratio: 1 }`
    rule along with the BATTLE SCREEN block. Without it, `.hero-card` has only
@@ -7519,6 +7535,9 @@ button.season-tier-claim:active {
       <button class="v-nav-item" data-nav="heroes" onclick="goToSelect()">
         <span class="a-bottom-nav__icon">⚔</span>HEROES
       </button>
+      <button class="v-nav-item" data-nav="tower" id="navTowerBtn" onclick="goToTower()">
+        <span class="a-bottom-nav__icon">🗼</span>TOWER
+      </button>
       <button class="v-nav-item" data-nav="shop" onclick="goToShop()">
         <span class="a-bottom-nav__icon">💎</span>SHOP
         <span class="v-badge" id="vShopBadge" style="display:none">0</span>
@@ -7536,7 +7555,6 @@ button.season-tier-claim:active {
       </div>
       <div class="a-hub-drawer-grid">
         <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToDailies();">📅 DAILY<span class="v-badge" id="vDailyBadge" style="display:none">0</span></button>
-        <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToTower();">🗼 TOWER</button>
       </div>
     </div>
   </div>
@@ -7586,6 +7604,7 @@ button.season-tier-claim:active {
     <nav class="v-bottom-nav a-bottom-nav">
       <button class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="a-bottom-nav__icon">⌂</span>HOME</button>
       <button class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="a-bottom-nav__icon">⚔</span>HEROES</button>
+      <button class="v-nav-item" data-nav="tower" onclick="goToTower()"><span class="a-bottom-nav__icon">🗼</span>TOWER</button>
       <button class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="a-bottom-nav__icon">💎</span>SHOP</button>
     </nav>
   </div>
@@ -7669,6 +7688,7 @@ button.season-tier-claim:active {
   <nav class="v-bottom-nav a-bottom-nav">
     <button class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="a-bottom-nav__icon">⌂</span>HOME</button>
     <button class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="a-bottom-nav__icon">⚔</span>HEROES</button>
+    <button class="v-nav-item" data-nav="tower" onclick="goToTower()"><span class="a-bottom-nav__icon">🗼</span>TOWER</button>
     <button class="v-nav-item active" data-nav="shop" onclick="goToShop()"><span class="a-bottom-nav__icon">💎</span>SHOP</button>
   </nav>
 </div>
@@ -7707,6 +7727,7 @@ button.season-tier-claim:active {
   <nav class="v-bottom-nav">
     <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
     <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
+    <div class="v-nav-item" data-nav="tower" onclick="goToTower()"><span class="icn">🗼</span>TOWER</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
   </nav>
 </div>
@@ -7743,6 +7764,7 @@ button.season-tier-claim:active {
   <nav class="v-bottom-nav">
     <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
     <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
+    <div class="v-nav-item" data-nav="tower" onclick="goToTower()"><span class="icn">🗼</span>TOWER</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
   </nav>
 </div>
@@ -7812,6 +7834,7 @@ button.season-tier-claim:active {
   <nav class="v-bottom-nav">
     <div class="v-nav-item" data-nav="home" onclick="goToMenu()"><span class="icn">⌂</span>HOME</div>
     <div class="v-nav-item" data-nav="heroes" onclick="goToSelect()"><span class="icn">⚔</span>HEROES</div>
+    <div class="v-nav-item" data-nav="tower" onclick="goToTower()"><span class="icn">🗼</span>TOWER</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
   </nav>
 </div>
@@ -11456,6 +11479,9 @@ function replayChapterFromChapterComplete() {
     if (typeof currentBossIdx !== 'undefined') currentBossIdx = 0;
     if (typeof selectedBossIdx !== 'undefined') selectedBossIdx = null;
     if (typeof saveProgress === 'function') saveProgress();
+    // Task #1.8: defensive — flag is preserved (chapter_1_complete stays true) so
+    // Tower stays unlocked, but call anyway to keep visual state in sync.
+    if (typeof updateTowerNavButton === 'function') updateTowerNavButton();
     if (typeof goToMenu === 'function') goToMenu();
   } catch (e) { console.warn('[replayChapterFromChapterComplete] failed:', e); }
 }
@@ -14601,6 +14627,8 @@ function init() {
   try { migrateSave(); } catch(e) { console.warn('migrateSave failed:', e); }
   // Load progression state from localStorage (or grant starter essences for first-time players)
   loadProgress();
+  // Task #1.8: paint TOWER nav lock state once after save load
+  try { updateTowerNavButton(); } catch (e) {}
   // Task #1.4: surface the migration refund notice once per save transition
   try {
     const refund = localStorage.getItem('blocksworn_migration_1_4_refund');
@@ -15826,6 +15854,8 @@ async function onBossDefeated() {
   // and surfaces the Chapter Complete modal with ENTER TOWER / REPLAY CHAPTER CTAs.
   if (currentChapter === 1 && bossesDefeated >= BOSSES.length && !hasCompletedChapter1()) {
     try { localStorage.setItem('blocksworn_chapter_1_complete', 'true'); } catch (e) {}
+    // Task #1.8: refresh Tower nav button to drop the lock badge.
+    try { if (typeof updateTowerNavButton === 'function') updateTowerNavButton(); } catch (e) {}
     // Defer modal ~1.5s so the core victory flow (flash + animation + victory modal) reads first.
     setTimeout(() => {
       try { showChapterCompleteModal(); } catch (e) { console.warn('[chapter-complete modal] failed:', e); }
@@ -20239,27 +20269,41 @@ function vRenderSquadDock() {
 // Each screen has its own .v-bottom-nav. Active item is derived from the
 // screen id. Calling this from showScreen() keeps state correct on every nav.
 function activateNavFor(screenName) {
-  // screenName matches the keys in showScreen's map (menu/select/shop/event/...).
-  // Map to the nav slot: home/heroes/shop/events. Other screens (battle, awaken,
-  // etc.) have no matching slot — leave all inactive.
+  // screenName matches the keys in showScreen's map (menu/select/shop/tower/...).
+  // Task #1.8: nav slots are home/heroes/tower/shop (4-tab). Other screens
+  // (battle, awaken, etc.) have no matching slot — leave all inactive.
   const slotByScreen = {
     menu:         'home',
     select:       'heroes',
     shop:         'shop',
-    event:        'events',
+    tower:        'tower',
     // retention screens surface through HOME tile, so keep HOME active there:
     dailies:      'home',
     achievements: 'home',
     codex:        'heroes',
-    tower:        'events',
-    arena:        'events',
+    arena:        'tower',
     awaken:       'heroes',
-    season:       'events',
+    season:       'tower',
   };
   const slot = slotByScreen[screenName] || null;
   document.querySelectorAll('.v-bottom-nav .v-nav-item').forEach(el => {
     el.classList.toggle('active', slot !== null && el.getAttribute('data-nav') === slot);
   });
+}
+
+// Task #1.8: Tower nav button lock-state. Tower is gated on Chapter 1 completion
+// (`blocksworn_chapter_1_complete === 'true'`). Only the menu screen's TOWER
+// button carries the visible lock badge — id="navTowerBtn" — for the strongest
+// Hub-side cue. Other screens' Tower buttons stay click-passthrough; goToTower()
+// itself surfaces the "Defeat CRYPT LICH first" toast when locked.
+function updateTowerNavButton() {
+  const btn = document.getElementById('navTowerBtn');
+  if (!btn) return;
+  const unlocked = (typeof isTowerUnlocked === 'function') ? isTowerUnlocked() : false;
+  btn.classList.toggle('locked', !unlocked);
+}
+if (typeof window !== 'undefined') {
+  window.updateTowerNavButton = updateTowerNavButton;
 }
 
 // ===== V3.0 PHASE 2 · BOTTOM SHEET STUBS =====
