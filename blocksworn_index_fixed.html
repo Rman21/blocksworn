@@ -14986,7 +14986,12 @@ function endTowerRun() {
 // ========= Screen + rendering =========
 function goToTower() {
   if (!isTowerUnlocked()) { showToast('Defeat CRYPT LICH first'); return; }
-  if (typeof isFtueActive === 'function' && isFtueActive()) { showToast('Finish the tutorial first'); return; }
+  // Task #1.5.4 hotfix: removed redundant FTUE guard.
+  // isTowerUnlocked() already requires blocksworn_chapter_1_complete === 'true',
+  // which in normal play implies FTUE completion (Ch1 Boss_1 IS the FTUE fight).
+  // The secondary FTUE gate blocked dev smoke tests that manually set the flag,
+  // and surfaced in Roman's incognito test as "TOWER silently stays on DAILY"
+  // (the early-return toast left the previously-active screen in place).
   checkTowerWeeklyReset();
   if (typeof showScreen === 'function') {
     showScreen('tower');
