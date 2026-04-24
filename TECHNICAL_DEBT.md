@@ -118,6 +118,46 @@ narrator identity полностью под новую 3-faction структу�
 
 **Resolution:** Task #1.5 deleted both `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` entirely along with the Ch2/Ch3 CHAPTERS entries. Only `BOSS_HERO_REWARDS[1]` (Chapter 1, 2 hero grants) remains.
 
+## DEBT-009 · Phase 1 Task 1.6 · Vivid class-name aliases retained
+**Introduced:** 2026-04-25 · Task #1.6
+**What removed (this task):**
+- 10 `VIVID STYLIZED — ...` CSS section blocks (lines 7456–9916, 2461 lines):
+  ATOMIC COMPONENTS, MAIN HUB LAYOUT, LOADOUT/SELECT, BATTLE SCREEN, RESULT MODAL,
+  SHOP, SECONDARY SCREENS, HERO DETAIL BOTTOM SHEET, MOTION/VFX/HAPTICS, FIRST-RUN SPLASH.
+- Vivid-specific modal rules (`.modal.vivid-victory`, `.modal.vivid-defeat`) — Arena
+  Premium `.a-result[data-result="..."]` rules supersede via proper selector.
+- `#infoModal` Vivid cream-card styling block — Arena Premium `.modal` rules now apply.
+- All 40 `--v-*` CSS custom properties in `:root` — Arena Premium `--a-*` tokens
+  are the single source of design values. Chapter Complete modal font-family
+  fallback chain cleaned to `--a-font-display` only.
+
+**What is deferred (still Vivid-named):**
+- **`v-*` DOM class names** (67 unique, 309 CSS selector occurrences post-cleanup):
+  load-bearing architecture — Arena Premium CSS uses them as compound hooks (e.g.
+  `.a-battle .v-battle-boss-card { ... }`), and 36 `getElementById('v...')` +
+  7 `querySelector('.v-*')` JS call-sites depend on them. Renaming requires
+  lockstep touch of DOM + CSS + JS across ~400 sites.
+- JS section comment `V3.0 PHASE 2 · VIVID RENDERERS` — cosmetic label only,
+  underlying logic is Arena Premium.
+- 19 textual `VIVID` / `Vivid` occurrences in section comments and inline notes.
+
+**Why:** After Task #1.6 the Vivid *visual style* is gone — `--v-*` tokens are
+deleted, all Vivid baseline CSS rules stripped, and the compound selectors left
+behind (`.a-battle .v-battle-boss-card`) use the `v-*` class only as a scoped
+selector hook. The `v-*` names are effectively arbitrary identifiers now, no
+different from `#bossImgWrap` or `.modal-box`. Rename is cosmetic, not functional.
+
+**Resolution plan:**
+- Phase 6 (Launch Prep) — dedicated sub-task for naming cleanup:
+  1. `v-*` class names → `a-*` (DOM + CSS + JS selectors in lockstep)
+  2. Remove remaining `VIVID` / `Vivid` comment strings + `VIVID RENDERERS` label
+  3. Visual smoke test across every screen, every modal
+- Task #1.9 (regression) verification: playtest confirms no screen still renders
+  in the Vivid palette (bright blue sky, cream cards, yellow chunky CTAs).
+  Pre-1.6 Roman playtest flagged Tutorial Complete / Defeat modal / Heroes screen
+  as still-Vivid — post-1.6 they should render Arena Premium via the remaining
+  compound selectors now that the baseline Vivid CSS is gone.
+
 ## DEBT-008 · Phase 1 Task 1.4.2 · FTUE reveal does not unlock
 **Introduced:** 2026-04-24 · observed during Task #1.4.2 smoke test
 **Resolved:** 2026-04-24 · Task #1.5 (Part B)
