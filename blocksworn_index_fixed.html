@@ -8884,12 +8884,15 @@ function _bossVoiceTrigger(slot) {
   const lines = BOSS_VOICES[currentBoss.name];
   if (!lines || !lines[slot]) return;
   if (typeof playDialogScript !== 'function') return;
-  // Mode B (boss dialog) — explicit speaker + color. The dialog overlay reads
-  // line.speaker / line.speakerColor / line.text. portraitKey is left empty
-  // (boss already visible behind the modal — no portrait swap needed).
+  // Mode B (boss dialog) — explicit speaker + color + portraitKey. portraitKey is
+  // REQUIRED — without it the dialog renderer ([dialog speaker block ~9612]) sets
+  // portraitEl.src='' and the browser shows a broken-image icon (HOTFIX B3.1 BUG #1).
+  // currentBoss.img is already 'Boss_1'..'Boss_5' which match the inline data-URI
+  // entries in ASSETS at line ~8165.
   const script = [{
     speaker: currentBoss.name,
     speakerColor: currentBoss.color || '#FFD53D',
+    portraitKey: currentBoss.img,
     text: lines[slot],
   }];
   try { playDialogScript(script, null); } catch (e) { console.warn('boss voice fire failed:', e); }
