@@ -309,3 +309,57 @@ the baseline Vivid CSS is gone.
 **Root cause:** `revealHero()` managed only the cosmetic `revealedHeroes` Set + its storage key. It never called `unlockHero()` nor flipped `hero.unlocked`, leaving reveal and unlock as separate paths.
 
 **Resolution:** `revealHero()` now flips `hero.unlocked = true` and appends the id to `HEROES_UNLOCKED_STORAGE_KEY` array (idempotent append, guarded to skip Clockwork placeholders via `!hero.locked`). Clockwork heroes stay locked until Phase 2 spawns real implementations.
+
+## DEBT-013 · Phase 1 sign-off · Blacktooth (pirate_hunter) portrait mismatch
+**Introduced:** 2026-04-25 · noted by Roman during Phase 1 sign-off playtest
+**What:** `pirate_hunter` (BLACKTOOTH, race='pirate', stihiya='ember') currently
+renders with an elf-styled portrait — hooded figure, purple eyes, daggers. Does
+not match the pirate faction visual language (tricorn / bandana / firearm /
+ember accents) established by the other 4 pirate heroes (Thorgar, Emberhand,
+Ironbelly, Crimson).
+
+**Root cause (likely):** Two ASSETS keys named `hero_pirate_gun` exist in
+`blocksworn_index_fixed.html`:
+- Line 8118 — original V18.10 entry inside the main ASSETS object literal
+- Line 8171 — override inside the "ARENA PREMIUM · ASSET OVERRIDES" block
+  (`Object.assign(ASSETS, {...})`, added 2026-04-23)
+
+Per JS object-literal + Object.assign semantics, the override at L8171 wins.
+Hypothesis: the Arena Premium asset bundle on 2026-04-23 mis-labeled an
+unrelated portrait (likely the legacy `hero_dark_elf_hunter` art) with the
+`hero_pirate_gun` key, so the override stomps the original pirate art with
+elf art. Not visually verified — Phase 4.x will confirm by inspecting both
+base64 payloads.
+
+**Why no swap performed in Task #4.0.1:**
+All 5 pirate ASSETS keys are mapped 1:1 to the 5 pirate heroes:
+
+| Hero id          | Display    | img key              |
+|------------------|------------|----------------------|
+| pirate_warrior   | THORGAR    | hero_pirate_sword    |
+| pirate_hunter    | BLACKTOOTH | hero_pirate_gun ← bug|
+| pirate_mage      | EMBERHAND  | hero_pirate_bomb     |
+| pirate_tank      | IRONBELLY  | hero_pirate_tank     |
+| pirate_captain   | CRIMSON    | hero_pirate_captain  |
+
+No spare proper-pirate portrait exists to swap into the hunter slot without
+making two heroes share a face. Reverting just the L8171 override might fix
+it (if L8118 is the proper original), but cannot be visually verified without
+rendering both base64 payloads — risk of substituting one wrong portrait with
+another. Deferred to a proper asset task with visual diff.
+
+**Severity:** Cosmetic only. Gameplay, FTUE flow, hero stats, fire/ult code
+all correct. `pirate_hunter` race/stihiya tags drive ember-faction synergies
+correctly regardless of portrait pixels.
+
+**Resolution plan:** Phase 4.x (balance + tactile polish) or Phase 6 (Launch
+Prep) — generate proper pirate-hunter portrait (bandana / tricorn, dual
+flintlocks, ember accents, glowing orange eyes, matches existing 4 pirates)
+and either replace L8171 override base64 OR delete L8171 + replace L8118
+base64. Concept reference attached in chat 2026-04-25.
+
+**Verification post-fix:**
+```bash
+# Should be 1, not 2 (after dedup):
+grep -cE "^\s*hero_pirate_gun:" blocksworn_index_fixed.html
+```
