@@ -13195,7 +13195,24 @@ let shriekSpreadDetonate      = false;    // T3+ true — spread cells add to um
 let shriekEchoTurns           = 1;        // T0=1, T1+=2 echo placements
 let shriekEchoMult            = 1.0;      // T2+=1.5 dmg multiplier on echo
 let shriekEchoPermanent       = false;    // T3+ true — permanent echo mode
-let umbraDetonationCells      = new Set();  // Shriek T3 charged-equivalent for umbra
+let umbraDetonationCells      = new Set();  // Shriek T3 charged-equivalent for umbra (legacy, no consumer in v1)
+
+// HERO_GRAMMAR §4 [Dark / Umbra] — Encore stack counter (Block B1).
+// Universal element side-system. Created by every umbra clear (in onUmbraCellsCleared,
+// independent of which hero is in squad — element mechanic, not hero mechanic).
+// Consumed by SHRIEK (DETONATOR) for mass detonation; amplified by KEYCRYPT (AMPLIFIER)
+// for +20%-per-stack damage window; window-opened by NIGHTLORD ULT.
+let encoreStacks              = 0;
+const ENCORE_STACK_CAP        = 8;        // generous cap; spec is silent
+
+// HERO_GRAMMAR §4 [Dark × Mage] — KEYCRYPT DEEP BEAT amplifier window (Block B1).
+// Mirrors EMBERHAND BLOOM pattern. Computed AT FIRE TIME from current encoreStacks
+// (mult = 1.0 + stacks × 0.20). SHRIEK reads keycryptDeepBeatMult on detonate.
+// Decremented at end of each placement so the activating placement is fully boosted.
+let keycryptDeepBeatActive    = false;
+let keycryptDeepBeatMult      = 1.0;
+let keycryptDeepBeatDuration  = 0;
+const KEYCRYPT_DEEP_BEAT_TURNS = 3;
 
 // --- KEYCRYPT (rock mage) ---
 let keycryptSpawnCount        = 1;        // T0=1, T1+=2 umbra spawns per fire
@@ -14452,6 +14469,11 @@ function resetRaceFlags() {
   keycryptAmpWindow        = 0;
   thunderbeatRhythmWindow  = 0;
   shriekEchoNextPlacement  = false;
+  // HERO_GRAMMAR §4 [Dark / Umbra] — Encore stack + KEYCRYPT BLOOM per-battle reset (Block B1)
+  encoreStacks             = 0;
+  keycryptDeepBeatActive   = false;
+  keycryptDeepBeatMult     = 1.0;
+  keycryptDeepBeatDuration = 0;
   // Stage 5 Block 5.1 — per-hero battle flags (tracks XP gain criteria)
   _currentFiringHero       = null;
   for (const h of HERO_DECK) {
@@ -15683,9 +15705,35 @@ function onUmbraUltFired(hero) {
 }
 
 // UMBRA — called with number of umbra cells cleared this clear-pass
+// HERO_GRAMMAR §4 [Dark / Umbra] (Block B1) — Encore consume helper.
+// Drains the encoreStacks counter to 0 and applies cross-hero side effects:
+//   THUNDERBEAT (Tank/PROTECTOR): +1 shield per Encore proc, if THUNDERBEAT is in squad.
+// Returns the number of stacks consumed (so callers can scale damage / banners).
+// Single source of truth — SHRIEK and any future encore consumer route through here.
+function consumeEncoreStacks() {
+  const consumed = encoreStacks;
+  encoreStacks = 0;
+  if (consumed > 0 && typeof HERO_DECK !== 'undefined' && HERO_DECK.some(h => h && h.id === 'rock_tank')) {
+    const cap = MAX_SHIELD + 2 + (maxShieldBonus || 0);
+    if (shieldCount < cap) {
+      shieldCount++;
+      flashText('DRUMHEAD +1🛡', STIHIYA_COLORS.umbra);
+    }
+  }
+  return consumed;
+}
+
 function onUmbraCellsCleared(n) {
   if (!MOTIFS_ENABLED.umbra) return;
   if (!n) return;
+  // HERO_GRAMMAR §4 [Dark / Umbra] (Block B1): every umbra clear adds 1 Encore stack
+  // for the next ability. Universal element mechanic — fires regardless of which heroes
+  // are in squad. Gated by computeActiveElements (added in TASK #2.2c) so stacks don't
+  // accumulate in non-umbra contexts. Capped at ENCORE_STACK_CAP so a single 4-row clear
+  // can't overshoot the spec-compatible scaling space.
+  if (typeof computeActiveElements === 'function' && computeActiveElements().has('umbra')) {
+    encoreStacks = Math.min(ENCORE_STACK_CAP, encoreStacks + n);
+  }
   umbraClearCounter += n;
   // V2.0 Block 2.5: ROCK RHYTHM SECTION — every 3rd umbra cleared → +1 umbraEchoBonus (cap 10)
   // Side effect: counter ticks during phoenix immunity too (echo-damage is gated in pipeline).
@@ -18454,6 +18502,14 @@ function applyUmbraTierFlagsAtBattleInit() {
 
 // --- ROCK SIGNATURES ---
 
+// HERO_GRAMMAR §4 [Dark × Warrior] — RIFFBLADE / RIFF STRIKE
+// Spec: Direct hit on placement; every umbra clear adds 1 Encore stack to next ability.
+// Charge cost relative: medium (combo ≥ 2 fires; ULT ~4 placements).
+// CONFORMS to spec (Block B1 — no body change). RIFFBLADE personally embodies the Warrior
+// CREATOR via direct-hit damage on placement. The "every umbra clear adds 1 Encore stack"
+// half is a UNIVERSAL element mechanic implemented in onUmbraCellsCleared (fires regardless
+// of which heroes are in squad — see encoreStacks in §13200). The periodic ×mult RIFF BEAT
+// is a v1 extension; the legacy beat interval is preserved as a small flavor bonus.
 // RIFFBLADE (rock warrior) — RIFF STRIKE: 200 dmg, doubled (400) every 3rd fire (counter-based)
 // V2.0 Stage 5 Block 5.6: riffbladeBeatInterval (3→2), riffbladeBeatMult (2→3)
 async function fireRiffblade(counts) {
@@ -18467,79 +18523,81 @@ async function fireRiffblade(counts) {
   vibrate([40, 20, 40]);
 }
 
-// SHRIEK (rock hunter) — PIERCING SHRIEK: burn 1 × 180 + adjacent umbra spread if 3+ rocks
-// V2.0 Stage 5 Block 5.6: shriekRockThreshold (3→2), shriekSpreadCount (1→2), shriekSpreadDetonate (T3)
+// HERO_GRAMMAR §4 [Dark × Hunter] — SHRIEK / PIERCING SHRIEK
+// Spec: Detonates every Encore stack as echoing line damage; line repeats once at 50%
+// (Encore-of-Encore). Charge cost relative: fastest (combo ≥ 2 fires; ULT ~3 placements).
+// CONFORMS to spec post-rewrite (Block B1). Damage = baseDmg × min(stacks, 3) × KEYCRYPT
+// amplifier (if active), then a 50% damage repeat 200ms later (Encore-of-Encore).
+// THUNDERBEAT in squad → +1 shield per Encore proc (via consumeEncoreStacks helper).
+// Fallback when 0 stacks: flat baseDmg primer shot + NO STACKS flash so a combo-fired
+// Hunter is never wasted (mirrors BLACKTOOTH primer-shot pattern from TASK #2.2d).
+// V2.0 Stage 5 Block 5.6 tier deltas (shriekRockThreshold, shriekSpreadCount,
+// shriekSpreadDetonate) become dead stores in v1 per HERO_GRAMMAR §8 NN #6 — Phase 6
+// may rewire. The collateral umbra-spread from old PIERCING SHRIEK is removed; mass
+// detonation is the entire signature now.
 async function fireShriek(counts) {
-  const filled = [];
-  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-    if (grid[r][c] && !grid[r][c].startsWith('void_')) filled.push([r, c]);
+  const baseDmg = 180;
+  const stacks = encoreStacks;
+
+  // Primer shot — nothing to detonate.
+  if (stacks === 0) {
+    flashText('NO STACKS', '#7A4FA8');
+    dealDamage(baseDmg, true);
+    vibrate([30, 30, 30]);
+    return;
   }
-  let burnt = null;
-  if (filled.length) {
-    const [r, c] = filled[Math.floor(Math.random() * filled.length)];
-    burnt = [r, c];
-    const cellEls = document.querySelectorAll('.grid .cell');
-    cellEls[r * SIZE + c].classList.add('burning');
-    vibrate([30, 20, 30]);
-    await sleep(300);
-    grid[r][c] = null;
+
+  // KEYCRYPT amplifier window (set by fireKeycrypt; drained per-placement).
+  let mult = 1.0;
+  const ampActive = keycryptDeepBeatActive && keycryptDeepBeatDuration > 0;
+  if (ampActive) {
+    mult = keycryptDeepBeatMult;
+    flashText('+' + Math.round((mult - 1) * 100) + '% ENCORE', '#FFB84A');
   }
-  dealDamage(180, true);
-  // Signature: collateral umbra spread — tier-scoped threshold + count
-  const rockCount = HERO_DECK.filter(h => h && h.race === 'rock').length;
-  if (rockCount >= shriekRockThreshold && burnt) {
-    const [br, bc] = burnt;
-    const neighbors = [[-1,0],[1,0],[0,-1],[0,1]];
-    neighbors.sort(() => Math.random() - 0.5);
-    let spread = 0;
-    for (const [dr, dc] of neighbors) {
-      if (spread >= shriekSpreadCount) break;
-      const nr = br + dr, nc = bc + dc;
-      if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) continue;
-      const v = grid[nr][nc];
-      if (v && !v.startsWith('void_') && v !== 'umbra') {
-        grid[nr][nc] = 'umbra';
-        // T3 shriekSpreadDetonate — spread cells marked as charged-equivalent
-        if (shriekSpreadDetonate) {
-          umbraDetonationCells.add(nr + '_' + nc);
-        }
-        spread++;
-      }
-    }
-    if (spread > 0) {
-      flashText('VOID SPREAD ×' + spread, STIHIYA_COLORS.umbra);
-      render();
-    }
-  }
+
+  // First echo: cap at ×3 per spec parity with INFERNO.
+  const cappedStacks = Math.min(stacks, 3);
+  const echoDmg = Math.floor(baseDmg * cappedStacks * mult);
+  if (stacks >= 4) flashText('ENCORE-OF-ENCORE!', '#FFB84A');
+  dealDamage(echoDmg, stacks >= 4, 0);
+
+  // Encore-of-Encore: 50% damage repeat after 200ms.
+  await sleep(200);
+  dealDamage(Math.floor(echoDmg * 0.5), false, 0);
+
+  // Consume stacks → THUNDERBEAT shield bump fires inside the helper.
+  consumeEncoreStacks();
+  vibrate(stacks >= 4 ? [80, 40, 80, 40, 120] : [60, 30, 60]);
 }
 
-// KEYCRYPT (rock mage) — DEEP BEAT: +1 HP regen + drop N umbra cells on random empty
-// V2.0 Stage 5 Block 5.6: keycryptSpawnCount (1→2), keycryptSpawnCharged (T2)
+// HERO_GRAMMAR §4 [Dark × Mage] — KEYCRYPT / DEEP BEAT
+// Spec: Encore stacks gain +20% per stack. Charge cost relative: medium-slow (period ~12).
+// CONFORMS to spec post-rewrite (Block B1). Activates the 3-placement DEEP BEAT window;
+// mult is computed AT FIRE TIME from current encoreStacks (1.0 + stacks × 0.20). SHRIEK
+// (and any future Hunter detonator) reads keycryptDeepBeatMult on detonate.
+// AMPLIFIER role verb: this fire creates no cells, no stacks, no damage, no heal — it
+// magnifies the next detonation. Mirror of EMBERHAND BLOOM pattern (TASK #2.2d).
+// V2.0 Stage 5 Block 5.6 tier deltas (keycryptSpawnCount, keycryptSpawnCharged,
+// keycryptSpawnChargesHero) are now dead stores — Phase 6 may rewire to extend window
+// or boost mult. The legacy +1 HP regen is removed (Mage doesn't heal — that's MENDING ULT).
 async function fireKeycrypt() {
-  if (hp < currentMaxHP) hp = Math.min(currentMaxHP, hp + 1);
-  // Signature: passive umbra fuel for Charge Loop — T1+ spawns 2, T2+ spawns as charged
-  const empty = [];
-  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-    if (!grid[r][c]) empty.push([r, c]);
-  }
-  empty.sort(() => Math.random() - 0.5);
-  const picks = empty.slice(0, keycryptSpawnCount);
-  let spawned = 0;
-  for (const [er, ec] of picks) {
-    grid[er][ec] = 'umbra';
-    // T2 keycryptSpawnCharged — spawns marked as detonation-ready umbra
-    if (keycryptSpawnCharged) {
-      umbraDetonationCells.add(er + '_' + ec);
-    }
-    spawned++;
-  }
-  if (spawned > 0) {
-    render();
-    if (keycryptSpawnCharged) flashText('DEEP BEAT CHARGED ×' + spawned, STIHIYA_COLORS.umbra);
-  }
+  const stacks = encoreStacks;
+  keycryptDeepBeatActive   = true;
+  keycryptDeepBeatMult     = 1.0 + (stacks * 0.20);
+  keycryptDeepBeatDuration = KEYCRYPT_DEEP_BEAT_TURNS;
+  flashText('DEEP BEAT +' + Math.round(stacks * 20) + '%', STIHIYA_COLORS.umbra);
   vibrate([50, 30, 50]);
 }
 
+// HERO_GRAMMAR §4 [Dark × Tank] — THUNDERBEAT / DRUMHEAD
+// Spec: Every Encore proc grants +1 shield; ULT: free Rhythm proc + squad-wide Encore window.
+// Charge cost relative: slowest (no minCombo gate; ULT ~5 placements).
+// CONFORMS to spec (Block B1). The active fire keeps its v1 +1 shield + 160/210 damage
+// (intentional EXTENDS — the PROTECTOR role verb is preserved). The "every Encore proc
+// grants +1 shield" half of spec fires automatically when SHRIEK (or any future encore
+// consumer) routes through consumeEncoreStacks() — that helper checks for THUNDERBEAT in
+// squad and bumps shieldCount by 1. ULT signature unchanged (free Rhythm proc lives in
+// ultTwistThunderbeat / thunderbeatRhythmWindow).
 // THUNDERBEAT (rock tank) — DRUMHEAD: +1🛡, 160 dmg (210 if rhythmSectionActive)
 // V2.0 Stage 5 Block 5.6: thunderbeatBaseDmg (210→230), thunderbeatRockThreshold (5→3→0)
 async function fireThunderbeat(counts) {
@@ -18558,6 +18616,13 @@ async function fireThunderbeat(counts) {
   vibrate([50, 30, 50]);
 }
 
+// HERO_GRAMMAR §4 [Dark × Captain] — NIGHTLORD / CONDUCT THE DARK
+// Spec: Race-buff scales rock band Encore multiplier; +25% umbra drops; ULT triggers
+// immediate squad-wide Encore window. Charge cost relative: medium (period ~10).
+// IMPLEMENTATION: dual buff lives in calcSynergyState (§6) → captainDual_* mirrored
+// globals (race-scaling damage + fixed +25% umbra drop weight; see _RACE_PLURAL map).
+// fire body remains the active board effect (cell conversion + per-cell charge gift).
+// ULT (ultTwistNightlord) opens the squad-wide encore window via encoreActive flag.
 // NIGHTLORD (rock captain) — CONDUCT THE DARK: convert 2 cells to umbra + 25% per cell drops +1 charge to umbra hero
 async function fireNightlord() {
   const hero = this;
@@ -18611,6 +18676,10 @@ async function fireNightlord() {
 
 // KAELEN — VOID MENDING: reset radiantAge to 0 for ALL umbra cells (Endless Night persistence refresh)
 
+// HERO_GRAMMAR §4 [Dark × Warrior] — RIFFBLADE / SIEGE ULT signature
+// Spec ULT pattern (Warrior): SIEGE — large flat damage burst; the cleanest finisher.
+// EXTENDS spec — current twist conditionally doubles SIEGE if encoreActive (consumes
+// the encore primer). Aligns with Dark element's Encore-everywhere identity.
 // RIFFBLADE — ENCORE SIEGE: +500 dmg if encoreActive AND !encoreUsed (consumes encore)
 async function ultTwistRiffblade(ctx) {
   if (encoreActive && !encoreUsed) {
@@ -18620,6 +18689,10 @@ async function ultTwistRiffblade(ctx) {
   }
 }
 
+// HERO_GRAMMAR §4 [Dark × Hunter] — SHRIEK / VOLLEY ULT signature
+// Spec ULT pattern (Hunter): VOLLEY — multi-line burst; the cascade trigger.
+// EXTENDS spec — current twist queues an echo VOLLEY for the next placement if encore
+// is primed. Aligns with the Encore-of-Encore identity in fireShriek (Block B1).
 // SHRIEK — ECHO VOLLEY: re-fire VOLLEY on next placement if encoreActive (consumes encore via encoreUsed)
 async function ultTwistShriek(ctx) {
   if (encoreActive && !encoreUsed) {
@@ -18629,21 +18702,42 @@ async function ultTwistShriek(ctx) {
   }
 }
 
-// KEYCRYPT — AMPLIFIER MENDING: open 3-placement window: +20% on umbra-containing clears
+// HERO_GRAMMAR §4 [Dark × Mage] — KEYCRYPT / MENDING ULT signature
+// Spec ULT pattern (Mage): MENDING — full heal or board-state extension; restores the engine.
+// Spec [Dark × Mage] cell: "ULT: every squad hero gets one free Encore."
+// v1 IMPLEMENTATION (deferred): existing keycryptAmpWindow opens a 3-placement window
+// where umbra-containing line clears get +20% damage — board-state extension on the spec
+// MENDING template, but NOT a per-hero free-encore token. The literal "every squad hero
+// gets one free Encore" mechanic is filed as DEBT-016 for a follow-up MGD task — it
+// requires a per-hero token tracker + fireHero double-fire path with recursion guard,
+// which is out of scope for Block B1.
 // V2.0 Stage 5 Block 5.6: keycryptAmpWindowTier (3→5 at T3)
 async function ultTwistKeycrypt(ctx) {
   keycryptAmpWindow = keycryptAmpWindowTier;
   flashText('AMPLIFIER ON ×' + keycryptAmpWindowTier, STIHIYA_COLORS.umbra);
 }
 
-// THUNDERBEAT — RHYTHM AEGIS: open 1-placement window: +50 free Rhythm proc on next umbra clear
+// HERO_GRAMMAR §4 [Dark × Tank] — THUNDERBEAT / AEGIS ULT signature
+// Spec ULT pattern (Tank): AEGIS — large shield + element seed; the survival pivot.
+// Spec [Dark × Tank] cell: "ULT: free Rhythm proc + squad-wide Encore window."
+// v1 IMPLEMENTATION: free Rhythm proc lives in thunderbeatRhythmWindow (current twist
+// opens a 1- or 2-placement window where the next umbra clear gets +50 free Rhythm bonus).
+// The "squad-wide Encore window" half is partially covered by NIGHTLORD ULT (encoreActive
+// flag); a Tank-specific 3-placement encore window is filed as DEBT-016 alongside the
+// KEYCRYPT per-hero-token enhancement.
 // V2.0 Stage 5 Block 5.6: thunderbeatRhythmWindowTier (1→2 at T2)
 async function ultTwistThunderbeat(ctx) {
   thunderbeatRhythmWindow = thunderbeatRhythmWindowTier;
   flashText('RHYTHM PRIMED ×' + thunderbeatRhythmWindowTier, STIHIYA_COLORS.umbra);
 }
 
-// NIGHTLORD — ENCORE DOMINION: immediately activate Encore (no Rhythm Section dependency)
+// HERO_GRAMMAR §4 [Dark × Captain] — NIGHTLORD / DOMINION ULT signature
+// Spec ULT pattern (Captain): DOMINION — board-wide element seed + multiplier window.
+// Spec [Dark × Captain] cell: "ULT triggers immediate squad-wide Encore window."
+// CONFORMS to spec (Block B1 — no body change). Sets encoreActive + clears encoreUsed,
+// arming the squad-wide Encore window so the next umbra ULT auto-fires twice (existing
+// universal mechanic in ultRoleDispatch). Persistent dual buff (race-scaling dmg + fixed
+// +25% umbra drop) lives in calcSynergyState — see fireNightlord header.
 // NOTE: Codebase uses `encoreActive` (not spec's `rockEncoreActive`).
 async function ultTwistNightlord(ctx) {
   encoreActive = true;
@@ -19568,6 +19662,16 @@ async function afterPlacement(piece) {
     if (emberhandBloomDuration === 0) {
       emberhandBloomActive = false;
       flashText('BLOOM FADES', '#A07530');
+    }
+  }
+  // HERO_GRAMMAR §4 [Dark × Mage] — KEYCRYPT DEEP BEAT window decrement (Block B1).
+  // Same end-of-placement pattern; mult resets to 1.0 on natural expiry.
+  if (keycryptDeepBeatDuration > 0) {
+    keycryptDeepBeatDuration--;
+    if (keycryptDeepBeatDuration === 0) {
+      keycryptDeepBeatActive = false;
+      keycryptDeepBeatMult = 1.0;
+      flashText('DEEP BEAT FADES', '#7A4FA8');
     }
   }
   // V2.0 Block 3.3: VANGUARD HUNTER MARK — decrement unconsumed window; expired marks silently drop.
