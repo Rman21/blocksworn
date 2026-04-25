@@ -13102,6 +13102,16 @@ let packMarkActive           = false;  // Blackfang Pack Lead — +30% next ANY 
 let tharaRageArmed           = false;  // Thara Rage Chain — +220 dmg if armed AND hp < max (battle-scoped)
 let grommarRallyWindow       = 0;      // Grommar Rally — +100% next warrior/hunter fire (2 placements)
 
+// HERO_GRAMMAR §4 [Fire × Mage] — EMBERHAND BLOOM amplifier window (TASK #2.2d).
+// fireEmberhand activates the window; BLACKTOOTH INFERNO (and any future Hunter
+// detonator) reads emberhandBloomActive and multiplies its damage by emberhandBloomMult.
+// Decremented at end of each placement so the activating placement is fully boosted
+// (mirrors the WARBAND STRIKE / GROMMAR RALLY pattern).
+let emberhandBloomActive     = false;
+let emberhandBloomMult       = 1.5;    // +50% per spec
+let emberhandBloomDuration   = 0;      // placements remaining
+const EMBERHAND_BLOOM_TURNS  = 3;      // window length on activation
+
 // Block 4.1 context multipliers (set by fire dispatch, consumed in dealDamage tracking)
 let _packMarkContext         = 1;      // 1.3 when Pack Mark applies to current fire
 let _packMarkConsumed        = false;  // tracks whether Pack Mark bonus actually multiplied damage
@@ -14423,6 +14433,9 @@ function resetRaceFlags() {
   _packMarkConsumed        = false;
   _grommarRallyContext     = 1;
   _grommarRallyConsumed    = false;
+  // HERO_GRAMMAR §4 [Fire × Mage] — EMBERHAND BLOOM per-battle reset (TASK #2.2d)
+  emberhandBloomActive     = false;
+  emberhandBloomDuration   = 0;
   // Block 4.2 — Tide hero signatures per-battle state
   frostweaverBonusDmg      = 0;
   glacierIceArmorHits      = 0;
@@ -17330,67 +17343,88 @@ async function fireThorgar(counts) {
 }
 
 // HERO_GRAMMAR §4 [Fire × Hunter] — BLACKTOOTH / INFERNO
-// Spec: Detonates every charged ember cell at once; damage scales with charged-cell count
-// (×3 cap). Charge cost relative: fastest (combo ≥ 2; ULT ~3 placements).
-// AUDIT (docs/PHASE_2_PIRATES_AUDIT.md): ROLE-VERB CONFLICT — current implementation
-// burns 1–2 random cells (not all charged). Hunter DETONATOR contract not satisfied.
-// MGD decision pending; rewrite scheduled as separate task. Ships as-is for v1.
-// BLACKTOOTH (pirate hunter) — SPARKSHOT: 180 dmg + burn 1 cell, treated as charged (+10 dmg)
-// V2.0 Stage 5 Block 5.2 tier reads: blacktoothBaseDmg (T1 210), blacktoothShotCount (T2 2), blacktoothMarkBeforeClear (T3)
+// Spec: Detonates every charged ember cell at once; damage scales with charged-cell
+// count (×3 cap). Charge cost relative: fastest (combo ≥ 2; ULT ~3 placements).
+// CONFORMS to spec post-rewrite (TASK #2.2d). Damage = baseDmg × min(charged.length, 3),
+// then × emberhandBloomMult (1.5) if EMBERHAND BLOOM window is active.
+// Fallback when 0 charged on board: deal flat baseDmg as a "primer shot" so combo-fired
+// Hunter never feels wasted (Roman feedback risk).
+// VFX: all charged cells get .burning in the same frame (batched) so 12+ simultaneous
+// detonations don't stutter; reduced-motion users get the static-burn fallback via the
+// existing @media (prefers-reduced-motion: reduce) guard on .cell.charged animation.
+// V2.0 Stage 5 Block 5.2 tier deltas (blacktoothBaseDmg, blacktoothShotCount,
+// blacktoothMarkBeforeClear) remain dormant in v1 per HERO_GRAMMAR §8 NN #6.
 async function fireBlacktooth(counts) {
-  let totalDmg = 0;
-  const baseShot = blacktoothBaseDmg;  // T0=180, T1+=210
-  const filled = [];
-  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-    if (grid[r][c] && !grid[r][c].startsWith('void_')) filled.push([r, c]);
+  const baseDmg = blacktoothBaseDmg;  // T0=180, T1+=210
+  // Collect every charged cell that still holds an ember on the grid (defensive against
+  // stale entries — chargedCells should already track grid['ember'] only via tickEmberAges).
+  const charged = [];
+  for (const key of chargedCells) {
+    const [r, c] = key.split('_').map(Number);
+    if (grid[r] && grid[r][c] === 'ember') charged.push([r, c, key]);
   }
+
+  // Primer-shot fallback: nothing to detonate, but the player committed to firing.
+  if (charged.length === 0) {
+    flashText('NO TARGETS', '#A07530');
+    dealDamage(baseDmg, true);
+    vibrate([30, 30, 30]);
+    return;
+  }
+
+  // Cap at 3× per spec.
+  const scale = Math.min(3, charged.length);
+  let totalDmg = baseDmg * scale;
+
+  // EMBERHAND BLOOM amplifier — +50% if active (HERO_GRAMMAR §4 [Fire × Mage]).
+  const bloomActive = emberhandBloomActive && emberhandBloomDuration > 0;
+  if (bloomActive) {
+    totalDmg = Math.floor(totalDmg * emberhandBloomMult);
+    flashText('+50% INFERNO', '#FFB84A');
+  }
+
+  // INFERNO banner only on big detonations to keep the small ones quiet.
+  if (charged.length >= 4) flashText('INFERNO! ×' + charged.length, '#FF8B3D');
+
+  // Batched VFX: stamp .burning on all charged cells in the same frame.
   const cellEls = document.querySelectorAll('.grid .cell');
-  for (let i = 0; i < blacktoothShotCount; i++) {
-    if (filled.length === 0) break;
-    const idx = Math.floor(Math.random() * filled.length);
-    const [cr, cc] = filled.splice(idx, 1)[0];
-    cellEls[cr * SIZE + cc].classList.add('burning');
-    // V2.0 Stage 5 Block 5.2: T3 blacktoothMarkBeforeClear — mark as charged pre-clear (wildfire synergy)
-    if (blacktoothMarkBeforeClear && grid[cr][cc] === 'ember' && !chargedCells.has(cr+'_'+cc)
-        && chargedCells.size < EMBER_CHARGED_CAP) {
-      chargedCells.add(cr + '_' + cc);
-    }
-    let shot = baseShot + (EMBER_CHARGED_BONUS - BONUS_DMG.ember);  // guaranteed-charged bonus
-    totalDmg += shot;
-    await sleep(200);
-    grid[cr][cc] = null;
-    chargedCells.delete(cr + '_' + cc);
+  for (const [r, c] of charged) {
+    cellEls[r * SIZE + c].classList.add('burning');
   }
-  if (totalDmg > 0) dealDamage(totalDmg, true);
-  vibrate([30, 30, 30]);
+  await sleep(300);
+
+  // Clear cells + drop charged/age tracking, all at once.
+  for (const [r, c, key] of charged) {
+    grid[r][c] = null;
+    chargedCells.delete(key);
+    if (typeof cellAge !== 'undefined') cellAge.delete(key);
+  }
+  renderChargedVisuals();
+  render();
+
+  dealDamage(totalDmg, true);
+  // Stronger haptic on bigger detonations.
+  vibrate(charged.length >= 4 ? [80, 40, 80, 40, 120] : [60, 30, 60]);
 }
 
 // HERO_GRAMMAR §4 [Fire × Mage] — EMBERHAND / EMBER BLOOM
 // Spec: Every charged cell on the board gains +50% detonation damage; ULT: full squad
 // heal + +1 ULT charge to all. Charge cost relative: medium-slow (period ~12).
-// AUDIT (docs/PHASE_2_PIRATES_AUDIT.md): ROLE-VERB CONFLICT — current implementation
-// SPAWNS ember cells (CREATOR), not AMPLIFIES charged-cell damage. ULT does +1 ULT to all
-// (matches) but no full squad heal. MGD decision pending; ships as-is for v1.
-// EMBERHAND (pirate mage) — EMBER BLOOM: +1 HP regen + spawn 2 ember cells on empty
-// V2.0 Stage 5 Block 5.2 tier reads: emberhandSpawnCount (T1 3), emberhandSpawnCharged (T2 always charged)
+// CONFORMS to spec post-rewrite (TASK #2.2d). Activates the 3-placement BLOOM amplifier
+// window — BLACKTOOTH INFERNO (and any future Hunter detonator) within the window
+// multiplies its detonation damage by emberhandBloomMult (1.5).
+// AMPLIFIER role verb: this fire creates no cells and deals no direct damage; it
+// magnifies the next detonation. The +50% INFERNO floating text fires from BLACKTOOTH
+// at consume time so the player sees the chain (BLOOM → INFERNO+50% → cascade).
+// V2.0 Stage 5 Block 5.2 tier deltas (emberhandSpawnCount, emberhandSpawnCharged) are
+// now dead stores — deferred Phase 6 will rewire to extend window / boost mult.
 async function fireEmberhand() {
-  if (hp < currentMaxHP) hp = Math.min(currentMaxHP, hp + 1);
-  // Signature: spawn N ember cells on random empty cells
-  const empty = [];
-  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-    if (!grid[r][c]) empty.push([r, c]);
-  }
-  empty.sort(() => Math.random() - 0.5);
-  const picks = empty.slice(0, Math.min(emberhandSpawnCount, empty.length));
-  for (const [r, c] of picks) {
-    grid[r][c] = 'ember';
-    // V2.0 Stage 5 Block 5.2: T2 emberhandSpawnCharged — spawned ember always charged
-    if (emberhandSpawnCharged && chargedCells.size < EMBER_CHARGED_CAP) {
-      chargedCells.add(r + '_' + c);
-    }
-  }
-  if (picks.length > 0) { render(); renderChargedVisuals(); }
+  emberhandBloomActive   = true;
+  emberhandBloomDuration = EMBERHAND_BLOOM_TURNS;
+  flashText('EMBER BLOOM +50%', '#FFB84A');
   vibrate([50, 30, 50]);
+  // Re-render charged cells so any future bloom-aware aura class can pick up state.
+  renderChargedVisuals();
 }
 
 // HERO_GRAMMAR §4 [Fire × Tank] — IRONBELLY / FIREBRAND
@@ -17501,27 +17535,26 @@ async function ultTwistThorgar(ctx) {
 
 // HERO_GRAMMAR §4 [Fire × Hunter] — BLACKTOOTH / VOLLEY ULT signature
 // Spec ULT pattern (Hunter): VOLLEY — multi-line burst; the cascade trigger.
-// Current twist extends generic hunter VOLLEY with charged-bonus damage.
-// AUDIT: see fireBlacktooth header — fire body has Hunter DETONATOR role conflict.
-// BLACKTOOTH — WILDFIRE VOLLEY: +100 flat dmg if any burnt cell in volley was charged
-// V2.0 Stage 5 Block 5.2: T1+ blacktoothChargedBonus=150 (was 100); T3 +200 inferno in ultDeltaBlacktooth
+// CONFORMS to spec post-rewrite (TASK #2.2d, Option A — WILDFIRE bonus removed).
+// Rationale: the legacy WILDFIRE bonus rewarded a single random burnt cell that happened
+// to be charged. Post-rewrite, fireBlacktooth ALREADY detonates every charged cell at
+// once (the DETONATOR contract); piling a +100/+150 ULT bonus on top of that double-
+// counted the same identity. The generic hunter VOLLEY template (multi-line burst) is
+// now the entire Hunter ULT — clean and on-spec.
+// V2.0 Stage 5 Block 5.2 tier deltas (blacktoothChargedBonus, T3 +200 inferno) become
+// dead stores in v1; Phase 6 may rewire them when the tier system goes live.
 async function ultTwistBlacktooth(ctx) {
-  if (!ctx.burnedKeys || ctx.burnedKeys.length === 0) return;
-  for (const k of ctx.burnedKeys) {
-    if (chargedCells.has(k)) {
-      dealDamage(blacktoothChargedBonus, true);  // T0=100, T1+=150
-      flashText('WILDFIRE +' + blacktoothChargedBonus, '#FF6600');
-      return;
-    }
-  }
+  // Intentional no-op — VOLLEY is the entire signature now.
 }
 
 // HERO_GRAMMAR §4 [Fire × Mage] — EMBERHAND / MENDING ULT signature
 // Spec ULT pattern (Mage): MENDING — full heal or board-state extension; restores the engine.
-// Current twist matches "+1 ULT charge to all" half of spec; full squad heal not implemented.
-// AUDIT: see fireEmberhand header — fire body has Mage AMPLIFIER role conflict.
-// EMBERHAND — FLOOD MENDING: +1 ULT charge to each squad member's stihiya
+// CONFORMS to spec post-rewrite (TASK #2.2d): full squad heal (HP → currentMaxHP)
+// AND +1 ULT charge to every squad member's stihiya. Both halves now present.
 async function ultTwistEmberhand(ctx) {
+  // Full squad heal — HP restored to currentMaxHP (single shared HP pool in v1).
+  if (hp < currentMaxHP) hp = currentMaxHP;
+  // +1 ULT charge to each squad member's stihiya (clamped to per-element threshold).
   for (const h of HERO_DECK) {
     if (!h) continue;
     const s = h.stihiya;
@@ -19527,6 +19560,15 @@ async function afterPlacement(piece) {
   if (warbandStrikeWindow > 0) {
     warbandStrikeWindow--;
     if (warbandStrikeWindow === 0) flashText('WARBAND STRIKE ENDS', '#FFD53D');
+  }
+  // HERO_GRAMMAR §4 [Fire × Mage] — EMBERHAND BLOOM window decrement (TASK #2.2d).
+  // Decrement at END so the activating placement is fully boosted (mirrors WARBAND STRIKE).
+  if (emberhandBloomDuration > 0) {
+    emberhandBloomDuration--;
+    if (emberhandBloomDuration === 0) {
+      emberhandBloomActive = false;
+      flashText('BLOOM FADES', '#A07530');
+    }
   }
   // V2.0 Block 3.3: VANGUARD HUNTER MARK — decrement unconsumed window; expired marks silently drop.
   if (hunterMarkWindow > 0) {

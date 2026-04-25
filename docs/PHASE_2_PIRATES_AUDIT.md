@@ -12,8 +12,8 @@
 | Hero | Spec § | Current behavior (fire / ULT) | Divergence | Status | Fix in this commit |
 |---|---|---|---|---|---|
 | **THORGAR** | Fire × Warrior — CLEAVER | Deals `thorgarBaseDmg` (T0=200) + 5/cell ember bonus; **clears N random ember cells** (T0=1, T2=2); cascade on charged. ULT FLEET SIEGE: extra burns at 5-pirate gate. | Spec says cleared ember cells become **charged for 2 turns**. Current implementation **removes** ember cells (sets to null). Mechanic direction inverted. | ⚠ **MECHANIC CONFLICT** — clears vs. charges. Role verb (CREATOR/Warrior) is technically satisfied via "spawns charged" elsewhere in pirate kit (IRONBELLY active charges, EMBERHAND ULT charges), but THORGAR personally does not create charged state. | **No code change.** Header comment + flagged for MGD. |
-| **BLACKTOOTH** | Fire × Hunter — INFERNO | Deals `blacktoothBaseDmg` (T0=180) + charged bonus on **1–2 random cells** (T0=1, T2=2); ULT WILDFIRE adds +100/+150 if any burnt cell was charged. | Spec INFERNO: **detonates EVERY charged ember cell at once**, ×3 cap. Current shoots 1–2 random cells (NOT all charged), no ×3 multiplier scaling on charged-cell count. Detonator role verb **not** satisfied. | ❌ **ROLE-VERB CONFLICT** — Hunter must DETONATE (all charged at once). Current is single-target burst with optional charged-bonus side effect. | **STOP. No code change.** Header comment + MGD decision required. |
-| **EMBERHAND** | Fire × Mage — EMBER BLOOM | +1 HP regen + **spawns 2–3 ember cells** on empty (T2 spawned-as-charged). ULT FLOOD MENDING: +1 ULT charge to each squad member's stihiya. | Spec EMBER BLOOM: **every charged cell gains +50% detonation damage** (AMPLIFIER); ULT: full squad heal + +1 ULT to all. Current is a **CREATOR** (spawns ember), not an AMPLIFIER (boosts charged dmg). ULT partially matches (+1 ULT to all ✓; full squad heal ✗ — only +1 HP regen). | ❌ **ROLE-VERB CONFLICT** — Mage must AMPLIFY existing charged cells. Current spawns new cells (Warrior territory). | **STOP. No code change.** Header comment + MGD decision required. |
+| **BLACKTOOTH** | Fire × Hunter — INFERNO | Deals `blacktoothBaseDmg` (T0=180) + charged bonus on **1–2 random cells** (T0=1, T2=2); ULT WILDFIRE adds +100/+150 if any burnt cell was charged. | ~~Spec INFERNO: **detonates EVERY charged ember cell at once**, ×3 cap.~~ **Resolved in TASK #2.2d:** mass-detonation rewrite + WILDFIRE bonus removed. | ✅ **CONFORMS post-rewrite** (TASK #2.2d). | Code rewrite — see Resolution log §B. |
+| **EMBERHAND** | Fire × Mage — EMBER BLOOM | +1 HP regen + **spawns 2–3 ember cells** on empty (T2 spawned-as-charged). ULT FLOOD MENDING: +1 ULT charge to each squad member's stihiya. | ~~Spec EMBER BLOOM: **every charged cell gains +50% detonation damage** (AMPLIFIER); ULT: full squad heal + +1 ULT to all.~~ **Resolved in TASK #2.2d:** AMPLIFIER window + full squad heal added to ULT. | ✅ **CONFORMS post-rewrite** (TASK #2.2d). | Code rewrite — see Resolution log §C. |
 | **IRONBELLY** | Fire × Tank — FIREBRAND | +1 shield + `ironbellyBaseDmg` (T0=160) direct dmg + **pre-charges 2–3 non-charged ember cells**. ULT CHARGED AEGIS: spawns 3–5 charged ember cells on empty. | Spec FIREBRAND: passive +1 shield **per ember clear**; ULT: +3 shields + seeds 3 charged ember cells. Current applies +1 shield on **active** fire (not per-ember-clear passive); also adds direct dmg not in spec; pre-charges existing cells (≈ ULT seeding). ULT close to spec (3–5 vs. 3 charged ember). | ✅ **EXTENDS** — role verb (PROTECTOR/Tank) preserved; current adds active dmg + active charging which extend (not contradict) tank kit. | **No code change.** Header comment + documented as intentional extension. |
 | **CRIMSON** | Fire × Captain — CRIMSON GAMBIT | Converts 2–3 cells to ember + cascade if neighbors charged. ULT PIRATE DOMINION: 50%/60% of converted cells spawn charged. | Spec CRIMSON GAMBIT: **race-buff scales pirate damage** (+5/+15/+30%) + **fixed +25% ember drops**; ULT seeds 10 charged cells. **Captain dual buff system not implemented.** Existing `captainConversionBoost` and `warbandUltShare` are 5-pirate FORMATION effects, not the spec's per-captain dual buff. | ❌ **CRITICAL — captain dual buff missing.** Role verb (ENABLER/Captain) is the missing piece: captain is supposed to *persistently enable* the squad. Current captain only adds active board effects. | **CODE CHANGE — implement captain dual buff** (this commit). Header comment added. |
 
@@ -152,3 +152,90 @@ MGD adjudicated MGD-queued item #1 in favor of amending the spec to match the v1
 - [x] No new console errors introduced (dialog `console.warn` downgraded to `console.debug` + queue drain restores onComplete chain)
 
 Roman to verify the full Chapter 1 → Solar Phoenix run with these fixes; capture screenshot of the gold captain pill and attach to Phase 2 sign-off.
+
+---
+
+## TASK #2.2d — BLACKTOOTH INFERNO + EMBERHAND BLOOM rewrites (2026-04-26)
+
+Closes the two role-verb conflicts that were queued for MGD adjudication after #2.2. MGD authorized the rewrites; both heroes now conform to HERO_GRAMMAR §4.
+
+### A. New shared state (HERO_GRAMMAR §4 [Fire × Mage])
+
+```
+let emberhandBloomActive     = false;   // true while window is open
+let emberhandBloomMult       = 1.5;     // +50% per spec
+let emberhandBloomDuration   = 0;       // placements remaining
+const EMBERHAND_BLOOM_TURNS  = 3;       // window length on activation
+```
+
+Per-battle reset: extended `resetRaceFlags()` Block 4.1 ember-hero block to clear `emberhandBloomActive` + `emberhandBloomDuration`.
+
+Per-placement decrement hook: added in the per-placement post-hook (right after `WARBAND STRIKE` decrement). Same end-of-placement decrement pattern so the activating placement is fully boosted. Fires `BLOOM FADES` flash on natural expiry.
+
+### B. BLACKTOOTH — INFERNO (mass detonation)
+
+**Body rewrite:** `fireBlacktooth` now collects every `chargedCells` entry that still maps to an ember on the grid; deals `baseDmg × min(charged.length, 3)` (×3 cap per spec), then `× emberhandBloomMult` if BLOOM window is active (`+50% INFERNO` flash on consume). All charged cells get `.burning` in the same frame (batched VFX so 12+ simultaneous detonations don't stutter), then cleared from `grid` + `chargedCells` + `cellAge`. Stronger haptic on big detonations (≥4 cells).
+
+**Fallback:** with 0 charged cells on the board, fires a "primer shot" — flat `baseDmg`, no clears, `NO TARGETS` flash — so a combo-fired Hunter is never wasted.
+
+**INFERNO banner:** only fires on ≥4 charged cells (`INFERNO! ×N`). Quiet for small detonations.
+
+**ULT (Option A — WILDFIRE removed):** `ultTwistBlacktooth` is now an intentional no-op. Rationale: the legacy WILDFIRE bonus rewarded a single random burnt cell that happened to be charged; post-rewrite, the FIRE already detonates every charged cell at once, so a separate ULT bonus on the same identity double-counted. The generic hunter VOLLEY template is the entire Hunter ULT. Tier deltas (`blacktoothChargedBonus`, T3 +200 inferno) are now dead stores in v1 per HERO_GRAMMAR §8 NN #6 — Phase 6 may rewire.
+
+**Reduced-motion compliance:** the new VFX reuses the existing `.burning` cell class plus the `.cell.charged` animation, both already covered by the `@media (prefers-reduced-motion: reduce)` rule at [blocksworn_index_fixed.html:7380](blocksworn_index_fixed.html:7380). No new keyframes added.
+
+**Performance:** mass detonation is O(n) over `chargedCells` (capped at `EMBER_CHARGED_CAP = 12`). Batched DOM stamping in one frame. No per-cell `await` between cells (the previous per-shot `await sleep(200)` was removed — that pattern would have visibly stuttered with 12 detonations).
+
+### C. EMBERHAND — EMBER BLOOM (amplifier)
+
+**Fire body rewrite:** `fireEmberhand` now activates the BLOOM window only — no spawning, no direct damage, no heal. Sets `emberhandBloomActive = true` + `emberhandBloomDuration = EMBERHAND_BLOOM_TURNS`, flashes `EMBER BLOOM +50%`, `renderChargedVisuals()` for any future bloom-aware aura. AMPLIFIER role verb satisfied: this fire magnifies the next detonation rather than creating cells.
+
+**ULT body rewrite:** `ultTwistEmberhand` now does both halves of MENDING — full squad heal (`hp = currentMaxHP`, single shared HP pool in v1) AND +1 ULT charge to each squad member's stihiya. Previous version had only the +1 ULT half. `FLOOD MENDING` flash retained.
+
+**Tier deltas:** `emberhandSpawnCount` / `emberhandSpawnCharged` are now dead stores (the spawn behavior they tuned no longer exists). Functions are kept per HERO_GRAMMAR §8 NN #6 — Phase 6 will rewire them to extend window / boost mult.
+
+### D. Header comments (in-code)
+All four touched functions have updated header comment blocks:
+- "AUDIT: ROLE-VERB CONFLICT" / "MGD decision pending" lines replaced with "**CONFORMS to spec post-rewrite (TASK #2.2d)**" + a 2-3 line explanation of what was rewritten and why.
+- HERO_GRAMMAR §4 cell reference preserved as the spec source.
+- Notes about which legacy tier-delta knobs became dead stores (so future Phase-6 wiring is informed).
+
+### E. Regression checklist (Roman to verify in browser)
+
+Author cannot run the game in this environment. JS syntax verified post-rewrites via JavaScriptCore. All 4 of the v1 cell §8 non-negotiables remain satisfied.
+
+1. **Pyredrake fight + pirate squad (THORGAR / EMBERHAND / CRIMSON):**
+   - Place pieces until ~4–6 cells are charged (THORGAR creates ember, ember matures into charged after ~3 placements per `EMBER_CHARGE_AGE`).
+   - Trigger EMBERHAND fire (combo ≥ 2 of any kind, since EMBERHAND uses period not minCombo). Expect: `EMBER BLOOM +50%` flash, no cells spawned, no damage dealt.
+   - Trigger BLACKTOOTH fire on the next placement (combo ≥ 2). Expect: ALL charged cells clear in ONE VFX burst (not staggered). Damage scales — small=1–2 charged, big=3+ (×3 cap), and visibly larger when EMBER BLOOM is active. `+50% INFERNO` flash on consume. `INFERNO! ×N` banner when N ≥ 4.
+   - Side-by-side check: same scenario with no EMBERHAND fire beforehand → BLACKTOOTH does the inferno-scaled damage but without the +50% flash, ~33% lower damage number.
+
+2. **No EMBERHAND active:**
+   - BLACKTOOTH detonates with `baseDmg × min(charged, 3)` only — no bloom multiplier, no `+50% INFERNO` flash.
+
+3. **0 charged cells on board:**
+   - Fire BLACKTOOTH anyway (combo ≥ 2). Expect: `NO TARGETS` flash + flat `baseDmg` damage — not a wasted fire.
+
+4. **EMBERHAND ULT:**
+   - Trigger EMBERHAND ULT (period = 12). Expect: `FLOOD MENDING` flash, HP restored to max if not already, every squad member's stihiya gets +1 ULT charge. Crimson (ember) gets +1, Thorgar (ember) gets +1 (same stihiya, single tally — note that EMBERHAND adds per-member but stihiya keys collide; this matches v1 single-pool ULT charge semantics).
+
+5. **BLOOM window expiry:**
+   - Fire EMBERHAND, then place 3 pieces without firing BLACKTOOTH. On the 3rd placement, expect `BLOOM FADES` flash.
+
+6. **Subjective check (from Roman):** "Does pirate cascade feel substantial now?" / "Is the inferno moment satisfying?" / "Can I see the +50% bloom buff visually?" — all should land yes; if any are no, file follow-up under TASK #2.2e (UX polish — probably needs added halo on charged cells while bloom is active).
+
+7. **No console errors during 3-fight Chapter 1 prefix** (Pyredrake → Abyssal Tyrant → Grovewarden). The `[CaptainDual]` diagnostic from #2.2b is still in place and will continue to log.
+
+8. **Pyredrake passable in 8–15 placements** with the new BLACKTOOTH + EMBERHAND combo (per task criterion). If kill-time creeps above 15, file follow-up balance pass.
+
+If any check fails, revert this commit (`git revert <hash>`) on `phase-2-grammar` and reopen TASK #2.2d with findings.
+
+### F. MGD decision queue — closeout
+
+| Item | Resolution |
+|---|---|
+| THORGAR CLEAVER | Resolved in TASK #2.2b — spec amended to match implementation. |
+| BLACKTOOTH INFERNO | **Resolved in TASK #2.2d** — mass detonation rewrite + WILDFIRE bonus removed. |
+| EMBERHAND EMBER BLOOM | **Resolved in TASK #2.2d** — AMPLIFIER window + full squad heal added to ULT. |
+
+All three queued items now closed. Next pirate work goes through TASK #2.2e (UX polish) or HERO_GRAMMAR amendments.
