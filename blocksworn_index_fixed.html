@@ -13383,6 +13383,9 @@ let auronBloomDoubled         = false;   // T3+ true — next bloom spawn double
 
 // V2.0 Block 5.4: helper — place a bloom token at specific cell (Auron T3 seed-on-convert)
 function spawnBloomTokenAt(r, c) {
+  // TASK #2.2c: gate on grove being an active element this fight (defense in depth —
+  // primary suppression is via spawn-weight gating; this catches stale-grid edge cases).
+  if (!computeActiveElements().has('grove')) return false;
   if (bloomTokens.size >= GROVE_BLOOM_MAX_ON_FIELD) return false;
   const k = r + '_' + c;
   if (bloomTokens.has(k)) return false;
@@ -13879,6 +13882,21 @@ function evaluateFormation(roleCounts) {
   return null;
 }
 
+// HERO_GRAMMAR §1 (predictability) + §5 (race layer): an element is "active" only when
+// the squad contains a hero of that element OR the current boss is of that element.
+// Inactive elements are suppressed in spawn pool and motif side-systems (bloom, charge,
+// chain, encore, radiant) so v1 doesn't leak Earth/Light into Pirates-only fights, etc.
+// Single source of truth — used by calcSynergyState, spawnBloomToken, tickEmberAges, etc.
+function computeActiveElements(heroes) {
+  const active = new Set();
+  const _heroes = Array.isArray(heroes) ? heroes : (typeof HERO_DECK !== 'undefined' ? HERO_DECK : []);
+  for (const h of _heroes) { if (h && h.stihiya) active.add(h.stihiya); }
+  if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.stihiya) {
+    active.add(currentBoss.stihiya);
+  }
+  return active;
+}
+
 function calcSynergyState(heroes) {
   const state = {
     maxHP: MAX_HP,
@@ -14118,6 +14136,15 @@ function calcSynergyState(heroes) {
       // spawnWeights start at 1 or boosted by synergy; ring bonus is additive on base 1 unit
       state.spawnWeights[s] += artEff.ringWeights[s];
     }
+  }
+  // HERO_GRAMMAR §1 + TASK #2.2c: context-aware element gating. After ALL weight
+  // contributions (race-affinity, captain dual, artifact rings) zero out elements
+  // that are neither in the squad nor on the current boss. Keeps Earth/Light pieces
+  // from leaking into Pirates-only fights, etc. Race-affinity / captain / ring boosts
+  // for those inactive elements are also dropped — they had nothing to do with this fight.
+  state.activeElements = computeActiveElements(heroes);
+  for (const s of STIHIYAS) {
+    if (!state.activeElements.has(s)) state.spawnWeights[s] = 0;
   }
   // Per-cell bonus damage seeds from BONUS_DMG, race 5× bonuses, and artifact weapons
   state.bonusDmgPerCell = {
@@ -14734,12 +14761,19 @@ function resetRaceFlags() {
 }
 
 function weightedStihiya() {
-  // Pick a stihiya using current spawn weights
+  // Pick a stihiya using current spawn weights.
+  // TASK #2.2c: use ?? not || so an explicit 0 weight (gated-out element) is honored.
+  // Fallback if all weights end up 0 (shouldn't happen — at least one squad/boss element
+  // is always active): return the first non-zero stihiya, else first STIHIYA.
   let total = 0;
-  for (const s of STIHIYAS) total += (stihiyaSpawnWeights[s] || 1);
+  for (const s of STIHIYAS) total += (stihiyaSpawnWeights[s] ?? 1);
+  if (total <= 0) {
+    for (const s of STIHIYAS) if ((stihiyaSpawnWeights[s] ?? 0) > 0) return s;
+    return STIHIYAS[0];
+  }
   let r = Math.random() * total;
   for (const s of STIHIYAS) {
-    r -= (stihiyaSpawnWeights[s] || 1);
+    r -= (stihiyaSpawnWeights[s] ?? 1);
     if (r < 0) return s;
   }
   return STIHIYAS[0];
@@ -15129,9 +15163,17 @@ async function clearLines(rows, cols) {
 
 // ===== V2.0 BLOCK 1.1: MOTIF HELPERS =====
 
-// EMBER — age all ember cells, promote to charged if age >= threshold
+// EMBER — age all ember cells, promote to charged if age >= threshold.
+// HERO_GRAMMAR §2 [Fire / Ember]: charged cells are the foundation of pirate cascade.
+// Mechanic is intentional and shipped since V2.0; not a bug. Per-cell charge timer
+// (i.e. cells un-charging after N turns) is deferred to Phase 6 — see HERO_GRAMMAR
+// §8 amendment log (2026-04-26). UX gap (no flash text on maturation) filed separately.
 function tickEmberAges() {
   if (!MOTIFS_ENABLED.ember) { cellAge.clear(); chargedCells.clear(); return; }
+  // TASK #2.2c: gate on ember being an active element. With Pirates in squad OR
+  // PYREDRAKE as boss, this stays active (Roman's case). With a Sharks-vs-Crypt-Lich
+  // fight (no ember context), the side-system goes dormant.
+  if (!computeActiveElements().has('ember')) { cellAge.clear(); chargedCells.clear(); return; }
   // V2.0 Block 2.1 + 3.3: charge-age priority — default 3, Rainbow 2, Raiders (dual) 2.
   // Math.min picks the fastest; race override beats Rainbow if both active.
   let chargeAge = EMBER_CHARGE_AGE;
@@ -15346,6 +15388,10 @@ function gridFillRatio() {
 // GROVE — place a bloom token on a random empty cell
 function spawnBloomToken() {
   if (!MOTIFS_ENABLED.grove) return;
+  // TASK #2.2c: gate on grove being an active element this fight. Without this, any
+  // stale grove cell on the grid (e.g. left over from a prior battle on the same screen)
+  // would still spawn bloom overlays in a Pirates-only fight.
+  if (!computeActiveElements().has('grove')) return;
   if (bloomTokens.size >= GROVE_BLOOM_MAX_ON_FIELD) return;
   const empty = [];
   for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
@@ -15367,6 +15413,9 @@ function spawnBloomToken() {
 // GROVE — tick all bloom tokens; trigger ones that reach 0
 function tickBloomTokens() {
   if (!MOTIFS_ENABLED.grove) { bloomTokens.clear(); return; }
+  // TASK #2.2c: gate on grove being an active element this fight (parity with
+  // tickEmberAges / tickRadiantAges; clears any stale tokens from prior state).
+  if (!computeActiveElements().has('grove')) { bloomTokens.clear(); return; }
   const toTrigger = [];
   for (const [key, turns] of bloomTokens) {
     const newTurns = turns - 1;
@@ -15489,6 +15538,8 @@ function maybeMarkRadiant(r, c) {
 // SOLAR — age radiant cells, expire after N turns on field
 function tickRadiantAges() {
   if (!MOTIFS_ENABLED.solar) { radiantCells.clear(); radiantAge.clear(); return; }
+  // TASK #2.2c: gate on solar being an active element this fight.
+  if (!computeActiveElements().has('solar')) { radiantCells.clear(); radiantAge.clear(); return; }
   const active = new Set();
   for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
     if (grid[r][c] === 'solar') {
