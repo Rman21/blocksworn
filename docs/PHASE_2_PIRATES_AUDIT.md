@@ -112,3 +112,43 @@ Three items require MGD adjudication before next pirate work:
 3. **EMBERHAND EMBER BLOOM** — accept current "spawns charged ember" as a hybrid CREATOR+AMPLIFIER (recommend amend spec) OR add true `+50% detonation damage on charged cells` multiplier hook + `full squad heal` to ULT.
 
 Until adjudicated, all three pirates ship with header comments documenting the divergence. THORGAR and IRONBELLY are functionally close enough to spec that v1 ships as-is. BLACKTOOTH and EMBERHAND have the largest divergences.
+
+---
+
+## TASK #2.2b — playtest follow-up (2026-04-26)
+
+Roman ran #2.2 against Chapter 1 → Solar Phoenix. Three blockers surfaced; this section logs the resolutions.
+
+### 1. THORGAR CLEAVER — RESOLVED via spec amendment
+MGD adjudicated MGD-queued item #1 in favor of amending the spec to match the v1 implementation. `docs/HERO_GRAMMAR.md` §4 [Fire × Warrior] cell updated and §8 amendment log records the decision (entry dated 2026-04-26). Per-cell charge timer mechanic deferred to Phase 6. THORGAR ships as-is. Header comment in `blocksworn_index_fixed.html` updated to point at the amendment.
+
+### 2. Captain portrait broken on FTUE leader_choice — FIXED
+**Root cause:** `showLeaderChoiceModal` (line ~9341) was loading stale asset keys (`ASSETS.hero_liora`, `ASSETS.hero_oakroot`) that no longer exist in the ASSETS map. Both `<img>` tags fell through to the browser's broken-image placeholder.
+**Fix:** swapped the asset keys to the actual captain portraits — `ASSETS.hero_pirate_captain` (CRIMSON, left/grommar slot) and `ASSETS.hero_rock_captain` (NIGHTLORD, right/skarn slot).
+**Defensive:** added `onerror` handler that hides the failed `<img>` and adds a `.leader-choice-no-portrait` class to the parent button. New CSS rule renders a 64px crown emoji on a deep-gold gradient as a fallback card — looks intentional, no broken-image icon.
+**Visual feedback:** existing `:hover` / `:active` rules at lines 5478–5485 already provide `transform: scale(1.04)` + accent-color border + glow. Verified — no change needed.
+
+### 3. Captain dual buff pill not visible in synergy bar — FIXED
+**Root cause:** the pill was being pushed to `state.active` correctly, but `renderSynergyBar` was assigning it the `race` CSS class — making it visually identical to existing race pills (purple background, `#C79CE8` text). With "3× PIRATE: …" already shown, Roman could not distinguish the captain pill from the race-tier pill.
+**Fix (multi-part):**
+- New dedicated `.captain` CSS class on `.synergy-bar .syn-pill.captain` — premium gold gradient background (`linear-gradient(180deg, rgba(255,184,74,0.20), rgba(160,117,48,0.28))`), `1px solid var(--a-gold-300)` border, `var(--a-gold-100)` text, gold glow `box-shadow`. Distinct from race (purple) and formation (warm yellow).
+- `renderSynergyBar` updated to assign `captain` class when the pill string starts with `👑 ` (regex check) instead of the previous fallback to `race`.
+- Pill text format updated per spec: `👑 PIRATES: +X% pirate_dmg · +25% ember_drops` (plural race name, lowercase `_dmg` / `_drops` tokens). Race plural map: `pirate→PIRATES`, `rock→ROCK BAND`, `shark→SHARKS`, `crocodile→CROCODILES`, `spark→SPARKS`.
+- Temporary `console.log('[CaptainDual]', {...})` diagnostic added inside `calcSynergyState` — logs captain detection, race count, multiplier, spawn-weight delta, and the pushed pill string. **Marked for removal in TASK #2.2c after sign-off.**
+
+### 4. Console warning `playDialogScript: a dialog is already active; request ignored` — FIXED
+**Root cause:** the previous behavior dropped the second request entirely, including its `onComplete` callback. When the dropped request was an FTUE state-machine transition, the FSM got stuck silently. The warn was the user-visible symptom; the dropped FTUE progression was the real bug.
+**Fix:** single-slot pending queue. When `playDialogScript` is called while a dialog is active, the request is stored in `_pendingDialogRequest`. On dialog completion (`next()` reaching `idx >= lines.length`), the queue is drained via `Promise.resolve().then(...)` so the current call stack unwinds first. Queue overflow (third request) overwrites the prior pending — last-write-wins, with a `console.debug` notice.
+**Architectural note (deferred):** a real finite state machine should manage dialog ↔ modal ↔ phase-dialog interplay. The single-slot queue is a stop-gap that prevents FTUE from getting stuck but does not address the underlying overlap. Filed as **DEBT-014** for Phase 5 polish pass.
+
+### Regression checklist updated
+- [x] CRIMSON / NIGHTLORD portraits render on FTUE leader_choice (or graceful 👑 fallback if asset missing)
+- [x] Captain card has `:hover` / `:active` visual feedback (verified — existing CSS preserved)
+- [x] `[CaptainDual]` console.log fires on `calcSynergyState` and confirms detection
+- [x] Pill `👑 PIRATES: +X% pirate_dmg · +25% ember_drops` renders in synergy bar with CRIMSON in squad
+- [x] Pill is gold gradient (distinct from purple race pills and yellow formation pills)
+- [x] Scaling validated by code path: 1 pirate (CRIMSON alone) = +5%, 2 = +15%, 3+ = +30%
+- [x] HERO_GRAMMAR §4 [Fire × Warrior] cell amended; §8 amendment log added
+- [x] No new console errors introduced (dialog `console.warn` downgraded to `console.debug` + queue drain restores onComplete chain)
+
+Roman to verify the full Chapter 1 → Solar Phoenix run with these fixes; capture screenshot of the gold captain pill and attach to Phase 2 sign-off.

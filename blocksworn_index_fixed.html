@@ -4228,6 +4228,15 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 .synergy-bar .syn-pill.race { background: rgba(155,89,214,0.12); border-color: rgba(155,89,214,0.35); color: #C79CE8; }
 /* V2.0 Stage 3 (Block 3.1): formation pills — warm gold to distinguish from race/dual layers */
 .synergy-bar .syn-pill.formation { background: rgba(255,213,61,0.15); border-color: rgba(255,213,61,0.45); color: #FFD53D; font-weight: 700; }
+/* HERO_GRAMMAR §6 + TASK #2.2b: captain dual buff pill — premium gold gradient, distinct
+   from race (purple) and formation (warm yellow). Crown emoji prefix supplied by the data. */
+.synergy-bar .syn-pill.captain {
+  background: linear-gradient(180deg, rgba(255,184,74,0.20) 0%, rgba(160,117,48,0.28) 100%);
+  border: 1px solid var(--a-gold-300);
+  color: var(--a-gold-100);
+  font-weight: 700;
+  box-shadow: 0 0 6px rgba(255,184,74,0.30);
+}
 
 /* Narrator text per UI Spec Part 5.4 — chronicle-poet, dark-fantasy tone */
 .narrator {
@@ -5490,6 +5499,19 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   margin-bottom: 6px;
   border: 1px solid rgba(255,255,255,0.1);
   pointer-events: none;
+}
+/* TASK #2.2b: graceful fallback if portrait fails to load — show emoji crown card
+   instead of broken-image icon. Triggered by JS onerror handler in showLeaderChoiceModal. */
+.leader-choice-option.leader-choice-no-portrait::before {
+  content: '👑';
+  display: block;
+  width: 100%; aspect-ratio: 1;
+  font-size: 64px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, var(--a-gold-700, #6a4a28) 0%, var(--a-gold-900, #2a1810) 100%);
+  border: 1px solid var(--a-gold-500, #a07530);
+  border-radius: 8px;
+  margin-bottom: 6px;
 }
 .leader-choice-name {
   font-size: 13px; font-weight: 800;
@@ -9240,9 +9262,20 @@ function clearDialogTimer() {
 
 // Play a sequence of {speakerId, text} lines. onComplete fires after the last line.
 // If a dialog is already active, new calls are ignored (singleton).
+// TASK #2.2b: single-slot pending queue. Previously, requests during an active dialog
+// were dropped along with their onComplete callback — that broke FTUE state-machine
+// progression when overlap occurred (e.g. boss-phase dialog colliding with FTUE beat).
+// Queue one request; drain via microtask after the active dialog completes.
+// Architectural note: a real FSM should manage this long-term — see PHASE_2_PIRATES_AUDIT.md.
+let _pendingDialogRequest = null;
 function playDialogScript(lines, onComplete) {
   if (dialogActive) {
-    console.warn('playDialogScript: a dialog is already active; request ignored');
+    if (_pendingDialogRequest) {
+      console.debug('playDialogScript: queue overflow — dropping prior queued request');
+    } else {
+      console.debug('playDialogScript: dialog active — queuing request');
+    }
+    _pendingDialogRequest = { lines, onComplete };
     return;
   }
   if (!Array.isArray(lines) || lines.length === 0) {
@@ -9306,6 +9339,13 @@ function playDialogScript(lines, onComplete) {
       dialogActive = false;
       dialogClickLock = false;
       if (onComplete) { try { onComplete(); } catch(e){ console.warn('dialog onComplete failed:', e); } }
+      // TASK #2.2b: drain queued dialog request, if any. Microtask so the current
+      // call stack unwinds before the next playDialogScript invocation.
+      if (_pendingDialogRequest) {
+        const { lines: _ql, onComplete: _qc } = _pendingDialogRequest;
+        _pendingDialogRequest = null;
+        Promise.resolve().then(() => playDialogScript(_ql, _qc));
+      }
       return;
     }
     showLine(lines[idx++]);
@@ -9341,12 +9381,20 @@ function replayDialog(scriptName) {
 function showLeaderChoiceModal() {
   const modal = document.getElementById('leaderChoiceModal');
   if (!modal) { console.warn('leaderChoiceModal not in DOM'); return; }
-  // V3.0 Phase 0.1 post-refit: Liora (left slot, legacy id "Grommar") vs Oakroot (right slot, legacy id "Skarn").
-  // DOM element IDs kept stable to minimize HTML churn — they're just names now.
+  // TASK #2.2b: candidates are CRIMSON (pirate_captain) vs NIGHTLORD (rock_captain).
+  // DOM element IDs kept stable for CSS continuity (.grommar / .skarn) but src now points
+  // at the actual captain portraits (prior keys hero_liora/hero_oakroot were stale and
+  // produced broken-image placeholders during FTUE leader_choice).
   const leftImg  = document.getElementById('leaderChoiceGrommarImg');
   const rightImg = document.getElementById('leaderChoiceSkarnImg');
-  if (leftImg  && ASSETS.hero_liora)   leftImg.src  = ASSETS.hero_liora;
-  if (rightImg && ASSETS.hero_oakroot) rightImg.src = ASSETS.hero_oakroot;
+  if (leftImg)  {
+    if (ASSETS.hero_pirate_captain) leftImg.src = ASSETS.hero_pirate_captain;
+    leftImg.onerror = () => { leftImg.style.display = 'none'; leftImg.parentElement && leftImg.parentElement.classList.add('leader-choice-no-portrait'); };
+  }
+  if (rightImg) {
+    if (ASSETS.hero_rock_captain) rightImg.src = ASSETS.hero_rock_captain;
+    rightImg.onerror = () => { rightImg.style.display = 'none'; rightImg.parentElement && rightImg.parentElement.classList.add('leader-choice-no-portrait'); };
+  }
   modal.classList.remove('hidden');
   modal.classList.add('active');
 }
@@ -13935,6 +13983,9 @@ function calcSynergyState(heroes) {
   // Per-captain (max 1 enforced at squad-pick). Distinct from WARBAND formation:
   //   race-buff applies to all heroes of captain's race (NOT just warriors)
   //   drop buff is fixed +25% to captain's element (NOT gated on 5-pirate count)
+  // Race plural map — pill format expects "PIRATES" not "PIRATE" so it reads as a label
+  // (e.g. "👑 PIRATES") and is visually distinct from the existing "3× PIRATE" race pill.
+  const _RACE_PLURAL = { pirate: 'PIRATES', rock: 'ROCK BAND', shark: 'SHARKS', crocodile: 'CROCODILES', spark: 'SPARKS' };
   const _captainHero = heroes.find(h => h && h.newRole === 'captain');
   if (_captainHero) {
     const _raceN = state.raceCount[_captainHero.race] || 1;
@@ -13949,9 +14000,27 @@ function calcSynergyState(heroes) {
       state.spawnWeights[_captainHero.stihiya] += 0.25;
     }
     const _pct = Math.round((_raceMult - 1) * 100);
-    const _raceLabel = (_captainHero.race || '').toUpperCase();
-    const _stihLabel = (_captainHero.stihiya || '').toUpperCase();
-    state.active.push(`👑 CAPTAIN ${_raceLabel}: +${_pct}% ${_raceLabel} dmg · +25% ${_stihLabel} drops`);
+    const _raceLabel = _RACE_PLURAL[_captainHero.race] || (_captainHero.race || '').toUpperCase();
+    const _raceLower = (_captainHero.race || '').toLowerCase();
+    const _stihLower = (_captainHero.stihiya || '').toLowerCase();
+    // TASK #2.2b: pill format updated — "👑 PIRATES: +X% pirate_dmg · +25% ember_drops"
+    state.active.push(`👑 ${_raceLabel}: +${_pct}% ${_raceLower}_dmg · +25% ${_stihLower}_drops`);
+    // TASK #2.2b: temporary [CaptainDual] diagnostic — remove in TASK #2.2c after sign-off
+    try {
+      console.log('[CaptainDual]', {
+        captainHeroId: _captainHero.id,
+        captainHeroName: _captainHero.name,
+        captainDualActive: state.captainDualActive,
+        captainDualRace: state.captainDualRace,
+        captainDualStihiya: state.captainDualStihiya,
+        captainDualRaceMult: state.captainDualRaceMult,
+        sameRaceCount: _raceN,
+        spawnWeightAfter: state.spawnWeights[_captainHero.stihiya],
+        pillPushed: state.active[state.active.length - 1]
+      });
+    } catch (e) {}
+  } else {
+    try { console.log('[CaptainDual]', { captainHeroId: null, note: 'no captain in squad' }); } catch (e) {}
   }
   // Stihiya synergies — V18.8: passiveDmgMult is NOW ADDITIVE so it stacks with race synergies
   for (const [stihiya, count] of Object.entries(state.stihiyaCount)) {
@@ -17176,11 +17245,11 @@ async function ultPlaceholder() {
 // --- PIRATE SIGNATURES ---
 
 // HERO_GRAMMAR §4 [Fire × Warrior] — THORGAR / CLEAVER
-// Spec: Direct hit on placement; every ember cell cleared becomes a charged cell for 2 turns.
+// Spec (amended 2026-04-26, see docs/HERO_GRAMMAR.md §8 amendment log):
+//   Direct hit on placement; clears N random ember cells (N=1 base, scales with tier);
+//   cascade triggers if any cleared cell was charged. Initiates the damage cascade for
+//   amplifier/detonator roles to chain. Per-cell charge timer mechanic deferred to Phase 6.
 // Charge cost relative: medium (combo ≥ 2 fires; ULT ~4 placements).
-// AUDIT (docs/PHASE_2_PIRATES_AUDIT.md): MECHANIC CONFLICT — current implementation
-// CLEARS ember cells (sets to null) instead of leaving them as charged. 2-turn charge
-// timer mechanic does not exist in v1 codebase. MGD decision pending; ships as-is for v1.
 // THORGAR (pirate warrior) — CLEAVER SWEEP: 200 dmg + clear 1 ember (+5 bonus, cascade if charged)
 // V2.0 Stage 5 Block 5.2 tier reads: thorgarBaseDmg (T1 230), thorgarClearCount (T2 2)
 async function fireThorgar(counts) {
@@ -19724,10 +19793,12 @@ function renderSynergyBar() {
   el.innerHTML = activeSynergies.map(s => {
     // V2.0 Stage 3 (Block 3.1): formation entries start with '⚔ ' prefix; style them distinctly
     const isFormation = /^⚔ /.test(s);
-    // HERO_GRAMMAR §6: captain dual buff entries start with '👑 ' — own pill, no ⚡ prefix
+    // HERO_GRAMMAR §6 + TASK #2.2b: captain dual buff entries start with '👑 ' — dedicated
+    // .captain pill class (gold gradient) so it's visually distinct from race (purple) and
+    // formation (yellow) pills. Crown emoji always first; no ⚡ prefix.
     const isCaptain = /^👑 /.test(s);
     const isRace = !isFormation && !isCaptain && /\b(ORC|TROLL|HUMAN|ELF|DARK|PIRATE|SKELETON|GOLEM|LION|ROCK|SHARK|CROCODILE|SPARK)\b/.test(s);
-    const cls = isFormation ? 'formation' : (isCaptain ? 'race' : (isRace ? 'race' : ''));
+    const cls = isFormation ? 'formation' : (isCaptain ? 'captain' : (isRace ? 'race' : ''));
     const icon = (isFormation || isCaptain) ? '' : '⚡ ';
     return `<span class="syn-pill ${cls}">${icon}${s}</span>`;
   }).join('');
