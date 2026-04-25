@@ -1278,6 +1278,8 @@ Merge `phase-3-voices-archetypes` → `main` + tag `v0.3.0-phase-3-done`.
 
 **🟡 Важно:** балансные числа в этой фазе часто YELLOW — они настраиваются после прогонов.
 
+**⚠️ Priority findings from Phase 1 playtest:** See `/docs/PLAYTEST_FINDINGS.md` (PF-001, PF-003). Эти findings from founder-playtest inform Phase 4 task priorities — особенно PF-001 (Grovewarden HP tuned for 5-hero squad, now mismatched with SQUAD_MAX=3) и PF-003 (hero fires feel weak/opaque).
+
 ---
 
 ## 🟢 TASK #4.1 — Signature Combo Engine
@@ -1559,6 +1561,8 @@ Merge `phase-4-the-moment` → `main` + tag `v0.4.0-phase-4-done`.
 **Правило:** **учить через действие**, не через текст. Если требуется "read this tooltip" — это проигрыш дизайна.
 
 **Срок:** 2 недели.
+
+**⚠️ Priority findings from Phase 1 playtest:** See `/docs/PLAYTEST_FINDINGS.md` (PF-001, PF-002, PF-003). Эти findings from founder-playtest inform Phase 5 task priorities — PF-002 (HP/attack mechanic never explained) и PF-003 (ULT + fire + combo opacity) are direct Phase 5 progressive-disclosure targets; PF-001 tail effect (element counters not taught early enough) also lands here.
 
 ---
 
