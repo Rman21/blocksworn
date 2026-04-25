@@ -6401,6 +6401,69 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   100% { opacity: 0.5; }
 }
 
+/* ===== Block B3: Boss archetype aura — applied to #bossImgWrap by startBossBattle. =====
+   Each archetype gets a unique color tint + glow that frames the portrait. Reduced-motion
+   media query at the bottom kills the pulse animations and falls back to static glow. */
+.boss-archetype-berserker {
+  box-shadow: 0 0 14px 2px rgba(232, 93, 74, 0.55), inset 0 0 10px rgba(232, 93, 74, 0.30);
+  animation: bossArchBerserkerPulse 1.6s ease-in-out infinite;
+  border-radius: 10px;
+}
+@keyframes bossArchBerserkerPulse {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(232, 93, 74, 0.55), inset 0 0 10px rgba(232, 93, 74, 0.30); }
+  50%      { box-shadow: 0 0 22px 4px rgba(232, 93, 74, 0.85), inset 0 0 14px rgba(232, 93, 74, 0.50); }
+}
+.boss-archetype-armored {
+  box-shadow: 0 0 12px 2px rgba(59, 139, 212, 0.55), inset 0 0 8px rgba(180, 220, 255, 0.30);
+  border-radius: 10px;
+  /* Subtle steel-sheen — slow pan, less aggressive than berserker */
+  animation: bossArchArmoredSheen 3.0s ease-in-out infinite;
+}
+@keyframes bossArchArmoredSheen {
+  0%, 100% { box-shadow: 0 0 12px 2px rgba(59, 139, 212, 0.55), inset 0 0 8px  rgba(180, 220, 255, 0.30); }
+  50%      { box-shadow: 0 0 18px 3px rgba(59, 139, 212, 0.75), inset 0 0 14px rgba(220, 240, 255, 0.55); }
+}
+.boss-archetype-bruiser {
+  /* Grovewarden — Ancient Keeper organic green */
+  box-shadow: 0 0 14px 2px rgba(93, 202, 121, 0.50), inset 0 0 10px rgba(93, 202, 121, 0.25);
+  border-radius: 10px;
+  animation: bossArchBruiserBreath 2.4s ease-in-out infinite;
+}
+@keyframes bossArchBruiserBreath {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(93, 202, 121, 0.50), inset 0 0 10px rgba(93, 202, 121, 0.25); }
+  50%      { box-shadow: 0 0 20px 3px rgba(93, 202, 121, 0.75), inset 0 0 14px rgba(140, 230, 160, 0.45); }
+}
+.boss-archetype-phoenix {
+  /* Solar gold rebirth aura — warmer than armored, with golden orange glow */
+  box-shadow: 0 0 16px 2px rgba(232, 184, 74, 0.65), inset 0 0 12px rgba(255, 180, 60, 0.35);
+  border-radius: 10px;
+  animation: bossArchPhoenixGlow 1.8s ease-in-out infinite;
+}
+@keyframes bossArchPhoenixGlow {
+  0%, 100% { box-shadow: 0 0 16px 2px rgba(232, 184, 74, 0.65), inset 0 0 12px rgba(255, 180, 60, 0.35); }
+  50%      { box-shadow: 0 0 28px 5px rgba(255, 200, 80, 0.90), inset 0 0 18px rgba(255, 220, 120, 0.55); }
+}
+.boss-archetype-assassin {
+  /* Crypt Lich — purple shadow tendrils */
+  box-shadow: 0 0 14px 2px rgba(155, 89, 214, 0.55), inset 0 0 10px rgba(155, 89, 214, 0.30);
+  border-radius: 10px;
+  animation: bossArchAssassinShadow 2.0s ease-in-out infinite;
+}
+@keyframes bossArchAssassinShadow {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(155, 89, 214, 0.55), inset 0 0 10px rgba(155, 89, 214, 0.30); }
+  50%      { box-shadow: 0 0 22px 4px rgba(155, 89, 214, 0.85), inset 0 0 14px rgba(190, 130, 240, 0.50); }
+}
+
+/* Reduced-motion fallback — kill the pulse, keep the static glow so the archetype
+   is still visually identifiable but doesn't strobe. */
+@media (prefers-reduced-motion: reduce) {
+  .boss-archetype-berserker,
+  .boss-archetype-armored,
+  .boss-archetype-bruiser,
+  .boss-archetype-phoenix,
+  .boss-archetype-assassin { animation: none !important; }
+}
+
 /* Target indicator — стрелка над героем (для single-target) */
 .hero-card .p-attack-arrow {
   position: absolute;
@@ -8337,11 +8400,15 @@ const CHAPTERS = [
     id: 1,
     name: 'ASHEN DOMINION',
     bosses: [
-      { name: 'PYREDRAKE',       title: 'Lvl 1 · Fire Dragon',    hp: 1800,  attackInterval: 11, img: 'Boss_1', color: '#E85D4A', stihiya: 'ember' },
-      { name: 'ABYSSAL TYRANT',  title: 'Lvl 2 · Sea Overlord',   hp: 3800,  attackInterval: 9,  img: 'Boss_2', color: '#3B8BD4', stihiya: 'tide'  },
-      { name: 'GROVEWARDEN',     title: 'Lvl 3 · Ancient Keeper', hp: 6500,  attackInterval: 7,  img: 'Boss_3', color: '#5DCA79', stihiya: 'grove' },
-      { name: 'SOLAR PHOENIX',   title: 'Lvl 4 · Reborn Tyrant',  hp: 7500,  attackInterval: 6,  img: 'Boss_4', color: '#E8B84A', stihiya: 'solar', revives: 1 },
-      { name: 'CRYPT LICH',      title: 'Lvl 5 · Final Overlord', hp: 11000, attackInterval: 5,  img: 'Boss_5', color: '#9B59D6', stihiya: 'umbra' },
+      // Block B3: archetype field activated. Drives BOSS_ARCHETYPES profile, archetype-aura
+      // CSS class on portrait, and per-archetype attack telegraph label. Phoenix's revives:1
+      // remains the legacy multi-life hook; the BOSS_ARCHETYPES.phoenix.special='revive'
+      // path (maybePhoenixRevive) is the modern equivalent — both are wired.
+      { name: 'PYREDRAKE',       title: 'Lvl 1 · Fire Dragon',    hp: 1800,  attackInterval: 11, img: 'Boss_1', color: '#E85D4A', stihiya: 'ember', archetype: 'berserker' },
+      { name: 'ABYSSAL TYRANT',  title: 'Lvl 2 · Sea Overlord',   hp: 3800,  attackInterval: 9,  img: 'Boss_2', color: '#3B8BD4', stihiya: 'tide',  archetype: 'armored'   },
+      { name: 'GROVEWARDEN',     title: 'Lvl 3 · Ancient Keeper', hp: 6500,  attackInterval: 7,  img: 'Boss_3', color: '#5DCA79', stihiya: 'grove', archetype: 'bruiser'   },
+      { name: 'SOLAR PHOENIX',   title: 'Lvl 4 · Reborn Tyrant',  hp: 7500,  attackInterval: 6,  img: 'Boss_4', color: '#E8B84A', stihiya: 'solar', archetype: 'phoenix',   revives: 1 },
+      { name: 'CRYPT LICH',      title: 'Lvl 5 · Final Overlord', hp: 11000, attackInterval: 5,  img: 'Boss_5', color: '#9B59D6', stihiya: 'umbra', archetype: 'assassin'  },
     ]
   },
 ];
@@ -8546,18 +8613,15 @@ loadHeroTiersFromStorage();
 // State persisted separately from blocksworn_progress so it survives save-format
 // iterations and is easier to debug / migrate independently.
 
+// Block B3: starter set reduced to 3 heroes (one per role-archetype) per the unlock
+// progression Model B — full Pirates roster fills in after Boss 1, Rock Band after
+// Boss 2, Sharks across Bosses 3 + 4. THORGAR (Warrior/CREATOR), BLACKTOOTH
+// (Hunter/DETONATOR), CRIMSON (Captain/ENABLER) form the smallest legal squad that
+// already showcases the combo grammar's 3 main verbs.
 const STARTER_HEROES = new Set([
-  // Task #1.4: roster reduced to Pirates (Ember) + Rock Band (Umbra) + Clockwork (Tide, locked).
-  // Starter lineup is 2 warriors + 2 mages, one pair per faction — gives the player a
-  // legal 3-hero squad immediately with both factions represented.
-  //   - THORGAR   (pirate warrior, ember)
-  //   - EMBERHAND (pirate mage,    ember)
-  //   - RIFFBLADE (rock warrior,   umbra)
-  //   - KEYCRYPT  (rock mage,      umbra)
-  'pirate_warrior', // THORGAR
-  'pirate_mage',    // EMBERHAND
-  'rock_warrior',   // RIFFBLADE
-  'rock_mage',      // KEYCRYPT
+  'pirate_warrior', // THORGAR  (CREATOR)
+  'pirate_hunter',  // BLACKTOOTH (DETONATOR)
+  'pirate_captain', // CRIMSON   (ENABLER)
 ]);
 
 // Initialize unlocked flag on every roster entry. Default: starter-only.
@@ -8567,10 +8631,33 @@ for (const h of HERO_ROSTER) {
 
 const HEROES_UNLOCKED_STORAGE_KEY = 'blocksworn_heroes_unlocked';
 
-// Task #1.4.2 hotfix: squad size reduced from 5 → 3 to match the new 2-faction
-// roster (4 starter heroes leave only 4 unlocks post-FTUE, which could not fill a
-// 5-slot squad). Tactical puzzle design supports 3 active heroes comfortably.
-const SQUAD_MAX = 3;
+// Block B3: SQUAD_MAX is now mutable. Progression: 3 (default) → 4 (after Boss 2) →
+// 5 (after Boss 4). Hooked from onBossDefeated. Persisted in localStorage. Migration
+// (runMigration_B3) backfills from bossesDefeated for existing saves.
+let SQUAD_MAX = 3;
+const SQUAD_MAX_STORAGE_KEY = 'blocksworn_squad_max';
+
+// Block B3: hero unlock progression — heroes added per boss tier (Model B per MGD).
+// Boss N defeat → unlocks the listed IDs via revealHero() in onBossDefeated.
+const BOSS_UNLOCKS = {
+  1: ['pirate_mage', 'pirate_tank'],                                                 // Pyredrake → full Pirates roster (5)
+  2: ['rock_warrior', 'rock_hunter', 'rock_mage', 'rock_tank', 'rock_captain'],      // Abyssal Tyrant → full Rock Band
+  3: ['shark_warrior', 'shark_hunter'],                                              // Grovewarden → first 2 Sharks
+  4: ['shark_mage', 'shark_tank', 'shark_captain'],                                  // Solar Phoenix → full Sharks roster
+  5: [],                                                                             // Crypt Lich → chapter complete (no new heroes)
+};
+
+// Block B3: SQUAD_MAX bumps per boss. Boss 2 → 4 slots, Boss 4 → 5 slots.
+const BOSS_SQUAD_BUMPS = { 2: 4, 4: 5 };
+
+// Block B3: human-readable labels for the unlock celebration overlay.
+const UNLOCK_TIER_LABELS = {
+  1: 'Full Pirates Roster!',
+  2: 'Rock Band Joins the Fight!',
+  3: 'First Sharks!',
+  4: 'Full Sharks Roster!',
+  5: 'Chapter 1 Complete!',
+};
 
 function saveUnlockedHeroesToStorage() {
   try {
@@ -8674,10 +8761,217 @@ function reconcileSquadUnlocks() {
   if (activeSquad.length > SQUAD_MAX) activeSquad.length = SQUAD_MAX;
 }
 
-// Load unlock state immediately — must happen before any UI renders so silhouette
-// treatment is applied on first paint. Safe to call before activeSquad is declared;
-// it only touches HERO_ROSTER entries.
+// ===== BLOCK B3 — SQUAD_MAX storage + boss-defeat unlock progression + voice lines =====
+
+function saveSquadMaxToStorage() {
+  try { localStorage.setItem(SQUAD_MAX_STORAGE_KEY, String(SQUAD_MAX)); }
+  catch (e) { console.warn('saveSquadMaxToStorage failed:', e); }
+}
+
+function loadSquadMaxFromStorage() {
+  try {
+    const raw = localStorage.getItem(SQUAD_MAX_STORAGE_KEY);
+    if (!raw) return;
+    const n = parseInt(raw, 10);
+    if (n >= 3 && n <= 5) SQUAD_MAX = n;
+  } catch (e) { console.warn('loadSquadMaxFromStorage failed:', e); }
+}
+
+// Block B3: progression hook called from onBossDefeated (real boss kills only —
+// NOT towers, NOT FTUE Pyredrake which uses a separate beat). Idempotent: re-running
+// for a previously-defeated boss won't re-fire the celebration because unlockHero
+// returns false for already-unlocked heroes and SQUAD_MAX bumps use Math.max.
+function applyBossDefeatProgression(bossNumber) {
+  // bossNumber is 1-indexed (1..5)
+  const heroIds = BOSS_UNLOCKS[bossNumber] || [];
+  const newlyUnlocked = [];
+  for (const id of heroIds) {
+    const hero = HERO_ROSTER.find(h => h.id === id);
+    // Skip locked-by-design heroes (e.g. Clockwork Phase-2 placeholders) — defensive.
+    if (!hero || hero.locked) continue;
+    if (!hero.unlocked) {
+      hero.unlocked = true;
+      newlyUnlocked.push(id);
+    }
+  }
+  if (newlyUnlocked.length > 0) saveUnlockedHeroesToStorage();
+
+  let squadBumped = false;
+  const targetMax = BOSS_SQUAD_BUMPS[bossNumber];
+  if (targetMax && SQUAD_MAX < targetMax) {
+    SQUAD_MAX = targetMax;
+    saveSquadMaxToStorage();
+    squadBumped = true;
+  }
+
+  // Celebration order: squad-slot toast first (1.5s), then hero-unlock celebration.
+  if (squadBumped) showSquadSlotUnlockToast(SQUAD_MAX);
+  if (newlyUnlocked.length > 0 || bossNumber === 5) {
+    const delay = squadBumped ? 1500 : 250;
+    setTimeout(() => showHeroUnlockCelebration(bossNumber, newlyUnlocked), delay);
+  }
+}
+
+// Block B3: lightweight celebration overlay — uses existing flashText for the toast
+// path and the chapterCompleteModal pattern for hero unlock visualization. Full
+// card-flip animation deferred to Block B4 polish (see DEBT-019).
+function showSquadSlotUnlockToast(newMax) {
+  try {
+    flashText('+1 SQUAD SLOT — ' + newMax + ' HEROES', '#FFD53D');
+    vibrate([60, 40, 60, 40, 100]);
+  } catch (e) {}
+}
+
+function showHeroUnlockCelebration(bossNumber, heroIds) {
+  try {
+    const subtitle = UNLOCK_TIER_LABELS[bossNumber] || 'NEW HEROES UNLOCKED';
+    // Compose a celebration banner via flashText. For the hero list, fire a second
+    // delayed banner with the names so the player reads what unlocked.
+    flashText(subtitle, '#3DD66E');
+    vibrate([80, 60, 120]);
+    if (heroIds && heroIds.length > 0) {
+      setTimeout(() => {
+        const names = heroIds
+          .map(id => { const h = HERO_ROSTER.find(x => x.id === id); return h ? h.name : id; })
+          .join(' · ');
+        try { flashText(names, '#FFD53D'); } catch (e) {}
+      }, 700);
+    }
+    // Refresh squad-select if visible so locked → unlocked transition shows.
+    try { if (typeof currentScreen !== 'undefined' && currentScreen === 'select') renderSelect(); } catch (e) {}
+  } catch (e) { console.warn('showHeroUnlockCelebration failed:', e); }
+}
+
+// Block B3: boss voice lines (5 bosses × 3 lines = 15). Routed through the existing
+// playDialogScript queue (which has the single-slot pending queue from TASK #2.2b),
+// so lines NEVER race — back-to-back triggers serialize cleanly.
+const BOSS_VOICES = {
+  PYREDRAKE: {
+    intro:    'The cinder that refuses to die... STILL BURNS.',
+    midfight: 'Your flames are kindling to mine.',
+    death:    'I... will return... in ash...',
+  },
+  'ABYSSAL TYRANT': {
+    intro:    'You disturb the depths. The depths answer.',
+    midfight: 'Tide does not retreat. Tide consumes.',
+    death:    '...the deep... remembers...',
+  },
+  GROVEWARDEN: {
+    intro:    'The forest watches. The forest judges.',
+    midfight: 'You are temporary. We are root and bough.',
+    death:    '...new growth... from old wounds...',
+  },
+  'SOLAR PHOENIX': {
+    intro:    'I have died. I have risen. WATCH ME RISE AGAIN.',
+    midfight: 'Each death is rehearsal. I AM ETERNAL.',
+    death:    'Not... yet... not... yet...',
+  },
+  'CRYPT LICH': {
+    intro:    'Mortals. Such... persistent... noise.',
+    midfight: 'Your defiance amuses me. Briefly.',
+    death:    'Death... is... a... door...',
+  },
+};
+
+// Per-battle flags so each line fires at most once.
+let _bossVoiceIntroFired    = false;
+let _bossVoiceMidfightFired = false;
+let _bossVoiceDeathFired    = false;
+const BOSS_VOICE_MIDFIGHT_HP_PCT = 0.5;
+
+function _bossVoiceTrigger(slot) {
+  if (typeof currentBoss === 'undefined' || !currentBoss || !currentBoss.name) return;
+  const lines = BOSS_VOICES[currentBoss.name];
+  if (!lines || !lines[slot]) return;
+  if (typeof playDialogScript !== 'function') return;
+  // Mode B (boss dialog) — explicit speaker + color. The dialog overlay reads
+  // line.speaker / line.speakerColor / line.text. portraitKey is left empty
+  // (boss already visible behind the modal — no portrait swap needed).
+  const script = [{
+    speaker: currentBoss.name,
+    speakerColor: currentBoss.color || '#FFD53D',
+    text: lines[slot],
+  }];
+  try { playDialogScript(script, null); } catch (e) { console.warn('boss voice fire failed:', e); }
+}
+
+function maybeFireBossVoiceIntro() {
+  if (_bossVoiceIntroFired) return;
+  _bossVoiceIntroFired = true;
+  // 1.5s after battle start so squad-pop animation completes.
+  setTimeout(() => _bossVoiceTrigger('intro'), 1500);
+}
+
+function maybeFireBossVoiceMidfight() {
+  if (_bossVoiceMidfightFired) return;
+  if (typeof bossHP === 'undefined' || typeof bossMaxHP === 'undefined') return;
+  if (bossMaxHP <= 0) return;
+  if (bossHP / bossMaxHP > BOSS_VOICE_MIDFIGHT_HP_PCT) return;
+  _bossVoiceMidfightFired = true;
+  _bossVoiceTrigger('midfight');
+}
+
+function maybeFireBossVoiceDeath() {
+  if (_bossVoiceDeathFired) return;
+  _bossVoiceDeathFired = true;
+  _bossVoiceTrigger('death');
+}
+
+function resetBossVoiceFlags() {
+  _bossVoiceIntroFired    = false;
+  _bossVoiceMidfightFired = false;
+  _bossVoiceDeathFired    = false;
+}
+
+// Block B3: idempotent migration for existing saves (e.g. Roman's playtest state at
+// Boss 4). Runs once per install (gated by SQUAD_MAX_STORAGE_KEY's existence — if
+// SQUAD_MAX storage is already populated, migration was already applied or doesn't
+// apply). Backfills hero unlocks + SQUAD_MAX from bossesDefeated.
+function runMigration_B3() {
+  // Skip if we've already persisted SQUAD_MAX once — this means a) fresh install
+  // (next-line save below seeds storage) or b) already migrated (no-op).
+  const alreadyHasStorage = (() => {
+    try { return localStorage.getItem(SQUAD_MAX_STORAGE_KEY) !== null; } catch (e) { return false; }
+  })();
+  if (alreadyHasStorage) return;
+
+  // Determine current progression. `bossesDefeated` may not be ready at parse time
+  // (it's loaded later from chapterProgress), so peek directly at storage.
+  let bd = 0;
+  try {
+    const cpRaw = localStorage.getItem('blocksworn_chapter_progress');
+    if (cpRaw) {
+      const cp = JSON.parse(cpRaw);
+      // chapterProgress is keyed by chapter id; chapter 1 is the only Phase 2 chapter.
+      bd = (cp && (cp[1] || cp['1'])) || 0;
+    }
+  } catch (e) { /* fresh install — bd stays 0 */ }
+
+  // Backfill heroes
+  for (let n = 1; n <= bd; n++) {
+    for (const id of (BOSS_UNLOCKS[n] || [])) {
+      const hero = HERO_ROSTER.find(h => h.id === id);
+      if (hero && !hero.locked) hero.unlocked = true;
+    }
+  }
+  saveUnlockedHeroesToStorage();
+
+  // Backfill SQUAD_MAX
+  for (const [n, target] of Object.entries(BOSS_SQUAD_BUMPS)) {
+    if (bd >= parseInt(n, 10)) SQUAD_MAX = Math.max(SQUAD_MAX, target);
+  }
+  saveSquadMaxToStorage();
+
+  console.log('[B3 Migration] bossesDefeated=' + bd
+    + ' → unlocked heroes=' + HERO_ROSTER.filter(h => h.unlocked).length
+    + ' SQUAD_MAX=' + SQUAD_MAX);
+}
+
+// Order matters: load unlock state, then load SQUAD_MAX, then run migration (which
+// only fires on installs that pre-date B3). All three complete before any UI render.
 loadUnlockedHeroesFromStorage();
+loadSquadMaxFromStorage();
+runMigration_B3();
 
 // Console helpers for dev + Block 0.2 (fragment craft → unlock) to call.
 if (typeof window !== 'undefined') {
@@ -15014,6 +15308,30 @@ function startBossBattle() {
   // persists across battles unless explicitly removed).
   try { if (typeof clearVoidfangTints === 'function') clearVoidfangTints(); } catch (e) {}
   bossMaxHP = currentBoss.hp;
+  // Block B3: per-battle voice flag reset + intro line (1.5s after battle start so
+  // squad-pop animation completes). FTUE-only Pyredrake skips voice lines (it has
+  // its own intro dialog flow); real boss kills get the voice. Tower battles also
+  // skip — they don't have a story-canon boss line.
+  try {
+    if (typeof resetBossVoiceFlags === 'function') resetBossVoiceFlags();
+    const _isFtueOnly  = currentBoss && currentBoss._isFtueOnly;
+    const _isTower     = currentBoss && currentBoss._isTowerBattle;
+    if (!_isFtueOnly && !_isTower && typeof maybeFireBossVoiceIntro === 'function') {
+      maybeFireBossVoiceIntro();
+    }
+    // Block B3: archetype aura class on the boss portrait. CSS rule per archetype
+    // (.boss-archetype-berserker / -armored / -bruiser / -phoenix / -assassin) drives
+    // visual identity. Reduced-motion users inherit the static-fallback variants.
+    const wrap = document.getElementById('bossImgWrap');
+    if (wrap) {
+      wrap.classList.remove(
+        'boss-archetype-berserker', 'boss-archetype-armored', 'boss-archetype-bruiser',
+        'boss-archetype-phoenix',   'boss-archetype-assassin'
+      );
+      const arch = (currentBoss && currentBoss.archetype) || 'bruiser';
+      wrap.classList.add('boss-archetype-' + arch);
+    }
+  } catch (e) { console.warn('B3 boss-battle init hook failed:', e); }
   // V3.0 Phase 2 Block 2.2 trap 5: reset _lastReward at battle start so a stale
   // floor-context from a previous fight can't contaminate the victory modal of
   // a subsequent non-floor fight (edge case: player launches floor, loses, quits,
@@ -16023,12 +16341,23 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
   // so berserker + phase transitions compose naturally. Early-returns for FTUE
   // and Floor 1 (Voidfang exempt — Block 6.3). Safe when BOSS_PHASES lookup misses.
   try { maybePhaseTransition(); } catch (e) { console.warn('phase transition check failed:', e); }
+  // Block B3: midfight voice line — fires once when boss HP first crosses 50%.
+  // Routed through playDialogScript queue (TASK #2.2b) so it serializes with any
+  // other dialog. Internal idempotency flag prevents re-fire on subsequent ticks.
+  try { maybeFireBossVoiceMidfight(); } catch (e) {}
   if (bossHP <= 0) {
     bossHP = 0;
     // V2.0 Stage 5 Block 5.1: kill-shot attribution — current firing hero earns +5 XP (total +8)
     // Guarded: revivesRemaining > 0 means Phoenix will revive the boss; not a real kill.
     if (_currentFiringHero && revivesRemaining === 0) {
       _currentFiringHero._landedKillShot = true;
+    }
+    // Block B3: death voice line fires BEFORE onBossDefeated so the boss's last
+    // words appear before the cinematic chain. Phoenix mid-life "deaths" (revives
+    // remaining) skip via the same revivesRemaining guard above — only the final
+    // kill triggers the death line.
+    if (revivesRemaining === 0) {
+      try { maybeFireBossVoiceDeath(); } catch (e) {}
     }
     onBossDefeated();
   }
@@ -16125,6 +16454,17 @@ async function onBossDefeated() {
   // V18.19: Math.max ensures replaying an earlier boss doesn't regress chapter progress
   bossesDefeated = Math.min(BOSSES.length, Math.max(bossesDefeated, currentBossIdx + 1));
   chapterProgress[currentChapter] = bossesDefeated;
+  // Block B3: boss-defeat unlock progression. Boss number is 1-indexed; idempotent
+  // (re-defeating a previously-cleared boss won't re-fire celebration because
+  // hero.unlocked is already true and SQUAD_MAX uses Math.max).
+  // Death voice line fires INSIDE the cinematic chain — see maybeFireBossVoiceDeath
+  // wired in dealDamage's bossHP=0 branch above. Progression celebrations come AFTER
+  // the boss-die FX (vPlayBossDieFx already fired) so cinematic and unlock don't race.
+  try {
+    if (typeof applyBossDefeatProgression === 'function') {
+      applyBossDefeatProgression(currentBossIdx + 1);
+    }
+  } catch (e) { console.warn('B3 boss-defeat progression failed:', e); }
   // V3.0 Phase 2 Block 2.1: record floor clear if this fight was launched via launchFloor.
   // Grunt and other non-floor paths (currentFloorId=null) are skipped — no spurious
   // floor clears. For FTUE Pyredrake: recorded separately in the FTUE reward hook below.
@@ -16639,6 +16979,17 @@ function onModalBtn() {
 
 // ===== BOSS ATTACKS =====
 
+// Block B3: per-archetype telegraph labels. Each boss archetype gets a thematic warning
+// pill prefix so the player learns to read different attack patterns. Mechanics still
+// route through the existing AoE telegraph (cell highlighting + pulse + boss attack).
+const ARCHETYPE_TELEGRAPH_LABEL = {
+  berserker: '⚡ BERSERKER STRIKE',  // Pyredrake — chaotic AoE
+  armored:   '🛡 ROW STRIKE',         // Abyssal Tyrant — armored row attack
+  bruiser:   '🌿 BLOOM STRIKE',       // Grovewarden — Ancient Keeper delayed AoE
+  phoenix:   '☀ SOLAR LINE',          // Solar Phoenix — column line attack
+  assassin:  '▦ DARK GEOMETRY',       // Crypt Lich — multi-cell pattern
+};
+
 // POLISH v1 · PHASE 7 — attack telegraph API
 // @param {Object} opts
 // @param {'aoe'|'target'} opts.kind
@@ -16649,7 +17000,15 @@ function vShowAttackTelegraph(opts) {
   // Countdown label inside existing #attackWarning
   const warn = document.getElementById('attackWarning');
   if (warn) {
-    const label = kind === 'aoe' ? '⚠ AOE INCOMING' : '⚠ TARGETED';
+    // Block B3: archetype-specific label when boss archetype is known.
+    let label;
+    if (kind === 'aoe') {
+      const arch = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.archetype)
+        ? currentBoss.archetype : null;
+      label = (arch && ARCHETYPE_TELEGRAPH_LABEL[arch]) || '⚠ AOE INCOMING';
+    } else {
+      label = '⚠ TARGETED';
+    }
     warn.innerHTML = `${label}<span class="attack-warning-countdown">${turnsUntil}</span>`;
     warn.classList.add('active');
   }
