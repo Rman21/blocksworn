@@ -13010,6 +13010,16 @@ let warbandUltShareActive  = false;  // captain ULT → +3 charge to all warrior
 let warbandStrikeActive    = false;  // +50% warrior dmg window flag (capability)
 let warbandStrikeWindow    = 0;      // placements remaining in boost window (0 = inactive)
 
+// HERO_GRAMMAR §6 — Captain dual buff (per-captain, distinct from WARBAND formation).
+// Set in calcSynergyState from the active squad's captain (max 1 enforced at squad-pick time).
+//   captainDual_raceMult  = 1.05 / 1.15 / 1.30 by count of same-race heroes (1 / 2 / 3+)
+//   captainDual_dropBonus = 0.25 fixed (additive on spawnWeights[captain.stihiya])
+let captainDual_active     = false;
+let captainDual_race       = null;
+let captainDual_stihiya    = null;
+let captainDual_raceMult   = 1.0;
+let captainDual_dropBonus  = 0;
+
 // Block 3.2 — Arcane Coven (3+ mage)
 let mageDoubleFireActive     = false;  // mage fires execute twice
 let mageDoubleFireInProgress = false;  // per-fire recursion guard
@@ -13021,6 +13031,10 @@ let lastFireCounts           = null;
 
 // Context multiplier — set during warrior fire invocation; folded into dealDamage
 let _warbandStrikeContext    = 1;
+
+// HERO_GRAMMAR §6 — Captain dual buff per-fire context (computed inside dealDamage from
+// _currentFiringHero.race vs. captainDual_race; works for both fire and ULT paths).
+let _captainDualContext      = 1;
 
 // Block 3.3 — Rainbow (1 of each role)
 let rainbowMotifBoostActive  = false;  // all 5 motifs activate 1 step faster
@@ -13917,6 +13931,28 @@ function calcSynergyState(heroes) {
       else if (count >= 3) state.spawnWeights[s] = Math.max(state.spawnWeights[s], 2);
     }
   }
+  // HERO_GRAMMAR §6 — Captain dual buff (race-scaling damage + fixed +25% element drop).
+  // Per-captain (max 1 enforced at squad-pick). Distinct from WARBAND formation:
+  //   race-buff applies to all heroes of captain's race (NOT just warriors)
+  //   drop buff is fixed +25% to captain's element (NOT gated on 5-pirate count)
+  const _captainHero = heroes.find(h => h && h.newRole === 'captain');
+  if (_captainHero) {
+    const _raceN = state.raceCount[_captainHero.race] || 1;
+    const _raceMult = _raceN >= 3 ? 1.30 : (_raceN === 2 ? 1.15 : 1.05);
+    state.captainDualActive    = true;
+    state.captainDualRace      = _captainHero.race;
+    state.captainDualStihiya   = _captainHero.stihiya;
+    state.captainDualRaceMult  = _raceMult;
+    state.captainDualDropBonus = 0.25;
+    // Fixed +25% drop weight, additive on the same pool race-affinity / artifact rings use.
+    if (state.spawnWeights[_captainHero.stihiya] != null) {
+      state.spawnWeights[_captainHero.stihiya] += 0.25;
+    }
+    const _pct = Math.round((_raceMult - 1) * 100);
+    const _raceLabel = (_captainHero.race || '').toUpperCase();
+    const _stihLabel = (_captainHero.stihiya || '').toUpperCase();
+    state.active.push(`👑 CAPTAIN ${_raceLabel}: +${_pct}% ${_raceLabel} dmg · +25% ${_stihLabel} drops`);
+  }
   // Stihiya synergies — V18.8: passiveDmgMult is NOW ADDITIVE so it stacks with race synergies
   for (const [stihiya, count] of Object.entries(state.stihiyaCount)) {
     const label = stihiya.toUpperCase();
@@ -14127,6 +14163,12 @@ function computeSynergies() {
   captainConversionBoost = state.captainConversionBoost || 1.0;
   warbandUltShareActive  = !!state.warbandUltShareActive;
   warbandStrikeActive    = !!state.warbandStrikeActive;
+  // HERO_GRAMMAR §6 — Captain dual buff mirror (race-scaling dmg + fixed +25% drop)
+  captainDual_active     = !!state.captainDualActive;
+  captainDual_race       = state.captainDualRace || null;
+  captainDual_stihiya    = state.captainDualStihiya || null;
+  captainDual_raceMult   = state.captainDualRaceMult || 1.0;
+  captainDual_dropBonus  = state.captainDualDropBonus || 0;
   mageDoubleFireActive   = !!state.mageDoubleFireActive;
   arcaneResonanceActive  = !!state.arcaneResonanceActive;
   arcaneWisdomActive     = !!state.arcaneWisdomActive;
@@ -14270,6 +14312,9 @@ function resetRaceFlags() {
   mageDoubleFireInProgress = false;
   lastFireCounts           = null;
   _warbandStrikeContext    = 1;
+  // HERO_GRAMMAR §6 — Captain dual buff per-fire context reset (mirrored vars are
+  // re-applied from synergyState by the caller after this reset, before combat starts)
+  _captainDualContext      = 1;
   // Block 3.3 — Vanguard Hunter Mark per-battle state
   hunterMarkWindow         = 0;
   _hunterMarkContext       = 1;
@@ -15697,11 +15742,17 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
   // V2.0 Block 3.3: _hunterMarkContext set for any fire while Mark active (×1.4, consumed on first damage)
   // V2.0 Block 4.1: _grommarRallyContext (×2.0, warrior/hunter only) + _packMarkContext (×1.3, any role)
   // V2.0 Block 4.4: _helioRoarContext (×1.2 any fire during Roar window, no per-fire consumption)
+  // HERO_GRAMMAR §6: captain dual race-buff (×1.05 / ×1.15 / ×1.30) on heroes of captain's race.
+  //   Computed inline from _currentFiringHero so both fire and ULT damage paths benefit; no
+  //   set/clear needed in fireHero / ultRoleDispatch (single source of truth).
   // V2.0 Stage 5 Block 5.7: FIRE_MULT_CAP — clamp combined multiplier stack to 3x per shipping contract F.1.2
   const _baseAmount = amount;
+  _captainDualContext = (captainDual_active && _currentFiringHero
+                         && _currentFiringHero.race === captainDual_race) ? captainDual_raceMult : 1;
   const _multStack = currentDmgMult * _passiveDmgContext * _ultDmgContext
                    * _warbandStrikeContext * _hunterMarkContext
-                   * _grommarRallyContext * _packMarkContext * _helioRoarContext;
+                   * _grommarRallyContext * _packMarkContext * _helioRoarContext
+                   * _captainDualContext;
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
@@ -17124,6 +17175,12 @@ async function ultPlaceholder() {
 
 // --- PIRATE SIGNATURES ---
 
+// HERO_GRAMMAR §4 [Fire × Warrior] — THORGAR / CLEAVER
+// Spec: Direct hit on placement; every ember cell cleared becomes a charged cell for 2 turns.
+// Charge cost relative: medium (combo ≥ 2 fires; ULT ~4 placements).
+// AUDIT (docs/PHASE_2_PIRATES_AUDIT.md): MECHANIC CONFLICT — current implementation
+// CLEARS ember cells (sets to null) instead of leaving them as charged. 2-turn charge
+// timer mechanic does not exist in v1 codebase. MGD decision pending; ships as-is for v1.
 // THORGAR (pirate warrior) — CLEAVER SWEEP: 200 dmg + clear 1 ember (+5 bonus, cascade if charged)
 // V2.0 Stage 5 Block 5.2 tier reads: thorgarBaseDmg (T1 230), thorgarClearCount (T2 2)
 async function fireThorgar(counts) {
@@ -17152,6 +17209,12 @@ async function fireThorgar(counts) {
   vibrate([40, 20, 40]);
 }
 
+// HERO_GRAMMAR §4 [Fire × Hunter] — BLACKTOOTH / INFERNO
+// Spec: Detonates every charged ember cell at once; damage scales with charged-cell count
+// (×3 cap). Charge cost relative: fastest (combo ≥ 2; ULT ~3 placements).
+// AUDIT (docs/PHASE_2_PIRATES_AUDIT.md): ROLE-VERB CONFLICT — current implementation
+// burns 1–2 random cells (not all charged). Hunter DETONATOR contract not satisfied.
+// MGD decision pending; rewrite scheduled as separate task. Ships as-is for v1.
 // BLACKTOOTH (pirate hunter) — SPARKSHOT: 180 dmg + burn 1 cell, treated as charged (+10 dmg)
 // V2.0 Stage 5 Block 5.2 tier reads: blacktoothBaseDmg (T1 210), blacktoothShotCount (T2 2), blacktoothMarkBeforeClear (T3)
 async function fireBlacktooth(counts) {
@@ -17182,6 +17245,12 @@ async function fireBlacktooth(counts) {
   vibrate([30, 30, 30]);
 }
 
+// HERO_GRAMMAR §4 [Fire × Mage] — EMBERHAND / EMBER BLOOM
+// Spec: Every charged cell on the board gains +50% detonation damage; ULT: full squad
+// heal + +1 ULT charge to all. Charge cost relative: medium-slow (period ~12).
+// AUDIT (docs/PHASE_2_PIRATES_AUDIT.md): ROLE-VERB CONFLICT — current implementation
+// SPAWNS ember cells (CREATOR), not AMPLIFIES charged-cell damage. ULT does +1 ULT to all
+// (matches) but no full squad heal. MGD decision pending; ships as-is for v1.
 // EMBERHAND (pirate mage) — EMBER BLOOM: +1 HP regen + spawn 2 ember cells on empty
 // V2.0 Stage 5 Block 5.2 tier reads: emberhandSpawnCount (T1 3), emberhandSpawnCharged (T2 always charged)
 async function fireEmberhand() {
@@ -17204,6 +17273,12 @@ async function fireEmberhand() {
   vibrate([50, 30, 50]);
 }
 
+// HERO_GRAMMAR §4 [Fire × Tank] — IRONBELLY / FIREBRAND
+// Spec: Passive +1 shield per ember clear; ULT: +3 shields + seeds 3 charged ember cells.
+// Charge cost relative: slowest (no minCombo gate; ULT ~5 placements).
+// AUDIT (docs/PHASE_2_PIRATES_AUDIT.md): EXTENDS spec — current adds active +1 shield on
+// fire (vs passive per-ember-clear) plus direct dmg + active pre-charging. PROTECTOR role
+// verb preserved. Documented as intentional extension; ships as-is for v1.
 // IRONBELLY (pirate tank) — FIREBRAND: +1 shield + 160 dmg + mark 2 non-charged ember as charged
 // V2.0 Stage 5 Block 5.2 tier reads: ironbellyBaseDmg (T1 180), ironbellyChargedMarks (T1 3)
 async function fireIronbelly(counts) {
@@ -17228,6 +17303,12 @@ async function fireIronbelly(counts) {
   vibrate([50, 30, 50]);
 }
 
+// HERO_GRAMMAR §4 [Fire × Captain] — CRIMSON / CRIMSON GAMBIT
+// Spec: Race-buff scales pirate squad damage (+5/+15/+30%); element-buff weights drops
+// +25% toward ember (fixed); ULT seeds 10 charged cells with 50% spawn bias.
+// Charge cost relative: medium (period ~10).
+// IMPLEMENTATION: dual buff lives in calcSynergyState (§6) → captainDual_* mirrored
+// globals. fire body below remains the active board effect (cell conversion + cascade).
 // CRIMSON (pirate captain) — CAPTAIN'S GAMBIT: convert 2 cells to ember, free cascade if neighbors charged
 async function fireCrimson() {
   const hero = this;
@@ -17280,6 +17361,9 @@ async function fireCrimson() {
 // V2.0 Stage 5 Block 5.2: ultDeltaGrommar sets grommarRallyWindow=3 at T1+ BEFORE this twist runs —
 // so we respect the tier-set window (don't overwrite). T0 falls through to 2.
 
+// HERO_GRAMMAR §4 [Fire × Warrior] — THORGAR / SIEGE ULT signature
+// Spec ULT pattern (Warrior): SIEGE — large flat damage burst; the cleanest finisher.
+// Current twist extends generic warrior SIEGE template with 5-pirate FLEET burns.
 // THORGAR — FLEET SIEGE: +2 burns on top of warrior 10 if 5-pirate active (Cascade Fleet)
 // V2.0 Stage 5 Block 5.2: T1+ thorgarFleetSiegeBurns=14 (was 12), T2+ thorgarFleetSiegeAlways (ignores pirate req)
 async function ultTwistThorgar(ctx) {
@@ -17295,6 +17379,10 @@ async function ultTwistThorgar(ctx) {
   }
 }
 
+// HERO_GRAMMAR §4 [Fire × Hunter] — BLACKTOOTH / VOLLEY ULT signature
+// Spec ULT pattern (Hunter): VOLLEY — multi-line burst; the cascade trigger.
+// Current twist extends generic hunter VOLLEY with charged-bonus damage.
+// AUDIT: see fireBlacktooth header — fire body has Hunter DETONATOR role conflict.
 // BLACKTOOTH — WILDFIRE VOLLEY: +100 flat dmg if any burnt cell in volley was charged
 // V2.0 Stage 5 Block 5.2: T1+ blacktoothChargedBonus=150 (was 100); T3 +200 inferno in ultDeltaBlacktooth
 async function ultTwistBlacktooth(ctx) {
@@ -17308,6 +17396,10 @@ async function ultTwistBlacktooth(ctx) {
   }
 }
 
+// HERO_GRAMMAR §4 [Fire × Mage] — EMBERHAND / MENDING ULT signature
+// Spec ULT pattern (Mage): MENDING — full heal or board-state extension; restores the engine.
+// Current twist matches "+1 ULT charge to all" half of spec; full squad heal not implemented.
+// AUDIT: see fireEmberhand header — fire body has Mage AMPLIFIER role conflict.
 // EMBERHAND — FLOOD MENDING: +1 ULT charge to each squad member's stihiya
 async function ultTwistEmberhand(ctx) {
   for (const h of HERO_DECK) {
@@ -17319,6 +17411,10 @@ async function ultTwistEmberhand(ctx) {
   flashText('FLOOD MENDING', '#FF6600');
 }
 
+// HERO_GRAMMAR §4 [Fire × Tank] — IRONBELLY / AEGIS ULT signature
+// Spec ULT pattern (Tank): AEGIS — large shield + element seed; the survival pivot.
+// Spec cell ULT: +3 shields + seeds 3 charged ember cells. Current matches: shields via
+// generic applyTankUlt + 3–5 charged ember seed via this twist (T0=3, T1+=4, T3+=5).
 // IRONBELLY — CHARGED AEGIS: spawn 3 charged ember on empty cells after shields applied
 // V2.0 Stage 5 Block 5.2: T1+ ironbellyUltChargedCount=4, T3+=5 (via ultDeltaIronbelly runtime)
 async function ultTwistIronbelly(ctx) {
@@ -17335,6 +17431,11 @@ async function ultTwistIronbelly(ctx) {
   if (picks.length > 0) { render(); renderChargedVisuals(); flashText('CHARGED AEGIS ×' + picks.length, '#FFAA00'); }
 }
 
+// HERO_GRAMMAR §4 [Fire × Captain] — CRIMSON / DOMINION ULT signature
+// Spec ULT pattern (Captain): DOMINION — board-wide element seed + multiplier window.
+// Spec cell ULT: seeds 10 charged cells with 50% spawn bias. Current matches via cell
+// conversion (10 cells in applyCaptainUlt) + 50%/60% charged spawn rate in this twist.
+// Persistent dual buff (race-scaling dmg + fixed +25% drop) lives in calcSynergyState.
 // CRIMSON — PIRATE DOMINION: 50% of converted cells spawn charged (vs Skarn's 30%)
 // V2.0 Stage 5 Block 5.2: reads crimsonChargedRate (T1 0.60)
 async function ultTwistCrimson(ctx) {
@@ -19623,9 +19724,11 @@ function renderSynergyBar() {
   el.innerHTML = activeSynergies.map(s => {
     // V2.0 Stage 3 (Block 3.1): formation entries start with '⚔ ' prefix; style them distinctly
     const isFormation = /^⚔ /.test(s);
-    const isRace = !isFormation && /\b(ORC|TROLL|HUMAN|ELF|DARK|PIRATE|SKELETON|GOLEM|LION|ROCK)\b/.test(s);
-    const cls = isFormation ? 'formation' : (isRace ? 'race' : '');
-    const icon = isFormation ? '' : '⚡ '; // formation already starts with ⚔, avoid ⚡⚔ stacking
+    // HERO_GRAMMAR §6: captain dual buff entries start with '👑 ' — own pill, no ⚡ prefix
+    const isCaptain = /^👑 /.test(s);
+    const isRace = !isFormation && !isCaptain && /\b(ORC|TROLL|HUMAN|ELF|DARK|PIRATE|SKELETON|GOLEM|LION|ROCK|SHARK|CROCODILE|SPARK)\b/.test(s);
+    const cls = isFormation ? 'formation' : (isCaptain ? 'race' : (isRace ? 'race' : ''));
+    const icon = (isFormation || isCaptain) ? '' : '⚡ ';
     return `<span class="syn-pill ${cls}">${icon}${s}</span>`;
   }).join('');
 }
