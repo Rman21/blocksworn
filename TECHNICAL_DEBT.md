@@ -312,6 +312,7 @@ the baseline Vivid CSS is gone.
 
 ## DEBT-013 · Phase 1 sign-off · Blacktooth (pirate_hunter) portrait mismatch
 **Introduced:** 2026-04-25 · noted by Roman during Phase 1 sign-off playtest
+**Resolved:** 2026-04-25 · Task #4.0.1 (same day, asset provided in chat)
 **What:** `pirate_hunter` (BLACKTOOTH, race='pirate', stihiya='ember') currently
 renders with an elf-styled portrait — hooded figure, purple eyes, daggers. Does
 not match the pirate faction visual language (tricorn / bandana / firearm /
@@ -352,14 +353,20 @@ another. Deferred to a proper asset task with visual diff.
 all correct. `pirate_hunter` race/stihiya tags drive ember-faction synergies
 correctly regardless of portrait pixels.
 
-**Resolution plan:** Phase 4.x (balance + tactile polish) or Phase 6 (Launch
-Prep) — generate proper pirate-hunter portrait (bandana / tricorn, dual
-flintlocks, ember accents, glowing orange eyes, matches existing 4 pirates)
-and either replace L8171 override base64 OR delete L8171 + replace L8118
-base64. Concept reference attached in chat 2026-04-25.
+**Resolution:** Roman provided the proper pirate-hunter portrait in chat
+(2026-04-25, ~301 KB JPEG, 1086×1448 px — bandana under tricorn, dual
+flintlocks one firing flame, ember/lava skin, glowing orange eyes, red sash,
+skull belt buckle). Task #4.0.1 embedded the new base64 at L8119 (the
+original `hero_pirate_gun:` slot inside main ASSETS) and deleted the L8171
+override line entirely. The "ARENA PREMIUM · ASSET OVERRIDES" Object.assign
+block now contains only Boss_1..Boss_5 entries.
+
+Net file delta: +269,756 bytes (4.04 MB → 4.12 MB), −1 line (21,746 → 21,745).
+Embedded sha256 = `8f0aa1c3d77c472ddd862f488fb9b8cc4cbd0af6f168a1a28244be4462004878`.
 
 **Verification post-fix:**
 ```bash
 # Should be 1, not 2 (after dedup):
 grep -cE "^\s*hero_pirate_gun:" blocksworn_index_fixed.html
+# → 1 ✓
 ```
