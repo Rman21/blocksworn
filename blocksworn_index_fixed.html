@@ -7087,6 +7087,60 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   50%      { box-shadow: 0 0 22px 4px rgba(155, 89, 214, 0.85), inset 0 0 14px rgba(190, 130, 240, 0.50); }
 }
 
+/* ===== PHASE 5b BLOCK 1 — Chapter 2 archetype auras ===== */
+.boss-archetype-hypnotist {
+  /* Verothira — corrupted-purple hypnotic shimmer with eye-pulse rhythm */
+  box-shadow: 0 0 16px 3px rgba(155, 89, 214, 0.65), inset 0 0 14px rgba(190, 130, 240, 0.40);
+  border-radius: 10px;
+  animation: bossArchHypnotistShimmer 2.6s ease-in-out infinite;
+}
+@keyframes bossArchHypnotistShimmer {
+  0%, 100% { box-shadow: 0 0 16px 3px rgba(155, 89, 214, 0.65), inset 0 0 14px rgba(190, 130, 240, 0.40); }
+  35%      { box-shadow: 0 0 28px 6px rgba(190, 130, 240, 0.85), inset 0 0 20px rgba(220, 170, 255, 0.55); }
+  70%      { box-shadow: 0 0 22px 4px rgba(120, 60, 180, 0.80), inset 0 0 16px rgba(155, 89, 214, 0.50); }
+}
+.boss-archetype-engineer {
+  /* Gearheart — copper/bronze industrial rust with steam-vent pulse */
+  box-shadow: 0 0 14px 2px rgba(184, 115, 51, 0.60), inset 0 0 10px rgba(220, 170, 90, 0.35);
+  border-radius: 10px;
+  animation: bossArchEngineerSteam 2.2s ease-in-out infinite;
+}
+@keyframes bossArchEngineerSteam {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(184, 115, 51, 0.60), inset 0 0 10px rgba(220, 170, 90, 0.35); }
+  50%      { box-shadow: 0 0 22px 5px rgba(140, 220, 100, 0.55), inset 0 0 16px rgba(184, 115, 51, 0.65); }
+}
+.boss-archetype-frenzy {
+  /* Ursaro — magma-orange heat shimmer, faster pulse mirrors hunger */
+  box-shadow: 0 0 16px 3px rgba(255, 110, 40, 0.70), inset 0 0 12px rgba(255, 160, 80, 0.40);
+  border-radius: 10px;
+  animation: bossArchFrenzyHeat 1.4s ease-in-out infinite;
+}
+@keyframes bossArchFrenzyHeat {
+  0%, 100% { box-shadow: 0 0 16px 3px rgba(255, 110, 40, 0.70), inset 0 0 12px rgba(255, 160, 80, 0.40); }
+  50%      { box-shadow: 0 0 26px 6px rgba(255, 80, 30, 0.95), inset 0 0 18px rgba(255, 200, 100, 0.65); }
+}
+.boss-archetype-tempo-disruptor {
+  /* Tidespire — ice-blue mist with wide slow wave (matches "time bends" identity) */
+  box-shadow: 0 0 14px 2px rgba(120, 200, 255, 0.55), inset 0 0 10px rgba(200, 235, 255, 0.40);
+  border-radius: 10px;
+  animation: bossArchTempoSwell 3.6s ease-in-out infinite;
+}
+@keyframes bossArchTempoSwell {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(120, 200, 255, 0.55), inset 0 0 10px rgba(200, 235, 255, 0.40); }
+  50%      { box-shadow: 0 0 26px 5px rgba(180, 230, 255, 0.85), inset 0 0 18px rgba(140, 215, 255, 0.65); }
+}
+.boss-archetype-battery {
+  /* Heliotron — golden electrical sparking with high-energy pulse */
+  box-shadow: 0 0 16px 3px rgba(255, 215, 90, 0.75), inset 0 0 12px rgba(255, 240, 150, 0.50);
+  border-radius: 10px;
+  animation: bossArchBatterySpark 1.0s ease-in-out infinite;
+}
+@keyframes bossArchBatterySpark {
+  0%, 100% { box-shadow: 0 0 16px 3px rgba(255, 215, 90, 0.75), inset 0 0 12px rgba(255, 240, 150, 0.50); }
+  30%      { box-shadow: 0 0 24px 5px rgba(255, 235, 120, 0.95), inset 0 0 18px rgba(255, 250, 200, 0.70); }
+  60%      { box-shadow: 0 0 18px 3px rgba(220, 180, 60, 0.80), inset 0 0 14px rgba(255, 220, 100, 0.55); }
+}
+
 /* Reduced-motion fallback — kill the pulse, keep the static glow so the archetype
    is still visually identifiable but doesn't strobe. */
 @media (prefers-reduced-motion: reduce) {
@@ -7094,7 +7148,12 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .boss-archetype-armored,
   .boss-archetype-bruiser,
   .boss-archetype-phoenix,
-  .boss-archetype-assassin { animation: none !important; }
+  .boss-archetype-assassin,
+  .boss-archetype-hypnotist,
+  .boss-archetype-engineer,
+  .boss-archetype-frenzy,
+  .boss-archetype-tempo-disruptor,
+  .boss-archetype-battery { animation: none !important; }
 }
 
 /* Target indicator — стрелка над героем (для single-target) */
@@ -9075,6 +9134,15 @@ const BOSS_ARCHETYPES = {
   berserker: { icon: '⚡', label: 'BERSERKER', hpMult: 1.0, attackCD: 6, dmgMult: 1.0, special: 'enrage' },
   armored:   { icon: '🛡', label: 'ARMORED',   hpMult: 1.0, attackCD: 7, dmgMult: 0.7, special: 'shields' },
   phoenix:   { icon: '🔥', label: 'PHOENIX',   hpMult: 0.8, attackCD: 7, dmgMult: 1.0, special: 'revive' },
+  // ===== PHASE 5b BLOCK 1 — Chapter 2 archetypes (per Boss Compendium §12) =====
+  // Each ships infrastructure (CSS aura, state, init/tick/reset). Specific boss
+  // mechanics wire in Phase 5b.3–5b.7 (per-boss blocks). HP/CD/dmgMult tuned per
+  // Compendium first-pass; balance pass on Phase 5b sign-off (5b.9).
+  hypnotist:      { icon: '🌸', label: 'HYPNOTIST',       hpMult: 1.6, attackCD: 6, dmgMult: 1.0, special: 'suggest' },
+  engineer:       { icon: '⚙',  label: 'ENGINEER',        hpMult: 1.8, attackCD: 6, dmgMult: 1.1, special: 'lockdown' },
+  frenzy:         { icon: '🐻', label: 'FRENZY',          hpMult: 1.4, attackCD: 5, dmgMult: 1.0, special: 'frenzyStacks' },
+  tempo_disruptor:{ icon: '❄',  label: 'TEMPO DISRUPTOR', hpMult: 1.5, attackCD: 5, dmgMult: 1.0, special: 'tempo' },
+  battery:        { icon: '☀',  label: 'BATTERY',         hpMult: 1.6, attackCD: 5, dmgMult: 1.0, special: 'chargeMeter' },
 };
 // Matchup chart — drives hint pill on menu. Each archetype lists 1-2 stihiyas strong/weak against it.
 const ARCHETYPE_MATCHUP = {
@@ -9083,6 +9151,12 @@ const ARCHETYPE_MATCHUP = {
   berserker: { strong: ['grove'], weak: ['solar'] },
   armored:   { strong: ['solar'], weak: ['grove'] },
   phoenix:   { strong: ['umbra'], weak: ['ember'] },
+  // Chapter 2 matchups per Boss Compendium strategy notes:
+  hypnotist:       { strong: ['solar'], weak: ['umbra'] },  // Light denies hypnosis (lore: own light); Dark mirror = boss steals identity
+  engineer:        { strong: ['grove'], weak: ['ember'] },  // Crocs absorb cells; Fire mirror burst less effective on lockdown
+  frenzy:          { strong: ['ember'], weak: ['tide']  },  // Hunter-fast Fire keeps frenzy low; Frost mage charge times = high frenzy
+  tempo_disruptor: { strong: ['tide'],  weak: ['solar'] },  // Sharks own-element survives turn-loss; period-based Light = charge loss
+  battery:         { strong: ['solar'], weak: ['grove'] },  // Sparks regen counters charge tempo; Earth ULTs slow vs Sunfire
 };
 // Berserker enrage threshold & multiplier
 const BERSERKER_ENRAGE_HP_PCT   = 0.5;  // enrage fires when bossHP ≤ maxHP × this
@@ -15028,6 +15102,367 @@ const MOSSWEAVER_SURGE_TURNS  = 3;
 // Mirrors FTUE safety-rail flag pattern but gated on squad composition (≥2 crocs).
 let crocDeathRollUsed         = false;
 
+// ===== PHASE 5b BLOCK 1 — Chapter 2 archetype state =====
+// Per Boss Compendium §12 + per-boss spec. State vars are battle-scoped (reset in
+// startBossBattle) and per-archetype. Each archetype has a tickChapter2Archetype()
+// hook called from per-placement post-loop, plus init/cleanup/dispatcher helpers.
+// Block 1 ships infrastructure; per-boss mechanic refinement happens in 5b.3-5b.7.
+
+// HYPNOTIST (Verothira) — psychological pressure via "hero suggestions"
+let hypnotistSuggestedHeroIds   = [];     // current frame: heroes "wanting" to fire (P1=1, P2/P3=2)
+let hypnotistTurnsSinceSuggest  = 0;
+let hypnotistTurnsSincePetal    = 0;       // Petal Fall: every 5 turns → 4 random cells → umbra
+let hypnotistTurnsSinceTendril  = 0;       // Tendril Coil (P2+): every 6 turns → lock 1 hero from firing
+let hypnotistTendrilHeroId      = null;    // currently coiled hero
+let hypnotistTendrilTurnsLeft   = 0;       // 2 turns by default
+let hypnotistTurnsSinceBloom    = 0;       // Bloom Bloom (P3): every 8 turns → corrupt umbra cells
+let hypnotistBloomCorrupted     = false;   // P3 flag: umbra clears now hurt player
+const HYPNOTIST_SUGGEST_INT_P1  = 8;
+const HYPNOTIST_SUGGEST_INT_P2  = 6;
+const HYPNOTIST_SUGGEST_INT_P3  = 4;
+const HYPNOTIST_PETAL_INT       = 5;
+const HYPNOTIST_TENDRIL_INT     = 6;
+const HYPNOTIST_BLOOM_INT       = 8;
+const HYPNOTIST_OBEY_BONUS_P1   = 0.30;    // +30% damage if obeyed suggestion
+const HYPNOTIST_OBEY_BONUS_P2   = 0.50;
+const HYPNOTIST_OBEY_BONUS_P3   = 0.75;
+
+// ENGINEER (Gearheart) — board manipulation: weld + extract + electrify
+let engineerLockedCells         = new Map();  // 'r_c' → turns until unlock
+let engineerTurnsSinceWeld      = 0;
+let engineerTurnsSinceExtract   = 0;          // P2+: absorbs earth-cells, heals boss
+let engineerTurnsSinceElectrify = 0;          // P3: row electrified, clearing dmgs player
+let engineerElectrifiedRow      = -1;
+let engineerElectrifiedTurns    = 0;
+const ENGINEER_WELD_INT         = 5;
+const ENGINEER_WELD_DURATION    = 4;          // turns a welded cell stays locked
+const ENGINEER_WELD_COUNT_P1    = 2;
+const ENGINEER_WELD_COUNT_P2    = 3;
+const ENGINEER_WELD_COUNT_P3    = 4;
+const ENGINEER_EXTRACT_INT      = 7;
+const ENGINEER_EXTRACT_HEAL_PCT = 0.05;       // 5% HP heal per absorbed earth-cell
+const ENGINEER_ELECTRIFY_INT    = 6;
+const ENGINEER_ELECTRIFY_DURATION = 2;        // turns row stays electrified
+
+// FRENZY (Ursaro) — escalating damage based on time-since-hit
+let frenzyStacks                = 0;
+let frenzyHitThisTurn           = false;      // tracks whether boss took damage this placement
+let frenzyP3Active              = false;      // P3 doubles stack gain
+let frenzyMaulQueued            = false;      // P2+: ≥5 stacks → 3-attack combo this turn
+let frenzyDevourQueued          = false;      // P3: ≥8 stacks → eat lowest-HP hero
+const FRENZY_STACK_CAP          = 10;
+const FRENZY_STACK_CAP_P3       = 8;          // P3 caps lower but gain doubles → faster cap
+const FRENZY_DMG_PER_STACK      = 0.05;       // +5% boss attack damage per stack
+const FRENZY_MAUL_THRESHOLD     = 5;          // P2+: stacks ≥ this → MAUL combo
+const FRENZY_DEVOUR_THRESHOLD   = 8;          // P3: stacks ≥ this → DEVOUR
+const FRENZY_DECAY_P2           = 0.5;        // P2 decay on hit (vs P1 reset)
+
+// TEMPO DISRUPTOR (Tidespire) — manipulates turn flow / time
+let tempoSlowQueued             = false;      // next turn happens slow-motion (visual only)
+let tempoChargeNullifyQueued    = false;      // P2: next placement = 0 charge gain
+let tempoTurnLockQueued         = false;      // P3: next turn entirely skipped
+let tempoTurnsSinceSlow         = 0;
+let tempoTurnsSinceReverse      = 0;          // P2
+let tempoTurnsSinceLock         = 0;          // P3
+const TEMPO_SLOW_INT            = 6;
+const TEMPO_REVERSE_INT         = 7;
+const TEMPO_LOCK_INT            = 8;
+
+// BATTERY (Heliotron) — accumulates → unleashes
+let batteryCharge               = 0;          // 0-100
+let batteryHitThisPlacement     = false;      // tracks whether boss was hit
+let batteryUnleashCount         = 0;          // total unleashes this battle (P3 trigger)
+let batteryPhase                = 1;          // current battery phase
+const BATTERY_THRESHOLD         = 100;
+const BATTERY_GAIN_HIT          = 1;
+const BATTERY_GAIN_NOHIT        = 2;
+const BATTERY_GAIN_P3_BASE      = 2;          // P3: +2 always (regardless of hit)
+const BATTERY_CONVERGE_ROWS     = 4;          // P2: 4-row attack on top half
+// Sunfire Cascade (P3 at 100%) — 3 sequential attacks: 3 cols, 3 rows, center 3×3
+const BATTERY_SUNFIRE_THRESHOLD = 1;          // unleash count to enter Sunfire mode (P3)
+
+// Per-archetype init dispatcher. Called from startBossBattle when boss's archetype
+// is one of the Chapter 2 set. Resets state + opens any archetype-specific UI.
+function initChapter2Archetype(archetypeKey) {
+  // Reset ALL Chapter 2 archetype state on every battle init — only one archetype
+  // is active at a time (the boss's), but defensive reset prevents leakage if
+  // sequential battles use different archetypes.
+  resetChapter2ArchetypeState();
+  // Per-archetype init hook (reserved for archetype-specific UI setup in 5b.3-5b.7).
+  // Block 1 ships scaffolding only; specific bosses wire deeper UI here.
+  console.log('[PHASE 5b] Chapter 2 archetype init: ' + archetypeKey);
+}
+
+function resetChapter2ArchetypeState() {
+  // Hypnotist
+  hypnotistSuggestedHeroIds = [];
+  hypnotistTurnsSinceSuggest = 0;
+  hypnotistTurnsSincePetal = 0;
+  hypnotistTurnsSinceTendril = 0;
+  hypnotistTendrilHeroId = null;
+  hypnotistTendrilTurnsLeft = 0;
+  hypnotistTurnsSinceBloom = 0;
+  hypnotistBloomCorrupted = false;
+  // Engineer
+  if (engineerLockedCells && typeof engineerLockedCells.clear === 'function') {
+    engineerLockedCells.clear();
+  } else {
+    engineerLockedCells = new Map();
+  }
+  engineerTurnsSinceWeld = 0;
+  engineerTurnsSinceExtract = 0;
+  engineerTurnsSinceElectrify = 0;
+  engineerElectrifiedRow = -1;
+  engineerElectrifiedTurns = 0;
+  // Frenzy
+  frenzyStacks = 0;
+  frenzyHitThisTurn = false;
+  frenzyP3Active = false;
+  frenzyMaulQueued = false;
+  frenzyDevourQueued = false;
+  // Tempo Disruptor
+  tempoSlowQueued = false;
+  tempoChargeNullifyQueued = false;
+  tempoTurnLockQueued = false;
+  tempoTurnsSinceSlow = 0;
+  tempoTurnsSinceReverse = 0;
+  tempoTurnsSinceLock = 0;
+  // Battery
+  batteryCharge = 0;
+  batteryHitThisPlacement = false;
+  batteryUnleashCount = 0;
+  batteryPhase = 1;
+}
+
+// Helper: detect current boss archetype phase (1/2/3) based on HP gates per
+// Boss Compendium 100% → 66% → 33% → 0%.
+function _bossArchetypePhase() {
+  if (typeof currentBoss === 'undefined' || !currentBoss) return 1;
+  if (typeof bossMaxHP === 'undefined' || !bossMaxHP) return 1;
+  const pct = (typeof bossHP !== 'undefined' ? bossHP : bossMaxHP) / bossMaxHP;
+  if (pct > 0.66) return 1;
+  if (pct > 0.33) return 2;
+  return 3;
+}
+
+// Per-placement tick dispatcher for Chapter 2 archetypes. Called from the existing
+// per-placement post-hook alongside MOSSWEAVER/LUMENWIND amp window decrements + IRON
+// HIDE / Static Field / Death Roll race-passives. No-op if current boss is not
+// using a Chapter 2 archetype. Drives counters + queues phase-gated effects.
+function tickChapter2Archetype() {
+  if (typeof currentBoss === 'undefined' || !currentBoss || !currentBoss.archetype) return;
+  const arch = currentBoss.archetype;
+  const phase = _bossArchetypePhase();
+  switch (arch) {
+    case 'hypnotist':       _tickHypnotist(phase); break;
+    case 'engineer':        _tickEngineer(phase);  break;
+    case 'frenzy':          _tickFrenzy(phase);    break;
+    case 'tempo_disruptor': _tickTempo(phase);     break;
+    case 'battery':         _tickBattery(phase);   break;
+    default: return; // Chapter 1 archetypes — existing handlers unchanged
+  }
+}
+
+// HYPNOTIST tick — Suggestion, Petal Fall, Tendril Coil, Bloom Bloom (per phase)
+function _tickHypnotist(phase) {
+  // Suggestion interval shrinks per phase
+  const suggestInt = phase === 1 ? HYPNOTIST_SUGGEST_INT_P1
+                   : phase === 2 ? HYPNOTIST_SUGGEST_INT_P2
+                   : HYPNOTIST_SUGGEST_INT_P3;
+  hypnotistTurnsSinceSuggest++;
+  if (hypnotistTurnsSinceSuggest >= suggestInt) {
+    hypnotistTurnsSinceSuggest = 0;
+    // Pick 1 hero (P1) or 2 (P2/P3) at random from squad. Block 1: scaffolding —
+    // 5b.3 will wire visual portrait pulse + dmg bonus on obey detection.
+    const candidates = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK))
+                     ? HERO_DECK.filter(h => h && h.id) : [];
+    candidates.sort(() => Math.random() - 0.5);
+    const count = phase === 1 ? 1 : 2;
+    hypnotistSuggestedHeroIds = candidates.slice(0, count).map(h => h.id);
+    if (hypnotistSuggestedHeroIds.length > 0) {
+      try { flashText('🌸 SUGGESTION', '#9B59D6'); } catch(e) {}
+    }
+  }
+  // Tendril Coil decay
+  if (hypnotistTendrilTurnsLeft > 0) {
+    hypnotistTendrilTurnsLeft--;
+    if (hypnotistTendrilTurnsLeft === 0) {
+      hypnotistTendrilHeroId = null;
+    }
+  }
+}
+
+// ENGINEER tick — Weld, Extract, Critical Mass (electrified row)
+function _tickEngineer(phase) {
+  engineerTurnsSinceWeld++;
+  if (engineerTurnsSinceWeld >= ENGINEER_WELD_INT) {
+    engineerTurnsSinceWeld = 0;
+    // Block 1: scaffolding — count cells per phase. 5b.4 will wire actual cell-lock
+    // rendering + interaction guards.
+    const weldCount = phase === 1 ? ENGINEER_WELD_COUNT_P1
+                    : phase === 2 ? ENGINEER_WELD_COUNT_P2
+                    : ENGINEER_WELD_COUNT_P3;
+    try { flashText('⚙ WELD ×' + weldCount, '#B87333'); } catch(e) {}
+  }
+  if (phase >= 2) {
+    engineerTurnsSinceExtract++;
+    if (engineerTurnsSinceExtract >= ENGINEER_EXTRACT_INT) {
+      engineerTurnsSinceExtract = 0;
+      try { flashText('⚙ EXTRACT', '#B87333'); } catch(e) {}
+    }
+  }
+  if (phase >= 3) {
+    engineerTurnsSinceElectrify++;
+    if (engineerTurnsSinceElectrify >= ENGINEER_ELECTRIFY_INT) {
+      engineerTurnsSinceElectrify = 0;
+      // P3: pick a random row, electrify for 2 turns
+      engineerElectrifiedRow = Math.floor(Math.random() * SIZE);
+      engineerElectrifiedTurns = ENGINEER_ELECTRIFY_DURATION;
+      try { flashText('⚙⚙ CRITICAL MASS · row ' + (engineerElectrifiedRow + 1), '#B87333'); } catch(e) {}
+    }
+    // Decay electrified row
+    if (engineerElectrifiedTurns > 0) {
+      engineerElectrifiedTurns--;
+      if (engineerElectrifiedTurns === 0) {
+        engineerElectrifiedRow = -1;
+      }
+    }
+  }
+  // Decay welded cells
+  for (const [key, turns] of engineerLockedCells.entries()) {
+    if (turns <= 1) {
+      engineerLockedCells.delete(key);
+    } else {
+      engineerLockedCells.set(key, turns - 1);
+    }
+  }
+}
+
+// FRENZY tick — stack accumulation per turn, decay/reset on hit
+function _tickFrenzy(phase) {
+  // P3: doubled stack gain
+  if (phase >= 3) frenzyP3Active = true;
+  if (frenzyHitThisTurn) {
+    if (phase >= 2) {
+      // P2+: decay 50% per hit (vs P1 reset)
+      frenzyStacks = Math.floor(frenzyStacks * FRENZY_DECAY_P2);
+    } else {
+      frenzyStacks = 0;
+    }
+  } else {
+    const gain = frenzyP3Active ? BATTERY_GAIN_P3_BASE : 1;
+    const cap  = frenzyP3Active ? FRENZY_STACK_CAP_P3 : FRENZY_STACK_CAP;
+    frenzyStacks = Math.min(cap, frenzyStacks + gain);
+  }
+  frenzyHitThisTurn = false;
+  // Maul / Devour queue checks (consumed by next bossAttack)
+  frenzyMaulQueued    = (phase >= 2 && frenzyStacks >= FRENZY_MAUL_THRESHOLD);
+  frenzyDevourQueued  = (phase >= 3 && frenzyStacks >= FRENZY_DEVOUR_THRESHOLD);
+  if (frenzyMaulQueued && !frenzyDevourQueued) {
+    try { flashText('🐻 MAUL · ' + frenzyStacks, '#FF6E28'); } catch(e) {}
+  } else if (frenzyDevourQueued) {
+    try { flashText('🐻🐻 DEVOUR · ' + frenzyStacks, '#FF4400'); } catch(e) {}
+  }
+}
+
+// TEMPO DISRUPTOR tick — Slow Time, Reverse Tempo, Tidal Lock
+function _tickTempo(phase) {
+  tempoTurnsSinceSlow++;
+  if (tempoTurnsSinceSlow >= TEMPO_SLOW_INT) {
+    tempoTurnsSinceSlow = 0;
+    tempoSlowQueued = true; // visual-only effect; consumed by next turn animation
+    try { flashText('❄ TEMPO BREAK', '#78C8FF'); } catch(e) {}
+  }
+  if (phase >= 2) {
+    tempoTurnsSinceReverse++;
+    if (tempoTurnsSinceReverse >= TEMPO_REVERSE_INT) {
+      tempoTurnsSinceReverse = 0;
+      tempoChargeNullifyQueued = true; // next placement = 0 charge gain
+      try { flashText('❄ UNDERTOW', '#78C8FF'); } catch(e) {}
+    }
+  }
+  if (phase >= 3) {
+    tempoTurnsSinceLock++;
+    if (tempoTurnsSinceLock >= TEMPO_LOCK_INT) {
+      tempoTurnsSinceLock = 0;
+      tempoTurnLockQueued = true; // next turn entirely skipped
+      try { flashText('❄❄ TIDAL LOCK', '#78C8FF'); } catch(e) {}
+    }
+  }
+}
+
+// BATTERY tick — Charge accumulator → Solar Convergence (P2) / Sunfire Cascade (P3)
+function _tickBattery(phase) {
+  batteryPhase = phase;
+  // P3: doubled charge gain regardless of hit
+  if (phase >= 3) {
+    batteryCharge = Math.min(BATTERY_THRESHOLD, batteryCharge + BATTERY_GAIN_P3_BASE);
+  } else {
+    const gain = batteryHitThisPlacement ? BATTERY_GAIN_HIT : BATTERY_GAIN_NOHIT;
+    batteryCharge = Math.min(BATTERY_THRESHOLD, batteryCharge + gain);
+  }
+  batteryHitThisPlacement = false;
+  // Charge milestone announcements (per Compendium intro/mid/death lines pattern)
+  if (batteryCharge >= 75 && batteryCharge < 90) {
+    try { flashText('☀ PREPARE...', '#FFD75A'); } catch(e) {}
+  } else if (batteryCharge >= 90 && batteryCharge < BATTERY_THRESHOLD) {
+    try { flashText('☀ READY...', '#FFEB78'); } catch(e) {}
+  } else if (batteryCharge >= BATTERY_THRESHOLD) {
+    // UNLEASH — Solar Convergence (P2) or Sunfire Cascade (P3)
+    batteryCharge = 0;
+    batteryUnleashCount++;
+    if (phase >= 3) {
+      try { flashText('☀☀☀ SUNFIRE CASCADE', '#FFD75A'); } catch(e) {}
+      // P3: 3 sequential attacks (3 cols → 3 rows → 3×3) — wired in 5b.7
+    } else {
+      try { flashText('☀☀ SOLAR CONVERGENCE', '#FFD75A'); } catch(e) {}
+      // P2: 4-row top-half AoE — wired in 5b.7
+    }
+  }
+}
+
+// Console diagnostic — single-call snapshot of all Chapter 2 archetype state.
+if (typeof window !== 'undefined') {
+  window.__debugChapter2Archetype = function () {
+    const arch = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.archetype) || null;
+    return {
+      currentBoss:     (typeof currentBoss !== 'undefined' && currentBoss) ? currentBoss.name : null,
+      currentArchetype: arch,
+      currentPhase:     _bossArchetypePhase(),
+      hypnotist: {
+        suggestedHeroIds: hypnotistSuggestedHeroIds.slice(),
+        tendrilHeroId:    hypnotistTendrilHeroId,
+        tendrilTurnsLeft: hypnotistTendrilTurnsLeft,
+        bloomCorrupted:   hypnotistBloomCorrupted,
+      },
+      engineer: {
+        lockedCells:      Array.from(engineerLockedCells.entries()),
+        electrifiedRow:   engineerElectrifiedRow,
+        electrifiedTurns: engineerElectrifiedTurns,
+      },
+      frenzy: {
+        stacks:        frenzyStacks,
+        p3Active:      frenzyP3Active,
+        maulQueued:    frenzyMaulQueued,
+        devourQueued:  frenzyDevourQueued,
+      },
+      tempo: {
+        slowQueued:           tempoSlowQueued,
+        chargeNullifyQueued:  tempoChargeNullifyQueued,
+        turnLockQueued:       tempoTurnLockQueued,
+      },
+      battery: {
+        charge:        batteryCharge,
+        threshold:     BATTERY_THRESHOLD,
+        chargeProgress:`${Math.floor(batteryCharge / BATTERY_THRESHOLD * 100)}%`,
+        unleashCount:  batteryUnleashCount,
+        phase:         batteryPhase,
+      },
+    };
+  };
+}
+// ===== END Chapter 2 archetype state =====
+
 // HERO_GRAMMAR §4 [Light × Mage] — LUMENWIND HALO WINDOW amplifier window (Phase 5 Block 4).
 // Mirrors KEYCRYPT/CRYOMIND/MOSSWEAVER pattern. While active, each onSolarCellsCleared
 // produces +halo shields per clear (vs default +1). Activating placement is fully boosted.
@@ -16429,6 +16864,11 @@ function resetRaceFlags() {
   lumenwindHaloShieldsBonus = 1;
   lumenwindHaloDuration    = 0;
   staticFieldCounter       = 0;
+  // Phase 5b Block 1 — Chapter 2 archetype state per-battle reset (unconditional;
+  // initChapter2Archetype runs in the boss-battle init hook below for Chapter 2
+  // bosses specifically, but we reset here defensively so Chapter 1 battles never
+  // inherit stale Chapter 2 archetype state).
+  try { if (typeof resetChapter2ArchetypeState === 'function') resetChapter2ArchetypeState(); } catch (e) {}
   // Stage 5 Block 5.1 — per-hero battle flags (tracks XP gain criteria)
   _currentFiringHero       = null;
   for (const h of HERO_DECK) {
@@ -16990,15 +17430,29 @@ function startBossBattle() {
     // Block B3: archetype aura class on the boss portrait. CSS rule per archetype
     // (.boss-archetype-berserker / -armored / -bruiser / -phoenix / -assassin) drives
     // visual identity. Reduced-motion users inherit the static-fallback variants.
+    // PHASE 5b BLOCK 1: extended with 5 Chapter 2 archetypes (hypnotist, engineer,
+    // frenzy, tempo_disruptor, battery). CSS class name uses dash form for the
+    // multi-word archetype (`tempo_disruptor` → `boss-archetype-tempo-disruptor`).
     const wrap = document.getElementById('bossImgWrap');
     if (wrap) {
       wrap.classList.remove(
         'boss-archetype-berserker', 'boss-archetype-armored', 'boss-archetype-bruiser',
-        'boss-archetype-phoenix',   'boss-archetype-assassin'
+        'boss-archetype-phoenix',   'boss-archetype-assassin',
+        'boss-archetype-hypnotist', 'boss-archetype-engineer', 'boss-archetype-frenzy',
+        'boss-archetype-tempo-disruptor', 'boss-archetype-battery'
       );
       const arch = (currentBoss && currentBoss.archetype) || 'bruiser';
-      wrap.classList.add('boss-archetype-' + arch);
+      // Convert underscore → dash for CSS class (tempo_disruptor → tempo-disruptor)
+      wrap.classList.add('boss-archetype-' + arch.replace(/_/g, '-'));
     }
+    // PHASE 5b BLOCK 1: per-archetype init dispatcher. Calls init function for
+    // current boss's archetype if defined. Init functions reset state + open any
+    // archetype-specific UI elements (charge meter, frenzy stack counter, etc.).
+    try {
+      if (currentBoss && currentBoss.archetype && typeof initChapter2Archetype === 'function') {
+        initChapter2Archetype(currentBoss.archetype);
+      }
+    } catch (e) { console.warn('Chapter 2 archetype init failed:', e); }
   } catch (e) { console.warn('B3 boss-battle init hook failed:', e); }
   // V3.0 Phase 2 Block 2.2 trap 5: reset _lastReward at battle start so a stale
   // floor-context from a previous fight can't contaminate the victory modal of
@@ -22784,6 +23238,11 @@ async function afterPlacement(piece) {
       }
     }
   } catch (e) {}
+  // PHASE 5b BLOCK 1 — Chapter 2 archetype tick. Drives counters for Hypnotist
+  // suggestion, Engineer weld/extract/electrify, Frenzy stacks, Tempo Disruptor
+  // queued effects, Battery charge meter. No-op when current boss is not using
+  // a Chapter 2 archetype. Wrapped try/catch so archetype glitches never break combat.
+  try { if (typeof tickChapter2Archetype === 'function') tickChapter2Archetype(); } catch (e) { console.warn('Chapter 2 archetype tick failed:', e); }
   // V2.0 Block 3.3: VANGUARD HUNTER MARK — decrement unconsumed window; expired marks silently drop.
   if (hunterMarkWindow > 0) {
     hunterMarkWindow--;
