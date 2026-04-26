@@ -9362,11 +9362,46 @@ function runMigration_B3() {
     + ' SQUAD_MAX=' + SQUAD_MAX);
 }
 
-// Order matters: load unlock state, then load SQUAD_MAX, then run migration (which
-// only fires on installs that pre-date B3). All three complete before any UI render.
+// HOTFIX — backfill missing faction-tank for existing saves that hit BACKLOG-002 bug.
+// Branching FTUE in onLeaderChosen used to unlock 4 of 5 faction heroes (forgot tank).
+// If a save shows EITHER captain is unlocked AND that captain's faction has 4 of 5
+// heroes unlocked (missing only the tank), unlock the tank. Idempotent — re-running
+// is no-op when full faction is already unlocked.
+function runMigration_BACKLOG002_tank_backfill() {
+  try {
+    const FLAG = 'blocksworn_migration_backlog002_tank_backfilled';
+    if (localStorage.getItem(FLAG) === 'true') return;
+    const factions = [
+      { capId: 'pirate_captain', tankId: 'pirate_tank',
+        ids: ['pirate_warrior','pirate_mage','pirate_hunter','pirate_tank','pirate_captain'] },
+      { capId: 'rock_captain',   tankId: 'rock_tank',
+        ids: ['rock_warrior','rock_mage','rock_hunter','rock_tank','rock_captain'] },
+    ];
+    let backfilled = 0;
+    for (const f of factions) {
+      const cap  = HERO_ROSTER.find(h => h.id === f.capId);
+      const tank = HERO_ROSTER.find(h => h.id === f.tankId);
+      if (!cap || !tank) continue;
+      if (!cap.unlocked) continue;        // captain not unlocked → faction not committed
+      if (tank.unlocked) continue;        // tank already unlocked → skip
+      tank.unlocked = true;
+      backfilled++;
+    }
+    if (backfilled > 0) {
+      saveUnlockedHeroesToStorage();
+      console.log('[BACKLOG-002 backfill] unlocked ' + backfilled + ' missing faction-tank(s)');
+    }
+    localStorage.setItem(FLAG, 'true');
+  } catch (e) { console.warn('BACKLOG-002 backfill failed:', e); }
+}
+
+// Order matters: load unlock state, then load SQUAD_MAX, then run migrations (which
+// only fire on installs that pre-date the relevant fix). All three complete before
+// any UI render.
 loadUnlockedHeroesFromStorage();
 loadSquadMaxFromStorage();
 runMigration_B3();
+runMigration_BACKLOG002_tank_backfill();
 
 // Console helpers for dev + Block 0.2 (fragment craft → unlock) to call.
 if (typeof window !== 'undefined') {
@@ -10122,12 +10157,18 @@ function onLeaderChosen(chosenId) {
 
   // BACKLOG-002 Branching FTUE: captain pick determines faction-pure 4-hero squad
   // for the next fight. Crimson → 4 Pirates (Fire). Nightlord → 4 Rock Band (Dark).
-  // Unlocks the 3 corresponding warrior/mage/hunter IDs of the chosen faction
-  // (idempotent — pirate_warrior is already unlocked as starter, rock_* are new).
+  // FIX: unlocks ALL 5 heroes of the chosen faction (incl. the tank) — squad slot is
+  // 4 so the player fields warrior+mage+hunter+captain by default, but tank is in the
+  // roster and can be swapped in from squad-select. Previous version forgot the tank
+  // (pirate_tank/rock_tank), leaving roster at 19/20 even after Boss 1.
+  const factionHeroesAllUnlocks = chosenId === 'pirate_captain'
+    ? ['pirate_warrior', 'pirate_mage', 'pirate_hunter', 'pirate_tank', 'pirate_captain']  // all 5 Fire
+    : ['rock_warrior',   'rock_mage',   'rock_hunter',   'rock_tank',   'rock_captain'];   // all 5 Dark
+  // Active squad subset — warrior + mage + hunter + captain (tank stays in roster).
   const factionHeroes = chosenId === 'pirate_captain'
-    ? ['pirate_warrior', 'pirate_mage', 'pirate_hunter', 'pirate_captain']  // 4 Fire
-    : ['rock_warrior',   'rock_mage',   'rock_hunter',   'rock_captain'];   // 4 Dark
-  for (const id of factionHeroes) {
+    ? ['pirate_warrior', 'pirate_mage', 'pirate_hunter', 'pirate_captain']
+    : ['rock_warrior',   'rock_mage',   'rock_hunter',   'rock_captain'];
+  for (const id of factionHeroesAllUnlocks) {
     const h = HERO_ROSTER.find(x => x.id === id);
     if (h && !h.locked && !h.unlocked) h.unlocked = true;
   }
