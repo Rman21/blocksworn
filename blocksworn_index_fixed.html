@@ -15661,32 +15661,22 @@ async function clearLines(rows, cols) {
 // §8 amendment log (2026-04-26). UX gap (no flash text on maturation) filed separately.
 function tickEmberAges() {
   if (!MOTIFS_ENABLED.ember) { cellAge.clear(); chargedCells.clear(); return; }
-  // TASK #2.2c: gate on ember being an active element. With Pirates in squad OR
-  // PYREDRAKE as boss, this stays active (Roman's case). With a Sharks-vs-Crypt-Lich
-  // fight (no ember context), the side-system goes dormant.
+  // TASK #2.2c: gate on ember being an active element.
   if (!computeActiveElements().has('ember')) { cellAge.clear(); chargedCells.clear(); return; }
-  // V2.0 Block 2.1 + 3.3: charge-age priority — default 3, Rainbow 2, Raiders (dual) 2.
-  // Math.min picks the fastest; race override beats Rainbow if both active.
-  let chargeAge = EMBER_CHARGE_AGE;
-  if (rainbowMotifBoostActive)    chargeAge = Math.min(chargeAge, 2);
-  if (emberChargeAgeOverride > 0) chargeAge = Math.min(chargeAge, emberChargeAgeOverride);
+  // HOTFIX B3.4 (Roman spec): legacy auto-ignition removed — ember cells no longer
+  // age into "charged" automatically after EMBER_CHARGE_AGE placements. EMBERHAND fire
+  // is now the explicit ignition source (lights up to 6 ember cells per fire). The
+  // tick still does cleanup so chargedCells doesn't accumulate stale entries when
+  // ember cells are cleared/converted off the grid.
   const active = new Set();
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
-      if (grid[r][c] === 'ember') {
-        const key = r + '_' + c;
-        active.add(key);
-        const age = (cellAge.get(key) || 0) + 1;
-        cellAge.set(key, age);
-        if (age >= chargeAge && !chargedCells.has(key) && chargedCells.size < EMBER_CHARGED_CAP) {
-          chargedCells.add(key);
-        }
-      }
+      if (grid[r][c] === 'ember') active.add(r + '_' + c);
     }
   }
-  // cleanup: cells no longer ember (cleared / converted)
+  // Cleanup: cells no longer ember (cleared / converted) lose their tracking.
   for (const key of [...cellAge.keys()]) {
-    if (!active.has(key)) { cellAge.delete(key); chargedCells.delete(key); }
+    if (!active.has(key)) cellAge.delete(key);
   }
   for (const key of [...chargedCells]) {
     if (!active.has(key)) chargedCells.delete(key);
@@ -16204,6 +16194,46 @@ function consumeChainStack() {
 // are in squad. Gated by computeActiveElements so non-tide contexts don't accumulate.
 // Capped at FROST_CHAIN_CAP so a single 4-row clear can't overshoot the spec's
 // scaling space (BRINESHOT line damage caps at min(segments, 4) anyway).
+// HOTFIX B3.4 (Roman spec) — universal Hunter-ULT detonator.
+// All 3 Hunter ULTs (BLACKTOOTH/SHRIEK/BRINESHOT) detonate every cell of their own
+// stihiya on the board, regardless of charged/chain/encore state. Damage scales with
+// cell count (cap 8); per-element AMPLIFIER window (BLOOM/DEEP BEAT/TIDE WEAVE) is
+// honored via the optional ampMult arg. Batched VFX (no per-cell awaits).
+async function _hunterUltDetonateAllCells(element, baseDmg, ampMult, bannerColor, bannerLabel) {
+  const cells = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    if (grid[r] && grid[r][c] === element) cells.push([r, c, r + '_' + c]);
+  }
+  if (cells.length === 0) {
+    flashText('NO ' + element.toUpperCase() + ' CELLS', bannerColor || '#A8A5B8');
+    return 0;
+  }
+  const cap = Math.min(cells.length, 8);     // ×8 cap — bigger than fire's ×3 (ULT > fire)
+  let totalDmg = baseDmg * cap;
+  if (ampMult && ampMult > 1.0) {
+    totalDmg = Math.floor(totalDmg * ampMult);
+    flashText('+' + Math.round((ampMult - 1) * 100) + '% AMP', bannerColor || '#FFB84A');
+  }
+  // Batched VFX — stamp all cells' .burning class in one frame.
+  const cellEls = document.querySelectorAll('.grid .cell');
+  for (const [r, c] of cells) {
+    if (cellEls[r * SIZE + c]) cellEls[r * SIZE + c].classList.add('burning');
+  }
+  if (bannerLabel) flashText(bannerLabel + ' ×' + cells.length, bannerColor || '#FFB84A');
+  await sleep(300);
+  // Clear cells + clean tracking sets, all at once.
+  for (const [r, c, key] of cells) {
+    grid[r][c] = null;
+    if (typeof chargedCells !== 'undefined') chargedCells.delete(key);
+    if (typeof cellAge !== 'undefined') cellAge.delete(key);
+  }
+  if (typeof renderChargedVisuals === 'function') renderChargedVisuals();
+  if (typeof render === 'function') render();
+  dealDamage(totalDmg, cells.length >= 4, 0);
+  vibrate(cells.length >= 4 ? [80, 40, 80, 40, 120] : [60, 30, 60]);
+  return cells.length;
+}
+
 function onTideCellsCleared(n) {
   if (!MOTIFS_ENABLED.tide) return;
   if (!n) return;
@@ -17997,11 +18027,38 @@ async function fireBlacktooth(counts) {
 // V2.0 Stage 5 Block 5.2 tier deltas (emberhandSpawnCount, emberhandSpawnCharged) are
 // now dead stores — deferred Phase 6 will rewire to extend window / boost mult.
 async function fireEmberhand() {
+  // HOTFIX B3.4 (Roman spec): EMBERHAND is now the explicit ember-ignition source
+  // (legacy tickEmberAges auto-ignition removed). On fire, light up to 6 random
+  // unignited ember cells on the board (mark as charged). These charged cells then
+  // do amplified detonation damage when BLACKTOOTH (or any future ember Hunter ULT)
+  // sweeps the board. The +50% BLOOM window stacks on top — same Mage AMPLIFIER
+  // identity, just now with an explicit "primer" half so the player has agency.
+  const EMBERHAND_IGNITE_COUNT = 6;
+  const candidates = [];
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (grid[r][c] === 'ember' && !chargedCells.has(r + '_' + c)) {
+        candidates.push(r + '_' + c);
+      }
+    }
+  }
+  candidates.sort(() => Math.random() - 0.5);
+  let ignited = 0;
+  for (const key of candidates) {
+    if (ignited >= EMBERHAND_IGNITE_COUNT) break;
+    if (chargedCells.size >= EMBER_CHARGED_CAP) break;
+    chargedCells.add(key);
+    ignited++;
+  }
+  // BLOOM amplifier window — unchanged from B0/2.2d. Stacks with the new ignite.
   emberhandBloomActive   = true;
   emberhandBloomDuration = EMBERHAND_BLOOM_TURNS;
-  flashText('EMBER BLOOM +50%', '#FFB84A');
+  if (ignited > 0) {
+    flashText('EMBER BLOOM +50% · IGNITE ×' + ignited, '#FFB84A');
+  } else {
+    flashText('EMBER BLOOM +50%', '#FFB84A');
+  }
   vibrate([50, 30, 50]);
-  // Re-render charged cells so any future bloom-aware aura class can pick up state.
   renderChargedVisuals();
 }
 
@@ -18122,7 +18179,10 @@ async function ultTwistThorgar(ctx) {
 // V2.0 Stage 5 Block 5.2 tier deltas (blacktoothChargedBonus, T3 +200 inferno) become
 // dead stores in v1; Phase 6 may rewire them when the tier system goes live.
 async function ultTwistBlacktooth(ctx) {
-  // Intentional no-op — VOLLEY is the entire signature now.
+  // HOTFIX B3.4 (Roman spec): Hunter ULT detonates ALL ember cells on the board
+  // (not just charged). EMBERHAND BLOOM amp window stacks on top.
+  const ampMult = (emberhandBloomActive && emberhandBloomDuration > 0) ? emberhandBloomMult : 1.0;
+  await _hunterUltDetonateAllCells('ember', 180, ampMult, '#FF8B3D', 'INFERNO ULT');
 }
 
 // HERO_GRAMMAR §4 [Fire × Mage] — EMBERHAND / MENDING ULT signature
@@ -19225,6 +19285,11 @@ async function ultTwistRiffblade(ctx) {
 // is primed. Aligns with the Encore-of-Encore identity in fireShriek (Block B1).
 // SHRIEK — ECHO VOLLEY: re-fire VOLLEY on next placement if encoreActive (consumes encore via encoreUsed)
 async function ultTwistShriek(ctx) {
+  // HOTFIX B3.4 (Roman spec): Hunter ULT detonates ALL umbra cells on the board.
+  // KEYCRYPT DEEP BEAT amp window stacks on top.
+  const ampMult = (keycryptDeepBeatActive && keycryptDeepBeatDuration > 0) ? keycryptDeepBeatMult : 1.0;
+  await _hunterUltDetonateAllCells('umbra', 180, ampMult, STIHIYA_COLORS.umbra || '#9B59D6', 'PIERCING ULT');
+  // Legacy ECHO VOLLEY queue — preserved as auxiliary identity.
   if (encoreActive && !encoreUsed) {
     shriekEchoNextPlacement = true;
     encoreUsed = true;
@@ -19410,6 +19475,11 @@ async function ultTwistRimefang(ctx) {
 // adding a shatter bonus. Mirrors the post-FIRE consume pattern but ULT-scoped so
 // BRINESHOT ULT also fully drains the chain pool.
 async function ultTwistBrineshot(ctx) {
+  // HOTFIX B3.4 (Roman spec): Hunter ULT detonates ALL tide cells on the board.
+  // CRYOMIND TIDE WEAVE amp window stacks on top.
+  const ampMult = (cryomindWeaveActive && cryomindWeaveDuration > 0) ? cryomindWeaveMult : 1.0;
+  await _hunterUltDetonateAllCells('tide', 180, ampMult, STIHIYA_COLORS.tide || '#3B8BD4', 'SHATTER ULT');
+  // Legacy SHATTER ECHO bonus on chain segments — preserved as auxiliary identity.
   if (frostChainSegments > 0) {
     const bonus = Math.floor(60 * Math.min(frostChainSegments, 4));
     consumeChainStack();
