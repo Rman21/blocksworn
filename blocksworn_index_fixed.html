@@ -4836,6 +4836,117 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 @media (prefers-reduced-motion: reduce) {
   .hero-flash.big.active { animation: heroFlash 1.3s ease-out forwards !important; }
 }
+
+/* ===== PHASE 3 BLOCK 1 — Signature Combo cinematic overlay =====
+   Full-screen banner that fires once at battle start when a signature combo is
+   active. CSS variable --sig-color set inline by JS to tint per combo (gold for
+   GOLDEN HOARD, purple for DARK ENCORE, blue for FROST DEEP). */
+.sig-cinema {
+  position: fixed; inset: 0;
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.sig-cinema.hidden { display: none !important; }
+.sig-cinema-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at center, var(--sig-color, #FFB84A) 0%, transparent 60%),
+    rgba(0,0,0,0.55);
+  opacity: 0;
+  animation: sigBgFade 2.2s ease-out forwards;
+}
+.sig-cinema-card {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 28px 36px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.85) 100%);
+  border: 2px solid var(--sig-color, #FFB84A);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.2),
+    0 0 32px var(--sig-color, #FFB84A),
+    0 12px 40px rgba(0,0,0,0.7);
+  opacity: 0;
+  animation: sigCardEntry 2.2s ease-out forwards;
+}
+.sig-cinema-emblem {
+  width: 80px; height: 80px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  border: 3px solid var(--sig-color, #FFB84A);
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15), rgba(0,0,0,0.5) 70%);
+  box-shadow: 0 0 24px var(--sig-color, #FFB84A);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+}
+.sig-cinema-tier {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: rgba(255,255,255,0.65);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.sig-cinema-name {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: var(--sig-color, #FFB84A);
+  text-transform: uppercase;
+  text-shadow:
+    0 2px 4px rgba(0,0,0,0.8),
+    0 0 18px var(--sig-color, #FFB84A);
+  margin-bottom: 8px;
+  white-space: nowrap;
+}
+.sig-cinema-bonus {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: rgba(255,255,255,0.9);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+@keyframes sigBgFade {
+  0%   { opacity: 0; }
+  18%  { opacity: 0.9; }
+  72%  { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+@keyframes sigCardEntry {
+  0%   { opacity: 0; transform: scale(0.5) translateY(12px); }
+  18%  { opacity: 1; transform: scale(1.08) translateY(-2px); }
+  30%  {              transform: scale(1.0) translateY(0); }
+  72%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+/* Reduced-motion: snap-show + snap-hide, no scale bounce */
+@media (prefers-reduced-motion: reduce) {
+  .sig-cinema-bg, .sig-cinema-card {
+    animation-duration: 1.6s !important;
+    animation-timing-function: linear !important;
+  }
+}
+
+/* Synergy bar pill — signature combo (highest visual prominence: animated gold/color glow) */
+.synergy-bar .syn-pill.signature {
+  background: linear-gradient(180deg, rgba(255,184,74,0.22) 0%, rgba(160,117,48,0.30) 100%);
+  border: 1px solid var(--a-gold-100);
+  color: var(--a-gold-100);
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  box-shadow: 0 0 8px rgba(255,184,74,0.45);
+  animation: sigPillGlow 2.4s ease-in-out infinite;
+}
+@keyframes sigPillGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,184,74,0.45); }
+  50%      { box-shadow: 0 0 14px rgba(255,184,74,0.85); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .synergy-bar .syn-pill.signature { animation: none !important; }
+}
 @keyframes heroFlash {
   0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
   25%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
@@ -8152,6 +8263,18 @@ button.season-tier-claim:active {
   <div class="combo-flash" id="comboFlash"></div>
 </div>
 
+<!-- PHASE 3 BLOCK 1 — Signature Combo cinematic overlay. Hidden by default; shown
+     once at battle start via showSignatureComboCinematic(combo). Auto-dismiss in 2s. -->
+<div id="sigComboCinema" class="sig-cinema hidden" aria-hidden="true">
+  <div class="sig-cinema-bg"></div>
+  <div class="sig-cinema-card">
+    <img class="sig-cinema-emblem" id="sigCinemaEmblem" alt="">
+    <div class="sig-cinema-tier" id="sigCinemaTier">SIGNATURE COMBO</div>
+    <div class="sig-cinema-name" id="sigCinemaName">THE GOLDEN HOARD</div>
+    <div class="sig-cinema-bonus" id="sigCinemaBonus">+30% DAMAGE</div>
+  </div>
+</div>
+
 <div class="modal a-result" id="modal">
   <div class="modal-box" id="modalBox">
     <div class="modal-boss-emblem" id="modalBossEmblem"></div>
@@ -9147,6 +9270,52 @@ function resetBossVoiceFlags() {
   _bossVoiceIntroFired    = false;
   _bossVoiceMidfightFired = false;
   _bossVoiceDeathFired    = false;
+}
+
+// PHASE 3 BLOCK 1 — Signature Combo cinematic. Fires once at battle start when
+// activeSignatureCombo is set. Auto-dismiss in 2.2s (matches CSS animation duration).
+// Idempotency via _signatureComboCinemaShown flag (reset in startBossBattle).
+function showSignatureComboCinematic(combo) {
+  if (!combo || _signatureComboCinemaShown) return;
+  _signatureComboCinemaShown = true;
+  const overlay   = document.getElementById('sigComboCinema');
+  const emblemImg = document.getElementById('sigCinemaEmblem');
+  const tierEl    = document.getElementById('sigCinemaTier');
+  const nameEl    = document.getElementById('sigCinemaName');
+  const bonusEl   = document.getElementById('sigCinemaBonus');
+  if (!overlay || !nameEl) return;
+  // Tier label per tier number
+  const tierLabel = combo.tier === 3 ? 'SIGNATURE COMBO' :
+                    combo.tier === 2 ? 'ELEMENT BURST' : 'RACE SIGNATURE';
+  if (tierEl)  tierEl.textContent  = tierLabel;
+  if (nameEl)  nameEl.textContent  = combo.name;
+  if (bonusEl) bonusEl.textContent = '+' + Math.round((combo.mult - 1) * 100) + '% DAMAGE';
+  // Emblem image — use new emblem_*_v2 if combo has stihiya, else hide
+  if (emblemImg) {
+    if (combo.stihiya && typeof ASSETS !== 'undefined' && ASSETS['emblem_' + combo.stihiya + '_v2']) {
+      emblemImg.src = ASSETS['emblem_' + combo.stihiya + '_v2'];
+      emblemImg.style.display = '';
+    } else {
+      emblemImg.style.display = 'none';
+    }
+  }
+  // Tint via CSS variable on overlay (drives bg + border + glow)
+  overlay.style.setProperty('--sig-color', combo.color || '#FFB84A');
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+  // Vibrate for tactile cue. Matches the cinematic crescendo timing.
+  try { vibrate([60, 40, 80, 40, 120]); } catch (e) {}
+  // Auto-hide just after the CSS animation completes
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
+  }, 2300);
+}
+
+function maybeFireSignatureComboCinematic() {
+  if (!activeSignatureCombo) return;
+  // Defer 600ms so the boss-portrait + squad-pop animations settle first.
+  setTimeout(() => showSignatureComboCinematic(activeSignatureCombo), 600);
 }
 
 // Block B3: idempotent migration for existing saves (e.g. Roman's playtest state at
@@ -13722,6 +13891,26 @@ let captainDual_stihiya    = null;
 let captainDual_raceMult   = 1.0;
 let captainDual_dropBonus  = 0;
 
+// ===== PHASE 3 BLOCK 1 — SIGNATURE COMBOS =====
+// HERO_GRAMMAR §7 + MASTER_PLAN_V3 §7. Three tiers of activation:
+//   Tier 1 — Same-Race    (3+ same race in squad)             → small  bonus + cinematic
+//   Tier 2 — Same-Element (3+ same element in squad)          → medium bonus + cinematic
+//   Tier 3 — Same-Race-AND-Element (3+ AND, full named combo) → large  bonus + premium cinematic
+// In v1 only Tier 3 typically fires (races are mono-element so 3+ race always implies
+// 3+ element). Tier 1/2 are forward-looking for Phase 5 mixed-race squads.
+const SIGNATURE_COMBOS = {
+  'pirate_ember': { name: 'THE GOLDEN HOARD', race: 'pirate', stihiya: 'ember', tier: 3, mult: 1.30, color: '#FFB84A' },
+  'rock_umbra':   { name: 'THE DARK ENCORE',  race: 'rock',   stihiya: 'umbra', tier: 3, mult: 1.30, color: '#9B59D6' },
+  'shark_tide':   { name: 'THE FROST DEEP',   race: 'shark',  stihiya: 'tide',  tier: 3, mult: 1.30, color: '#3B8BD4' },
+  // Phase 5 reserved (Crocodiles + Sparks):
+  // 'crocodile_grove': reserved
+  // 'spark_solar':     reserved
+};
+const SIGNATURE_TIER_BONUS = { 1: 1.10, 2: 1.20, 3: 1.30 };  // small/medium/large
+let activeSignatureCombo   = null;       // { name, race, stihiya, tier, mult, color } or null
+let _signatureComboContext = 1;          // mult applied in dealDamage stack
+let _signatureComboCinemaShown = false;  // per-battle one-shot for the cinematic
+
 // Block 3.2 — Arcane Coven (3+ mage)
 let mageDoubleFireActive     = false;  // mage fires execute twice
 let mageDoubleFireInProgress = false;  // per-fire recursion guard
@@ -14742,6 +14931,55 @@ function calcSynergyState(heroes) {
   } else {
     try { console.log('[CaptainDual]', { captainHeroId: null, note: 'no captain in squad' }); } catch (e) {}
   }
+
+  // ===== PHASE 3 BLOCK 1 — Signature Combo detection =====
+  // Walk race counts to find any race with ≥3 heroes. v1: race is mono-element so race
+  // count ≥ 3 implies element count ≥ 3 → look up Tier 3 Full Combo by 'race_stihiya' key.
+  // If the race lacks a named Full Combo (none in v1 outside the 3 mapped above), fall
+  // back to Tier 1 (Same-Race) generic. Forward-compat: Tier 2 (Same-Element only, mixed
+  // race) handled by checking stihiyaCount ≥ 3 when no race triggered.
+  state.activeSignatureCombo = null;
+  let _bestCombo = null;
+  for (const [race, count] of Object.entries(state.raceCount)) {
+    if (count < 3) continue;
+    // Find the dominant element of this race in squad (may be N for mono-element races,
+    // but defensive: pick the most common stihiya among heroes of that race).
+    const racialHeroes = heroes.filter(h => h && h.race === race);
+    const stihiyaCount = {};
+    for (const h of racialHeroes) stihiyaCount[h.stihiya] = (stihiyaCount[h.stihiya] || 0) + 1;
+    const dominantStihiya = Object.entries(stihiyaCount).sort((a, b) => b[1] - a[1])[0][0];
+    const fullKey = race + '_' + dominantStihiya;
+    if (SIGNATURE_COMBOS[fullKey] && stihiyaCount[dominantStihiya] >= 3) {
+      _bestCombo = { ...SIGNATURE_COMBOS[fullKey] };
+      break;  // Tier 3 found — no need to search further
+    } else {
+      // Tier 1 fallback — generic same-race combo (no named cinematic)
+      _bestCombo = {
+        name: (count + '× ' + race.toUpperCase()), race, stihiya: null,
+        tier: 1, mult: SIGNATURE_TIER_BONUS[1], color: '#C79CE8',
+      };
+    }
+  }
+  // Tier 2 — Same-Element-only fallback (mixed race, 3+ same element). v1 currently
+  // doesn't reach this since all races are mono-element, but Phase 5 mixed squads may.
+  if (!_bestCombo) {
+    for (const [stihiya, count] of Object.entries(state.stihiyaCount)) {
+      if (count >= 3) {
+        _bestCombo = {
+          name: (count + '× ' + stihiya.toUpperCase()), race: null, stihiya,
+          tier: 2, mult: SIGNATURE_TIER_BONUS[2], color: STIHIYA_COLORS[stihiya] || '#FFD53D',
+        };
+        break;
+      }
+    }
+  }
+  if (_bestCombo) {
+    state.activeSignatureCombo = _bestCombo;
+    // Pill in synergy bar — uses dedicated 🌟 prefix so renderSynergyBar styles it
+    // distinctly from race / formation / captain pills.
+    const _pctSig = Math.round((_bestCombo.mult - 1) * 100);
+    state.active.push('🌟 ' + _bestCombo.name + ' +' + _pctSig + '%');
+  }
   // Stihiya synergies — V18.8: passiveDmgMult is NOW ADDITIVE so it stacks with race synergies
   for (const [stihiya, count] of Object.entries(state.stihiyaCount)) {
     const label = stihiya.toUpperCase();
@@ -14967,6 +15205,10 @@ function computeSynergies() {
   captainDual_stihiya    = state.captainDualStihiya || null;
   captainDual_raceMult   = state.captainDualRaceMult || 1.0;
   captainDual_dropBonus  = state.captainDualDropBonus || 0;
+  // PHASE 3 BLOCK 1 — Signature Combo mirror. activeSignatureCombo drives the
+  // dealDamage multiplier (_signatureComboContext) + the cinematic banner that
+  // fires once per battle in startBossBattle.
+  activeSignatureCombo   = state.activeSignatureCombo || null;
   mageDoubleFireActive   = !!state.mageDoubleFireActive;
   arcaneResonanceActive  = !!state.arcaneResonanceActive;
   arcaneWisdomActive     = !!state.arcaneWisdomActive;
@@ -15674,6 +15916,12 @@ function startBossBattle() {
     const _isTower     = currentBoss && currentBoss._isTowerBattle;
     if (!_isFtueOnly && !_isTower && typeof maybeFireBossVoiceIntro === 'function') {
       maybeFireBossVoiceIntro();
+    }
+    // PHASE 3 BLOCK 1 — Signature Combo cinematic. Reset per-battle one-shot flag
+    // and fire if a combo is active. Skipped for FTUE/Tower like voice lines.
+    _signatureComboCinemaShown = false;
+    if (!_isFtueOnly && !_isTower && typeof maybeFireSignatureComboCinematic === 'function') {
+      maybeFireSignatureComboCinematic();
     }
     // Block B3: archetype aura class on the boss portrait. CSS rule per archetype
     // (.boss-archetype-berserker / -armored / -bruiser / -phoenix / -assassin) drives
@@ -16705,14 +16953,19 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
   // HERO_GRAMMAR §6: captain dual race-buff (×1.05 / ×1.15 / ×1.30) on heroes of captain's race.
   //   Computed inline from _currentFiringHero so both fire and ULT damage paths benefit; no
   //   set/clear needed in fireHero / ultRoleDispatch (single source of truth).
+  // PHASE 3 BLOCK 1: Signature Combo passive damage multiplier. Active for the entire
+  // battle if a combo was detected at squad-build time (Tier 1=+10%, Tier 2=+20%,
+  // Tier 3=+30%). Applies to ALL damage from any squad member — it's a squad-wide
+  // bonus, not race-scoped (race-scoping is the captain dual buff layer).
   // V2.0 Stage 5 Block 5.7: FIRE_MULT_CAP — clamp combined multiplier stack to 3x per shipping contract F.1.2
   const _baseAmount = amount;
   _captainDualContext = (captainDual_active && _currentFiringHero
                          && _currentFiringHero.race === captainDual_race) ? captainDual_raceMult : 1;
+  _signatureComboContext = (activeSignatureCombo && activeSignatureCombo.mult) || 1;
   const _multStack = currentDmgMult * _passiveDmgContext * _ultDmgContext
                    * _warbandStrikeContext * _hunterMarkContext
                    * _grommarRallyContext * _packMarkContext * _helioRoarContext
-                   * _captainDualContext;
+                   * _captainDualContext * _signatureComboContext;
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
@@ -21098,12 +21351,15 @@ function renderSynergyBar() {
     // .captain pill class (gold gradient) so it's visually distinct from race (purple) and
     // formation (yellow) pills. Crown emoji always first; no ⚡ prefix.
     const isCaptain = /^👑 /.test(s);
-    const isRace = !isFormation && !isCaptain && /\b(ORC|TROLL|HUMAN|ELF|DARK|PIRATE|SKELETON|GOLEM|LION|ROCK|SHARK|CROCODILE|SPARK)\b/.test(s);
-    const cls = isFormation ? 'formation' : (isCaptain ? 'captain' : (isRace ? 'race' : ''));
-    const icon = (isFormation || isCaptain) ? '' : '⚡ ';
-    // Captain pill stays compact (text already trimmed at push site); other pills get
+    // PHASE 3 BLOCK 1: signature combo entries start with '🌟 ' — premium glow pill,
+    // animated, highest visual prominence in the synergy bar.
+    const isSignature = /^🌟 /.test(s);
+    const isRace = !isFormation && !isCaptain && !isSignature && /\b(ORC|TROLL|HUMAN|ELF|DARK|PIRATE|SKELETON|GOLEM|LION|ROCK|SHARK|CROCODILE|SPARK)\b/.test(s);
+    const cls = isFormation ? 'formation' : (isCaptain ? 'captain' : (isSignature ? 'signature' : (isRace ? 'race' : '')));
+    const icon = (isFormation || isCaptain || isSignature) ? '' : '⚡ ';
+    // Captain + signature pills stay verbatim (they're already concise); other pills get
     // text → emblem replacement so verbose synergy descs read as iconography.
-    const body = isCaptain ? s : _emblematizeSynergy(s);
+    const body = (isCaptain || isSignature) ? s : _emblematizeSynergy(s);
     return `<span class="syn-pill ${cls}">${icon}${body}</span>`;
   }).join('');
 }
