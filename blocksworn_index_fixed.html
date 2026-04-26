@@ -9618,19 +9618,19 @@ const HERO_ROSTER = [
   // V18.9: each hero gets newRole (warrior/hunter/mage/tank/captain) — drives unified ULT template.
   // `role` and `roleIcon` are kept for existing fire-trigger & UI logic (striker/guard/weaver).
   // --- PIRATES (Ember) ---
-  { id:'pirate_warrior', name:'THORGAR', race:'pirate', role:'striker', newRole:'warrior', stihiya:'ember', img:'hero_pirate_sword', roleIcon:'⚔', minCombo:2, fireText:'Cleaver Sweep', fire: fireThorgar, ult: ultRoleDispatch, ultSignature: ultTwistThorgar, fireTierDelta: fireDeltaThorgar, ultTierDelta: ultDeltaThorgar, ultText:'SIEGE: 500 dmg + 12 burns at 5-pirate' },
+  { id:'pirate_warrior', name:'THORGAR', race:'pirate', role:'striker', newRole:'warrior', stihiya:'ember', img:'hero_pirate_sword', roleIcon:'⚔', minCombo:2, fireText:'Cleaver Forge', fire: fireThorgar, ult: ultRoleDispatch, ultSignature: ultTwistThorgar, fireTierDelta: fireDeltaThorgar, ultTierDelta: ultDeltaThorgar, ultText:'EMBER FORGE: spawn 5 charged ember (+ FLEET bonus at 5 pirates)' },
   { id:'pirate_hunter', name:'BLACKTOOTH', race:'pirate', role:'striker', newRole:'hunter', stihiya:'ember', img:'hero_pirate_gun', roleIcon:'⚔', minCombo:2, fireText:'Sparkshot', fire: fireBlacktooth, ult: ultRoleDispatch, ultSignature: ultTwistBlacktooth, fireTierDelta: fireDeltaBlacktooth, ultTierDelta: ultDeltaBlacktooth, ultText:'VOLLEY: 3 rows + 100 if charged hit' },
   { id:'pirate_mage', name:'EMBERHAND', race:'pirate', role:'weaver', newRole:'mage', stihiya:'ember', img:'hero_pirate_bomb', roleIcon:'✦', period:12, fireText:'Ember Bloom', fire: fireEmberhand, ult: ultRoleDispatch, ultSignature: ultTwistEmberhand, fireTierDelta: fireDeltaEmberhand, ultTierDelta: ultDeltaEmberhand, ultText:'MENDING: full heal + +1 ULT to all' },
   { id:'pirate_tank', name:'IRONBELLY', race:'pirate', role:'guard', newRole:'tank', stihiya:'ember', img:'hero_pirate_tank', roleIcon:'🛡', fireText:'Firebrand', fire: fireIronbelly, ult: ultRoleDispatch, ultSignature: ultTwistIronbelly, fireTierDelta: fireDeltaIronbelly, ultTierDelta: ultDeltaIronbelly, ultText:'AEGIS: +3 shields + 3 charged ember' },
   { id:'pirate_captain', name:'CRIMSON', race:'pirate', role:'weaver', newRole:'captain', stihiya:'ember', img:'hero_pirate_captain', roleIcon:'✦', period:10, fireText:"Captain's Gambit", fire: fireCrimson, ult: ultRoleDispatch, ultSignature: ultTwistCrimson, fireTierDelta: fireDeltaCrimson, ultTierDelta: ultDeltaCrimson, ultText:'DOMINION: 10 cells + 50% charged spawn' },
   // --- ROCK BAND (Umbra) ---
-  { id:'rock_warrior', name:'RIFFBLADE', race:'rock', role:'striker', newRole:'warrior', stihiya:'umbra', img:'hero_rock_warrior', roleIcon:'⚔', minCombo:2, fireText:'Riff Strike',     fire: fireRiffblade,   ult: ultRoleDispatch, ultSignature: ultTwistRiffblade,   fireTierDelta: fireDeltaRiffblade,   ultTierDelta: ultDeltaRiffblade,   ultText:'SIEGE +500 if Encore' },
+  { id:'rock_warrior', name:'RIFFBLADE', race:'rock', role:'striker', newRole:'warrior', stihiya:'umbra', img:'hero_rock_warrior', roleIcon:'⚔', minCombo:2, fireText:'Riff Seed',     fire: fireRiffblade,   ult: ultRoleDispatch, ultSignature: ultTwistRiffblade,   fireTierDelta: fireDeltaRiffblade,   ultTierDelta: ultDeltaRiffblade,   ultText:'RIFF FORGE: spawn 6 umbra (+4 if Encore primed)' },
   { id:'rock_hunter', name:'SHRIEK', race:'rock', role:'striker', newRole:'hunter', stihiya:'umbra', img:'hero_rock_hunter', roleIcon:'⚔', minCombo:2, fireText:'Piercing Shriek', fire: fireShriek,      ult: ultRoleDispatch, ultSignature: ultTwistShriek,      fireTierDelta: fireDeltaShriek,      ultTierDelta: ultDeltaShriek,      ultText:'VOLLEY echo on next placement' },
   { id:'rock_mage', name:'KEYCRYPT', race:'rock', role:'weaver', newRole:'mage', stihiya:'umbra', img:'hero_rock_mage', roleIcon:'✦', period:12, fireText:'Deep Beat',         fire: fireKeycrypt,    ult: ultRoleDispatch, ultSignature: ultTwistKeycrypt,    fireTierDelta: fireDeltaKeycrypt,    ultTierDelta: ultDeltaKeycrypt,    ultText:'MENDING + 3-placement umbra +20%' },
   { id:'rock_tank', name:'THUNDERBEAT', race:'rock', role:'guard', newRole:'tank', stihiya:'umbra', img:'hero_rock_tank', roleIcon:'🛡', fireText:'Drumhead',           fire: fireThunderbeat, ult: ultRoleDispatch, ultSignature: ultTwistThunderbeat, fireTierDelta: fireDeltaThunderbeat, ultTierDelta: ultDeltaThunderbeat, ultText:'AEGIS + free Rhythm proc' },
   { id:'rock_captain', name:'NIGHTLORD', race:'rock', role:'weaver', newRole:'captain', stihiya:'umbra', img:'hero_rock_captain', roleIcon:'✦', period:10, fireText:'Conduct the Dark', fire: fireNightlord,   ult: ultRoleDispatch, ultSignature: ultTwistNightlord,   fireTierDelta: fireDeltaNightlord,   ultTierDelta: ultDeltaNightlord,   ultText:'DOMINION + immediate Encore' },
   // --- SHARKS (Tide) — Block B2 implementation ---
-  { id:'shark_warrior', name:'RIMEFANG',  race:'shark', role:'striker', newRole:'warrior', stihiya:'tide', img:'hero_shark_warrior', roleIcon:'⚔', minCombo:2, fireText:'Tidebreaker',     fire: fireRimefang,  ult: ultRoleDispatch, ultSignature: ultTwistRimefang,  ultText:'SIEGE: chains shatter' },
+  { id:'shark_warrior', name:'RIMEFANG',  race:'shark', role:'striker', newRole:'warrior', stihiya:'tide', img:'hero_shark_warrior', roleIcon:'⚔', minCombo:2, fireText:'Tide Seed',     fire: fireRimefang,  ult: ultRoleDispatch, ultSignature: ultTwistRimefang,  ultText:'TIDE FORGE: spawn 6 tide cells' },
   { id:'shark_hunter',  name:'BRINESHOT', race:'shark', role:'striker', newRole:'hunter',  stihiya:'tide', img:'hero_shark_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Shatter Volley', fire: fireBrineshot, ult: ultRoleDispatch, ultSignature: ultTwistBrineshot, ultText:'VOLLEY: chain rows' },
   { id:'shark_mage',    name:'CRYOMIND',  race:'shark', role:'weaver',  newRole:'mage',    stihiya:'tide', img:'hero_shark_mage',    roleIcon:'✦', period:12,    fireText:'Tide Weave',     fire: fireCryomind,  ult: ultRoleDispatch, ultSignature: ultTwistCryomind,  ultText:'MENDING: freeze attack' },
   { id:'shark_tank',    name:'BULWARK',   race:'shark', role:'guard',   newRole:'tank',    stihiya:'tide', img:'hero_shark_tank',    roleIcon:'🛡',                fireText:'Tock Guard',     fire: fireBulwark,   ult: ultRoleDispatch, ultSignature: ultTwistBulwark,   ultText:'AEGIS: refund placement' },
@@ -9644,7 +9644,7 @@ const HERO_ROSTER = [
   // PHASE 5b BLOCK 3: locked: true removed for crocodile_warrior + crocodile_hunter
   // — VEROTHIRA (Boss 6) victory unlocks them via BOSS_UNLOCKS[6]. Mage/Tank/Captain
   // remain locked behind GEARHEART (Block 5b.4 → BOSS_UNLOCKS[7]).
-  { id:'crocodile_warrior', name:'MOSSJAW',      race:'crocodile', role:'striker', newRole:'warrior', stihiya:'grove', img:'hero_crocodile_warrior', roleIcon:'⚔', minCombo:2, fireText:'Bedrock Strike',  fire: fireMossjaw,      ult: ultRoleDispatch, ultSignature: ultTwistMossjaw,      ultText:'BEDROCK BASTION: empties → earth' },
+  { id:'crocodile_warrior', name:'MOSSJAW',      race:'crocodile', role:'striker', newRole:'warrior', stihiya:'grove', img:'hero_crocodile_warrior', roleIcon:'⚔', minCombo:2, fireText:'Bedrock Forge',  fire: fireMossjaw,      ult: ultRoleDispatch, ultSignature: ultTwistMossjaw,      ultText:'BEDROCK BASTION: all empties → earth absorbers' },
   { id:'crocodile_hunter',  name:'THORNBACK',    race:'crocodile', role:'striker', newRole:'hunter',  stihiya:'grove', img:'hero_crocodile_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Vengeance Slam',  fire: fireThornback,    ult: ultRoleDispatch, ultSignature: ultTwistThornback,    ultText:'QUAKE: ×3 absorbed dmg' },
   // PHASE 5b BLOCK 4: locked: true removed for crocodile_mage / tank / captain —
   // GEARHEART (Boss 7) victory unlocks them via BOSS_UNLOCKS[7]. Full Crocodile
@@ -9661,7 +9661,7 @@ const HERO_ROSTER = [
   // PHASE 5b BLOCK 5: locked: true removed for spark_warrior + spark_hunter —
   // URSARO (Boss 8) victory unlocks them via BOSS_UNLOCKS[8]. Mage/Tank/Captain
   // remain locked behind TIDESPIRE (Block 5b.6 → BOSS_UNLOCKS[9]).
-  { id:'spark_warrior', name:'EMBERSPARK', race:'spark', role:'striker', newRole:'warrior', stihiya:'solar', img:'hero_spark_warrior', roleIcon:'⚔', minCombo:2, fireText:'Sun Strike',     fire: fireEmbersark,  ult: ultRoleDispatch, ultSignature: ultTwistEmbersark,  ultText:'CASCADE: convert + shield window' },
+  { id:'spark_warrior', name:'EMBERSPARK', race:'spark', role:'striker', newRole:'warrior', stihiya:'solar', img:'hero_spark_warrior', roleIcon:'⚔', minCombo:2, fireText:'Sun Forge',     fire: fireEmbersark,  ult: ultRoleDispatch, ultSignature: ultTwistEmbersark,  ultText:'SUN CASCADE: spawn 5 solar cells' },
   { id:'spark_hunter',  name:'RADIANCE',   race:'spark', role:'striker', newRole:'hunter',  stihiya:'solar', img:'hero_spark_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Aurora Burst',   fire: fireRadiance,   ult: ultRoleDispatch, ultSignature: ultTwistRadiance,   ultText:'BURST: shields → damage (no consume)' },
   // PHASE 5b BLOCK 6: locked: true removed for spark_mage / tank / captain —
   // TIDESPIRE (Boss 9) victory unlocks them via BOSS_UNLOCKS[9]. Full Spark
@@ -21009,10 +21009,26 @@ async function burnRandomCells(n, ctx) {
 }
 
 // WARRIOR: direct dmg + burn 10 random cubes
+// 2026-04-27 GRAMMAR HOTFIX: v1 Warriors (THORGAR/RIFFBLADE/RIMEFANG/MOSSJAW/
+// EMBERSPARK) are pure CREATORS per §5 — they MUST NOT call dealDamage or
+// burnRandomCells on ULT either. The generic SIEGE template (damage+burn) is
+// preserved for legacy heroes (orc warriors, etc) so we don't break tier 4-5
+// races. v1 warriors: skip damage+burn, the per-hero ultSignature handles
+// mass-CREATE (board-wide cell spawning) per plan §9 "Warrior ULT — board CREATE".
+const _V1_WARRIOR_IDS = new Set([
+  'pirate_warrior', 'rock_warrior', 'shark_warrior',
+  'crocodile_warrior', 'spark_warrior',
+]);
 async function applyWarriorUlt(hero, ctx) {
-  const cfg = ROLE_ULT_PARAMS.warrior;
   // V2.0 Block 1.3: umbra carried-bonus pulse (pre-main-damage, so it can't be nullified by death)
   applyUmbraCarriedBonus(hero);
+  if (hero && _V1_WARRIOR_IDS.has(hero.id)) {
+    // §5 pure CREATOR — no damage, no burn. Per-hero ultSignature (ultTwist*)
+    // delivers the board-wide cell creation (FORGE / BASTION / CASCADE / etc).
+    return;
+  }
+  // Legacy non-v1 warriors keep the SIEGE damage+burn template.
+  const cfg = ROLE_ULT_PARAMS.warrior;
   // V2.0 Block 3.2: WARBAND STRIKE — +50% warrior ULT base damage during 2-placement window
   const strikeBoost = (warbandStrikeActive && warbandStrikeWindow > 0) ? 1.5 : 1;
   dealDamage(Math.floor(cfg.baseDmg * strikeBoost), true);
@@ -21631,20 +21647,24 @@ async function fireCrimson() {
 // V2.0 Stage 5 Block 5.2: ultDeltaGrommar sets grommarRallyWindow=3 at T1+ BEFORE this twist runs —
 // so we respect the tier-set window (don't overwrite). T0 falls through to 2.
 
-// HERO_GRAMMAR §4 [Fire × Warrior] — THORGAR / SIEGE ULT signature
-// Spec ULT pattern (Warrior): SIEGE — large flat damage burst; the cleanest finisher.
-// Current twist extends generic warrior SIEGE template with 5-pirate FLEET burns.
-// THORGAR — FLEET SIEGE: +2 burns on top of warrior 10 if 5-pirate active (Cascade Fleet)
-// V2.0 Stage 5 Block 5.2: T1+ thorgarFleetSiegeBurns=14 (was 12), T2+ thorgarFleetSiegeAlways (ignores pirate req)
+// HERO_GRAMMAR §4 [Fire × Warrior] — THORGAR / EMBER FORGE ULT
+// Spec §9 (Warrior ULT — board CREATE): "spawns 3-5 charged ember cells in
+// random positions". Pure CREATOR ULT — no damage, no burn (handled by
+// applyWarriorUlt v1-warrior gate). This twist spawns the base CREATE +
+// FLEET bonus when 5-pirate race-pure synergy is active.
+// 2026-04-27 GRAMMAR HOTFIX: replaced burnRandomCells with _spawnEmberCharged.
 async function ultTwistThorgar(ctx) {
+  // Base CREATE — 5 ember-charged cells (high end of plan §9 range).
+  const baseSpawn = await _spawnEmberCharged(5);
+  if (baseSpawn > 0) flashText('EMBER FORGE ULT ×' + baseSpawn, '#FF8B3D');
+  // FLEET bonus — 5+ pirates or T2+ thorgarFleetSiegeAlways → bonus ember.
   const pirateCount = HERO_DECK.filter(h => h && h.race === 'pirate').length;
   const gate = thorgarFleetSiegeAlways || pirateCount >= 5;
   if (gate) {
-    // Base warrior burns 10; we burn extras to reach thorgarFleetSiegeBurns total (T0=12 adds 2, T1+=14 adds 4)
     const extras = Math.max(0, thorgarFleetSiegeBurns - 10);
     if (extras > 0) {
-      await burnRandomCells(extras, ctx);
-      flashText('FLEET SIEGE +' + extras, '#FFA500');
+      const bonus = await _spawnEmberCharged(extras);
+      if (bonus > 0) flashText('FLEET FORGE +' + bonus, '#FFA500');
     }
   }
 }
@@ -22784,16 +22804,21 @@ async function fireNightlord() {
 
 // KAELEN — VOID MENDING: reset radiantAge to 0 for ALL umbra cells (Endless Night persistence refresh)
 
-// HERO_GRAMMAR §4 [Dark × Warrior] — RIFFBLADE / SIEGE ULT signature
-// Spec ULT pattern (Warrior): SIEGE — large flat damage burst; the cleanest finisher.
-// EXTENDS spec — current twist conditionally doubles SIEGE if encoreActive (consumes
-// the encore primer). Aligns with Dark element's Encore-everywhere identity.
-// RIFFBLADE — ENCORE SIEGE: +500 dmg if encoreActive AND !encoreUsed (consumes encore)
+// HERO_GRAMMAR §4 [Dark × Warrior] — RIFFBLADE / RIFF FORGE ULT
+// Spec §9 (Warrior ULT — board CREATE): "SIEGE — encore-stack-on-clear doubles
+// for 3 placements". Pure CREATOR ULT — no damage (handled by applyWarriorUlt
+// v1-warrior gate). This twist spawns mass umbra substrate; the encore-doubling
+// happens organically through the encoreActive flag and onUmbraCellsCleared hook.
+// 2026-04-27 GRAMMAR HOTFIX: replaced dealDamage(500) with _spawnUmbraCells.
 async function ultTwistRiffblade(ctx) {
+  // Base CREATE — 6 umbra cells (mass seed for Encore stacking).
+  const baseSpawn = await _spawnUmbraCells(6);
+  if (baseSpawn > 0) flashText('RIFF FORGE ULT ×' + baseSpawn, STIHIYA_COLORS.umbra);
+  // ENCORE FORGE bonus — extra umbra spawn if encore primed.
   if (encoreActive && !encoreUsed) {
-    dealDamage(500, true);  // doubles SIEGE — extra 500 on top of base 500 = effective 1000
+    const bonus = await _spawnUmbraCells(4);
     encoreUsed = true;
-    flashText('ENCORE SIEGE ×2', STIHIYA_COLORS.umbra);
+    if (bonus > 0) flashText('ENCORE FORGE +' + bonus, STIHIYA_COLORS.umbra);
   }
 }
 
@@ -23013,12 +23038,16 @@ async function fireAbyssking() {
 
 // ===== SHARKS ULT TWISTS =====
 
-// HERO_GRAMMAR §4 [Frost × Warrior] — RIMEFANG / SIEGE ULT signature
-// Spec ULT pattern (Warrior): SIEGE — large flat damage burst; the cleanest finisher.
-// CONFORMS to spec via generic warrior SIEGE template (applyWarriorUlt). Twist is a
-// no-op — spec [Frost × Warrior] cell does not call for an ULT-specific signature.
+// HERO_GRAMMAR §4 [Frost × Warrior] — RIMEFANG / TIDE FORGE ULT
+// Spec §9 (Warrior ULT — board CREATE): "SIEGE — chains shatter on next chain
+// (full board frost burst)". Pure CREATOR ULT — no damage (handled by
+// applyWarriorUlt v1-warrior gate). This twist spawns mass tide substrate;
+// chain-shatter mechanic emerges through onTideCellsCleared and frostChainSegments.
+// 2026-04-27 GRAMMAR HOTFIX: pre-fix was no-op relying on SIEGE damage from
+// applyWarriorUlt — now does proper mass tide CREATE.
 async function ultTwistRimefang(ctx) {
-  // Intentional no-op — generic SIEGE template is the entire Warrior ULT.
+  const baseSpawn = await _spawnTideCells(6);
+  if (baseSpawn > 0) flashText('TIDE FORGE ULT ×' + baseSpawn, STIHIYA_COLORS.tide);
 }
 
 // HERO_GRAMMAR §4 [Frost × Hunter] — BRINESHOT / VOLLEY ULT signature
