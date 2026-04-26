@@ -5033,6 +5033,127 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .clutch-name { animation: none !important; }
 }
 
+/* ===== PHASE 3 BLOCK 3 — DEATH FLASHBACK overlay =====
+   Cinematic recap of the battle's key events shown on defeat. Stagger-in event
+   cards (top 4-5 highlights) over ~5s, then "CONTINUE" button to defeat modal. */
+.death-flashback {
+  position: fixed; inset: 0;
+  z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: auto;
+}
+.death-flashback.hidden { display: none !important; }
+.df-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at center, rgba(40,8,8,0.55) 0%, rgba(0,0,0,0.92) 65%),
+    rgba(0,0,0,0.85);
+  opacity: 0;
+  animation: dfBgFade 0.6s ease-out forwards;
+}
+.df-content {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 30px 24px;
+  max-width: 460px; width: 90%;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(20,8,8,0.85) 0%, rgba(8,4,4,0.94) 100%);
+  border: 2px solid rgba(255, 77, 77, 0.65);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    0 0 36px rgba(255,77,77,0.45),
+    0 16px 44px rgba(0,0,0,0.7);
+  opacity: 0;
+  animation: dfContentEntry 0.55s ease-out 0.15s forwards;
+}
+.df-title {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 28px; font-weight: 900;
+  letter-spacing: 5px;
+  color: #FF4D4D;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.85), 0 0 16px rgba(255,77,77,0.65);
+  text-transform: uppercase;
+}
+.df-subtitle {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 3px;
+  color: rgba(255,180,180,0.75);
+  text-transform: uppercase;
+  margin-top: 4px; margin-bottom: 18px;
+}
+.df-events {
+  display: flex; flex-direction: column; gap: 8px;
+  width: 100%;
+  margin-bottom: 18px;
+  min-height: 80px;
+}
+.df-event {
+  display: flex; flex-direction: column;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.65) 100%);
+  border: 1px solid var(--df-color, #FFB84A);
+  box-shadow: 0 0 8px var(--df-color, rgba(255,184,74,0.45));
+  opacity: 0;
+  animation: dfEventEntry 0.45s ease-out forwards;
+}
+.df-event-label {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 13px; font-weight: 800;
+  letter-spacing: 1.5px;
+  color: var(--df-color, #FFB84A);
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+}
+.df-event-sub {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.7);
+  margin-top: 2px;
+}
+.df-event-empty {
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.45);
+  padding: 16px 0;
+  font-style: italic;
+}
+.df-skip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 180px; padding: 12px 28px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--a-fire-300, #FF8B7A) 0%, var(--a-fire-700, #8A2A1F) 100%);
+  border: 2px solid var(--a-fire-100, #FFB8A8);
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 14px; font-weight: 900;
+  letter-spacing: 3px;
+  color: #2a0808;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.40);
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.38) inset,
+    0 1px 0 rgba(255,255,255,0.5) inset,
+    0 4px 12px rgba(232,93,74,0.45);
+  transition: filter 0.18s ease;
+}
+.df-skip:hover { filter: brightness(1.08); }
+.df-skip:active { transform: translateY(2px); }
+@keyframes dfBgFade        { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes dfContentEntry  {
+  0%   { opacity: 0; transform: scale(0.85) translateY(10px); }
+  100% { opacity: 1; transform: scale(1.0)  translateY(0); }
+}
+@keyframes dfEventEntry    {
+  0%   { opacity: 0; transform: translateX(-12px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .df-bg, .df-content, .df-event { animation-duration: 0.3s !important; animation-timing-function: linear !important; }
+}
+
 /* Synergy bar pill — signature combo (highest visual prominence: animated gold/color glow) */
 .synergy-bar .syn-pill.signature {
   background: linear-gradient(180deg, rgba(255,184,74,0.22) 0%, rgba(160,117,48,0.30) 100%);
@@ -8392,6 +8513,18 @@ button.season-tier-claim:active {
   </div>
 </div>
 
+<!-- PHASE 3 BLOCK 3 — DEATH FLASHBACK overlay. Shown on player defeat BEFORE the
+     defeat modal. Renders battle event log as a recap sequence; tap to skip. -->
+<div id="deathFlashback" class="death-flashback hidden" aria-hidden="true">
+  <div class="df-bg"></div>
+  <div class="df-content">
+    <div class="df-title">FLASHBACK</div>
+    <div class="df-subtitle">YOUR LAST FIGHT</div>
+    <div class="df-events" id="dfEventList"></div>
+    <button class="df-skip" id="dfSkipBtn" type="button">CONTINUE</button>
+  </div>
+</div>
+
 <div class="modal a-result" id="modal">
   <div class="modal-box" id="modalBox">
     <div class="modal-boss-emblem" id="modalBossEmblem"></div>
@@ -9422,6 +9555,8 @@ function showSignatureComboCinematic(combo) {
   overlay.setAttribute('aria-hidden', 'false');
   // Vibrate for tactile cue. Matches the cinematic crescendo timing.
   try { vibrate([60, 40, 80, 40, 120]); } catch (e) {}
+  // PHASE 3 BLOCK 3 — Death Flashback log
+  try { logBattleEvent('signature', combo.name, '+' + Math.round((combo.mult - 1) * 100) + '% damage', combo.color); } catch (e) {}
   // Auto-hide just after the CSS animation completes
   setTimeout(() => {
     overlay.classList.add('hidden');
@@ -9446,6 +9581,8 @@ function showClutchMoment() {
   overlay.setAttribute('aria-hidden', 'false');
   // Tactile "the moment" cue — strong vibration pattern for 2 short pulses.
   try { vibrate([100, 60, 140]); } catch (e) {}
+  // PHASE 3 BLOCK 3 — Death Flashback log
+  try { logBattleEvent('clutch', 'CLUTCH MOMENT', 'one life left · one shot', '#FF4D4D'); } catch (e) {}
   setTimeout(() => {
     overlay.classList.add('hidden');
     overlay.setAttribute('aria-hidden', 'true');
@@ -9466,6 +9603,69 @@ function maybeFireClutchSlowMo() {
   }
   _clutchSlowMoFired = true;
   showClutchMoment();
+}
+
+// PHASE 3 BLOCK 3 — DEATH FLASHBACK. Renders the battle event log as a stagger-in
+// recap sequence. Shown on player defeat BEFORE showDefeatModal proceeds. Player
+// taps CONTINUE to dismiss → defeat modal shows. Auto-advance not used; player
+// owns the pacing of reading their own death.
+function showDeathFlashback(onDismiss) {
+  const overlay = document.getElementById('deathFlashback');
+  const list    = document.getElementById('dfEventList');
+  const btn     = document.getElementById('dfSkipBtn');
+  if (!overlay || !list || !btn) {
+    if (typeof onDismiss === 'function') onDismiss();
+    return;
+  }
+  // Pick top events from log — favor variety: keep at most 1 of each type, prefer
+  // the most recent. If empty, show "VALIANT EFFORT" placeholder so the modal
+  // doesn't flash a blank box.
+  const seen = new Set();
+  const picked = [];
+  for (let i = battleEventLog.length - 1; i >= 0 && picked.length < 5; i--) {
+    const e = battleEventLog[i];
+    if (seen.has(e.type)) continue;
+    seen.add(e.type);
+    picked.unshift(e);  // chronological order
+  }
+  list.innerHTML = '';
+  if (picked.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'df-event-empty';
+    empty.textContent = 'A valiant effort. The grid was unforgiving.';
+    list.appendChild(empty);
+  } else {
+    picked.forEach((e, i) => {
+      const card = document.createElement('div');
+      card.className = 'df-event';
+      card.style.setProperty('--df-color', e.color || '#FFB84A');
+      card.style.animationDelay = (0.55 + i * 0.30) + 's';   // stagger after content entry
+      const lbl = document.createElement('div');
+      lbl.className = 'df-event-label';
+      lbl.textContent = e.label;
+      card.appendChild(lbl);
+      if (e.sub) {
+        const sub = document.createElement('div');
+        sub.className = 'df-event-sub';
+        sub.textContent = e.sub;
+        card.appendChild(sub);
+      }
+      list.appendChild(card);
+    });
+  }
+  // Wire CONTINUE — dismiss flashback + invoke onDismiss callback so defeat modal proceeds.
+  const dismiss = () => {
+    overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
+    btn.removeEventListener('click', dismiss);
+    if (typeof onDismiss === 'function') {
+      try { onDismiss(); } catch (e) { console.warn('death-flashback onDismiss failed:', e); }
+    }
+  };
+  btn.addEventListener('click', dismiss);
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+  try { vibrate([200, 100, 200]); } catch (e) {}
 }
 
 // Block B3: idempotent migration for existing saves (e.g. Roman's playtest state at
@@ -14107,6 +14307,22 @@ let _signatureComboCinemaShown = false;  // per-battle one-shot for the cinemati
 // already ended. Single fire per battle — flag reset in startBossBattle.
 let _clutchSlowMoFired = false;
 
+// PHASE 3 BLOCK 3 — DEATH FLASHBACK event log. Tracks the highlight reel of the
+// current battle so the defeat cinematic can replay key moments. Reset on
+// startBossBattle. Each entry: { type, time, label, sub, color }.
+//   type: 'ult'|'crit'|'signature'|'clutch'|'enrage'|'phoenix'
+//   time: Date.now() at log time (for chronological ordering)
+//   label: headline shown in flashback card (e.g. "THORGAR · ULT FIRED")
+//   sub:   subtitle line  (e.g. "+450 dmg" or just empty)
+//   color: hex used as the card glow color
+let battleEventLog = [];
+function logBattleEvent(type, label, sub, color) {
+  if (typeof gameEnded !== 'undefined' && gameEnded) return;  // skip post-end fluff
+  battleEventLog.push({ type, time: Date.now(), label, sub: sub || '', color: color || '#FFB84A' });
+  // Cap at 30 entries so we never bloat memory in a long fight.
+  if (battleEventLog.length > 30) battleEventLog.shift();
+}
+
 // Block 3.2 — Arcane Coven (3+ mage)
 let mageDoubleFireActive     = false;  // mage fires execute twice
 let mageDoubleFireInProgress = false;  // per-fire recursion guard
@@ -16118,6 +16334,8 @@ function startBossBattle() {
     _signatureComboCinemaShown = false;
     // PHASE 3 BLOCK 2 — Clutch Slow-Mo per-battle reset. Single fire per battle.
     _clutchSlowMoFired = false;
+    // PHASE 3 BLOCK 3 — Death Flashback event log per-battle reset.
+    battleEventLog = [];
     if (!_isFtueOnly && !_isTower && typeof maybeFireSignatureComboCinematic === 'function') {
       maybeFireSignatureComboCinematic();
     }
@@ -17109,6 +17327,8 @@ function maybeEnrageBerserker() {
     bossAttackDmgMult *= BERSERKER_ENRAGE_MULT;
     flashText('BOSS ENRAGED', '#E85D4A');
     vibrate([100, 50, 100, 50, 200]);
+    // PHASE 3 BLOCK 3 — Death Flashback log
+    try { logBattleEvent('enrage', 'BOSS ENRAGED', '×2 attack damage', '#E85D4A'); } catch (e) {}
   }
 }
 
@@ -17127,6 +17347,8 @@ function maybePhoenixRevive() {
   }
   flashText('PHOENIX REVIVES', '#FF6600');
   renderBossHP();
+  // PHASE 3 BLOCK 3 — Death Flashback log
+  try { logBattleEvent('phoenix', 'PHOENIX REVIVES', 'boss restored to 60% HP', '#FF6600'); } catch (e) {}
   return true;
 }
 
@@ -17177,6 +17399,15 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
   damageDealt += actualDmg;
   floatDamage(actualDmg, isCrit, critMult);
   hitBoss(critMult > 1);
+  // PHASE 3 BLOCK 3 — Death Flashback log (big crits only — combo crits ≥ 2.0× or
+  // any single hit dealing ≥ 600 dmg are "highlight reel" worthy).
+  try {
+    if ((critMult >= 2.0) || (actualDmg >= 600)) {
+      const _src = (_currentFiringHero && _currentFiringHero.name) ? _currentFiringHero.name : 'CRIT';
+      const _label = (critMult >= 2.0) ? (_src + ' · CRIT ×' + critMult.toFixed(1)) : (_src + ' · BIG HIT');
+      logBattleEvent('crit', _label, '−' + actualDmg.toLocaleString('ru-RU') + ' dmg', '#FFD53D');
+    }
+  } catch (e) {}
   // V2.0 Block 1.3: BERSERKER archetype — check enrage threshold post-damage
   maybeEnrageBerserker();
   // V3.0 Phase 6 Block 6.1: multi-phase boss transitions. Fires AFTER enrage
@@ -17732,6 +17963,21 @@ function showDefeatModal() {
   try { awardPostBattleXP(false); } catch (e) { console.warn('awardPostBattleXP (loss) failed:', e); }
   // Task #1.7: Floor 3 loss tracking for stihiya_focus paid-pack trigger removed
   // with Block 3.2 (PAID_PACKS + offers state).
+  // PHASE 3 BLOCK 3 — DEATH FLASHBACK. Show event recap BEFORE the defeat modal.
+  // Player taps CONTINUE in flashback → modal proceeds. Skipped for FTUE-only Pyredrake
+  // and Tower battles (matches voice-line + signature-cinematic gating). Robust fallback:
+  // if showDeathFlashback throws, modal still shows.
+  const _proceedToModal = () => _showDefeatModalBody();
+  const _isFtueOnly = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isFtueOnly);
+  const _isTower    = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle);
+  if (!_isFtueOnly && !_isTower && typeof showDeathFlashback === 'function') {
+    try { showDeathFlashback(_proceedToModal); return; }
+    catch (e) { console.warn('showDeathFlashback failed:', e); }
+  }
+  _proceedToModal();
+}
+
+function _showDefeatModalBody() {
   const box = document.getElementById('modalBox');
   box.style.setProperty('--modal-accent', '#E85D4A');
   // Show boss emblem that killed the player (desaturated defeat style)
@@ -18392,6 +18638,13 @@ async function ultRoleDispatch() {
   const ctx = { burnedCount: 0, burnedStihiyas: [], convertedCount: 0 };
   // V3.0 Phase 5 Block 5.1: mission tracking — one increment per ult fire
   try { if (typeof trackMissionEvent === 'function') trackMissionEvent('ult_fired'); } catch (e) {}
+  // PHASE 3 BLOCK 3 — Death Flashback log (hero ULT fire)
+  try {
+    if (hero && hero.name) {
+      const _ultLabel = (hero.ultText || '').split(':')[0].trim() || 'ULT';
+      logBattleEvent('ult', hero.name + ' · ' + _ultLabel.toUpperCase(), '', STIHIYA_COLORS[hero.stihiya] || '#FFB84A');
+    }
+  } catch (e) {}
   // V2.0 Stage 5 Block 5.1: track ULT fires for post-battle XP (+2 per hero who fired ULT)
   if (hero) hero._ultFiredThisBattle = true;
   // V2.0 Stage 5 Block 5.1: firing-hero pointer for kill-shot attribution in dealDamage
