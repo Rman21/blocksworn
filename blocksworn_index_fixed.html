@@ -7135,6 +7135,55 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .hero-card.hero-card--hypno-suggested::after { animation: none !important; }
 }
 
+/* ===== PHASE 5b BLOCK 4 — Engineer cell visual indicators ===== */
+/* Welded cell (CELL LOCKDOWN) — copper/rust overlay; cell can't be cleared for
+   4 turns. Rust-bronze tint + rivet pattern visual. */
+.grid .cell.cell--engineer-welded {
+  outline: 2px solid #B87333;
+  background-image:
+    radial-gradient(circle at 20% 25%, rgba(184, 115, 51, 0.55), transparent 25%),
+    radial-gradient(circle at 80% 75%, rgba(184, 115, 51, 0.45), transparent 25%),
+    radial-gradient(circle at 50% 50%, rgba(140, 90, 40, 0.65), transparent 60%);
+  box-shadow: inset 0 0 12px rgba(74, 50, 20, 0.85);
+  animation: engineerWeldPulse 2.4s ease-in-out infinite;
+  position: relative;
+}
+.grid .cell.cell--engineer-welded::before {
+  content: '⚙';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 18px;
+  color: rgba(220, 170, 90, 0.95);
+  text-shadow: 0 0 8px rgba(184, 115, 51, 0.85), 0 0 14px rgba(140, 90, 40, 0.65);
+  pointer-events: none;
+  z-index: 5;
+}
+@keyframes engineerWeldPulse {
+  0%, 100% { box-shadow: inset 0 0 12px rgba(74, 50, 20, 0.85); }
+  50%      { box-shadow: inset 0 0 20px rgba(110, 70, 30, 1.00); }
+}
+
+/* Electrified row (CRITICAL MASS) — green energy crackle on cells in active row.
+   P3-only mechanic. Cleaning cells in this row → player damage. */
+.grid .cell.cell--engineer-electrified {
+  outline: 1.5px solid #5BFF80;
+  box-shadow:
+    0 0 14px 2px rgba(91, 255, 128, 0.65),
+    inset 0 0 10px rgba(140, 220, 140, 0.55);
+  animation: engineerElectrifyPulse 0.9s ease-in-out infinite;
+}
+@keyframes engineerElectrifyPulse {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(91, 255, 128, 0.65), inset 0 0 10px rgba(140, 220, 140, 0.55); }
+  50%      { box-shadow: 0 0 22px 4px rgba(140, 255, 160, 0.95), inset 0 0 16px rgba(180, 255, 200, 0.75); }
+}
+
+/* Reduced-motion: kill weld + electrify pulses */
+@media (prefers-reduced-motion: reduce) {
+  .grid .cell.cell--engineer-welded,
+  .grid .cell.cell--engineer-electrified { animation: none !important; }
+}
+
 /* ===== PHASE 5b BLOCK 1 — Chapter 2 archetype auras ===== */
 .boss-archetype-hypnotist {
   /* Verothira — corrupted-purple hypnotic shimmer with eye-pulse rhythm */
@@ -9342,9 +9391,12 @@ const HERO_ROSTER = [
   // remain locked behind GEARHEART (Block 5b.4 → BOSS_UNLOCKS[7]).
   { id:'crocodile_warrior', name:'MOSSJAW',      race:'crocodile', role:'striker', newRole:'warrior', stihiya:'grove', img:'hero_crocodile_warrior', roleIcon:'⚔', minCombo:2, fireText:'Bedrock Strike',  fire: fireMossjaw,      ult: ultRoleDispatch, ultSignature: ultTwistMossjaw,      ultText:'BEDROCK BASTION: empties → earth' },
   { id:'crocodile_hunter',  name:'THORNBACK',    race:'crocodile', role:'striker', newRole:'hunter',  stihiya:'grove', img:'hero_crocodile_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Vengeance Slam',  fire: fireThornback,    ult: ultRoleDispatch, ultSignature: ultTwistThornback,    ultText:'QUAKE: ×3 absorbed dmg' },
-  { id:'crocodile_mage',    name:'MOSSWEAVER',   race:'crocodile', role:'weaver',  newRole:'mage',    stihiya:'grove', img:'hero_crocodile_mage',    roleIcon:'✦', period:12,    fireText:'Verdant Surge',   fire: fireMossweaver,   ult: ultRoleDispatch, ultSignature: ultTwistMossweaver,   ultText:'SURGE: shields → damage',               locked: true },
-  { id:'crocodile_tank',    name:'IRONSCALE',    race:'crocodile', role:'guard',   newRole:'tank',    stihiya:'grove', img:'hero_crocodile_tank',    roleIcon:'🛡',                fireText:'Stone Skin',      fire: fireIronscale,    ult: ultRoleDispatch, ultSignature: ultTwistIronscale,    ultText:'AEGIS: full row earth',                 locked: true },
-  { id:'crocodile_captain', name:'ANCIENTSCALE', race:'crocodile', role:'weaver',  newRole:'captain', stihiya:'grove', img:'hero_crocodile_captain', roleIcon:'✦', period:10,    fireText:'Eternal Bastion', fire: fireAncientscale, ult: ultRoleDispatch, ultSignature: ultTwistAncientscale, ultText:'DOMINION: shields + earth field',       locked: true },
+  // PHASE 5b BLOCK 4: locked: true removed for crocodile_mage / tank / captain —
+  // GEARHEART (Boss 7) victory unlocks them via BOSS_UNLOCKS[7]. Full Crocodile
+  // roster (5/5) becomes playable after Gearheart kill.
+  { id:'crocodile_mage',    name:'MOSSWEAVER',   race:'crocodile', role:'weaver',  newRole:'mage',    stihiya:'grove', img:'hero_crocodile_mage',    roleIcon:'✦', period:12,    fireText:'Verdant Surge',   fire: fireMossweaver,   ult: ultRoleDispatch, ultSignature: ultTwistMossweaver,   ultText:'SURGE: shields → damage' },
+  { id:'crocodile_tank',    name:'IRONSCALE',    race:'crocodile', role:'guard',   newRole:'tank',    stihiya:'grove', img:'hero_crocodile_tank',    roleIcon:'🛡',                fireText:'Stone Skin',      fire: fireIronscale,    ult: ultRoleDispatch, ultSignature: ultTwistIronscale,    ultText:'AEGIS: full row earth' },
+  { id:'crocodile_captain', name:'ANCIENTSCALE', race:'crocodile', role:'weaver',  newRole:'captain', stihiya:'grove', img:'hero_crocodile_captain', roleIcon:'✦', period:10,    fireText:'Eternal Bastion', fire: fireAncientscale, ult: ultRoleDispatch, ultSignature: ultTwistAncientscale, ultText:'DOMINION: shields + earth field' },
   // --- SPARKS (Solar) — Phase 5 Block 4 implementation, locked behind Chapter 2 (Phase 5b) ---
   // 5 heroes × Light/Solar. CREATE solar cells, AMPLIFY shields-per-clear window,
   // DETONATE shields-to-damage burst, PROTECT auto-block, ENABLE Eternal Dawn heal+shields.
@@ -9538,7 +9590,7 @@ const BOSS_UNLOCKS = {
   // Boss numbers are global (chapter-aware): Chapter 2 = 6-10. Crocs/Sparks `locked: true`
   // flags are removed PER-BOSS as each block ships (5b.3 → 2 crocs, 5b.4 → rest, etc.)
   6: ['crocodile_warrior', 'crocodile_hunter'],                                      // Verothira → first 2 Crocodiles (Block 5b.3)
-  // 7: ['crocodile_mage', 'crocodile_tank', 'crocodile_captain'],                   // Gearheart → rest of Crocs (Block 5b.4)
+  7: ['crocodile_mage', 'crocodile_tank', 'crocodile_captain'],                      // Gearheart → rest of Crocs (Block 5b.4)
   // 8: ['spark_warrior', 'spark_hunter'],                                           // Ursaro → first 2 Sparks (Block 5b.5)
   // 9: ['spark_mage', 'spark_tank', 'spark_captain'],                               // Tidespire → rest of Sparks (Block 5b.6)
   // 10: [],                                                                         // Heliotron → Chapter 2 finale (Block 5b.7)
@@ -15500,23 +15552,22 @@ function renderHypnotistVisuals() {
   } catch (e) { /* defensive */ }
 }
 
-// ENGINEER tick — Weld, Extract, Critical Mass (electrified row)
+// ENGINEER tick — Weld, Extract, Critical Mass (electrified row).
+// PHASE 5b BLOCK 4: upgraded from Block 1 scaffolding to full mechanics per Compendium §7.
 function _tickEngineer(phase) {
   engineerTurnsSinceWeld++;
   if (engineerTurnsSinceWeld >= ENGINEER_WELD_INT) {
     engineerTurnsSinceWeld = 0;
-    // Block 1: scaffolding — count cells per phase. 5b.4 will wire actual cell-lock
-    // rendering + interaction guards.
     const weldCount = phase === 1 ? ENGINEER_WELD_COUNT_P1
                     : phase === 2 ? ENGINEER_WELD_COUNT_P2
                     : ENGINEER_WELD_COUNT_P3;
-    try { flashText('⚙ WELD ×' + weldCount, '#B87333'); } catch(e) {}
+    _engineerWeldCells(weldCount);
   }
   if (phase >= 2) {
     engineerTurnsSinceExtract++;
     if (engineerTurnsSinceExtract >= ENGINEER_EXTRACT_INT) {
       engineerTurnsSinceExtract = 0;
-      try { flashText('⚙ EXTRACT', '#B87333'); } catch(e) {}
+      _engineerExtractEarthCells();
     }
   }
   if (phase >= 3) {
@@ -15527,23 +15578,107 @@ function _tickEngineer(phase) {
       engineerElectrifiedRow = Math.floor(Math.random() * SIZE);
       engineerElectrifiedTurns = ENGINEER_ELECTRIFY_DURATION;
       try { flashText('⚙⚙ CRITICAL MASS · row ' + (engineerElectrifiedRow + 1), '#B87333'); } catch(e) {}
+      try { vibrate([60, 40, 60, 40, 100]); } catch(e) {}
+      try { _renderEngineerVisuals(); } catch(e) {}
     }
     // Decay electrified row
     if (engineerElectrifiedTurns > 0) {
       engineerElectrifiedTurns--;
       if (engineerElectrifiedTurns === 0) {
         engineerElectrifiedRow = -1;
+        try { _renderEngineerVisuals(); } catch(e) {}
       }
     }
   }
-  // Decay welded cells
+  // Decay welded cells (per turn — P1: 4 turns, P2: 4 turns, P3: 4 turns since
+  // ENGINEER_WELD_DURATION is constant. Phase-3 overclock just spawns more.)
+  let lockedExpired = false;
   for (const [key, turns] of engineerLockedCells.entries()) {
     if (turns <= 1) {
       engineerLockedCells.delete(key);
+      lockedExpired = true;
     } else {
       engineerLockedCells.set(key, turns - 1);
     }
   }
+  if (lockedExpired) { try { _renderEngineerVisuals(); } catch(e) {} }
+}
+
+// PHASE 5b BLOCK 4 — Cell Lockdown weld. Pick `count` random non-welded non-empty
+// non-void cells and lock them shut for ENGINEER_WELD_DURATION (4) turns. Welded
+// cells skip clearLines (mirror of permanentFrozenCells pattern). Visual: cells
+// gain `.cell--engineer-welded` class showing copper/rust overlay.
+function _engineerWeldCells(count) {
+  if (typeof grid === 'undefined' || !count) return;
+  const candidates = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    const v = grid[r][c];
+    const key = r + '_' + c;
+    if (!v) continue;                           // empty — nothing to weld
+    if (v.startsWith('void_')) continue;        // void — already blocking
+    if (engineerLockedCells.has(key)) continue; // already welded
+    candidates.push([r, c]);
+  }
+  if (candidates.length === 0) return;
+  candidates.sort(() => Math.random() - 0.5);
+  const picks = candidates.slice(0, Math.min(count, candidates.length));
+  for (const [r, c] of picks) {
+    engineerLockedCells.set(r + '_' + c, ENGINEER_WELD_DURATION);
+  }
+  try { flashText('⚙ WELD ×' + picks.length, '#B87333'); } catch(e) {}
+  try { vibrate([60, 40, 60]); } catch(e) {}
+  try { _renderEngineerVisuals(); } catch(e) {}
+}
+
+// PHASE 5b BLOCK 4 — Resource Extract (P2+). Boss drains up to 3 earth-cells
+// from groveAbsorbedByCell Map; heals ENGINEER_EXTRACT_HEAL_PCT (5%) of bossMaxHP
+// per drained cell. Player counter: fire ULTs to consume earth-cells before boss
+// can extract them (shrinks pool boss can drain).
+function _engineerExtractEarthCells() {
+  if (typeof groveAbsorbedByCell === 'undefined' || groveAbsorbedByCell.size === 0) {
+    try { flashText('⚙ EXTRACT · NO RESOURCES', '#B87333'); } catch(e) {}
+    return 0;
+  }
+  const keys = Array.from(groveAbsorbedByCell.keys());
+  keys.sort(() => Math.random() - 0.5);
+  const picks = keys.slice(0, Math.min(3, keys.length));
+  let totalAbsorbed = 0;
+  for (const key of picks) {
+    totalAbsorbed += groveAbsorbedByCell.get(key) || 0;
+    groveAbsorbedByCell.delete(key);
+  }
+  // Reduce groveTotalAbsorbed in sync (used by REVENGE BURST cap detection)
+  if (typeof groveTotalAbsorbed !== 'undefined') {
+    groveTotalAbsorbed = Math.max(0, groveTotalAbsorbed - totalAbsorbed);
+  }
+  // Boss heals 5% of maxHP per drained cell, capped at maxHP
+  if (typeof bossMaxHP !== 'undefined' && typeof bossHP !== 'undefined') {
+    const healAmount = Math.floor(bossMaxHP * ENGINEER_EXTRACT_HEAL_PCT * picks.length);
+    bossHP = Math.min(bossMaxHP, bossHP + healAmount);
+    try { flashText('⚙ EXTRACT ×' + picks.length + ' · BOSS +' + healAmount, '#B87333'); } catch(e) {}
+    try { if (typeof renderBossHP === 'function') renderBossHP(); } catch(e) {}
+  } else {
+    try { flashText('⚙ EXTRACT ×' + picks.length, '#B87333'); } catch(e) {}
+  }
+  try { vibrate([80, 40, 80, 40, 80]); } catch(e) {}
+  return picks.length;
+}
+
+// PHASE 5b BLOCK 4 — render visual indicators for welded cells + electrified row.
+// Lightweight CSS class toggle. Re-applied on every renderGrid() call (hooked via
+// engineerVisualsApplyAfterRender).
+function _renderEngineerVisuals() {
+  try {
+    const cellEls = document.querySelectorAll('.grid .cell');
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      const el = cellEls[r * SIZE + c];
+      if (!el) continue;
+      const isWelded = engineerLockedCells.has(r + '_' + c);
+      const isElectrifiedRow = (engineerElectrifiedRow === r && engineerElectrifiedTurns > 0);
+      el.classList.toggle('cell--engineer-welded', isWelded);
+      el.classList.toggle('cell--engineer-electrified', isElectrifiedRow);
+    }
+  } catch (e) { /* defensive */ }
 }
 
 // FRENZY tick — stack accumulation per turn, decay/reset on hit
@@ -17872,17 +18007,58 @@ async function clearLines(rows, cols) {
   const idxs = new Set();
   for (const r of rows) for (let c = 0; c < SIZE; c++) idxs.add(r*SIZE+c);
   for (const c of cols) for (let r = 0; r < SIZE; r++) idxs.add(r*SIZE+c);
+  // PHASE 5b BLOCK 4 — Critical Mass: count cleared cells in the electrified row
+  // BEFORE clear (so we know how many cells are about to be lost in that row).
+  // Damage applied AFTER clear completes. Engineer-archetype-only.
+  let _engineerElectrifiedClears = 0;
+  if (typeof engineerElectrifiedRow !== 'undefined' && engineerElectrifiedRow >= 0
+      && engineerElectrifiedTurns > 0
+      && typeof currentBoss !== 'undefined' && currentBoss && currentBoss.archetype === 'engineer') {
+    for (let c = 0; c < SIZE; c++) {
+      const idx = engineerElectrifiedRow * SIZE + c;
+      if (idxs.has(idx) && grid[engineerElectrifiedRow] && grid[engineerElectrifiedRow][c]) {
+        // Skip if welded (welded cells don't clear → no electrification damage either)
+        if (typeof engineerLockedCells !== 'undefined'
+            && engineerLockedCells.has(engineerElectrifiedRow + '_' + c)) continue;
+        _engineerElectrifiedClears++;
+      }
+    }
+  }
   for (const i of idxs) cellEls[i].classList.add('clearing');
   vibrate(25);
   // V3.0 Phase 9 Vivid: particle burst from cleared cells toward the boss portrait.
   try { vPlayLineClearBurst(rows, cols); } catch(e){}
   await sleep(450);
-  // V2.0 Stage 5 Block 5.3: permanentFrozenCells are immune to clear cycles (Azuralys/Rimehelm T3 permafrost)
+  // V2.0 Stage 5 Block 5.3: permanentFrozenCells are immune to clear cycles (Azuralys/Rimehelm T3 permafrost).
+  // PHASE 5b BLOCK 4: engineerLockedCells (Engineer Cell Lockdown) similarly immune.
   for (const r of rows) for (let c = 0; c < SIZE; c++) {
-    if (!permanentFrozenCells.has(r + '_' + c)) grid[r][c] = null;
+    const _key = r + '_' + c;
+    if (permanentFrozenCells.has(_key)) continue;
+    if (typeof engineerLockedCells !== 'undefined' && engineerLockedCells.has(_key)) continue;
+    grid[r][c] = null;
   }
   for (const c of cols) for (let r = 0; r < SIZE; r++) {
-    if (!permanentFrozenCells.has(r + '_' + c)) grid[r][c] = null;
+    const _key = r + '_' + c;
+    if (permanentFrozenCells.has(_key)) continue;
+    if (typeof engineerLockedCells !== 'undefined' && engineerLockedCells.has(_key)) continue;
+    grid[r][c] = null;
+  }
+  // PHASE 5b BLOCK 4 — apply Critical Mass damage AFTER clear (player loses HP for
+  // clearing cells in the electrified row). 50 dmg per cleared cell. Shields absorb
+  // 1 per Critical Mass burst (similar to Bloom Bloom corruption pattern).
+  if (_engineerElectrifiedClears > 0) {
+    const _criticalDmg = _engineerElectrifiedClears * 50;
+    try { flashText('⚙⚙ CRITICAL MASS · ' + _criticalDmg, '#B87333'); } catch(e) {}
+    if (shieldCount > 0) {
+      shieldCount = Math.max(0, shieldCount - 1);
+    } else {
+      hp = Math.max(0, hp - _criticalDmg);
+      try { battleDamageTaken += _criticalDmg; } catch(e) {}
+      if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+        try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch(e) {}
+      }
+    }
+    try { vibrate([100, 50, 100]); } catch(e) {}
   }
 }
 
@@ -24074,6 +24250,10 @@ function renderGrid() {
     d.dataset.r = r; d.dataset.c = c;
     el.appendChild(d);
   }
+  // PHASE 5b BLOCK 4 — re-apply Engineer cell visual indicators (welded cells +
+  // electrified row) after grid re-render. Idempotent — toggles classes off when
+  // state cleared. Defensive try/catch so visualizer glitches don't break render.
+  try { if (typeof _renderEngineerVisuals === 'function') _renderEngineerVisuals(); } catch (e) {}
 }
 
 function renderTray() {
