@@ -7184,6 +7184,104 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .grid .cell.cell--engineer-electrified { animation: none !important; }
 }
 
+/* ===== PHASE 5b BLOCK 8 — CRYPT LICH AFTERMATH cinematic ===== */
+/* World Map unlock cinematic per Meta-Progression spec §4.1. Shown once on
+   first Crypt Lich defeat. 4-stage text fade-in: 3 narrative lines + Chapter 2
+   banner + CONTINUE button. AAA-tier feel: dark backdrop with purple→gold
+   gradient pulse, dramatic stagger reveal of each text line.
+   z-index 9200 (above gameplay 9000-9100, below cinematic-tier 9999). */
+.crypt-aftermath {
+  position: fixed; inset: 0;
+  z-index: 9200;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.6s ease-in-out;
+}
+.crypt-aftermath.show { opacity: 1; }
+.crypt-aftermath.hidden { display: none; }
+.crypt-aftermath .cla-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(155, 89, 214, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 70%, rgba(255, 184, 74, 0.35) 0%, transparent 60%),
+    rgba(0, 0, 0, 0.92);
+  animation: claBgFade 0.8s ease-in-out forwards;
+}
+@keyframes claBgFade {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+.crypt-aftermath .cla-content {
+  position: relative;
+  z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+  padding: 40px 24px;
+  max-width: 90%;
+  text-align: center;
+}
+.crypt-aftermath .cla-line {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #E8DCFF;
+  text-shadow: 0 0 12px rgba(155, 89, 214, 0.55), 0 0 24px rgba(0, 0, 0, 0.85);
+  opacity: 0;
+  transform: translateY(8px);
+}
+.crypt-aftermath .cla-line-1 { animation: claLineEnter 0.9s ease-out 0.6s forwards; }
+.crypt-aftermath .cla-line-2 { animation: claLineEnter 0.9s ease-out 2.0s forwards; }
+.crypt-aftermath .cla-line-3 { animation: claLineEnter 0.9s ease-out 3.4s forwards; }
+@keyframes claLineEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.crypt-aftermath .cla-banner {
+  margin-top: 16px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  background: linear-gradient(135deg, #FFB84A 0%, #9B59D6 50%, #FFB84A 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 28px rgba(255, 184, 74, 0.65);
+  opacity: 0;
+  animation: claBannerEnter 1.2s ease-out 5.0s forwards;
+}
+@keyframes claBannerEnter {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.crypt-aftermath .cla-cta {
+  margin-top: 22px;
+  padding: 12px 32px;
+  font-size: 13px; font-weight: 800; letter-spacing: 0.20em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #FFB84A 0%, #9B59D6 100%);
+  color: #1a1530;
+  border: none; border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(155, 89, 214, 0.55), 0 0 18px rgba(255, 184, 74, 0.45);
+  opacity: 0;
+  transition: filter 0.18s ease, transform 0.12s ease;
+  animation: claLineEnter 0.8s ease-out 6.4s forwards;
+}
+.crypt-aftermath .cla-cta:hover  { filter: brightness(1.08); }
+.crypt-aftermath .cla-cta:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .crypt-aftermath { transition: opacity 0.3s linear; }
+  .crypt-aftermath .cla-bg,
+  .crypt-aftermath .cla-line-1,
+  .crypt-aftermath .cla-line-2,
+  .crypt-aftermath .cla-line-3,
+  .crypt-aftermath .cla-banner,
+  .crypt-aftermath .cla-cta {
+    animation-duration: 0.4s !important;
+    animation-timing-function: linear !important;
+  }
+}
+
 /* ===== PHASE 5b BLOCK 7 — Battery (Heliotron) charge meter UI ===== */
 /* Visible "Solar Charge" bar above boss area. Updates per placement via
    _renderBatteryChargeMeter. Hides for non-Battery bosses. Danger/critical
@@ -8890,6 +8988,22 @@ button.season-tier-claim:active {
   </div>
 </div>
 
+<!-- PHASE 5b BLOCK 8 — CRYPT LICH AFTERMATH cinematic. Shown ONCE on first
+     Crypt Lich defeat. Per Meta-Progression spec §4.1: 4-stage text fade-in
+     announcing Chapter 2 unlock + World Map reveal. Tap CONTINUE → dismisses
+     overlay + re-renders menu (Chapter 2 tab now accessible via existing
+     chapterToggle). Hidden by default; shown via showCryptLichAftermathCinematic. -->
+<div id="cryptLichAftermath" class="crypt-aftermath hidden" aria-hidden="true">
+  <div class="cla-bg"></div>
+  <div class="cla-content">
+    <div class="cla-line cla-line-1" id="claLine1">The dominion has fallen.</div>
+    <div class="cla-line cla-line-2" id="claLine2">But something else has risen.</div>
+    <div class="cla-line cla-line-3" id="claLine3">Welcome, Summoner — to what comes next.</div>
+    <div class="cla-banner" id="claBanner">CHAPTER 2 — BLOOM OF MADNESS</div>
+    <button class="cla-cta" id="claCta" type="button" onclick="_dismissCryptLichAftermath()">ENTER THE WORLD</button>
+  </div>
+</div>
+
 <!-- PHASE 4 BLOCK 1 + HOTFIX #1 — FTUE CHRONOGRAPH coachmark. Hidden by default;
      shown by maybeChronoBeat(beatId) during FTUE Pyredrake fight (PHASE A · BASICS,
      4 beats) and FTUE Grunt fight (PHASE B · ADVANCED, 2 beats). Tier line is
@@ -9898,6 +10012,27 @@ function applyBossDefeatProgression(bossNumber) {
     const delay = squadBumped ? 1500 : 250;
     setTimeout(() => showHeroUnlockCelebration(bossNumber, newlyUnlocked), delay);
   }
+  // PHASE 5b BLOCK 8 — Crypt Lich aftermath cinematic. First-time defeat of
+  // Crypt Lich (Chapter 1 Boss 5 = global boss 5) → unlock Chapter 2 + show
+  // World Map cinematic per Meta-Progression spec §4.1. Idempotent: gated by
+  // chapter2Unlocked flag (false → true transition only fires cinematic once).
+  // Fires AFTER hero-unlock celebration (delay + 1500ms) so events are ordered:
+  //   squad slot toast (if any) → hero unlock celebration → Chapter 2 cinematic
+  if (bossNumber === 5 && !chapter2Unlocked) {
+    chapter2Unlocked = true;
+    try { saveProgress(); } catch (e) {}
+    const cinematicDelay = (squadBumped ? 1500 : 250) + 2000;
+    setTimeout(() => {
+      try {
+        if (typeof showCryptLichAftermathCinematic === 'function') {
+          showCryptLichAftermathCinematic(() => {
+            // After dismiss: re-render menu so Chapter 2 tab is now visible/active
+            try { if (typeof renderMenu === 'function') renderMenu(); } catch (e) {}
+          });
+        }
+      } catch (e) { console.warn('Crypt Lich aftermath cinematic failed:', e); }
+    }, cinematicDelay);
+  }
 }
 
 // Block B3: lightweight celebration overlay — uses existing flashText for the toast
@@ -10189,6 +10324,65 @@ function showDeathFlashback(onDismiss) {
   try { vibrate([200, 100, 200]); } catch (e) {}
 }
 
+// ===== PHASE 5b BLOCK 8 — CRYPT LICH AFTERMATH cinematic =====
+// World Map unlock cinematic per Meta-Progression spec §4.1. Shown ONCE on
+// first Crypt Lich (Chapter 1 Boss 5) defeat — announces Chapter 2 unlock.
+// Trigger: applyBossDefeatProgression(5) when chapter2Unlocked transitions
+// false → true. Dismiss: _dismissCryptLichAftermath() called by CONTINUE
+// button OR backdrop tap.
+//
+// Idempotent: each call to showCryptLichAftermathCinematic() restarts the
+// animation (re-flow CSS animations via offsetWidth trick). One-shot per save
+// is enforced at the caller site (chapter2Unlocked flag persistence).
+let _cryptLichAftermathDismissCb = null;
+
+function showCryptLichAftermathCinematic(onDismiss) {
+  const overlay = document.getElementById('cryptLichAftermath');
+  if (!overlay) {
+    if (typeof onDismiss === 'function') { try { onDismiss(); } catch (e) {} }
+    return;
+  }
+  _cryptLichAftermathDismissCb = (typeof onDismiss === 'function') ? onDismiss : null;
+  // Reset CSS animations by removing/adding the class
+  overlay.classList.remove('show');
+  overlay.classList.remove('hidden');
+  // Force reflow so animations restart cleanly
+  void overlay.offsetWidth;
+  overlay.classList.add('show');
+  overlay.setAttribute('aria-hidden', 'false');
+  // Tactile + audio cue
+  try { vibrate([100, 60, 200, 80, 200, 100, 400]); } catch (e) {}
+  try { speakNarrator('chapterUnlocked'); } catch (e) {}
+}
+
+function _dismissCryptLichAftermath() {
+  const overlay = document.getElementById('cryptLichAftermath');
+  if (!overlay) return;
+  overlay.classList.remove('show');
+  overlay.setAttribute('aria-hidden', 'true');
+  // Wait for fade-out transition (0.6s per CSS) before hiding
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+    if (_cryptLichAftermathDismissCb) {
+      try { _cryptLichAftermathDismissCb(); } catch (e) { console.warn('Crypt Lich aftermath dismiss callback failed:', e); }
+      _cryptLichAftermathDismissCb = null;
+    }
+  }, 620);
+}
+
+// Backdrop-tap dismiss (in case user taps anywhere outside CTA button)
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', () => {
+    try {
+      const overlay = document.getElementById('cryptLichAftermath');
+      if (overlay) {
+        const bg = overlay.querySelector('.cla-bg');
+        if (bg) bg.addEventListener('click', _dismissCryptLichAftermath);
+      }
+    } catch (e) {}
+  });
+}
+
 // ===== PHASE 4 BLOCK 1 — FTUE CHRONOGRAPH (interactive coachmarks) =====
 // (PHASE 4 HOTFIX #1 — split into 2 phases for AAA+ pacing)
 //
@@ -10440,6 +10634,30 @@ function runMigration_BACKLOG002_tank_backfill() {
   } catch (e) { console.warn('BACKLOG-002 backfill failed:', e); }
 }
 
+// PHASE 5b BLOCK 8 — Chapter 2 unlock backfill. Existing playtest saves with
+// bossesDefeated >= 5 in chapterProgress[1] should have chapter2Unlocked = true
+// (they earned it but pre-Block-8 the flag never got set). Idempotent — flag
+// in localStorage prevents re-running.
+function runMigration_PHASE5B_chapter2_unlock() {
+  const FLAG = 'blocksworn_migration_phase5b_chapter2_unlock';
+  try {
+    if (localStorage.getItem(FLAG) === 'true') return;
+    // Read chapterProgress from saveProgress storage
+    const raw = localStorage.getItem('blocksworn_progress');
+    if (raw) {
+      const data = JSON.parse(raw);
+      // chapterProgress is keyed by chapter id; chapter 1 has 5 bosses
+      const ch1Defeated = (data && data.chapterProgress && (data.chapterProgress[1] || data.chapterProgress['1'])) || 0;
+      if (ch1Defeated >= 5 && !data.chapter2Unlocked) {
+        data.chapter2Unlocked = true;
+        localStorage.setItem('blocksworn_progress', JSON.stringify(data));
+        console.log('[PHASE 5b Block 8] chapter2Unlocked backfilled (Crypt Lich already defeated)');
+      }
+    }
+    localStorage.setItem(FLAG, 'true');
+  } catch (e) { console.warn('PHASE 5b chapter-2 unlock migration failed:', e); }
+}
+
 // PHASE 5 BLOCK 5 — strip Crocs/Sparks from any save state (one-time per install).
 // Sparks/Crocs were temporarily unlockable during Phase 5 Block 2-4 dev/playtest;
 // per Meta-Progression spec §7 they're gated behind Chapter 2 (Phase 5b). This
@@ -10490,6 +10708,9 @@ function runMigration_PHASE5_lock_chapter2_heroes() {
 // NOTE: PHASE 5 migration runs FIRST so it scrubs storage before loadUnlockedHeroesFromStorage
 // reads it; otherwise Crocs/Sparks would briefly appear as unlocked then get re-locked.
 runMigration_PHASE5_lock_chapter2_heroes();
+// PHASE 5b BLOCK 8 — chapter2Unlocked backfill for saves where Crypt Lich was
+// already defeated (chapterProgress[1] >= 5). Runs BEFORE loadProgress reads it.
+runMigration_PHASE5B_chapter2_unlock();
 loadUnlockedHeroesFromStorage();
 loadSquadMaxFromStorage();
 runMigration_B3();
