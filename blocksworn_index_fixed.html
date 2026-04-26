@@ -1384,6 +1384,25 @@
   box-shadow: 0 0 6px rgba(122, 236, 74, 0.6);
 }
 
+/* 2026-04-27 — Role-verb tag on roster card. Sits just above the name label.
+ * Single-word combat verb (CREATE / AMPLIFY / DETONATE / PROTECT / ENABLE)
+ * for at-a-glance squad-building decisions. Matches design palette. */
+.a-roster-grid .v-hero-card .a-hero-role-tag {
+  position: absolute;
+  left: 6px; right: 6px; bottom: 24px;
+  text-align: center;
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  font-weight: 900;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 0.8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
+  z-index: 3;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 0.92;
+}
+
 /* Race emblem icon — top-right */
 .a-roster-grid .v-hero-card .a-hero-race {
   position: absolute;
@@ -8027,10 +8046,27 @@ button.season-tier-claim:active {
 .detail-tier-badge.t0 { display: none; }
 .detail-abilities {
   margin: 12px 0;
-  font-size: 11px; line-height: 1.6; color: #A8A5B8;
+  font-size: 11px; line-height: 1.55; color: #A8A5B8;
 }
-.detail-abilities .ab-row { margin-bottom: 6px; }
-.detail-abilities .ab-label { color: #E8E6DF; font-weight: 700; letter-spacing: 0.5px; margin-right: 6px; }
+/* 2026-04-27 — bullet rows for ROLE / ELEMENT / PASSIVE / ULT / RACE.
+ * Each row uses a left bullet rule to mark it as a discrete bullet
+ * (vs a paragraph). Visual rhythm matches the existing detail card. */
+.detail-abilities .ab-row {
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid rgba(255, 213, 61, 0.35);
+  border-radius: 0 4px 4px 0;
+}
+.detail-abilities .ab-label {
+  display: inline-block;
+  min-width: 78px;
+  color: #E8E6DF;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-right: 8px;
+  font-size: 10px;
+}
 .detail-tiers-header {
   font-size: 11px; font-weight: 700; color: #E8E6DF;
   letter-spacing: 2px; margin: 10px 0 8px;
@@ -26354,6 +26390,15 @@ function vRenderRoster() {
       race.appendChild(rimg);
       card.appendChild(race);
     }
+    // 2026-04-27 — Role tag on roster card. Single-word verb (CREATE/AMPLIFY/
+    // DETONATE/PROTECT/ENABLE) sits just above the name label so players can
+    // scan a hero's combat verb at a glance without opening the detail modal.
+    if (!locked && h.newRole && _ROLE_BULLET[h.newRole]) {
+      const rtag = document.createElement('div');
+      rtag.className = 'a-hero-role-tag';
+      rtag.textContent = _ROLE_BULLET[h.newRole].icon + ' ' + _ROLE_BULLET[h.newRole].tag;
+      card.appendChild(rtag);
+    }
     // Name label
     const nm = document.createElement('div'); nm.className = 'name-lbl'; nm.textContent = h.name;
     card.appendChild(nm);
@@ -26682,6 +26727,46 @@ function toggleSquadMember(id) {
 // ===== HERO DETAIL MODAL =====
 let detailHeroId = null;
 
+// 2026-04-27 — Per-hero key bullets for select-screen display.
+// Built from hero meta (newRole + stihiya + race) + the existing hero.fireText/
+// hero.ultText fields. Returns an array of {label, text, color} bullets in the
+// reading order players expect: ROLE → ELEMENT → PASSIVE → ULT → RACE TIP.
+const _ROLE_BULLET = {
+  warrior: { tag: 'CREATE',   verb: 'Sows element-cells. Source of the chain.',          icon: '⚔' },
+  mage:    { tag: 'AMPLIFY',  verb: 'Boosts existing state. NO new cells — pure mult.',  icon: '✦' },
+  hunter:  { tag: 'DETONATE', verb: 'Mass-detonate. Main damage dealer.',                icon: '🏹' },
+  tank:    { tag: 'PROTECT',  verb: 'Shields + element-specific defense.',               icon: '🛡' },
+  captain: { tag: 'ENABLE',   verb: 'Race buff + element drop +25%. One per squad.',     icon: '👑' },
+};
+const _ELEMENT_BULLET = {
+  ember: 'Cascade chain via charged ember cells.',
+  tide:  'Frost chains build longer = bigger SHATTER.',
+  grove: 'Earth absorbs boss damage, REVENGE BURST cashes it in.',
+  umbra: 'Encore stacks accumulate, then explode (×2 ULT).',
+  solar: 'Solar clears stack shields, RADIANCE converts ALL → burst.',
+};
+const _RACE_BULLET = {
+  pirate:    '2+ pirates: +10% gold · 3+: 15% double combo',
+  rock:      '2+ rocks: +5% cascade · 3+: ENCORE — first 🌑ULT ×2',
+  shark:     '2+ sharks: SWIM (dissolve void_tide) · 3+: BLOODHUNT +30% under 30% HP',
+  crocodile: '2+ crocs: DEATH ROLL (revive 1HP) · 3+: IRON HIDE +1🛡/turn',
+  spark:     '2+ sparks: CHARGE REGEN +10% · 3+: STATIC FIELD AoE every 5',
+};
+function getHeroBullets(hero) {
+  if (!hero) return [];
+  const role = _ROLE_BULLET[hero.newRole];
+  const elem = _ELEMENT_BULLET[hero.stihiya];
+  const race = _RACE_BULLET[hero.race];
+  const elemColor = (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS[hero.stihiya]) || '#ffd53d';
+  const out = [];
+  if (role) out.push({ label: role.icon + ' ROLE',     text: role.tag + ' — ' + role.verb,     color: '#ffd53d' });
+  if (elem) out.push({ label: '◆ ELEMENT',             text: hero.stihiya.toUpperCase() + ' — ' + elem, color: elemColor });
+  out.push({ label: '🔥 PASSIVE',  text: hero.fireText || '—', color: '#aaa' });
+  out.push({ label: '💥 ULT',      text: hero.ultText  || '—', color: '#aaa' });
+  if (race) out.push({ label: '👥 RACE',  text: race, color: '#aaa' });
+  return out;
+}
+
 function openHeroDetail(heroId) {
   const hero = HERO_ROSTER.find(h => h.id === heroId);
   if (!hero) return;
@@ -26707,11 +26792,21 @@ function openHeroDetail(heroId) {
   const badge = document.getElementById('detailTierBadge');
   badge.className = `detail-tier-badge t${tier}`;
   badge.textContent = tier > 0 ? `TIER ${['','I','II','III','IV'][tier]}` : '';
-  // Ability description
+  // Ability description — 2026-04-27 expanded to bullet-list per hero (role,
+  // element, passive, ULT, race-passive). Each row keeps the existing .ab-row
+  // styling so visual continuity is preserved; .ab-label color now derives from
+  // the bullet's color field for element-tinted ELEMENT row.
   const abEl = document.getElementById('detailAbilities');
-  abEl.innerHTML =
-    `<div class="ab-row"><span class="ab-label">PASSIVE</span>${hero.fireText || '—'}</div>` +
-    `<div class="ab-row"><span class="ab-label">ULTIMATE</span>${hero.ultText || '—'}</div>`;
+  const bullets = (typeof getHeroBullets === 'function') ? getHeroBullets(hero) : [];
+  if (bullets.length > 0) {
+    abEl.innerHTML = bullets.map(b =>
+      `<div class="ab-row"><span class="ab-label" style="color:${b.color}">${b.label}</span>${b.text}</div>`
+    ).join('');
+  } else {
+    abEl.innerHTML =
+      `<div class="ab-row"><span class="ab-label">PASSIVE</span>${hero.fireText || '—'}</div>` +
+      `<div class="ab-row"><span class="ab-label">ULTIMATE</span>${hero.ultText || '—'}</div>`;
+  }
   // Tier buttons
   renderHeroDetailTiers(hero);
   // V3.0 Phase 4 Block 4.2: render level section (level value, bar, stat preview, upgrade button)
