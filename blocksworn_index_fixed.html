@@ -10944,8 +10944,18 @@ function awardWinGold() {
 }
 
 function addGold(n) {
-  const v = Math.floor(Number(n));
+  let v = Math.floor(Number(n));
   if (!Number.isFinite(v)) { console.warn('addGold: invalid', n); return; }
+  // §8 race-passive — PIRATES 2-of-race: +10% gold drop.
+  // Apply only on positive deltas (drops/rewards), not on debits (purchases).
+  try {
+    if (v > 0 && Array.isArray(HERO_DECK)) {
+      const pirateCount = HERO_DECK.filter(h => h && h.race === 'pirate').length;
+      if (pirateCount >= 2) {
+        v = Math.floor(v * PIRATE_GOLD_DROP_MULT);
+      }
+    }
+  } catch (e) {}
   gold = Math.max(0, gold + v);
   saveGoldToStorage();
   renderResourceBar();
@@ -16458,6 +16468,28 @@ const STATIC_FIELD_BASE_DMG   = 80;            // base damage per Spark in squad
 // HERO_DECK at fire time inside addChargeToHero.
 const SPARK_CHARGE_REGEN_MULT = 1.10;
 
+// HERO_GRAMMAR §6/§8 race-passive constants — v1 races (Pirates / Rock / Sharks).
+// Phase 5b grammar-conformance hotfix 2026-04-27. Each pair (2-of, 3+-of) per §8.
+//
+// PIRATES — "Burst rage. Fastest cascades."
+const PIRATE_GOLD_DROP_MULT      = 1.10;  // 2-of: +10% gold drop
+const PIRATE_DOUBLE_COMBO_CHANCE = 0.15;  // 3+-of: 15% chance to double combo mult
+//
+// ROCK BAND — "Escalation. Stacks build, then explode."
+const ROCK_CASCADE_BONUS_CHANCE  = 0.05;  // 2-of: +5% chance of extra cascade neighbor
+// Rock 3+-of: ENCORE — handled in RACE_SYNERGY rock.3 (encore: true) — same flag
+// path as the legacy rock.5 race-pure tier; just earlier activation per plan §8.
+//
+// SHARKS — "Tempo control. Chains build the storm."
+// 2-of: SWIM-THROUGH — at end of player turn, dissolve 1 void_tide cell back to
+// empty (capped at 1/turn). The Shark "swims through" the iced-over void.
+// 3+-of: BLOODHUNT — additive +30% damage when boss HP < 30%. Multiplier applied
+// in dealDamage stack via _bloodhuntContext.
+const SHARK_BLOODHUNT_THRESHOLD  = 0.30;  // boss HP fraction
+const SHARK_BLOODHUNT_MULT       = 1.30;
+let   pirateDoubleComboFiredThisBattle = 0;  // telemetry/UI counter (per-battle reset)
+let   sharkSwimThroughFiredThisBattle  = 0;  // telemetry/UI counter (per-battle reset)
+
 // HERO_GRAMMAR §4 [Earth / Grove] — Earth-cell absorption + REVENGE BURST (Phase 5 Block 1).
 // Universal element side-system. Earth-cells absorb boss damage instead of player HP;
 // accumulated absorption is consumed by Hunter (THORNBACK Vengeance Quake — Phase 5 Block 2)
@@ -17004,17 +17036,20 @@ const RACE_SYNERGY = {
          bonusDmg: { solar: 3 },
          prideHunt: true, roar: true, huntPack: true,
          desc: '+2HP · +1🛡 · +25% dmg · 25% ☀ start · +25% ☀ · +3☀/cell · ROAR · HUNT PACK' } },
-  // V2.0 Block 2.5: ROCK redesigned as ENCORE — repetition specialist, double-cast ULT, echo bonus
+  // V2.0 Block 2.5: ROCK redesigned as ENCORE — repetition specialist, double-cast ULT, echo bonus.
+  // 2026-04-27 §8 grammar: ENCORE moved from tier 5 → tier 3 per plan
+  // ("3+-of-race: ENCORE — ULTs fire дважды подряд"). Tier 5 still has it
+  // (race-pure squad of 5 rocks remains strongest — keeps escalation).
   rock:     { flavor: 'ENCORE · umbra',
     2: { hp: 1, dmgMult: 0.05, passiveMult: { umbra: 0.15 },
-         desc: '+1 HP · +5% dmg · +15% 🌑dmg' },
+         desc: '+1 HP · +5% dmg · +15% 🌑dmg · +5% cascade chance' },
     3: { hp: 1, shields: 1, dmgMult: 0.10, passiveMult: { umbra: 0.15 },
-         rhythmSection: true,
-         desc: '+1HP · +1🛡 · +10% dmg · +15% 🌑 · RHYTHM SECTION (+🌑/cell per clears)' },
+         rhythmSection: true, encore: true,
+         desc: '+1HP · +1🛡 · +10% dmg · +15% 🌑 · RHYTHM · ENCORE (first 🌑ULT ×2)' },
     5: { hp: 2, shields: 2, dmgMult: 0.15, passiveMult: { umbra: 0.30 },
          startCharge: { umbra: 0.50 },
          rhythmSection: true, encore: true, amplifier: true,
-         desc: '+2HP · +2🛡 · +15% dmg · +30% 🌑 · 50% 🌑 start · RHYTHM · ENCORE (first 🌑ULT ×2) · AMPLIFIER' } },
+         desc: '+2HP · +2🛡 · +15% dmg · +30% 🌑 · 50% 🌑 start · RHYTHM · ENCORE · AMPLIFIER' } },
 };
 
 // V2.0 Block 2.1: DUAL_SYNERGIES — cross-race bonuses when 2+ of each listed race are present.
@@ -17838,6 +17873,9 @@ function resetRaceFlags() {
   lumenwindHaloShieldsBonus = 1;
   lumenwindHaloDuration    = 0;
   staticFieldCounter       = 0;
+  // 2026-04-27 §8 v1 race-passive per-battle telemetry resets
+  pirateDoubleComboFiredThisBattle = 0;
+  sharkSwimThroughFiredThisBattle  = 0;
   // Phase 5b Block 1 — Chapter 2 archetype state per-battle reset (unconditional;
   // initChapter2Archetype runs in the boss-battle init hook below for Chapter 2
   // bosses specifically, but we reset here defensively so Chapter 1 battles never
@@ -18779,6 +18817,16 @@ function applyCascade(fromKey) {
   // V2.0 Block 5.2: CRIMSON T2+ — crimsonCascadeDepth can increase to 2 (multiplicative with cascade fleet)
   let cascadeCount = cascadeFleetActive ? EMBER_CASCADE_COUNT * 2 : EMBER_CASCADE_COUNT;
   if (crimsonCascadeDepth > 1) cascadeCount = Math.max(cascadeCount, crimsonCascadeDepth);
+  // §8 race-passive — ROCK BAND 2-of-race: +5% chance per cascade for an
+  // additional neighbor spread (cascade chance bonus per plan).
+  try {
+    if (Array.isArray(HERO_DECK)) {
+      const rockCount = HERO_DECK.filter(h => h && h.race === 'rock').length;
+      if (rockCount >= 2 && Math.random() < ROCK_CASCADE_BONUS_CHANCE) {
+        cascadeCount++;
+      }
+    }
+  } catch (e) {}
   for (let i = 0; i < cascadeCount && i < candidates.length; i++) {
     chargedCells.add(candidates[i]);
   }
@@ -19709,10 +19757,34 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
     try { flashText('🌸 OBEYED · +' + Math.round(bonus * 100) + '%', '#9B59D6'); } catch(e) {}
     try { renderHypnotistVisuals(); } catch(e) {}
   }
+  // §8 race-passive — SHARKS 3+-of-race: BLOODHUNT — +30% dmg when boss HP < 30%.
+  let _bloodhuntContext = 1;
+  try {
+    if (Array.isArray(HERO_DECK) && bossMaxHP > 0) {
+      const sharkCount = HERO_DECK.filter(h => h && h.race === 'shark').length;
+      if (sharkCount >= 3 && (bossHP / bossMaxHP) < SHARK_BLOODHUNT_THRESHOLD) {
+        _bloodhuntContext = SHARK_BLOODHUNT_MULT;
+      }
+    }
+  } catch (e) {}
+  // §8 race-passive — PIRATES 3+-of-race: 15% chance to DOUBLE the combo mult.
+  // Roll once per dealDamage call; banner only on proc to avoid spam.
+  let _pirateDoubleContext = 1;
+  try {
+    if (Array.isArray(HERO_DECK)) {
+      const pirateCount = HERO_DECK.filter(h => h && h.race === 'pirate').length;
+      if (pirateCount >= 3 && Math.random() < PIRATE_DOUBLE_COMBO_CHANCE) {
+        _pirateDoubleContext = 2;
+        pirateDoubleComboFiredThisBattle++;
+        try { flashText('PIRATE DOUBLE ×2', '#FFD53D'); } catch (e2) {}
+      }
+    }
+  } catch (e) {}
   const _multStack = currentDmgMult * _passiveDmgContext * _ultDmgContext
                    * _warbandStrikeContext * _hunterMarkContext
                    * _grommarRallyContext * _packMarkContext * _helioRoarContext
-                   * _captainDualContext * _signatureComboContext * _hypnoSuggestContext;
+                   * _captainDualContext * _signatureComboContext * _hypnoSuggestContext
+                   * _bloodhuntContext * _pirateDoubleContext;
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
@@ -24419,6 +24491,28 @@ async function afterPlacement(piece) {
       flashText('HALO FADES', '#E8B84A');
     }
   }
+  // HERO_GRAMMAR §6/§8 race-passive [Shark 2-of-race] — SWIM THROUGH ICEBOUND.
+  // 2026-04-27. End-of-placement: dissolve up to 1 void_tide cell back to empty
+  // (the Shark "swims through" the iced-over void). Gated by 2+ Shark heroes in
+  // HERO_DECK + presence of any void_tide cell on board.
+  try {
+    if (Array.isArray(HERO_DECK)) {
+      const sharkCount = HERO_DECK.filter(h => h && h.race === 'shark').length;
+      if (sharkCount >= 2) {
+        const voidTides = [];
+        for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+          if (grid[r][c] === 'void_tide') voidTides.push([r, c]);
+        }
+        if (voidTides.length > 0) {
+          const [vr, vc] = voidTides[Math.floor(Math.random() * voidTides.length)];
+          grid[vr][vc] = null;
+          sharkSwimThroughFiredThisBattle++;
+          try { render(); } catch (e2) {}
+          flashText('SWIM THROUGH', STIHIYA_COLORS.tide || '#3B8BD4');
+        }
+      }
+    }
+  } catch (e) {}
   // HERO_GRAMMAR §6 race-passive [Crocodile 3+-of-race] — IRON HIDE: squad +1 shield each turn.
   // Phase 5 Block 2 race-passive. Gated by 3+ Crocodile heroes in HERO_DECK; capped by MAX_SHIELD.
   try {
