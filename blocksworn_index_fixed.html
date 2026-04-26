@@ -20604,6 +20604,35 @@ async function bossAttack() {
   await sleep(300);
   const voidKey = 'void_' + currentBoss.stihiya;
   for (const [r, c] of picks) grid[r][c] = voidKey;
+
+  // §5 matrix Tank passives — element-specific reactions to boss attacks.
+  // Each fires only if the corresponding hero is in HERO_DECK.
+  // IRONSCALE (Earth Tank): "Auto-convert hits to earth-cells" — convert N
+  // freshly-spawned voids back to grove absorbers (registers via groveAbsorbedByCell
+  // so REVENGE BURST consumes them later). Up to 1/3 of incoming voids.
+  if (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)
+      && HERO_DECK.some(h => h && h.id === 'crocodile_tank') && MOTIFS_ENABLED.grove) {
+    const convertCount = Math.min(picks.length, Math.max(1, Math.floor(picks.length / 3)));
+    let converted = 0;
+    for (let i = 0; i < picks.length && converted < convertCount; i++) {
+      const [r, c] = picks[i];
+      grid[r][c] = 'grove';
+      if (typeof groveAbsorbedByCell !== 'undefined') groveAbsorbedByCell.set(r + '_' + c, 0);
+      converted++;
+    }
+    if (converted > 0) flashText('STONE SKIN · ' + converted + ' → 🌍', STIHIYA_COLORS.grove);
+  }
+  // IRONBELLY (Fire Tank): "Counter-burns boss" — chip damage proportional to
+  // void cells absorbed. 25 dmg per incoming void, capped at 200 per attack.
+  if (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)
+      && HERO_DECK.some(h => h && h.id === 'pirate_tank') && MOTIFS_ENABLED.ember) {
+    const counterDmg = Math.min(200, picks.length * 25);
+    if (counterDmg > 0) {
+      flashText('FIREBRAND · COUNTER ' + counterDmg, '#FF8B3D');
+      dealDamage(counterDmg, true);
+    }
+  }
+
   render();
   const cellEls = document.querySelectorAll('.grid .cell');
   for (const [r, c] of picks) cellEls[r*SIZE+c].classList.add('spawning');
@@ -21603,28 +21632,38 @@ async function ultTwistIronbelly(ctx) {
 }
 
 // HERO_GRAMMAR §4 [Fire × Captain] — CRIMSON / DOMINION ULT signature
-// Spec ULT pattern (Captain): DOMINION — board-wide element seed + multiplier window.
-// Spec cell ULT: seeds 10 charged cells with 50% spawn bias. Current matches via cell
-// conversion (10 cells in applyCaptainUlt) + 50%/60% charged spawn rate in this twist.
+// §5 matrix: "DOMINION ULT spawns ember field" — board-wide ember spawn (mass
+// cell creation, not just charging existing). 2-stage:
+//   1. Charge a tier-scoped fraction of cells already converted to ember by
+//      applyCaptainUlt (50%/60% per crimsonChargedRate).
+//   2. NEW (2026-04-26): spawn an extra ember field — 4 fresh ember-charged
+//      cells in random empties via _spawnEmberCharged. This delivers the
+//      "ember field" half of the matrix spec. Pre-fix ULT only charged
+//      existing cells (failed §5 "field" mechanic).
 // Persistent dual buff (race-scaling dmg + fixed +25% drop) lives in calcSynergyState.
-// CRIMSON — PIRATE DOMINION: 50% of converted cells spawn charged (vs Skarn's 30%)
 // V2.0 Stage 5 Block 5.2: reads crimsonChargedRate (T1 0.60)
 async function ultTwistCrimson(ctx) {
-  if (!ctx.convertedCount) return;
-  const cands = [];
-  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-    if (grid[r][c] === 'ember' && !chargedCells.has(r + '_' + c)) cands.push(r + '_' + c);
-  }
-  cands.sort(() => Math.random() - 0.5);
-  const target = Math.floor(ctx.convertedCount * crimsonChargedRate);  // T0=0.50, T1+=0.60
-  let added = 0;
-  for (let i = 0; i < cands.length && added < target; i++) {
-    if (chargedCells.size < EMBER_CHARGED_CAP) {
-      chargedCells.add(cands[i]);
-      added++;
+  // Stage 1 — charge existing ember from converted set.
+  if (ctx.convertedCount) {
+    const cands = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      if (grid[r][c] === 'ember' && !chargedCells.has(r + '_' + c)) cands.push(r + '_' + c);
     }
+    cands.sort(() => Math.random() - 0.5);
+    const target = Math.floor(ctx.convertedCount * crimsonChargedRate);  // T0=0.50, T1+=0.60
+    let added = 0;
+    for (let i = 0; i < cands.length && added < target; i++) {
+      if (chargedCells.size < EMBER_CHARGED_CAP) {
+        chargedCells.add(cands[i]);
+        added++;
+      }
+    }
+    if (added > 0) { renderChargedVisuals(); flashText('PIRATE DOMINION ×' + added, '#FFAA00'); }
   }
-  if (added > 0) { renderChargedVisuals(); flashText('PIRATE DOMINION ×' + added, '#FFAA00'); }
+  // Stage 2 — spawn ember FIELD (matrix §5 mandate). Independent of converted
+  // cells: 4 brand-new charged ember cells in empties, capped by EMBER_CHARGED_CAP.
+  const fielded = await _spawnEmberCharged(4);
+  if (fielded > 0) flashText('EMBER FIELD ×' + fielded, '#FFAA00');
 }
 
 // ===== V2.0 STAGE 4 BLOCK 4.2 — TIDE HERO SIGNATURES =====

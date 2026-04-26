@@ -139,11 +139,14 @@ Same flow для Dark, Frost, Earth, Light — same verbs, different visuals.
 Role = **combo verb**. Same verb across all elements.
 
 ### ⚔️ WARRIOR — CREATOR
-**What it does:** Создаёт element-charged клетки на линии фигуры. Источник цепочки.
-**Charge cost relative:** medium (combo ≥ 2 для fire)
-**Common pattern:** Direct hit damage + spawn charged cells.
-**v1 examples:** THORGAR (Fire), RIFFBLADE (Dark), RIMEFANG (Frost). MOSSJAW (Earth), EMBERSPARK (Light) — Phase 5.
+**What it does:** Создаёт element-cells/charged-cells of own element. Источник цепочки.
+**Charge cost relative:** fastest (combo ≥ 2 for fire) — cheapest setup per role grammar.
+**Common pattern:** **Spawn cells only. ZERO damage on fire** — Warrior is pure setup.
+Damage flows through Hunter (DETONATOR = "Главный damage dealer").
+**v1 examples:** THORGAR (3 ember-charged), RIFFBLADE (3 umbra · 5 on RIFF BEAT), RIMEFANG (3 tide), MOSSJAW (3 grove absorbers), EMBERSPARK (3 solar).
 **Combo position:** Step 1 — opens cascade.
+
+**CRITICAL RULE (2026-04-26):** Warrior fire NEVER calls `dealDamage()`. If it does — ROLE-VERB CONFLICT (warrior poaching hunter's role).
 
 ### ✦ MAGE — AMPLIFIER
 **What it does:** Усиливает существующие charged cells/stacks. **NO new state — only amplifies.**
