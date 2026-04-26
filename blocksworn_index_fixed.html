@@ -21312,42 +21312,19 @@ async function _spawnEmberCharged(maxCount) {
   return picks.length;
 }
 
-// HERO_GRAMMAR §4 [Fire × Warrior] — THORGAR / CLEAVER SWEEP
+// HERO_GRAMMAR §4 [Fire × Warrior] — THORGAR / CLEAVER FORGE
 // Spec (§2.4): "Создаёт ember-charged клетки на линии фигуры. Источник цепочки."
-// Warrior CREATOR — sows fresh ember-charged substrate from empty cells, so the
-// chain starts even on a board with no ember (EMBERHAND amplifies → BLACKTOOTH
-// detonates). Direct hit + cleave preserve placement attack and entry into any
-// pre-existing chain.
-// Charge cost relative: medium (combo ≥ 2 fires; ULT ~4 placements).
-// V2.0 Stage 5 Block 5.2 tier reads: thorgarBaseDmg (T1 230), thorgarClearCount (T2 2)
-// HOTFIX 2026-04-26 — replaced "charge 3 existing ember" with "spawn 3 new ember-
-// charged cells in empties." Pre-fix THORGAR depended on ember already existing on
-// board to charge — failed §2.4 CREATOR contract on empty boards.
+// Warrior is a **pure CREATOR** — no damage on fire. Damage flows through Hunter
+// (BLACKTOOTH = "Главный damage dealer" per §2.3). THORGAR sows ember-charged
+// substrate that EMBERHAND amplifies and BLACKTOOTH detonates. This honors the
+// role separation: Warrior = setup, Mage = amplifier, Hunter = finisher.
+// Charge cost relative: fastest (combo ≥ 2 fires; cheapest setup per §2.3).
+// HOTFIX 2026-04-26b — removed direct damage + cleave per Roman feedback
+// "Thorgar до сих пор атакует, а не просто создает клетки". Earlier hotfix
+// added FORGE spawn but kept legacy attack/cleave — those diluted the role.
 async function fireThorgar(counts) {
-  let baseDmg = thorgarBaseDmg;
-  const ember = [];
-  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-    if (grid[r][c] === 'ember') ember.push([r, c]);
-  }
-  ember.sort(() => Math.random() - 0.5);
-  const cleaves = ember.slice(0, thorgarClearCount);
-  const cellEls = document.querySelectorAll('.grid .cell');
-  for (const [cr, cc] of cleaves) {
-    const wasCharged = chargedCells.has(cr + '_' + cc);
-    cellEls[cr * SIZE + cc].classList.add('burning');
-    baseDmg += BONUS_DMG.ember;
-    if (wasCharged) applyCascade(cr + '_' + cc);
-  }
-  if (cleaves.length > 0) await sleep(300);
-  for (const [cr, cc] of cleaves) {
-    grid[cr][cc] = null;
-    chargedCells.delete(cr + '_' + cc);
-  }
-  // CREATOR half — spawn 3 NEW ember-charged cells from empties (real creation,
-  // not charge-existing). Source of the chain even on ember-empty boards.
   const created = await _spawnEmberCharged(3);
-  if (created > 0) flashText('CLEAVER · FORGE ×' + created, '#FF8B3D');
-  dealDamage(baseDmg, true);
+  if (created > 0) flashText('CLEAVER FORGE ×' + created, '#FF8B3D');
   vibrate([40, 20, 40]);
 }
 
@@ -22518,26 +22495,24 @@ async function _spawnUmbraCells(maxCount) {
   return picks.length;
 }
 
-// HERO_GRAMMAR §4 [Dark × Warrior] — RIFFBLADE / RIFF STRIKE
-// Spec (§2.4): "Сеет dark seed-cells" — Warrior CREATOR sows umbra substrate
-// that feeds onUmbraCellsCleared → encoreStacks. Direct-hit damage + RIFF BEAT
-// preserve the placement attack and v1 flavor.
-// Charge cost relative: medium (combo ≥ 2 fires; ULT ~4 placements).
-// HOTFIX 2026-04-26 — added active umbra-cell spawn (2 cells; 3 on RIFF BEAT).
-// Pre-fix RIFFBLADE was pure damage with no creation, relying on organic boss
-// spawns to seed Encore (failed §2.4 CREATOR contract).
-// V2.0 Stage 5 Block 5.6: riffbladeBeatInterval (3→2), riffbladeBeatMult (2→3)
+// HERO_GRAMMAR §4 [Dark × Warrior] — RIFFBLADE / RIFF SEED
+// Spec (§2.4): "Сеет dark seed-cells" — Warrior is a **pure CREATOR**. No damage
+// on fire. Damage flows through Hunter (SHRIEK detonates Encore stacks).
+// RIFFBLADE sows umbra seeds that onUmbraCellsCleared turns into encoreStacks,
+// KEYCRYPT amplifies, SHRIEK detonates with Encore-of-Encore.
+// RIFF BEAT every 2nd fire = bonus seeds (instead of legacy doubled damage).
+// Charge cost relative: fastest (combo ≥ 2 fires; cheapest setup per §2.3).
+// HOTFIX 2026-04-26b — removed direct damage. RIFF BEAT now boosts seed count.
 async function fireRiffblade(counts) {
   riffbladeFireCounter++;
-  let dmg = 200;
-  let seedCount = 2;
-  if (riffbladeFireCounter % riffbladeBeatInterval === 0) {
-    dmg = 200 * riffbladeBeatMult;
-    seedCount = 3;
-    flashText('RIFF BEAT ×' + riffbladeBeatMult, STIHIYA_COLORS.umbra);
+  let seedCount = 3;
+  const isBeat = (riffbladeFireCounter % riffbladeBeatInterval === 0);
+  if (isBeat) {
+    seedCount = 5;  // RIFF BEAT — overflow seeds for big Encore stacking
+    flashText('RIFF BEAT ×' + seedCount, STIHIYA_COLORS.umbra);
   }
-  dealDamage(dmg, true);
-  await _spawnUmbraCells(seedCount);
+  const created = await _spawnUmbraCells(seedCount);
+  if (!isBeat && created > 0) flashText('RIFF SEED ×' + created, STIHIYA_COLORS.umbra);
   vibrate([40, 20, 40]);
 }
 
@@ -22803,16 +22778,15 @@ async function _spawnTideCells(maxCount) {
 }
 
 // HERO_GRAMMAR §4 [Frost × Warrior] — RIMEFANG / TIDEBREAKER
-// Spec (§2.4): "Создаёт frost-cells (требуют цепь)" — Warrior CREATOR sows tide
-// substrate that feeds onTideCellsCleared → frostChainSegments. Direct hit damage
-// preserves the placement attack.
-// Charge cost: medium (combo ≥ 2 fires; ULT ~4 placements).
-// HOTFIX 2026-04-26 — added active tide-cell spawn (2 cells). Pre-fix RIMEFANG
-// was pure damage with no creation, leaving the chain-source role to organic
-// boss spawns (failed §2.4 CREATOR contract).
+// Spec (§2.4): "Создаёт frost-cells (требуют цепь)" — Warrior is a **pure CREATOR**.
+// No damage on fire. Damage flows through Hunter (BRINESHOT detonates chains).
+// RIMEFANG sows tide substrate that onTideCellsCleared turns into frostChainSegments,
+// CRYOMIND amplifies the chain, BRINESHOT detonates.
+// Charge cost: fastest (combo ≥ 2 fires; cheapest setup per §2.3).
+// HOTFIX 2026-04-26b — removed direct damage. Warrior = setup, not attack.
 async function fireRimefang(counts) {
-  dealDamage(200, true);
-  await _spawnTideCells(2);
+  const created = await _spawnTideCells(3);
+  if (created > 0) flashText('TIDEBREAKER ×' + created, STIHIYA_COLORS.tide);
   vibrate([40, 20, 40]);
 }
 
@@ -23026,13 +23000,17 @@ async function _spawnGroveAbsorbers(maxCount) {
   return picks.length;
 }
 
-// HERO_GRAMMAR §4 [Earth × Warrior] — MOSSJAW / BEDROCK STRIKE
-// Spec: Создаёт earth cells (absorbing). Charge cost: medium (combo ≥ 2).
-// CONFORMS — direct hit damage + spawn 2 grove absorber cells (CREATE role verb).
+// HERO_GRAMMAR §4 [Earth × Warrior] — MOSSJAW / BEDROCK FORGE
+// Spec (§2.4): "Создаёт earth-cells (поглощают boss damage)" — Warrior is a
+// **pure CREATOR**. No damage on fire. Damage flows through Hunter (THORNBACK
+// REVENGE BURST = absorbed dmg). MOSSJAW seeds absorbers that soak boss hits,
+// MOSSWEAVER amplifies absorption, THORNBACK detonates the stored absorption.
+// Charge cost: fastest (combo ≥ 2 fires; cheapest setup per §2.3).
+// HOTFIX 2026-04-26b — removed direct damage. Pure CREATE.
 // ULT BEDROCK BASTION (signature) converts ALL empty cells to grove absorbers.
 async function fireMossjaw(counts) {
-  dealDamage(180, true);
-  await _spawnGroveAbsorbers(2);
+  const created = await _spawnGroveAbsorbers(3);
+  if (created > 0) flashText('BEDROCK FORGE ×' + created, STIHIYA_COLORS.grove);
   vibrate([40, 20, 40]);
 }
 async function ultTwistMossjaw(ctx) {
@@ -23219,14 +23197,18 @@ async function _spawnSolarCells(maxCount) {
   return picks.length;
 }
 
-// HERO_GRAMMAR §4 [Light × Warrior] — EMBERSPARK / SUN STRIKE
-// Spec: Создаёт light cells (+1 shield each on clear). Charge cost: medium (combo ≥ 2).
-// CONFORMS — direct hit damage + spawn 2 solar cells (CREATE role verb). Solar cells
-// produce shields when cleared via onSolarCellsCleared (Phase 5 Block 3 hook).
+// HERO_GRAMMAR §4 [Light × Warrior] — EMBERSPARK / SUN FORGE
+// Spec (§2.4): "Создаёт light-cells (+1 shield на clear)" — Warrior is a
+// **pure CREATOR**. No damage on fire. Damage flows through Hunter (RADIANCE
+// SHIELDS-TO-DAMAGE — converts ALL shields to burst). EMBERSPARK seeds solar
+// cells that produce shields on clear, LUMENWIND amps to +2 shields/clear,
+// RADIANCE detonates the shield pool.
+// Charge cost: fastest (combo ≥ 2 fires; cheapest setup per §2.3).
+// HOTFIX 2026-04-26b — removed direct damage. Pure CREATE.
 // ULT SUN CASCADE (signature): convert 5 random cells to solar (mass CREATE).
 async function fireEmbersark(counts) {
-  dealDamage(180, true);
-  await _spawnSolarCells(2);
+  const created = await _spawnSolarCells(3);
+  if (created > 0) flashText('SUN FORGE ×' + created, STIHIYA_COLORS.solar || '#E8B84A');
   vibrate([40, 20, 40]);
 }
 async function ultTwistEmbersark(ctx) {
