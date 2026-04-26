@@ -21321,6 +21321,8 @@ function render() { renderDeck(); renderGrid(); renderTray(); renderHP(); render
 // AAA+ polish: replace text descriptors with visual emblems for compact synergy pills.
 // HP → ❤, DMG → ⚔, ULT → ⚡, element words → element emojis. Helps the player parse
 // what a pill DOES at a glance without reading "rock_dmg / umbra_drops" prose.
+// PHASE 3 polish: also strip verbose legacy synergy tails (RHYTHM SECTION (+...) etc.)
+// that bloat the pill width without adding actionable info for the player.
 function _emblematizeSynergy(text) {
   let t = text;
   // Element words → their emoji glyph (case-insensitive). Captain pill is processed too —
@@ -21335,8 +21337,17 @@ function _emblematizeSynergy(text) {
   t = t.replace(/(\d+)\s*HP\b/gi,  '$1❤')
        .replace(/(\d+)%\s*DMG\b/gi, '$1%⚔')
        .replace(/([+\-−]?\d+)\s*ULT\b/gi, '$1⚡');
-  // Long phrase compression — shave verbose synergy desc to keep pills slim.
-  t = t.replace(/RHYTHM SECTION/gi, '🎸');
+  // Strip verbose legacy tails — these named conditional buffs (RHYTHM SECTION, ENCORE,
+  // AMPLIFIER, BLOOD*, PLUNDER, FLOOD, CASCADE FLEET, etc.) are infrastructure-only
+  // flags whose effects manifest elsewhere; their pill text was bloating the bar.
+  t = t.replace(/\s*·\s*RHYTHM SECTION[^·]*$/i, '')
+       .replace(/\s*·\s*ENCORE[^·]*$/i, '')
+       .replace(/\s*·\s*AMPLIFIER[^·]*$/i, '')
+       .replace(/\s*·\s*BLOOD[A-Z]*[^·]*$/i, '')
+       .replace(/\s*·\s*PLUNDER[^·]*$/i, '')
+       .replace(/\s*·\s*CASCADE FLEET[^·]*$/i, '')
+       .replace(/\s*·\s*FLOOD[^·]*$/i, '')
+       .replace(/\s*·\s*UNBROKEN[^·]*$/i, '');
   return t;
 }
 
@@ -21344,7 +21355,23 @@ function renderSynergyBar() {
   const el = document.getElementById('synergyBar');
   if (!el) return;
   if (!activeSynergies || !activeSynergies.length) { el.innerHTML = ''; return; }
-  el.innerHTML = activeSynergies.map(s => {
+  // PHASE 3 polish: suppress race + stihiya pills when Tier 3 Signature Combo is active
+  // for the same race+element. The signature pill is the headline; race/stihiya pills
+  // are subset info that bloats the bar. v1: this typically hides 4× ROCK + 4× UMBRA
+  // pills when THE DARK ENCORE is active (similar for other 2 named combos).
+  let pillSource = activeSynergies;
+  if (activeSignatureCombo && activeSignatureCombo.tier === 3) {
+    const sigRace = (activeSignatureCombo.race    || '').toUpperCase();
+    const sigStih = (activeSignatureCombo.stihiya || '').toUpperCase();
+    pillSource = activeSynergies.filter(s => {
+      // Skip the race tier pill (e.g. "4× ROCK: ...")
+      if (sigRace && new RegExp('^\\d+× ' + sigRace + ':').test(s)) return false;
+      // Skip the stihiya tier pill (e.g. "4× UMBRA: ...")
+      if (sigStih && new RegExp('^\\d+× ' + sigStih + ':').test(s)) return false;
+      return true;
+    });
+  }
+  el.innerHTML = pillSource.map(s => {
     // V2.0 Stage 3 (Block 3.1): formation entries start with '⚔ ' prefix; style them distinctly
     const isFormation = /^⚔ /.test(s);
     // HERO_GRAMMAR §6 + TASK #2.2b: captain dual buff entries start with '👑 ' — dedicated
