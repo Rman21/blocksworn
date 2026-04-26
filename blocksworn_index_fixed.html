@@ -7184,6 +7184,25 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .grid .cell.cell--engineer-electrified { animation: none !important; }
 }
 
+/* ===== PHASE 5b BLOCK 5 — Frenzy hero-card visual indicators ===== */
+/* Devoured hero (DEVOUR) — locked from firing for 3 turns; heavy red theme +
+   tooth/bear emoji badge. Visually distinct from Tendril Coil (purple) and
+   regular hero state. Mirrors hero-card--hypno-coiled pattern but red palette. */
+.hero-card.hero-card--frenzy-devoured {
+  outline: 2px solid #FF4400;
+  filter: brightness(0.45) saturate(0.65);
+  box-shadow: inset 0 0 28px rgba(180, 30, 30, 0.85), 0 0 14px rgba(255, 80, 30, 0.55);
+  position: relative;
+}
+.hero-card.hero-card--frenzy-devoured::after {
+  content: '🐻';
+  position: absolute;
+  top: -8px; right: -8px;
+  font-size: 22px;
+  text-shadow: 0 0 8px #FF4400, 0 0 14px rgba(255, 110, 40, 0.85);
+  pointer-events: none;
+}
+
 /* ===== PHASE 5b BLOCK 1 — Chapter 2 archetype auras ===== */
 .boss-archetype-hypnotist {
   /* Verothira — corrupted-purple hypnotic shimmer with eye-pulse rhythm */
@@ -9403,8 +9422,11 @@ const HERO_ROSTER = [
   // Race-passive: Charge Regen (2-of) + Static Field (3+). Tier 3 signature: THE PRISMATIC RIDE.
   // PHASE 5 BLOCK 5: locked: true. Per Meta-Progression spec §7: URSARO (Boss 8) → 2 unlocked,
   // TIDESPIRE (Boss 9) → rest. Block 5b will re-gate progression after Chapter 2 implementation.
-  { id:'spark_warrior', name:'EMBERSPARK', race:'spark', role:'striker', newRole:'warrior', stihiya:'solar', img:'hero_spark_warrior', roleIcon:'⚔', minCombo:2, fireText:'Sun Strike',     fire: fireEmbersark,  ult: ultRoleDispatch, ultSignature: ultTwistEmbersark,  ultText:'CASCADE: convert + shield window',     locked: true },
-  { id:'spark_hunter',  name:'RADIANCE',   race:'spark', role:'striker', newRole:'hunter',  stihiya:'solar', img:'hero_spark_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Aurora Burst',   fire: fireRadiance,   ult: ultRoleDispatch, ultSignature: ultTwistRadiance,   ultText:'BURST: shields → damage (no consume)', locked: true },
+  // PHASE 5b BLOCK 5: locked: true removed for spark_warrior + spark_hunter —
+  // URSARO (Boss 8) victory unlocks them via BOSS_UNLOCKS[8]. Mage/Tank/Captain
+  // remain locked behind TIDESPIRE (Block 5b.6 → BOSS_UNLOCKS[9]).
+  { id:'spark_warrior', name:'EMBERSPARK', race:'spark', role:'striker', newRole:'warrior', stihiya:'solar', img:'hero_spark_warrior', roleIcon:'⚔', minCombo:2, fireText:'Sun Strike',     fire: fireEmbersark,  ult: ultRoleDispatch, ultSignature: ultTwistEmbersark,  ultText:'CASCADE: convert + shield window' },
+  { id:'spark_hunter',  name:'RADIANCE',   race:'spark', role:'striker', newRole:'hunter',  stihiya:'solar', img:'hero_spark_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Aurora Burst',   fire: fireRadiance,   ult: ultRoleDispatch, ultSignature: ultTwistRadiance,   ultText:'BURST: shields → damage (no consume)' },
   { id:'spark_mage',    name:'LUMENWIND',  race:'spark', role:'weaver',  newRole:'mage',    stihiya:'solar', img:'hero_spark_mage',    roleIcon:'✦', period:12,    fireText:'Halo Window',    fire: fireLumenwind,  ult: ultRoleDispatch, ultSignature: ultTwistLumenwind,  ultText:'HALO: double shields',                  locked: true },
   { id:'spark_tank',    name:'AEGIS',      race:'spark', role:'guard',   newRole:'tank',    stihiya:'solar', img:'hero_spark_tank',    roleIcon:'🛡',                fireText:'Sun Guard',      fire: fireAegis,      ult: ultRoleDispatch, ultSignature: ultTwistAegis,      ultText:'EQUILIBRIUM: shields + immunity',       locked: true },
   { id:'spark_captain', name:'SOLARLORD',  race:'spark', role:'weaver',  newRole:'captain', stihiya:'solar', img:'hero_spark_captain', roleIcon:'✦', period:10,    fireText:'Eternal Dawn',   fire: fireSolarlord,  ult: ultRoleDispatch, ultSignature: ultTwistSolarlord,  ultText:'DOMINION: heal + shields + solar cells', locked: true },
@@ -9591,7 +9613,7 @@ const BOSS_UNLOCKS = {
   // flags are removed PER-BOSS as each block ships (5b.3 → 2 crocs, 5b.4 → rest, etc.)
   6: ['crocodile_warrior', 'crocodile_hunter'],                                      // Verothira → first 2 Crocodiles (Block 5b.3)
   7: ['crocodile_mage', 'crocodile_tank', 'crocodile_captain'],                      // Gearheart → rest of Crocs (Block 5b.4)
-  // 8: ['spark_warrior', 'spark_hunter'],                                           // Ursaro → first 2 Sparks (Block 5b.5)
+  8: ['spark_warrior', 'spark_hunter'],                                              // Ursaro → first 2 Sparks (Block 5b.5)
   // 9: ['spark_mage', 'spark_tank', 'spark_captain'],                               // Tidespire → rest of Sparks (Block 5b.6)
   // 10: [],                                                                         // Heliotron → Chapter 2 finale (Block 5b.7)
 };
@@ -14831,6 +14853,13 @@ function canFireUlt(heroId) {
       && hypnotistTendrilTurnsLeft > 0) {
     return false;
   }
+  // PHASE 5b BLOCK 5 — Frenzy Devour: locked hero cannot fire ULT for 3 turns.
+  // Visual feedback via .hero-card--frenzy-devoured CSS class.
+  if (typeof frenzyDevouredHeroId !== 'undefined'
+      && frenzyDevouredHeroId === heroId
+      && frenzyDevouredTurnsLeft > 0) {
+    return false;
+  }
   return (heroCharges[heroId] || 0) >= getUltCost(heroId);
 }
 function consumeUltCharge(heroId) {
@@ -15319,11 +15348,16 @@ let frenzyHitThisTurn           = false;      // tracks whether boss took damage
 let frenzyP3Active              = false;      // P3 doubles stack gain
 let frenzyMaulQueued            = false;      // P2+: ≥5 stacks → 3-attack combo this turn
 let frenzyDevourQueued          = false;      // P3: ≥8 stacks → eat lowest-HP hero
+// PHASE 5b BLOCK 5 — Devoured hero state (mirror of Hypnotist Tendril Coil pattern but 3-turn duration)
+let frenzyDevouredHeroId        = null;       // currently devoured hero (locked from firing)
+let frenzyDevouredTurnsLeft     = 0;          // 3 turns by default
 const FRENZY_STACK_CAP          = 10;
 const FRENZY_STACK_CAP_P3       = 8;          // P3 caps lower but gain doubles → faster cap
 const FRENZY_DMG_PER_STACK      = 0.05;       // +5% boss attack damage per stack
 const FRENZY_MAUL_THRESHOLD     = 5;          // P2+: stacks ≥ this → MAUL combo
 const FRENZY_DEVOUR_THRESHOLD   = 8;          // P3: stacks ≥ this → DEVOUR
+const FRENZY_DEVOUR_DURATION    = 3;          // turns devoured hero is locked from firing
+const FRENZY_DEVOUR_HEAL_PCT    = 0.08;       // 8% maxHP heal on devour
 const FRENZY_DECAY_P2           = 0.5;        // P2 decay on hit (vs P1 reset)
 
 // TEMPO DISRUPTOR (Tidespire) — manipulates turn flow / time
@@ -15389,6 +15423,8 @@ function resetChapter2ArchetypeState() {
   frenzyP3Active = false;
   frenzyMaulQueued = false;
   frenzyDevourQueued = false;
+  frenzyDevouredHeroId = null;
+  frenzyDevouredTurnsLeft = 0;
   // Tempo Disruptor
   tempoSlowQueued = false;
   tempoChargeNullifyQueued = false;
@@ -15681,7 +15717,8 @@ function _renderEngineerVisuals() {
   } catch (e) { /* defensive */ }
 }
 
-// FRENZY tick — stack accumulation per turn, decay/reset on hit
+// FRENZY tick — stack accumulation per turn, decay/reset on hit.
+// PHASE 5b BLOCK 5: upgraded from Block 1 scaffolding to full mechanics per Compendium §8.
 function _tickFrenzy(phase) {
   // P3: doubled stack gain
   if (phase >= 3) frenzyP3Active = true;
@@ -15705,7 +15742,68 @@ function _tickFrenzy(phase) {
     try { flashText('🐻 MAUL · ' + frenzyStacks, '#FF6E28'); } catch(e) {}
   } else if (frenzyDevourQueued) {
     try { flashText('🐻🐻 DEVOUR · ' + frenzyStacks, '#FF4400'); } catch(e) {}
+    // Devour fires immediately on tick when threshold crossed (vs Maul which is
+    // consumed by next bossAttack). Lock + heal happens here.
+    _frenzyDevour();
   }
+  // Devoured hero decay (per turn)
+  if (frenzyDevouredTurnsLeft > 0) {
+    frenzyDevouredTurnsLeft--;
+    if (frenzyDevouredTurnsLeft === 0) {
+      frenzyDevouredHeroId = null;
+      try { _renderFrenzyVisuals(); } catch(e) {}
+    }
+  }
+}
+
+// PHASE 5b BLOCK 5 — Devour. Pick "weakest" hero (lowest charge progress = least
+// combat-ready) and lock from firing for 3 turns. Boss heals 8% maxHP. Frenzy
+// stacks reset to 0 (devour consumes the buildup). Heroes' "lowest HP" → lowest
+// charge fraction (charge / cost) since v1 doesn't have per-hero HP.
+function _frenzyDevour() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return;
+  const candidates = HERO_DECK.filter(h => h && h.id && h.id !== frenzyDevouredHeroId);
+  if (candidates.length === 0) return;
+  // Pick hero with lowest charge fraction (charge / cost)
+  let target = null;
+  let lowestFrac = Infinity;
+  for (const h of candidates) {
+    const charge = (heroCharges && heroCharges[h.id]) || 0;
+    const cost   = (typeof getUltCost === 'function') ? getUltCost(h.id) : 100;
+    const frac   = charge / Math.max(1, cost);
+    if (frac < lowestFrac) { lowestFrac = frac; target = h; }
+  }
+  if (!target) return;
+  frenzyDevouredHeroId    = target.id;
+  frenzyDevouredTurnsLeft = FRENZY_DEVOUR_DURATION;
+  // Consume stacks — devour represents the "release" of frenzy buildup
+  frenzyStacks = 0;
+  // Boss heal
+  if (typeof bossMaxHP !== 'undefined' && typeof bossHP !== 'undefined') {
+    const healAmount = Math.floor(bossMaxHP * FRENZY_DEVOUR_HEAL_PCT);
+    bossHP = Math.min(bossMaxHP, bossHP + healAmount);
+    try { flashText('🐻🐻 DEVOUR · ' + target.name + ' · BOSS +' + healAmount, '#FF4400'); } catch(e) {}
+    try { if (typeof renderBossHP === 'function') renderBossHP(); } catch(e) {}
+  } else {
+    try { flashText('🐻🐻 DEVOUR · ' + target.name, '#FF4400'); } catch(e) {}
+  }
+  try { vibrate([100, 50, 100, 50, 200]); } catch(e) {}
+  try { _renderFrenzyVisuals(); } catch(e) {}
+}
+
+// Visual indicator — devoured hero card (red theme + 🐻 badge, mirror of
+// Hypnotist Tendril Coil pattern but distinct color/emoji). Re-applied on
+// every renderDeck() via render hook.
+function _renderFrenzyVisuals() {
+  try {
+    const cards = document.querySelectorAll('.hero-card');
+    for (const card of cards) {
+      const id = card.dataset && card.dataset.id;
+      if (!id) continue;
+      const isDevoured = (frenzyDevouredHeroId === id && frenzyDevouredTurnsLeft > 0);
+      card.classList.toggle('hero-card--frenzy-devoured', isDevoured);
+    }
+  } catch (e) { /* defensive */ }
 }
 
 // TEMPO DISRUPTOR tick — Slow Time, Reverse Tempo, Tidal Lock
@@ -19095,6 +19193,13 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
   damageDealt += actualDmg;
   floatDamage(actualDmg, isCrit, critMult);
   hitBoss(critMult > 1);
+  // PHASE 5b BLOCK 5 — Frenzy hit detection. Boss took damage this placement →
+  // mark frenzyHitThisTurn so _tickFrenzy resets/decays stacks at end of turn.
+  // Only applies when current boss is Frenzy archetype (URSARO).
+  if (actualDmg > 0 && typeof currentBoss !== 'undefined'
+      && currentBoss && currentBoss.archetype === 'frenzy') {
+    frenzyHitThisTurn = true;
+  }
   // PHASE 3 BLOCK 3 — Death Flashback log (big crits only — combo crits ≥ 2.0× or
   // any single hit dealing ≥ 600 dmg are "highlight reel" worthy).
   try {
@@ -19859,7 +19964,27 @@ function maybeBossAttack() {
   // battle (flag in showClutchMoment / maybeFireClutchSlowMo guards).
   try { if (typeof maybeFireClutchSlowMo === 'function') maybeFireClutchSlowMo(); } catch (e) {}
   if (attackCountdown <= 0) {
-    bossAttack();
+    // PHASE 5b BLOCK 5 — Frenzy MAUL COMBO. When boss is Frenzy archetype AND
+    // frenzyMaulQueued (≥5 stacks at end of last tick), fire 3 sequential bossAttacks
+    // in this turn. Devour fires INSTEAD of regular attack (consumed already in
+    // _frenzyDevour by the time we get here — no extra attack on devour turns).
+    let _attacksThisTurn = 1;
+    if (typeof currentBoss !== 'undefined' && currentBoss
+        && currentBoss.archetype === 'frenzy'
+        && typeof frenzyMaulQueued !== 'undefined' && frenzyMaulQueued
+        && !(typeof frenzyDevourQueued !== 'undefined' && frenzyDevourQueued)) {
+      _attacksThisTurn = 3;
+      try { flashText('🐻 MAUL COMBO ×3', '#FF6E28'); } catch (e) {}
+      try { vibrate([100, 60, 100, 60, 100, 60, 200]); } catch (e) {}
+      // Consume the queue flag — won't repeat next turn unless stacks rebuild
+      frenzyMaulQueued = false;
+    }
+    (async () => {
+      for (let i = 0; i < _attacksThisTurn; i++) {
+        await bossAttack();
+        if (i < _attacksThisTurn - 1) await sleep(400); // brief pause between Maul strikes
+      }
+    })();
     attackCountdown = currentBoss.attackInterval;
     if (activeModifiers.has('doubleTime')) attackCountdown = Math.max(2, Math.floor(attackCountdown / MODIFIERS.doubleTime.speedMult));
   }
@@ -19897,6 +20022,14 @@ async function bossAttack() {
   let mult = 1;
   if (bossRagePending > 1) { mult *= bossRagePending; bossRagePending = 0; }
   if (bossRageEmber > 0)   mult *= (1 + bossRageEmber);
+  // PHASE 5b BLOCK 5 — Frenzy stack damage scaling. When boss is Frenzy archetype,
+  // each stack adds +5% to attack severity (more void cells spawned). Stack count
+  // resets/decays when boss takes damage (handled in dealDamage hit detection).
+  if (typeof currentBoss !== 'undefined' && currentBoss
+      && currentBoss.archetype === 'frenzy'
+      && typeof frenzyStacks !== 'undefined' && frenzyStacks > 0) {
+    mult *= (1 + frenzyStacks * FRENZY_DMG_PER_STACK);
+  }
   let n = Math.ceil(baseCount * mult);
   if (MOTIFS_ENABLED.ember && gridFillRatio() > EMBER_VOID_PRESSURE_THRESH) n += EMBER_VOID_PRESSURE_BONUS;
   n = Math.max(0, n - groveDefense()); // V2.0 Block 1.2: grove damage reduction (respects MOTIFS_ENABLED.grove internally)
@@ -24173,6 +24306,8 @@ function renderDeck() {
   // (suggested hero pulse + coiled hero dim). Idempotent: if no Hypnotist active,
   // function does nothing (sets all cards to !suggested && !coiled).
   try { if (typeof renderHypnotistVisuals === 'function') renderHypnotistVisuals(); } catch (e) {}
+  // PHASE 5b BLOCK 5 — re-apply Frenzy devoured-hero indicator (red dim + 🐻 badge).
+  try { if (typeof _renderFrenzyVisuals === 'function') _renderFrenzyVisuals(); } catch (e) {}
 }
 
 async function onHeroCardClick(hero) {
