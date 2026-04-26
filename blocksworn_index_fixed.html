@@ -5216,6 +5216,10 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   color: #FFD53D; font-weight: 700; text-transform: uppercase;
   opacity: 0.92;
 }
+.chrono-tip-phase {
+  /* HOTFIX #1: highlight the phase label (BASICS / ADVANCED) within the tier line. */
+  color: #FFE899; font-weight: 800; letter-spacing: 0.22em;
+}
 .chrono-tip-name {
   font-size: 18px; font-weight: 800;
   margin: 6px 0 8px; color: #FFE899;
@@ -8619,15 +8623,17 @@ button.season-tier-claim:active {
   </div>
 </div>
 
-<!-- PHASE 4 BLOCK 1 — FTUE CHRONOGRAPH coachmark. Hidden by default; shown by
-     maybeChronoBeat(beatId) during the Pyredrake FTUE fight to teach the combo
-     grammar at the moment each mechanic first becomes relevant. 6 beats fire
-     once each per FTUE attempt; tap CONTINUE to dismiss and resume play. -->
+<!-- PHASE 4 BLOCK 1 + HOTFIX #1 — FTUE CHRONOGRAPH coachmark. Hidden by default;
+     shown by maybeChronoBeat(beatId) during FTUE Pyredrake fight (PHASE A · BASICS,
+     4 beats) and FTUE Grunt fight (PHASE B · ADVANCED, 2 beats). Tier line is
+     rebuilt via innerHTML in _showChronoBeat so the static markup below is just
+     the placeholder skeleton — actual content (BASICS / ADVANCED, N/M step) is
+     injected at show time. Tap CONTINUE to dismiss and resume play. -->
 <div id="chronoOverlay" class="chrono-overlay hidden" aria-hidden="true">
   <div class="chrono-backdrop"></div>
   <div class="chrono-pulse"></div>
   <div class="chrono-tip-card">
-    <div class="chrono-tip-tier">CHRONOGRAPH · STEP <span id="chronoStep">1</span> / 6</div>
+    <div class="chrono-tip-tier">CHRONOGRAPH · <span class="chrono-tip-phase">BASICS</span> · STEP <span id="chronoStep">1 / 4</span></div>
     <div class="chrono-tip-name" id="chronoName">MATCH</div>
     <div class="chrono-tip-body" id="chronoBody">…</div>
     <button class="chrono-tip-cta" id="chronoCta" type="button" onclick="_onChronoCta()">CONTINUE</button>
@@ -9778,42 +9784,58 @@ function showDeathFlashback(onDismiss) {
 }
 
 // ===== PHASE 4 BLOCK 1 — FTUE CHRONOGRAPH (interactive coachmarks) =====
+// (PHASE 4 HOTFIX #1 — split into 2 phases for AAA+ pacing)
 //
-// 7-minute FTUE curriculum. During the Pyredrake fight (ftueBeat==='pyredrake_fight'),
-// six interactive beats fire at the moment each combo-grammar lesson first becomes
-// relevant. Each beat: pauses gameplay (input intercepted by overlay), highlights
-// the relevant UI element with a radial spotlight + pulsing rect, shows a tip card
-// with CONTINUE. Tap CONTINUE → resume play. Beats are single-shot per FTUE attempt
-// (reset in startBossBattle when re-entering pyredrake_fight). FSM-only: never
-// fires outside ftueBeat==='pyredrake_fight'.
+// 7-minute FTUE curriculum split into two narrative phases bracketing the
+// captain-pick decision:
 //
-// Beat order (first-time-encountered):
-//   1. MATCH      — battle start (target: tray)              "drag piece, line 3+"
-//   2. CHARGE     — first cells cleared (target: hero deck)  "matches charge ULT"
-//   3. ULT        — first hero hits charge≥cost              "tap portrait to fire"
-//   4. RACE       — first synergy pill rendered              "3+ same-race = bonus"
-//   5. CAPTAIN    — first captain ULT drops cells            "captain drops chargers"
-//   6. TELEGRAPH  — first attackCountdown<=2                 "boss windup, plan"
-let _chronoBeatsSeen = {};   // { match, charge, ult, race, captain, telegraph } → true once shown
+//   PHASE A · BASICS (during Pyredrake fight, before captain pick)
+//     1/4 MATCH      — drag piece, line 3+
+//     2/4 CHARGE     — matches charge ULT
+//     3/4 ULT        — tap portrait to fire
+//     4/4 TELEGRAPH  — boss windup, plan ahead
+//
+//   PHASE B · ADVANCED (during Grunt fight, after captain pick — full faction squad)
+//     1/2 RACE BUFF    — 3+ same-race → passive bonus
+//     2/2 CAPTAIN DROP — captain ULT drops element-charged cells
+//
+// Split rationale: Pyredrake fight uses prologue squad (3 mixed-race heroes,
+// no captain). RACE + CAPTAIN beats are mechanically impossible there — they
+// can ONLY trigger in Grunt fight (4 same-race heroes including captain).
+// Splitting into A/B phases gives the player a clean lesson arc: basics →
+// captain narrative beat → advanced.
+//
+// Each beat: pauses gameplay, highlights UI element with spotlight + pulse rect,
+// tip card with CONTINUE. Single-shot per beat per phase per FTUE attempt.
+// Force-dismissed by advanceFtue() on FSM transitions (defensive — prevents
+// overlay bleed if cells-cleared setTimeout queues a beat just before victory).
+let _chronoBeatsSeen = {};   // { match, charge, ult, telegraph, race, captain } → true once shown
 let _chronoActive    = false; // is overlay showing right now (gates double-fire)
 const CHRONO_BEATS = {
-  match:     { idx: 1, name: 'MATCH',          body: 'Перетащи фигуру в сетку. Совмести 3+ клеток одного цвета — они исчезнут и нанесут урон.' },
-  charge:    { idx: 2, name: 'CHARGE',         body: 'Каждый матч заряжает ULT героев твоей расы. Жёлтое кольцо вокруг портрета растёт.' },
-  ult:       { idx: 3, name: 'ULT',            body: 'Герой готов. Тапни портрет — выстрел уникальной способности (огонь, лёд, тьма).' },
-  race:      { idx: 4, name: 'RACE BUFF',      body: '3+ героя одной расы → пассивный бонус к урону. Пилл сверху показывает активный комбо.' },
-  captain:   { idx: 5, name: 'CAPTAIN DROP',   body: 'Капитан уронил element-charged клетки на сетку. Цепляй их в матч — они взрывают цепи.' },
-  telegraph: { idx: 6, name: 'BOSS TELEGRAPH', body: 'Босс готовит удар. Цифра — сколько ходов до импакта. Планируй защиту или добивай первым.' },
+  match:     { phase: 'A', idx: 1, total: 4, tier: 'BASICS',   name: 'MATCH',          body: 'Перетащи фигуру в сетку. Совмести 3+ клеток одного цвета — они исчезнут и нанесут урон.' },
+  charge:    { phase: 'A', idx: 2, total: 4, tier: 'BASICS',   name: 'CHARGE',         body: 'Каждый матч заряжает ULT героев твоей расы. Жёлтое кольцо вокруг портрета растёт.' },
+  ult:       { phase: 'A', idx: 3, total: 4, tier: 'BASICS',   name: 'ULT',            body: 'Герой готов. Тапни портрет — выстрел уникальной способности (огонь, лёд, тьма).' },
+  telegraph: { phase: 'A', idx: 4, total: 4, tier: 'BASICS',   name: 'BOSS TELEGRAPH', body: 'Босс готовит удар. Цифра — сколько ходов до импакта. Планируй защиту или добивай первым.' },
+  race:      { phase: 'B', idx: 1, total: 2, tier: 'ADVANCED', name: 'RACE BUFF',      body: '3+ героя одной расы → пассивный бонус к урону. Пилл сверху показывает активный комбо.' },
+  captain:   { phase: 'B', idx: 2, total: 2, tier: 'ADVANCED', name: 'CAPTAIN DROP',   body: 'Капитан уронил element-charged клетки на сетку. Цепляй их в матч — они взрывают цепи.' },
 };
+// Phase → required FTUE state. Beat fires only when ftueBeat matches.
+const CHRONO_PHASE_FTUE = { A: 'pyredrake_fight', B: 'grunt_fight' };
 
 function maybeChronoBeat(beatId, opts) {
-  // Gate: only during pyredrake_fight FTUE state, single-shot per beat per attempt.
-  // Never fires outside FTUE — won't surprise post-FTUE players on regular battles.
-  // PHASE 4 BLOCK 2 (DEBT-014): use ftueIs() helper instead of raw string equality.
+  // Gate: only during the FTUE state matching this beat's phase, single-shot
+  // per beat per FTUE attempt. Never fires outside FTUE.
+  // HOTFIX #1: each beat now has a per-phase FTUE gate (CHRONO_PHASE_FTUE)
+  // instead of a single 'pyredrake_fight' gate — enables PHASE B beats
+  // (RACE / CAPTAIN) during grunt_fight only.
   try {
-    if (typeof ftueIs !== 'function' || !ftueIs('pyredrake_fight')) return false;
+    if (typeof ftueIs !== 'function') return false;
+    const beat = CHRONO_BEATS[beatId];
+    if (!beat) return false;
+    const requiredFtue = CHRONO_PHASE_FTUE[beat.phase];
+    if (!requiredFtue || !ftueIs(requiredFtue)) return false;
     if (_chronoActive) return false;
     if (_chronoBeatsSeen[beatId]) return false;
-    if (!CHRONO_BEATS[beatId]) return false;
     _chronoBeatsSeen[beatId] = true;
     _showChronoBeat(beatId, opts || {});
     return true;
@@ -9855,11 +9877,15 @@ function _showChronoBeat(beatId, opts) {
   } else {
     overlay.classList.add('no-spotlight');
   }
-  // Populate text + step counter
-  const stepEl = document.getElementById('chronoStep');
+  // Populate text + step counter (HOTFIX #1: show phase tier label + N/M).
+  // Rebuild the tier line entirely via innerHTML so the BASICS/ADVANCED label
+  // and N/total count stay in sync with the beat's phase data.
+  const tierEl = overlay.querySelector('.chrono-tip-tier');
   const nameEl = document.getElementById('chronoName');
   const bodyEl = document.getElementById('chronoBody');
-  if (stepEl) stepEl.textContent = beat.idx;
+  if (tierEl) {
+    tierEl.innerHTML = `CHRONOGRAPH · <span class="chrono-tip-phase">${beat.tier}</span> · STEP <span id="chronoStep">${beat.idx} / ${beat.total}</span>`;
+  }
   if (nameEl) nameEl.textContent = beat.name;
   if (bodyEl) bodyEl.textContent = (opts.bodyOverride || beat.body);
   // Position card: if target is in upper half of viewport → card below spotlight;
@@ -10365,6 +10391,18 @@ function advanceFtue(nextBeat) {
   }
   ftueBeat = nextBeat;
   saveFtueToStorage();
+  // PHASE 4 HOTFIX #1 — force-dismiss any active chronograph on FSM transition
+  // so a beat queued via setTimeout during the previous beat (e.g. CHARGE
+  // setTimeout from a final cells-cleared cascade) can't bleed into the next
+  // scene. Without this, a chrono overlay shown on top of the victory modal
+  // would persist visually through hero_reveals dialogs and the captain pick
+  // modal — covering the AAA UX layer below.
+  try {
+    if (typeof _chronoActive !== 'undefined' && _chronoActive
+        && typeof _hideChronoBeat === 'function') {
+      _hideChronoBeat();
+    }
+  } catch (e) {}
   console.log(`[FTUE] ${prev} → ${nextBeat}`);
   try { onFtueBeatChanged(nextBeat, prev); } catch (e) { console.warn('onFtueBeatChanged failed:', e); }
 }
@@ -16659,12 +16697,14 @@ function startBossBattle() {
   // because the FTUE Pyredrake fight uses the chronograph (deeper, contextual)
   // instead. Post-FTUE first battle (e.g. dev who skipFtue'd) still gets carousel.
   try { maybeShowBattleTutorial(); } catch(e){}
-  // PHASE 4 BLOCK 1 — reset chronograph beats per FTUE Pyredrake attempt so a
-  // player who retries FTUE Pyredrake gets the full curriculum re-shown rather
+  // PHASE 4 BLOCK 1 — reset chronograph beats per FTUE attempt so a player
+  // who retries either FTUE fight gets the full curriculum re-shown rather
   // than skipping silently because the previous attempt set the seen-flags.
+  // HOTFIX #1: reset on EITHER pyredrake_fight or grunt_fight (Phase A or B).
+  // Resets all 6 flags but per-phase gates ensure only relevant beats fire.
   // DEBT-014: use ftueIs() helper.
   try {
-    if (typeof ftueIs === 'function' && ftueIs('pyredrake_fight')
+    if (typeof ftueIs === 'function' && ftueIs(['pyredrake_fight', 'grunt_fight'])
         && typeof resetChronoForFtueAttempt === 'function') {
       resetChronoForFtueAttempt();
     }
