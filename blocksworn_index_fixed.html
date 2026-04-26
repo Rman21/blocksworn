@@ -566,6 +566,122 @@
   display: flex; flex-direction: column; align-items: center; gap: 2px;
 }
 .a-hub-heading .a-label-kicker { font-size: 10px; }
+
+/* ===== 2026-04-27 — Chapter picker (compact pill + dropdown) ===== */
+.a-hub-chapter-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+.a-hub-chapter-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: linear-gradient(180deg, rgba(58, 42, 24, 0.55), rgba(26, 15, 8, 0.55));
+  border: 1px solid var(--a-gold-700, rgba(255, 184, 74, 0.4));
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.15s ease-out, border-color 0.15s ease-out, box-shadow 0.15s ease-out;
+  font-family: inherit;
+  color: inherit;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.a-hub-chapter-pick:active { transform: scale(0.96); }
+.a-hub-chapter-pick:hover {
+  border-color: var(--a-gold-300, #FFD53D);
+  box-shadow: 0 0 8px rgba(255, 213, 61, 0.25);
+}
+.a-hub-chapter-pick.open {
+  border-color: var(--a-gold-300, #FFD53D);
+  box-shadow: 0 0 10px rgba(255, 213, 61, 0.35);
+}
+.a-hub-chapter-pick .a-hub-chapter-chev {
+  font-size: 9px;
+  color: var(--a-gold-300, #FFD53D);
+  opacity: 0.8;
+  transition: transform 0.2s ease-out;
+}
+.a-hub-chapter-pick.open .a-hub-chapter-chev { transform: rotate(180deg); }
+/* Solo state — only Ch1 available. Hide chevron, drop interactive cues. */
+.a-hub-chapter-pick.solo {
+  border-color: transparent;
+  background: transparent;
+  cursor: default;
+  padding: 0;
+}
+.a-hub-chapter-pick.solo .a-hub-chapter-chev { display: none; }
+.a-hub-chapter-pick.solo:hover {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Dropdown menu — drops down from picker, centered */
+.a-hub-chapter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 6px;
+  gap: 4px;
+  background: linear-gradient(180deg, rgba(20, 12, 6, 0.95), rgba(8, 5, 3, 0.95));
+  border: 1px solid var(--a-gold-700, rgba(255, 184, 74, 0.5));
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 14px rgba(255, 213, 61, 0.15);
+  z-index: 50;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.a-hub-chapter-menu.hidden { display: none; }
+.a-hub-chapter-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--a-text-primary, #E8E6DF);
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.a-hub-chapter-item:hover {
+  background: rgba(255, 213, 61, 0.08);
+  border-color: var(--a-gold-700, rgba(255, 184, 74, 0.4));
+}
+.a-hub-chapter-item.active {
+  background: rgba(255, 213, 61, 0.12);
+  border-color: var(--a-gold-300, #FFD53D);
+}
+.a-hub-chapter-item.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.a-hub-chapter-item.locked:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: transparent;
+}
+.a-hub-chapter-item-num {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 1px;
+}
+.a-hub-chapter-item-name {
+  font-size: 9.5px;
+  letter-spacing: 0.8px;
+  opacity: 0.85;
+}
+
 .a-hub-heading .a-title--h1 {
   font-size: 24px;
   text-shadow: 0 1px 2px rgba(0,0,0,0.9), 0 0 16px rgba(255,184,74,0.3);
@@ -8685,7 +8801,17 @@ button.season-tier-claim:active {
 
     <!-- Kicker + Title -->
     <div class="a-hub-heading">
-      <div class="a-label-kicker" id="vChapterNum">CHAPTER 1</div>
+      <!-- 2026-04-27 — Chapter picker. Becomes interactive (chevron + tap)
+           once Chapter 2 unlocks. While only Ch1 is available, renders as
+           plain kicker (chevron hidden via .a-hub-chapter-pick.solo). -->
+      <div class="a-hub-chapter-wrap">
+        <button class="a-hub-chapter-pick solo" id="vChapterPick"
+                onclick="vToggleChapterPicker(event)" aria-label="Switch chapter">
+          <span class="a-label-kicker" id="vChapterNum">CHAPTER 1</span>
+          <span class="a-hub-chapter-chev">▾</span>
+        </button>
+        <div class="a-hub-chapter-menu hidden" id="vChapterMenu" role="menu"></div>
+      </div>
       <div class="a-title a-title--h1" id="vBossName">—</div>
       <div class="a-hub-sub" id="vBossSub">—</div>
       <div class="a-hub-diff" id="vBossDiff"></div>
@@ -25932,6 +26058,40 @@ function vRenderTopbar() {
   }
 }
 
+// 2026-04-27 — Chapter picker open/close + select handlers. Outside-click
+// closer is wired once on first toggle (idempotent flag).
+let _vChapterPickerOutsideHandlerWired = false;
+function vToggleChapterPicker(evt) {
+  if (evt && evt.stopPropagation) evt.stopPropagation();
+  const pick = document.getElementById('vChapterPick');
+  const menu = document.getElementById('vChapterMenu');
+  if (!pick || !menu) return;
+  // Solo state (only Ch1 unlocked): no-op tap so the button is purely cosmetic.
+  if (pick.classList.contains('solo')) return;
+  const willOpen = menu.classList.contains('hidden');
+  menu.classList.toggle('hidden', !willOpen);
+  pick.classList.toggle('open', willOpen);
+  // Wire outside-click closer once.
+  if (willOpen && !_vChapterPickerOutsideHandlerWired) {
+    _vChapterPickerOutsideHandlerWired = true;
+    document.addEventListener('click', (e) => {
+      const m = document.getElementById('vChapterMenu');
+      const p = document.getElementById('vChapterPick');
+      if (!m || m.classList.contains('hidden')) return;
+      if (m.contains(e.target) || (p && p.contains(e.target))) return;
+      m.classList.add('hidden');
+      if (p) p.classList.remove('open');
+    });
+  }
+}
+function vSelectChapter(n) {
+  const menu = document.getElementById('vChapterMenu');
+  const pick = document.getElementById('vChapterPick');
+  if (menu) menu.classList.add('hidden');
+  if (pick) pick.classList.remove('open');
+  try { if (typeof switchChapter === 'function') switchChapter(n); } catch (e) {}
+}
+
 function vRenderChapter() {
   const numEl = document.getElementById('vChapterNum');
   const fillEl = document.getElementById('vChapterFill');
@@ -25941,6 +26101,38 @@ function vRenderChapter() {
   const total = BOSSES.length;
   if (fillEl) fillEl.style.width = `${Math.round((done / total) * 100)}%`;
   if (ofEl) ofEl.textContent = `${done}/${total}`;
+  // 2026-04-27 — Chapter picker. Renders the dropdown menu items (one per
+  // chapter that's been touched: Ch1 always, Ch2 when chapter2Unlocked,
+  // Ch3 when chapter3Unlocked). Hides the chevron when only Ch1 is
+  // available (.solo class makes the button non-interactive visually).
+  try {
+    const pick = document.getElementById('vChapterPick');
+    const menu = document.getElementById('vChapterMenu');
+    if (pick && menu) {
+      const ch2 = (typeof chapter2Unlocked !== 'undefined') && chapter2Unlocked;
+      const ch3 = (typeof chapter3Unlocked !== 'undefined') && chapter3Unlocked;
+      const unlockedCount = 1 + (ch2 ? 1 : 0) + (ch3 ? 1 : 0);
+      pick.classList.toggle('solo', unlockedCount < 2);
+      // Build menu items
+      const items = [
+        { n: 1, name: 'ASHEN DOMINION',  unlocked: true },
+        { n: 2, name: 'BLOOM OF MADNESS', unlocked: ch2 },
+        { n: 3, name: 'PRIMAL CONCLAVE',  unlocked: ch3 },
+      ];
+      menu.innerHTML = items.map(it => {
+        const active = (it.n === currentChapter) ? ' active' : '';
+        const locked = (!it.unlocked) ? ' locked' : '';
+        const click  = it.unlocked
+          ? `onclick="vSelectChapter(${it.n})"`
+          : 'disabled aria-disabled="true"';
+        const lockIcn = it.unlocked ? '' : ' 🔒';
+        return `<button class="a-hub-chapter-item${active}${locked}" ${click} role="menuitem">`
+             + `<span class="a-hub-chapter-item-num">CH.${it.n}</span>`
+             + `<span class="a-hub-chapter-item-name">${it.name}${lockIcn}</span>`
+             + `</button>`;
+      }).join('');
+    }
+  } catch (e) { /* non-fatal */ }
   // POLISH v1 · PHASE 2 — render milestone nodes
   try {
     const nodes = document.getElementById('vChapterNodes');
