@@ -21284,20 +21284,45 @@ async function ultPlaceholder() {
 
 // --- PIRATE SIGNATURES ---
 
-// HERO_GRAMMAR §4 [Fire × Warrior] — THORGAR / CLEAVER
-// Spec (amended 2026-04-26, see docs/HERO_GRAMMAR.md §8 amendment log):
-//   Direct hit on placement; clears N random ember cells (N=1 base, scales with tier);
-//   cascade triggers if any cleared cell was charged. Initiates the damage cascade for
-//   amplifier/detonator roles to chain. Per-cell charge timer mechanic deferred to Phase 6.
+// Universal helper — spawn N ember cells in random empties AND mark each as
+// charged (chargedCells). Used by THORGAR (Fire Warrior CREATE per §2.4
+// "Создаёт ember-charged клетки на линии фигуры. Источник цепочки").
+// Capped by EMBER_CHARGED_CAP. Returns count actually placed.
+async function _spawnEmberCharged(maxCount) {
+  if (!MOTIFS_ENABLED.ember) return 0;
+  if (!maxCount || maxCount <= 0) return 0;
+  const empties = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    if (grid[r][c] === null) empties.push([r, c]);
+  }
+  if (empties.length === 0) return 0;
+  empties.sort(() => Math.random() - 0.5);
+  const slot = (typeof EMBER_CHARGED_CAP === 'number') ? Math.max(0, EMBER_CHARGED_CAP - chargedCells.size) : maxCount;
+  const room = Math.min(maxCount, empties.length, slot);
+  if (room <= 0) return 0;
+  const picks = empties.slice(0, room);
+  const cellEls = document.querySelectorAll('.grid .cell');
+  for (const [r, c] of picks) {
+    grid[r][c] = 'ember';
+    chargedCells.add(r + '_' + c);
+    if (cellEls[r * SIZE + c]) cellEls[r * SIZE + c].classList.add('spawning');
+  }
+  renderChargedVisuals();
+  render();
+  return picks.length;
+}
+
+// HERO_GRAMMAR §4 [Fire × Warrior] — THORGAR / CLEAVER SWEEP
+// Spec (§2.4): "Создаёт ember-charged клетки на линии фигуры. Источник цепочки."
+// Warrior CREATOR — sows fresh ember-charged substrate from empty cells, so the
+// chain starts even on a board with no ember (EMBERHAND amplifies → BLACKTOOTH
+// detonates). Direct hit + cleave preserve placement attack and entry into any
+// pre-existing chain.
 // Charge cost relative: medium (combo ≥ 2 fires; ULT ~4 placements).
-// THORGAR (pirate warrior) — CLEAVER SWEEP: 200 dmg + clear 1 ember (+5 bonus, cascade if charged)
 // V2.0 Stage 5 Block 5.2 tier reads: thorgarBaseDmg (T1 230), thorgarClearCount (T2 2)
-// HOTFIX B3.6 — Warrior CREATOR per MASTER_PLAN_V3 §2.4 [Fire × Warrior].
-// Plan: "Создаёт ember-charged клетки на линии фигуры. Источник цепочки."
-// Implementation: direct hit baseDmg + cascade if any cleared cell was charged
-// (preserves §12.1 "Direct hit + clears N ember cells with cascade if charged")
-// + after the clear, ignite up to N (THORGAR_CHARGE_COUNT=3) random non-charged
-// ember cells on the board → THORGAR is now the source of the chain (§2.4).
+// HOTFIX 2026-04-26 — replaced "charge 3 existing ember" with "spawn 3 new ember-
+// charged cells in empties." Pre-fix THORGAR depended on ember already existing on
+// board to charge — failed §2.4 CREATOR contract on empty boards.
 async function fireThorgar(counts) {
   let baseDmg = thorgarBaseDmg;
   const ember = [];
@@ -21318,22 +21343,10 @@ async function fireThorgar(counts) {
     grid[cr][cc] = null;
     chargedCells.delete(cr + '_' + cc);
   }
-  // CREATOR half — charge up to 3 surviving non-charged ember cells.
-  const THORGAR_CHARGE_COUNT = 3;
-  const survivors = [];
-  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-    if (grid[r][c] === 'ember' && !chargedCells.has(r + '_' + c)) survivors.push(r + '_' + c);
-  }
-  survivors.sort(() => Math.random() - 0.5);
-  let charged = 0;
-  for (const key of survivors) {
-    if (charged >= THORGAR_CHARGE_COUNT) break;
-    if (chargedCells.size >= EMBER_CHARGED_CAP) break;
-    chargedCells.add(key);
-    charged++;
-  }
-  if (charged > 0) flashText('CLEAVER · CHARGE ×' + charged, '#FF8B3D');
-  renderChargedVisuals();
+  // CREATOR half — spawn 3 NEW ember-charged cells from empties (real creation,
+  // not charge-existing). Source of the chain even on ember-empty boards.
+  const created = await _spawnEmberCharged(3);
+  if (created > 0) flashText('CLEAVER · FORGE ×' + created, '#FF8B3D');
   dealDamage(baseDmg, true);
   vibrate([40, 20, 40]);
 }
@@ -22482,24 +22495,49 @@ function applyUmbraTierFlagsAtBattleInit() {
 
 // --- ROCK SIGNATURES ---
 
+// Universal helper — spawn N umbra cells in random empties. Used by RIFFBLADE
+// (Dark Warrior CREATE per §2.4 "Сеет dark seed-cells") and THUNDERBEAT (Dark
+// Tank "Конвертит входящий damage в dark-cells" — channels stored damage as
+// fresh umbra substrate). Umbra cells fuel encoreStacks via onUmbraCellsCleared.
+async function _spawnUmbraCells(maxCount) {
+  if (!MOTIFS_ENABLED.umbra) return 0;
+  if (!maxCount || maxCount <= 0) return 0;
+  const empties = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    if (grid[r][c] === null) empties.push([r, c]);
+  }
+  if (empties.length === 0) return 0;
+  empties.sort(() => Math.random() - 0.5);
+  const picks = empties.slice(0, Math.min(maxCount, empties.length));
+  const cellEls = document.querySelectorAll('.grid .cell');
+  for (const [r, c] of picks) {
+    grid[r][c] = 'umbra';
+    if (cellEls[r * SIZE + c]) cellEls[r * SIZE + c].classList.add('spawning');
+  }
+  render();
+  return picks.length;
+}
+
 // HERO_GRAMMAR §4 [Dark × Warrior] — RIFFBLADE / RIFF STRIKE
-// Spec: Direct hit on placement; every umbra clear adds 1 Encore stack to next ability.
+// Spec (§2.4): "Сеет dark seed-cells" — Warrior CREATOR sows umbra substrate
+// that feeds onUmbraCellsCleared → encoreStacks. Direct-hit damage + RIFF BEAT
+// preserve the placement attack and v1 flavor.
 // Charge cost relative: medium (combo ≥ 2 fires; ULT ~4 placements).
-// CONFORMS to spec (Block B1 — no body change). RIFFBLADE personally embodies the Warrior
-// CREATOR via direct-hit damage on placement. The "every umbra clear adds 1 Encore stack"
-// half is a UNIVERSAL element mechanic implemented in onUmbraCellsCleared (fires regardless
-// of which heroes are in squad — see encoreStacks in §13200). The periodic ×mult RIFF BEAT
-// is a v1 extension; the legacy beat interval is preserved as a small flavor bonus.
-// RIFFBLADE (rock warrior) — RIFF STRIKE: 200 dmg, doubled (400) every 3rd fire (counter-based)
+// HOTFIX 2026-04-26 — added active umbra-cell spawn (2 cells; 3 on RIFF BEAT).
+// Pre-fix RIFFBLADE was pure damage with no creation, relying on organic boss
+// spawns to seed Encore (failed §2.4 CREATOR contract).
 // V2.0 Stage 5 Block 5.6: riffbladeBeatInterval (3→2), riffbladeBeatMult (2→3)
 async function fireRiffblade(counts) {
   riffbladeFireCounter++;
   let dmg = 200;
+  let seedCount = 2;
   if (riffbladeFireCounter % riffbladeBeatInterval === 0) {
     dmg = 200 * riffbladeBeatMult;
+    seedCount = 3;
     flashText('RIFF BEAT ×' + riffbladeBeatMult, STIHIYA_COLORS.umbra);
   }
   dealDamage(dmg, true);
+  await _spawnUmbraCells(seedCount);
   vibrate([40, 20, 40]);
 }
 
@@ -22570,14 +22608,14 @@ async function fireKeycrypt() {
 }
 
 // HERO_GRAMMAR §4 [Dark × Tank] — THUNDERBEAT / DRUMHEAD
-// Spec: Every Encore proc grants +1 shield; ULT: free Rhythm proc + squad-wide Encore window.
+// Spec (§2.4): "Конвертит входящий damage в dark-cells" — Tank PROTECTOR for
+// Dark element. Spec also grants "+1 shield per Encore proc" (preserved via
+// consumeEncoreStacks helper which routes shields when THUNDERBEAT in squad).
 // Charge cost relative: slowest (no minCombo gate; ULT ~5 placements).
-// CONFORMS to spec (Block B1). The active fire keeps its v1 +1 shield + 160/210 damage
-// (intentional EXTENDS — the PROTECTOR role verb is preserved). The "every Encore proc
-// grants +1 shield" half of spec fires automatically when SHRIEK (or any future encore
-// consumer) routes through consumeEncoreStacks() — that helper checks for THUNDERBEAT in
-// squad and bumps shieldCount by 1. ULT signature unchanged (free Rhythm proc lives in
-// ultTwistThunderbeat / thunderbeatRhythmWindow).
+// HOTFIX 2026-04-26 — added active umbra-cell conversion on fire (2 cells;
+// 3 on Rhythm). The "channel damage as dark substrate" interpretation: each
+// fire seeds umbra cells that fuel encoreStacks via onUmbraCellsCleared.
+// Pre-fix was shield + dmg only with no conversion (failed §2.4 contract).
 // THUNDERBEAT (rock tank) — DRUMHEAD: +1🛡, 160 dmg (210 if rhythmSectionActive)
 // V2.0 Stage 5 Block 5.6: thunderbeatBaseDmg (210→230), thunderbeatRockThreshold (5→3→0)
 async function fireThunderbeat(counts) {
@@ -22585,14 +22623,18 @@ async function fireThunderbeat(counts) {
   if (shieldCount < cap) shieldCount++;
   // Signature: Rhythm Section conditional bonus — tier-scoped threshold + base dmg
   let dmg = 160;
+  let umbraSeed = 2;
   const rockCount = HERO_DECK.filter(h => h && h.race === 'rock').length;
   // Rhythm gate: active if race synergy active OR tier reduces threshold OR T3 permanent
   const rhythmGate = rhythmSectionActive || rhythmSectionPermanent || (thunderbeatRockThreshold > 0 && rockCount >= thunderbeatRockThreshold) || thunderbeatRockThreshold === 0;
   if (rhythmGate) {
     dmg = thunderbeatBaseDmg;  // T0=210, T1+=230
+    umbraSeed = 3;
     flashText('RHYTHM STRIKE +' + (dmg - 160), STIHIYA_COLORS.umbra);
   }
   dealDamage(dmg, true);
+  // §2.4 conversion — channel damage absorbed by shield into dark substrate.
+  await _spawnUmbraCells(umbraSeed);
   vibrate([50, 30, 50]);
 }
 
@@ -22738,15 +22780,39 @@ async function ultTwistNightlord(ctx) {
 // onTideCellsCleared), consumed by BRINESHOT + amplified by CRYOMIND, drained via
 // consumeChainStack helper which fires BULWARK shield bump.
 
+// Universal helper — spawn N tide cells in random empties. Used by RIMEFANG (Frost
+// Warrior CREATE per §2.4 "Создаёт frost-cells (требуют цепь)"). Tide cells fuel
+// frostChainSegments via onTideCellsCleared when player matches them.
+async function _spawnTideCells(maxCount) {
+  if (!MOTIFS_ENABLED.tide) return 0;
+  if (!maxCount || maxCount <= 0) return 0;
+  const empties = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    if (grid[r][c] === null) empties.push([r, c]);
+  }
+  if (empties.length === 0) return 0;
+  empties.sort(() => Math.random() - 0.5);
+  const picks = empties.slice(0, Math.min(maxCount, empties.length));
+  const cellEls = document.querySelectorAll('.grid .cell');
+  for (const [r, c] of picks) {
+    grid[r][c] = 'tide';
+    if (cellEls[r * SIZE + c]) cellEls[r * SIZE + c].classList.add('spawning');
+  }
+  render();
+  return picks.length;
+}
+
 // HERO_GRAMMAR §4 [Frost × Warrior] — RIMEFANG / TIDEBREAKER
-// Spec: Direct hit on placement; every tide clear chills adjacent cells, building chains.
+// Spec (§2.4): "Создаёт frost-cells (требуют цепь)" — Warrior CREATOR sows tide
+// substrate that feeds onTideCellsCleared → frostChainSegments. Direct hit damage
+// preserves the placement attack.
 // Charge cost: medium (combo ≥ 2 fires; ULT ~4 placements).
-// CONFORMS to spec. RIMEFANG personally embodies the Warrior CREATOR via direct-hit
-// damage. The "every tide clear builds chains" half is a UNIVERSAL element mechanic
-// implemented in onTideCellsCleared (fires regardless of which heroes are in squad —
-// see frostChainSegments).
+// HOTFIX 2026-04-26 — added active tide-cell spawn (2 cells). Pre-fix RIMEFANG
+// was pure damage with no creation, leaving the chain-source role to organic
+// boss spawns (failed §2.4 CREATOR contract).
 async function fireRimefang(counts) {
   dealDamage(200, true);
+  await _spawnTideCells(2);
   vibrate([40, 20, 40]);
 }
 
@@ -22809,16 +22875,27 @@ async function fireCryomind() {
 }
 
 // HERO_GRAMMAR §4 [Frost × Tank] — BULWARK / TOCK GUARD
-// Spec: +1 shield per chain segment broken; ULT refunds 1 placement to player.
+// Spec (§2.4): "Замораживает атаки босса (delays attack countdown)" — Tank PROTECTOR
+// for Frost element. +1 shield per chain segment broken from spec is preserved
+// via consumeChainStack helper (BRINESHOT detonations route shields through it).
 // Charge cost: slowest (no minCombo gate; ULT ~5 placements).
-// CONFORMS to spec. Active fire EXTENDS spec with a base hit (PROTECTOR role preserved
-// — the spec's "+1 shield per chain segment" half fires automatically through
-// consumeChainStack helper when BRINESHOT detonates). ULT placement-refund mechanic
-// does not exist in v1 codebase — falling back to +3 shields with DEBT-017 filed.
+// HOTFIX 2026-04-26 — added attackCountdown +1 delay on fire (the literal §2.4
+// "freezes boss attacks" mechanic). Pre-fix fire was shield + dmg only with no
+// freeze effect — failed §2.4 PROTECTOR contract.
+// ULT placement-refund mechanic does not exist in v1 codebase — falls back to
+// +3 shields with DEBT-017 filed.
 async function fireBulwark(counts) {
   const cap = MAX_SHIELD + 2 + (maxShieldBonus || 0);
   if (shieldCount < cap) shieldCount++;
   dealDamage(160, true);
+  // §2.4 freeze — delay boss attack timer by 1. Capped by TIDE_COUNTDOWN_CAP.
+  // Routed through onFreezeApplied so excess→shield conversion + frozenStreakTurns
+  // bookkeeping behaves consistently with universal Frost freeze plumbing.
+  if (typeof attackCountdown === 'number' && attackCountdown < TIDE_COUNTDOWN_CAP) {
+    attackCountdown += 1;
+    if (typeof onFreezeApplied === 'function') onFreezeApplied(1);
+    flashText('TOCK GUARD · FREEZE +1', STIHIYA_COLORS.tide);
+  }
   vibrate([50, 30, 50]);
 }
 
