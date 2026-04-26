@@ -9188,24 +9188,28 @@ const HERO_ROSTER = [
   { id:'shark_mage',    name:'CRYOMIND',  race:'shark', role:'weaver',  newRole:'mage',    stihiya:'tide', img:'hero_shark_mage',    roleIcon:'✦', period:12,    fireText:'Tide Weave',     fire: fireCryomind,  ult: ultRoleDispatch, ultSignature: ultTwistCryomind,  ultText:'MENDING: freeze attack' },
   { id:'shark_tank',    name:'BULWARK',   race:'shark', role:'guard',   newRole:'tank',    stihiya:'tide', img:'hero_shark_tank',    roleIcon:'🛡',                fireText:'Tock Guard',     fire: fireBulwark,   ult: ultRoleDispatch, ultSignature: ultTwistBulwark,   ultText:'AEGIS: refund placement' },
   { id:'shark_captain', name:'ABYSSKING', race:'shark', role:'weaver',  newRole:'captain', stihiya:'tide', img:'hero_shark_captain', roleIcon:'✦', period:10,    fireText:'Deep Tide',      fire: fireAbyssking, ult: ultRoleDispatch, ultSignature: ultTwistAbyssking, ultText:'DOMINION: chill board' },
-  // --- CROCODILES (Grove) — Phase 5 Block 2 implementation ---
+  // --- CROCODILES (Grove) — Phase 5 Block 2 implementation, locked behind Chapter 2 (Phase 5b) ---
   // 5 heroes × Earth/Grove. CREATE earth-cells (absorbers), AMPLIFY surge, DETONATE
   // Vengeance Quake, PROTECT Wall of Roots, ENABLE Eternal Bastion. Race-passive:
   // Death Roll (2-of) + Iron Hide (3+). Tier 3 signature combo: THE EMERALD WARDEN.
-  { id:'crocodile_warrior', name:'MOSSJAW',      race:'crocodile', role:'striker', newRole:'warrior', stihiya:'grove', img:'hero_crocodile_warrior', roleIcon:'⚔', minCombo:2, fireText:'Bedrock Strike',  fire: fireMossjaw,      ult: ultRoleDispatch, ultSignature: ultTwistMossjaw,      ultText:'BEDROCK BASTION: empties → earth' },
-  { id:'crocodile_hunter',  name:'THORNBACK',    race:'crocodile', role:'striker', newRole:'hunter',  stihiya:'grove', img:'hero_crocodile_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Vengeance Slam',  fire: fireThornback,    ult: ultRoleDispatch, ultSignature: ultTwistThornback,    ultText:'QUAKE: ×3 absorbed dmg' },
-  { id:'crocodile_mage',    name:'MOSSWEAVER',   race:'crocodile', role:'weaver',  newRole:'mage',    stihiya:'grove', img:'hero_crocodile_mage',    roleIcon:'✦', period:12,    fireText:'Verdant Surge',   fire: fireMossweaver,   ult: ultRoleDispatch, ultSignature: ultTwistMossweaver,   ultText:'SURGE: shields → damage' },
-  { id:'crocodile_tank',    name:'IRONSCALE',    race:'crocodile', role:'guard',   newRole:'tank',    stihiya:'grove', img:'hero_crocodile_tank',    roleIcon:'🛡',                fireText:'Stone Skin',      fire: fireIronscale,    ult: ultRoleDispatch, ultSignature: ultTwistIronscale,    ultText:'AEGIS: full row earth' },
-  { id:'crocodile_captain', name:'ANCIENTSCALE', race:'crocodile', role:'weaver',  newRole:'captain', stihiya:'grove', img:'hero_crocodile_captain', roleIcon:'✦', period:10,    fireText:'Eternal Bastion', fire: fireAncientscale, ult: ultRoleDispatch, ultSignature: ultTwistAncientscale, ultText:'DOMINION: shields + earth field' },
-  // --- SPARKS (Solar) — Phase 5 Block 4 implementation ---
+  // PHASE 5 BLOCK 5: locked: true keeps these out of squad-select until Chapter 2 ships.
+  // Per Meta-Progression spec §7: VEROTHIRA (Boss 6) → 2 unlocked, GEARHEART (Boss 7) → rest.
+  { id:'crocodile_warrior', name:'MOSSJAW',      race:'crocodile', role:'striker', newRole:'warrior', stihiya:'grove', img:'hero_crocodile_warrior', roleIcon:'⚔', minCombo:2, fireText:'Bedrock Strike',  fire: fireMossjaw,      ult: ultRoleDispatch, ultSignature: ultTwistMossjaw,      ultText:'BEDROCK BASTION: empties → earth',     locked: true },
+  { id:'crocodile_hunter',  name:'THORNBACK',    race:'crocodile', role:'striker', newRole:'hunter',  stihiya:'grove', img:'hero_crocodile_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Vengeance Slam',  fire: fireThornback,    ult: ultRoleDispatch, ultSignature: ultTwistThornback,    ultText:'QUAKE: ×3 absorbed dmg',                locked: true },
+  { id:'crocodile_mage',    name:'MOSSWEAVER',   race:'crocodile', role:'weaver',  newRole:'mage',    stihiya:'grove', img:'hero_crocodile_mage',    roleIcon:'✦', period:12,    fireText:'Verdant Surge',   fire: fireMossweaver,   ult: ultRoleDispatch, ultSignature: ultTwistMossweaver,   ultText:'SURGE: shields → damage',               locked: true },
+  { id:'crocodile_tank',    name:'IRONSCALE',    race:'crocodile', role:'guard',   newRole:'tank',    stihiya:'grove', img:'hero_crocodile_tank',    roleIcon:'🛡',                fireText:'Stone Skin',      fire: fireIronscale,    ult: ultRoleDispatch, ultSignature: ultTwistIronscale,    ultText:'AEGIS: full row earth',                 locked: true },
+  { id:'crocodile_captain', name:'ANCIENTSCALE', race:'crocodile', role:'weaver',  newRole:'captain', stihiya:'grove', img:'hero_crocodile_captain', roleIcon:'✦', period:10,    fireText:'Eternal Bastion', fire: fireAncientscale, ult: ultRoleDispatch, ultSignature: ultTwistAncientscale, ultText:'DOMINION: shields + earth field',       locked: true },
+  // --- SPARKS (Solar) — Phase 5 Block 4 implementation, locked behind Chapter 2 (Phase 5b) ---
   // 5 heroes × Light/Solar. CREATE solar cells, AMPLIFY shields-per-clear window,
   // DETONATE shields-to-damage burst, PROTECT auto-block, ENABLE Eternal Dawn heal+shields.
   // Race-passive: Charge Regen (2-of) + Static Field (3+). Tier 3 signature: THE PRISMATIC RIDE.
-  { id:'spark_warrior', name:'EMBERSPARK', race:'spark', role:'striker', newRole:'warrior', stihiya:'solar', img:'hero_spark_warrior', roleIcon:'⚔', minCombo:2, fireText:'Sun Strike',     fire: fireEmbersark,  ult: ultRoleDispatch, ultSignature: ultTwistEmbersark,  ultText:'CASCADE: convert + shield window' },
-  { id:'spark_hunter',  name:'RADIANCE',   race:'spark', role:'striker', newRole:'hunter',  stihiya:'solar', img:'hero_spark_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Aurora Burst',   fire: fireRadiance,   ult: ultRoleDispatch, ultSignature: ultTwistRadiance,   ultText:'BURST: shields → damage (no consume)' },
-  { id:'spark_mage',    name:'LUMENWIND',  race:'spark', role:'weaver',  newRole:'mage',    stihiya:'solar', img:'hero_spark_mage',    roleIcon:'✦', period:12,    fireText:'Halo Window',    fire: fireLumenwind,  ult: ultRoleDispatch, ultSignature: ultTwistLumenwind,  ultText:'HALO: double shields' },
-  { id:'spark_tank',    name:'AEGIS',      race:'spark', role:'guard',   newRole:'tank',    stihiya:'solar', img:'hero_spark_tank',    roleIcon:'🛡',                fireText:'Sun Guard',      fire: fireAegis,      ult: ultRoleDispatch, ultSignature: ultTwistAegis,      ultText:'EQUILIBRIUM: shields + immunity' },
-  { id:'spark_captain', name:'SOLARLORD',  race:'spark', role:'weaver',  newRole:'captain', stihiya:'solar', img:'hero_spark_captain', roleIcon:'✦', period:10,    fireText:'Eternal Dawn',   fire: fireSolarlord,  ult: ultRoleDispatch, ultSignature: ultTwistSolarlord,  ultText:'DOMINION: heal + shields + solar cells' },
+  // PHASE 5 BLOCK 5: locked: true. Per Meta-Progression spec §7: URSARO (Boss 8) → 2 unlocked,
+  // TIDESPIRE (Boss 9) → rest. Block 5b will re-gate progression after Chapter 2 implementation.
+  { id:'spark_warrior', name:'EMBERSPARK', race:'spark', role:'striker', newRole:'warrior', stihiya:'solar', img:'hero_spark_warrior', roleIcon:'⚔', minCombo:2, fireText:'Sun Strike',     fire: fireEmbersark,  ult: ultRoleDispatch, ultSignature: ultTwistEmbersark,  ultText:'CASCADE: convert + shield window',     locked: true },
+  { id:'spark_hunter',  name:'RADIANCE',   race:'spark', role:'striker', newRole:'hunter',  stihiya:'solar', img:'hero_spark_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Aurora Burst',   fire: fireRadiance,   ult: ultRoleDispatch, ultSignature: ultTwistRadiance,   ultText:'BURST: shields → damage (no consume)', locked: true },
+  { id:'spark_mage',    name:'LUMENWIND',  race:'spark', role:'weaver',  newRole:'mage',    stihiya:'solar', img:'hero_spark_mage',    roleIcon:'✦', period:12,    fireText:'Halo Window',    fire: fireLumenwind,  ult: ultRoleDispatch, ultSignature: ultTwistLumenwind,  ultText:'HALO: double shields',                  locked: true },
+  { id:'spark_tank',    name:'AEGIS',      race:'spark', role:'guard',   newRole:'tank',    stihiya:'solar', img:'hero_spark_tank',    roleIcon:'🛡',                fireText:'Sun Guard',      fire: fireAegis,      ult: ultRoleDispatch, ultSignature: ultTwistAegis,      ultText:'EQUILIBRIUM: shields + immunity',       locked: true },
+  { id:'spark_captain', name:'SOLARLORD',  race:'spark', role:'weaver',  newRole:'captain', stihiya:'solar', img:'hero_spark_captain', roleIcon:'✦', period:10,    fireText:'Eternal Dawn',   fire: fireSolarlord,  ult: ultRoleDispatch, ultSignature: ultTwistSolarlord,  ultText:'DOMINION: heal + shields + solar cells', locked: true },
   // --- CLOCKWORK (Tide) — PLACEHOLDER: Phase 2 implementation ---
   { id:'clockwork_warrior', name:'GEARSWORN',  race:'clockwork', role:'striker', newRole:'warrior', stihiya:'tide', img:'hero_placeholder_clockwork', roleIcon:'⚔', minCombo:2, fireText:'[PHASE 2]', fire: firePlaceholder, ult: ultPlaceholder, ultSignature: ultPlaceholder, ultText:'[Coming in Phase 2]', locked: true },
   { id:'clockwork_hunter',  name:'TICKTOCK',   race:'clockwork', role:'striker', newRole:'hunter',  stihiya:'tide', img:'hero_placeholder_clockwork', roleIcon:'⚔', minCombo:2, fireText:'[PHASE 2]', fire: firePlaceholder, ult: ultPlaceholder, ultSignature: ultPlaceholder, ultText:'[Coming in Phase 2]', locked: true },
@@ -9424,7 +9428,11 @@ function loadUnlockedHeroesFromStorage() {
     }
     const parsed = JSON.parse(raw);
     const storedSet = new Set(Array.isArray(parsed) ? parsed : []);
+    // PHASE 5 BLOCK 5 — locked: true heroes can NEVER be unlocked from storage,
+    // even if a previous build/dev tool wrote them in. Crocs/Sparks remain locked
+    // until Chapter 2 (Phase 5b) re-opens the gate via dedicated unlock dispatcher.
     for (const h of HERO_ROSTER) {
+      if (h.locked) { h.unlocked = false; continue; }
       h.unlocked = STARTER_HEROES.has(h.id) || storedSet.has(h.id);
     }
   } catch (e) {
@@ -9438,12 +9446,22 @@ function loadUnlockedHeroesFromStorage() {
 
 function isHeroUnlocked(heroId) {
   const hero = HERO_ROSTER.find(h => h.id === heroId);
+  // PHASE 5 BLOCK 5 — `locked: true` is a hard gate. Even if `unlocked` somehow
+  // got flipped (legacy save, devTools, race condition), locked heroes never
+  // count as unlocked for squad-select / battle / craft purposes.
+  if (hero && hero.locked) return false;
   return !!(hero && hero.unlocked);
 }
 
 function unlockHero(heroId) {
   const hero = HERO_ROSTER.find(h => h.id === heroId);
   if (!hero) { console.warn('unlockHero: unknown hero', heroId); return false; }
+  // PHASE 5 BLOCK 5 — refuse to unlock locked heroes. Crocs/Sparks gated behind
+  // Chapter 2 (Phase 5b). To bypass for dev: set `hero.locked = false` first.
+  if (hero.locked) {
+    console.log('unlockHero: ' + heroId + ' is locked behind Chapter 2 — skipped');
+    return false;
+  }
   if (hero.unlocked) return false;
   hero.unlocked = true;
   saveUnlockedHeroesToStorage();
@@ -10062,9 +10080,56 @@ function runMigration_BACKLOG002_tank_backfill() {
   } catch (e) { console.warn('BACKLOG-002 backfill failed:', e); }
 }
 
+// PHASE 5 BLOCK 5 — strip Crocs/Sparks from any save state (one-time per install).
+// Sparks/Crocs were temporarily unlockable during Phase 5 Block 2-4 dev/playtest;
+// per Meta-Progression spec §7 they're gated behind Chapter 2 (Phase 5b). This
+// migration scrubs any prior unlocks for those races so the lock state is honest.
+// Idempotent — flag set after first run.
+function runMigration_PHASE5_lock_chapter2_heroes() {
+  const FLAG = 'blocksworn_migration_phase5_chapter2_lock';
+  try {
+    if (localStorage.getItem(FLAG) === 'true') return;
+    const raw = localStorage.getItem(HEROES_UNLOCKED_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter(id =>
+          !id.startsWith('crocodile_') && !id.startsWith('spark_')
+        );
+        if (filtered.length !== parsed.length) {
+          localStorage.setItem(HEROES_UNLOCKED_STORAGE_KEY, JSON.stringify(filtered));
+          console.log('[PHASE 5 Migration] stripped ' + (parsed.length - filtered.length)
+                    + ' Croc/Spark unlock(s) from storage (locked behind Chapter 2)');
+        }
+      }
+    }
+    // Also strip from active squad if any are present
+    try {
+      const sqRaw = localStorage.getItem('blocksworn_squad');
+      if (sqRaw) {
+        const sq = JSON.parse(sqRaw);
+        if (Array.isArray(sq)) {
+          const sqFiltered = sq.filter(id =>
+            !id.startsWith('crocodile_') && !id.startsWith('spark_')
+          );
+          if (sqFiltered.length !== sq.length) {
+            localStorage.setItem('blocksworn_squad', JSON.stringify(sqFiltered));
+            console.log('[PHASE 5 Migration] stripped ' + (sq.length - sqFiltered.length)
+                      + ' Croc/Spark hero(es) from saved squad');
+          }
+        }
+      }
+    } catch (e) {}
+    localStorage.setItem(FLAG, 'true');
+  } catch (e) { console.warn('PHASE 5 chapter-2 lock migration failed:', e); }
+}
+
 // Order matters: load unlock state, then load SQUAD_MAX, then run migrations (which
 // only fire on installs that pre-date the relevant fix). All three complete before
 // any UI render.
+// NOTE: PHASE 5 migration runs FIRST so it scrubs storage before loadUnlockedHeroesFromStorage
+// reads it; otherwise Crocs/Sparks would briefly appear as unlocked then get re-locked.
+runMigration_PHASE5_lock_chapter2_heroes();
 loadUnlockedHeroesFromStorage();
 loadSquadMaxFromStorage();
 runMigration_B3();
@@ -25068,8 +25133,29 @@ function showLockedHeroModal(hero) {
   // Border glow uses hero's element color
   const box = modal.querySelector('.modal-box');
   if (box) box.style.setProperty('--locked-glow', STIHIYA_COLORS[hero.stihiya] || '#3D3F5E');
-  // V3.0 Block 0.2: sync fragment progress + CLAIM button visibility
-  updateLockedHeroModalProgress(hero.id);
+  // PHASE 5 BLOCK 5 — Crocs/Sparks chapter-2 gating message. The fragment-craft
+  // path is hidden for hard-locked heroes (Crocs/Sparks): they CANNOT be unlocked
+  // via fragments — only via Chapter 2 boss progression once Phase 5b ships.
+  const reasonEl = modal.querySelector('.locked-hero-reason');
+  const fragWrap = modal.querySelector('.locked-hero-frag-wrap');
+  const claimBtn = document.getElementById('lockedHeroClaimBtn');
+  if (hero.locked) {
+    // Chapter 2 placeholder copy. Race-aware so the message is specific.
+    const chapterMsg = (hero.race === 'crocodile')
+      ? 'Coming in Chapter 2 — defeat VEROTHIRA to unlock the Crocodiles.'
+      : (hero.race === 'spark')
+        ? 'Coming in Chapter 2 — defeat URSARO to unlock the Sparks.'
+        : 'Coming in Chapter 2 — keep playing to unlock new races.';
+    if (reasonEl) reasonEl.innerHTML = '<b>' + chapterMsg + '</b>';
+    if (fragWrap) fragWrap.style.display = 'none';
+    if (claimBtn) claimBtn.style.display = 'none';
+  } else {
+    // Standard locked-hero (boss-progression unlock + fragment-craft path)
+    if (reasonEl) reasonEl.innerHTML = 'Locked — defeat the right boss or collect <b>50 fragments</b> to unlock';
+    if (fragWrap) fragWrap.style.display = '';
+    // V3.0 Block 0.2: sync fragment progress + CLAIM button visibility
+    updateLockedHeroModalProgress(hero.id);
+  }
   modal.classList.remove('active'); void modal.offsetWidth; modal.classList.add('active');
 }
 
