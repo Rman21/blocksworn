@@ -20292,13 +20292,18 @@ async function afterPlacement(piece) {
     }
     render();
 
-    for (const h of HERO_DECK) {
-      if (gameEnded) break;
-      let fires = false;
-      if (h.role === 'striker' && count >= h.minCombo && (inLines.has(h.stihiya) || piece.stihiya === h.stihiya)) fires = true;
-      if (h.role === 'guard' && inLines.has(h.stihiya)) fires = true;
-      if (fires) await fireHero(h, counts);
-    }
+    // HOTFIX B3.5 (Roman spec): passive auto-fire DISABLED for warrior/hunter/tank
+    // (striker + guard roles). Heroes only contribute via ULT (player tap on charged
+    // card → onHeroCardClick → hero.ult()) and via passive buffs/synergies (race
+    // synergy, captain dual buff, cross-hero shield-on-detonate). Captains keep
+    // their period-based auto-fire — gated below in the weaver block.
+    // The dispatch loop is intentionally removed; intent preserved as a comment so
+    // future readers understand the design choice (and to make a future re-enable
+    // a one-line edit).
+    //
+    // Removed (was firing on combo / line-clear):
+    //   striker: count >= h.minCombo && (inLines.has(h.stihiya) || piece.stihiya === h.stihiya)
+    //   guard:   inLines.has(h.stihiya)
     break;
   }
 
@@ -20330,9 +20335,14 @@ async function afterPlacement(piece) {
     frozenStreakTurns = 0;
   }
 
-  // Weaver passive
+  // Weaver passive — HOTFIX B3.5 (Roman spec): only CAPTAINS keep period-based auto-fire.
+  // Mages (also `role === 'weaver'`) lose passive — they only fire via ULT now (player tap).
+  // Captains stay passive because that's their entire combat identity (ENABLER role —
+  // dual buff + period-based board effect). All other hero contributions come from ULT
+  // (per-hero charge meter, B3.2) and from race synergy / captain dual buff layers.
   for (const h of HERO_DECK) {
     if (h.role !== 'weaver') continue;
+    if (h.newRole !== 'captain') continue;  // mages no longer auto-fire
     const period = getEffectivePeriod(h);
     if (placementCount > 0 && placementCount % period === 0) {
       await fireHero(h);
