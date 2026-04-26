@@ -5154,6 +5154,100 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .df-bg, .df-content, .df-event { animation-duration: 0.3s !important; animation-timing-function: linear !important; }
 }
 
+/* PHASE 4 BLOCK 1 — FTUE CHRONOGRAPH coachmark overlay.
+   Pauses input during FTUE Pyredrake fight to teach combo grammar at the moment
+   each mechanic first becomes relevant. Spotlight (radial cutout) + pulsing
+   highlight rect + tip card with CONTINUE. 6 beats: MATCH / CHARGE / ULT /
+   RACE / CAPTAIN / TELEGRAPH. See JS maybeChronoBeat()/_showChronoBeat(). */
+.chrono-overlay {
+  position: fixed; inset: 0; z-index: 9100;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.chrono-overlay.hidden { display: none; }
+.chrono-overlay.show { opacity: 1; }
+.chrono-backdrop {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at var(--cx, 50%) var(--cy, 50%),
+    rgba(0,0,0,0) 0,
+    rgba(0,0,0,0) calc(var(--ri, 70px) - 4px),
+    rgba(0,0,0,0.55) calc(var(--ri, 70px) + 28px),
+    rgba(0,0,0,0.88) 100%);
+  transition: background 0.35s ease;
+}
+.chrono-overlay.no-spotlight .chrono-backdrop {
+  background: rgba(0, 0, 0, 0.78);
+}
+.chrono-pulse {
+  position: absolute;
+  left: var(--sx, 0); top: var(--sy, 0);
+  width: var(--sw, 0); height: var(--sh, 0);
+  border: 2px solid #FFD53D;
+  border-radius: 14px;
+  box-shadow:
+    0 0 24px rgba(255, 213, 61, 0.65),
+    inset 0 0 18px rgba(255, 213, 61, 0.30);
+  pointer-events: none;
+  animation: chronoPulse 1.6s ease-in-out infinite;
+}
+.chrono-overlay.no-spotlight .chrono-pulse { display: none; }
+@keyframes chronoPulse {
+  0%, 100% { transform: scale(1.00); opacity: 0.85; }
+  50%      { transform: scale(1.04); opacity: 1.00; }
+}
+.chrono-tip-card {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92%, 360px);
+  background: linear-gradient(180deg, rgba(20, 16, 32, 0.96) 0%, rgba(10, 8, 18, 0.98) 100%);
+  border: 1.5px solid #FFD53D;
+  border-radius: 14px;
+  padding: 16px 20px 18px;
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.55),
+    0 0 24px rgba(255, 213, 61, 0.32);
+  color: #fff;
+  animation: chronoCardEntry 0.5s cubic-bezier(.25, 1, .4, 1) both;
+}
+.chrono-tip-tier {
+  font-size: 10px; letter-spacing: 0.18em;
+  color: #FFD53D; font-weight: 700; text-transform: uppercase;
+  opacity: 0.92;
+}
+.chrono-tip-name {
+  font-size: 18px; font-weight: 800;
+  margin: 6px 0 8px; color: #FFE899;
+  letter-spacing: 0.04em;
+}
+.chrono-tip-body {
+  font-size: 14px; line-height: 1.55;
+  color: #E0DCEB; margin-bottom: 14px;
+}
+.chrono-tip-cta {
+  display: block; width: 100%;
+  padding: 11px 0; font-size: 13px;
+  font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #FFD53D 0%, #E5B829 100%);
+  color: #1a1530;
+  border: none; border-radius: 10px;
+  cursor: pointer;
+  transition: filter 0.18s ease, transform 0.12s ease;
+}
+.chrono-tip-cta:hover  { filter: brightness(1.08); }
+.chrono-tip-cta:active { transform: scale(0.97); }
+@keyframes chronoCardEntry {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chrono-overlay { transition: opacity 0.3s linear; }
+  .chrono-pulse   { animation: none; }
+  .chrono-tip-card { animation: chronoCardEntry 0.3s linear both; }
+}
+
 /* Synergy bar pill — signature combo (highest visual prominence: animated gold/color glow) */
 .synergy-bar .syn-pill.signature {
   background: linear-gradient(180deg, rgba(255,184,74,0.22) 0%, rgba(160,117,48,0.30) 100%);
@@ -8525,6 +8619,21 @@ button.season-tier-claim:active {
   </div>
 </div>
 
+<!-- PHASE 4 BLOCK 1 — FTUE CHRONOGRAPH coachmark. Hidden by default; shown by
+     maybeChronoBeat(beatId) during the Pyredrake FTUE fight to teach the combo
+     grammar at the moment each mechanic first becomes relevant. 6 beats fire
+     once each per FTUE attempt; tap CONTINUE to dismiss and resume play. -->
+<div id="chronoOverlay" class="chrono-overlay hidden" aria-hidden="true">
+  <div class="chrono-backdrop"></div>
+  <div class="chrono-pulse"></div>
+  <div class="chrono-tip-card">
+    <div class="chrono-tip-tier">CHRONOGRAPH · STEP <span id="chronoStep">1</span> / 6</div>
+    <div class="chrono-tip-name" id="chronoName">MATCH</div>
+    <div class="chrono-tip-body" id="chronoBody">…</div>
+    <button class="chrono-tip-cta" id="chronoCta" type="button" onclick="_onChronoCta()">CONTINUE</button>
+  </div>
+</div>
+
 <div class="modal a-result" id="modal">
   <div class="modal-box" id="modalBox">
     <div class="modal-boss-emblem" id="modalBossEmblem"></div>
@@ -9667,6 +9776,148 @@ function showDeathFlashback(onDismiss) {
   overlay.setAttribute('aria-hidden', 'false');
   try { vibrate([200, 100, 200]); } catch (e) {}
 }
+
+// ===== PHASE 4 BLOCK 1 — FTUE CHRONOGRAPH (interactive coachmarks) =====
+//
+// 7-minute FTUE curriculum. During the Pyredrake fight (ftueBeat==='pyredrake_fight'),
+// six interactive beats fire at the moment each combo-grammar lesson first becomes
+// relevant. Each beat: pauses gameplay (input intercepted by overlay), highlights
+// the relevant UI element with a radial spotlight + pulsing rect, shows a tip card
+// with CONTINUE. Tap CONTINUE → resume play. Beats are single-shot per FTUE attempt
+// (reset in startBossBattle when re-entering pyredrake_fight). FSM-only: never
+// fires outside ftueBeat==='pyredrake_fight'.
+//
+// Beat order (first-time-encountered):
+//   1. MATCH      — battle start (target: tray)              "drag piece, line 3+"
+//   2. CHARGE     — first cells cleared (target: hero deck)  "matches charge ULT"
+//   3. ULT        — first hero hits charge≥cost              "tap portrait to fire"
+//   4. RACE       — first synergy pill rendered              "3+ same-race = bonus"
+//   5. CAPTAIN    — first captain ULT drops cells            "captain drops chargers"
+//   6. TELEGRAPH  — first attackCountdown<=2                 "boss windup, plan"
+let _chronoBeatsSeen = {};   // { match, charge, ult, race, captain, telegraph } → true once shown
+let _chronoActive    = false; // is overlay showing right now (gates double-fire)
+const CHRONO_BEATS = {
+  match:     { idx: 1, name: 'MATCH',          body: 'Перетащи фигуру в сетку. Совмести 3+ клеток одного цвета — они исчезнут и нанесут урон.' },
+  charge:    { idx: 2, name: 'CHARGE',         body: 'Каждый матч заряжает ULT героев твоей расы. Жёлтое кольцо вокруг портрета растёт.' },
+  ult:       { idx: 3, name: 'ULT',            body: 'Герой готов. Тапни портрет — выстрел уникальной способности (огонь, лёд, тьма).' },
+  race:      { idx: 4, name: 'RACE BUFF',      body: '3+ героя одной расы → пассивный бонус к урону. Пилл сверху показывает активный комбо.' },
+  captain:   { idx: 5, name: 'CAPTAIN DROP',   body: 'Капитан уронил element-charged клетки на сетку. Цепляй их в матч — они взрывают цепи.' },
+  telegraph: { idx: 6, name: 'BOSS TELEGRAPH', body: 'Босс готовит удар. Цифра — сколько ходов до импакта. Планируй защиту или добивай первым.' },
+};
+
+function maybeChronoBeat(beatId, opts) {
+  // Gate: only during pyredrake_fight FTUE state, single-shot per beat per attempt.
+  // Never fires outside FTUE — won't surprise post-FTUE players on regular battles.
+  try {
+    if (typeof ftueBeat === 'undefined' || ftueBeat !== 'pyredrake_fight') return false;
+    if (_chronoActive) return false;
+    if (_chronoBeatsSeen[beatId]) return false;
+    if (!CHRONO_BEATS[beatId]) return false;
+    _chronoBeatsSeen[beatId] = true;
+    _showChronoBeat(beatId, opts || {});
+    return true;
+  } catch (e) {
+    console.warn('chrono beat err:', beatId, e);
+    return false;
+  }
+}
+
+function _showChronoBeat(beatId, opts) {
+  const beat = CHRONO_BEATS[beatId];
+  const overlay = document.getElementById('chronoOverlay');
+  if (!overlay || !beat) return;
+  // Resolve target rect (DOMRect of the element to highlight). If absent, fall
+  // back to no-spotlight mode (full-screen dim, card centered).
+  let target = opts.targetEl || null;
+  if (!target && opts.targetSelector) {
+    try { target = document.querySelector(opts.targetSelector); } catch (e) {}
+  }
+  let rect = null;
+  if (target && typeof target.getBoundingClientRect === 'function') {
+    const r = target.getBoundingClientRect();
+    if (r && (r.width > 0 || r.height > 0)) rect = r;
+  }
+  const backdrop = overlay.querySelector('.chrono-backdrop');
+  const pulse    = overlay.querySelector('.chrono-pulse');
+  if (rect && backdrop && pulse) {
+    overlay.classList.remove('no-spotlight');
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top  + rect.height / 2;
+    const ri = Math.max(rect.width, rect.height) / 2 + 16;
+    backdrop.style.setProperty('--cx', cx + 'px');
+    backdrop.style.setProperty('--cy', cy + 'px');
+    backdrop.style.setProperty('--ri', ri + 'px');
+    pulse.style.setProperty('--sx', (rect.left - 6) + 'px');
+    pulse.style.setProperty('--sy', (rect.top  - 6) + 'px');
+    pulse.style.setProperty('--sw', (rect.width  + 12) + 'px');
+    pulse.style.setProperty('--sh', (rect.height + 12) + 'px');
+  } else {
+    overlay.classList.add('no-spotlight');
+  }
+  // Populate text + step counter
+  const stepEl = document.getElementById('chronoStep');
+  const nameEl = document.getElementById('chronoName');
+  const bodyEl = document.getElementById('chronoBody');
+  if (stepEl) stepEl.textContent = beat.idx;
+  if (nameEl) nameEl.textContent = beat.name;
+  if (bodyEl) bodyEl.textContent = (opts.bodyOverride || beat.body);
+  // Position card: if target is in upper half of viewport → card below spotlight;
+  // else → card pinned bottom (default position-bottom in CSS).
+  const card = overlay.querySelector('.chrono-tip-card');
+  if (card) {
+    const winH = window.innerHeight || 800;
+    if (rect) {
+      const cyRel = rect.top + rect.height / 2;
+      if (cyRel < winH * 0.55) {
+        card.style.top = Math.min(rect.bottom + 24, winH - 220) + 'px';
+        card.style.bottom = 'auto';
+      } else {
+        card.style.bottom = '32px';
+        card.style.top = 'auto';
+      }
+    } else {
+      card.style.bottom = 'auto';
+      card.style.top = '50%';
+      card.style.transform = 'translate(-50%, -50%)';
+      // Reset on next show — see _hideChronoBeat below.
+    }
+  }
+  overlay.classList.remove('hidden');
+  // RAF gives the browser a tick to layout before fading in (smooth opacity transition)
+  requestAnimationFrame(() => overlay.classList.add('show'));
+  overlay.setAttribute('aria-hidden', 'false');
+  _chronoActive = true;
+  try { vibrate(40); } catch (e) {}
+}
+
+function _hideChronoBeat() {
+  const overlay = document.getElementById('chronoOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('show');
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
+    // Reset card transform set in no-spotlight branch so next non-fallback show is clean
+    const card = overlay.querySelector('.chrono-tip-card');
+    if (card) card.style.transform = '';
+  }, 380); // matches CSS transition duration
+  _chronoActive = false;
+}
+
+function _onChronoCta() { _hideChronoBeat(); }
+
+// Reset all chrono beats — called from startBossBattle when entering pyredrake_fight,
+// so a player who retries the FTUE Pyredrake fight gets the chronograph again
+// (rather than skipping silently because flags were set in the previous attempt).
+function resetChronoForFtueAttempt() { _chronoBeatsSeen = {}; }
+
+// Dev/debug helper
+if (typeof window !== 'undefined') {
+  window.__chronoState = () => ({ seen: { ..._chronoBeatsSeen }, active: _chronoActive, ftueBeat });
+  window.__chronoFire  = (id) => maybeChronoBeat(id);
+  window.__chronoReset = resetChronoForFtueAttempt;
+}
+// ===== END PHASE 4 BLOCK 1 — FTUE CHRONOGRAPH =====
 
 // Block B3: idempotent migration for existing saves (e.g. Roman's playtest state at
 // Boss 4). Runs once per install (gated by SQUAD_MAX_STORAGE_KEY's existence — if
@@ -14045,6 +14296,19 @@ function distributeChargeOnElementClear(element, cellsCleared) {
   if (matching.length === 0) return;
   const gain = _heroChargePerCell(matching.length) * cellsCleared;
   for (const h of matching) addChargeToHero(h.id, gain);
+  // PHASE 4 BLOCK 1 — chronograph CHARGE beat. First time charge actually distributes
+  // during FTUE Pyredrake → highlight the first-charged hero card so the player sees
+  // the ULT ring fill. Delay 220ms so render() has emitted the new charge bar before
+  // we measure rect for the spotlight.
+  try {
+    if (typeof maybeChronoBeat === 'function' && matching.length > 0) {
+      const firstHero = matching[0];
+      setTimeout(() => {
+        const card = document.querySelector(`.hero-card[data-id="${firstHero.id}"]`);
+        maybeChronoBeat('charge', { targetEl: card });
+      }, 220);
+    }
+  } catch (e) {}
 }
 function addChargeToHero(heroId, amount) {
   if (!heroId || !amount) return;
@@ -14061,6 +14325,18 @@ function addChargeToHero(heroId, amount) {
       try { flashText(`${hero.name} · ULT READY`, STIHIYA_COLORS[hero.stihiya] || '#ffd53d'); } catch(e){}
       try { vibrate(60); } catch(e){}
     }
+    // PHASE 4 BLOCK 1 — chronograph ULT beat. First hero crossing the per-role
+    // cost threshold during FTUE → coachmark on that specific hero card so the
+    // player learns "tap charged portrait to fire ULT". 250ms delay lets the
+    // render() emit the .ult-ready class before we measure rect.
+    try {
+      if (typeof maybeChronoBeat === 'function') {
+        setTimeout(() => {
+          const card = document.querySelector(`.hero-card[data-id="${heroId}"]`);
+          maybeChronoBeat('ult', { targetEl: card });
+        }, 250);
+      }
+    } catch (e) {}
   }
 }
 function canFireUlt(heroId) {
@@ -16285,7 +16561,18 @@ function injectEmblemStyles() {
 
 function startBossBattle() {
   // V3.0 Phase 4: show one-time tutorial toast carousel on first battle.
+  // PHASE 4 BLOCK 1 — carousel is gated to NON-FTUE inside maybeShowBattleTutorial
+  // because the FTUE Pyredrake fight uses the chronograph (deeper, contextual)
+  // instead. Post-FTUE first battle (e.g. dev who skipFtue'd) still gets carousel.
   try { maybeShowBattleTutorial(); } catch(e){}
+  // PHASE 4 BLOCK 1 — reset chronograph beats per FTUE Pyredrake attempt so a
+  // player who retries FTUE Pyredrake gets the full curriculum re-shown rather
+  // than skipping silently because the previous attempt set the seen-flags.
+  try {
+    if (ftueBeat === 'pyredrake_fight' && typeof resetChronoForFtueAttempt === 'function') {
+      resetChronoForFtueAttempt();
+    }
+  } catch (e) {}
   // V3.0 Phase 1 Block 1.3: preserve EMBER_GRUNT if startGruntFtueBattle already
   // assigned it. Without this gate, the line below would overwrite it with
   // BOSSES[currentBossIdx] (which is -1 → undefined → crash). The gate is:
@@ -16338,6 +16625,18 @@ function startBossBattle() {
     battleEventLog = [];
     if (!_isFtueOnly && !_isTower && typeof maybeFireSignatureComboCinematic === 'function') {
       maybeFireSignatureComboCinematic();
+    }
+    // PHASE 4 BLOCK 1 — chronograph MATCH beat. First beat of the FTUE curriculum.
+    // Fires for FTUE Pyredrake fight (the FIRST EVER battle for new players) once
+    // the tray has rendered with the first piece. 850ms delay so initial squad-pop
+    // animations + signature-combo-cinema-skip transition land cleanly before
+    // pausing for the lesson.
+    if (typeof ftueBeat !== 'undefined' && ftueBeat === 'pyredrake_fight'
+        && typeof maybeChronoBeat === 'function') {
+      setTimeout(() => {
+        const tray = document.getElementById('tray');
+        maybeChronoBeat('match', { targetEl: tray });
+      }, 850);
     }
     // Block B3: archetype aura class on the boss portrait. CSS rule per archetype
     // (.boss-archetype-berserker / -armored / -bruiser / -phoenix / -assassin) drives
@@ -18137,6 +18436,18 @@ function maybeBossAttack() {
   // All bosses in this codebase use AoE void-scatter, so kind='aoe' is default.
   if (attackCountdown === 2 || attackCountdown === 1) {
     vShowAttackTelegraph({ kind: 'aoe', turnsUntil: attackCountdown });
+    // PHASE 4 BLOCK 1 — chronograph TELEGRAPH beat. First time boss is about
+    // to attack during FTUE → highlight the telegraph badge so player learns
+    // to read attackCountdown. 220ms delay so vShowAttackTelegraph DOM has rendered.
+    try {
+      if (typeof maybeChronoBeat === 'function') {
+        setTimeout(() => {
+          const badge = document.querySelector('.p-attack-telegraph')
+                     || document.getElementById('bossImgWrap');
+          maybeChronoBeat('telegraph', { targetEl: badge });
+        }, 220);
+      }
+    } catch (e) {}
   } else {
     vClearAttackTelegraph();
   }
@@ -18601,6 +18912,18 @@ async function applyCaptainUlt(hero, ctx) {
   render();
   vibrate([40, 20, 40, 20, 40]);
   ctx.convertedCount = picks.length;
+  // PHASE 4 BLOCK 1 — chronograph CAPTAIN beat. First captain ULT during FTUE
+  // converts cells → highlight the grid so the player sees what was dropped.
+  // 380ms delay lets the conversion + render settle visually first (give the
+  // player a beat to perceive the new charged cells before we explain).
+  try {
+    if (typeof maybeChronoBeat === 'function' && picks.length > 0) {
+      setTimeout(() => {
+        const grid = document.getElementById('grid');
+        maybeChronoBeat('captain', { targetEl: grid });
+      }, 380);
+    }
+  } catch (e) {}
 }
 
 // Stihiya bonus — applied AFTER the base role effect completes
@@ -21845,6 +22168,16 @@ function renderSynergyBar() {
     const body = (isCaptain || isSignature) ? s : _emblematizeSynergy(s);
     return `<span class="syn-pill ${cls}">${icon}${body}</span>`;
   }).join('');
+  // PHASE 4 BLOCK 1 — chronograph RACE beat. First time the synergy bar emits
+  // a non-empty pill list during FTUE Pyredrake → highlight the bar so the
+  // player notices the passive-bonus indicator. 220ms delay lets the layout
+  // settle before we measure rect (innerHTML re-layout is sync but flex children
+  // need a tick).
+  try {
+    if (typeof maybeChronoBeat === 'function' && pillSource.length > 0) {
+      setTimeout(() => maybeChronoBeat('race', { targetEl: el }), 220);
+    }
+  } catch (e) {}
 }
 
 function renderBossHP() {
@@ -22571,6 +22904,11 @@ const BATTLE_TUTORIAL_STEPS = [
 let _battleTutorialTimer = null;
 function maybeShowBattleTutorial() {
   try {
+    // PHASE 4 BLOCK 1 — skip carousel during FTUE Pyredrake fight. Chronograph
+    // (interactive coachmarks) supersedes; running both would compete for visual
+    // real estate and double-pause the player. Carousel still fires for the rare
+    // post-FTUE first battle (e.g. dev who used skipFtue() / resetFtue()).
+    if (typeof ftueBeat !== 'undefined' && ftueBeat === 'pyredrake_fight') return;
     if (localStorage.getItem(BATTLE_TUTORIAL_KEY) === '1') return;
   } catch(e){}
   runBattleTutorial(() => { try { localStorage.setItem(BATTLE_TUTORIAL_KEY, '1'); } catch(e){} });
