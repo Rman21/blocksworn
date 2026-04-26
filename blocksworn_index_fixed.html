@@ -14907,6 +14907,26 @@ let cryomindWeaveMult         = 1.0;
 let cryomindWeaveDuration     = 0;
 const CRYOMIND_WEAVE_TURNS    = 3;
 
+// HERO_GRAMMAR §4 [Earth / Grove] — Earth-cell absorption + REVENGE BURST (Phase 5 Block 1).
+// Universal element side-system. Earth-cells absorb boss damage instead of player HP;
+// accumulated absorption is consumed by Hunter (THORNBACK Vengeance Quake — Phase 5 Block 2)
+// for a burst attack. When total absorbed reaches GROVE_REVENGE_THRESHOLD, a REVENGE BURST
+// banner fires once per battle. Per-cell granularity preserved for future tier mechanics
+// (e.g. IRONSCALE "convert hits to earth-cells" — Phase 5 Block 2).
+//
+// Lifecycle:
+//   - Earth-cells CREATED by Earth Warrior (MOSSJAW Bedrock Bastion — Phase 5 Block 2)
+//   - Earth-cells ABSORB boss damage via absorbBossDamage() (this block)
+//   - Earth-cells CONSUMED by Hunter (THORNBACK — Phase 5 Block 2) via consumeEarthCells()
+//
+// Block 1 ships the universal absorb/consume/threshold infrastructure. Hero abilities
+// in Block 2 wire to it without further infrastructure changes.
+let groveAbsorbedByCell       = new Map();    // 'r_c' → absorbed damage amount
+let groveTotalAbsorbed        = 0;             // running sum (cap detection + consume payoff)
+const GROVE_REVENGE_THRESHOLD = 1000;          // total absorbed → REVENGE BURST banner
+const GROVE_REVENGE_LINE_CAP  = 4;             // Hunter detonate line-width cap (Combat Ref §3.3)
+let groveRevengeFired         = false;         // per-battle one-shot banner
+
 // --- KEYCRYPT (rock mage) ---
 let keycryptSpawnCount        = 1;        // T0=1, T1+=2 umbra spawns per fire
 let keycryptSpawnCharged      = false;    // T2+ true — spawns are immediately charged
@@ -16227,6 +16247,14 @@ function resetRaceFlags() {
   cryomindWeaveActive      = false;
   cryomindWeaveMult        = 1.0;
   cryomindWeaveDuration    = 0;
+  // HERO_GRAMMAR §4 [Earth / Grove] — Earth-cell absorption per-battle reset (Phase 5 Block 1)
+  if (groveAbsorbedByCell && typeof groveAbsorbedByCell.clear === 'function') {
+    groveAbsorbedByCell.clear();
+  } else {
+    groveAbsorbedByCell  = new Map();
+  }
+  groveTotalAbsorbed       = 0;
+  groveRevengeFired        = false;
   // Stage 5 Block 5.1 — per-hero battle flags (tracks XP gain criteria)
   _currentFiringHero       = null;
   for (const h of HERO_DECK) {
@@ -17610,6 +17638,91 @@ function onTideCellsCleared(n) {
   if (typeof computeActiveElements === 'function' && computeActiveElements().has('tide')) {
     frostChainSegments = Math.min(FROST_CHAIN_CAP, frostChainSegments + n);
   }
+}
+
+// PHASE 5 BLOCK 1 — universal grove-clear hook. Mirrors onTideCellsCleared /
+// onUmbraCellsCleared pattern. For Block 1 the hook is plumbed but does nothing
+// past gate validation — earthCells are CREATED by Earth Warrior placement
+// (MOSSJAW Bedrock Bastion in Phase 5 Block 2), not by passive grove clears.
+// Block 2 hero abilities (e.g. MOSSWEAVER Verdant Surge) wire to this hook for
+// per-clear bonuses. Element-charge distribution is already handled separately
+// via distributeChargeOnElementClear.
+function onGroveCellsCleared(n) {
+  if (!MOTIFS_ENABLED.grove) return;
+  if (!n) return;
+  if (typeof computeActiveElements === 'function' && !computeActiveElements().has('grove')) return;
+  // Block 1: no state mutation. Reserved hook for Phase 5 Block 2 hero wiring.
+  // (Future: e.g. MOSSWEAVER amp window could increment a grove-amp counter here.)
+}
+
+// PHASE 5 BLOCK 1 — earth-cell defensive absorption.
+// Called from the player-damage flow (after `newDead` calculated, before shield/HP
+// — Combat Ref §15 defensive pipeline step 2). Distributes incoming damage equally
+// across all existing earth-cells, accumulating per-cell. Returns the REMAINING
+// damage. For Block 1, all cells absorb without per-cell cap → returns 0 if any
+// earth-cells exist (full absorption). Phase 5 Block 2 may add per-cell caps for
+// difficulty curve.
+function absorbBossDamage(amount) {
+  if (!MOTIFS_ENABLED.grove) return amount;
+  if (!amount || amount <= 0) return amount;
+  if (groveAbsorbedByCell.size === 0) return amount;
+  const cells = Array.from(groveAbsorbedByCell.keys());
+  const perCell = amount / cells.length;
+  for (const key of cells) {
+    const prev = groveAbsorbedByCell.get(key) || 0;
+    groveAbsorbedByCell.set(key, prev + perCell);
+  }
+  groveTotalAbsorbed += amount;
+  // REVENGE BURST cap detection — fire banner once per battle when threshold first crossed.
+  try { maybeFireRevengeBurst(); } catch (e) {}
+  // Block 1: full absorption. Block 2 may scale this back with per-cell caps.
+  return 0;
+}
+
+// PHASE 5 BLOCK 1 — Hunter detonator helper. Called by THORNBACK Vengeance Quake
+// (Phase 5 Block 2) to consume ALL accumulated absorbed damage as a single burst.
+// Resets per-cell map + total counter. Cells themselves remain on the grid (managed
+// by placement/clear system) — only the absorbed damage is drained. Returns the
+// full sum for the Hunter to use as ULT damage payload (subject to FIRE_MULT_CAP
+// in dealDamage stack).
+//
+// Note: groveRevengeFired NOT reset on consume — it's a per-battle one-shot banner
+// flag. Reset only in startBossBattle.
+function consumeEarthCells() {
+  const total = groveTotalAbsorbed;
+  groveAbsorbedByCell.clear();
+  groveTotalAbsorbed = 0;
+  return total;
+}
+
+// PHASE 5 BLOCK 1 — REVENGE BURST cap banner. Fires once per battle when total
+// absorbed crosses GROVE_REVENGE_THRESHOLD. Visual: standard flashText (consistent
+// with INFERNO! / SHATTER VOLLEY! / ENCORE-OF-ENCORE! pattern). Vibrate triple-pulse
+// distinct from other element banners.
+function maybeFireRevengeBurst() {
+  if (groveRevengeFired) return;
+  if (groveTotalAbsorbed < GROVE_REVENGE_THRESHOLD) return;
+  groveRevengeFired = true;
+  try {
+    const color = (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS.grove) || '#5DCA79';
+    flashText('REVENGE BURST!', color);
+  } catch (e) {}
+  try { vibrate([60, 40, 60, 40, 120]); } catch (e) {}
+}
+
+// Dev/debug helper — single-call snapshot of grove side-system state.
+if (typeof window !== 'undefined') {
+  window.__debugGrove = function () {
+    return {
+      enabled:           MOTIFS_ENABLED.grove,
+      cellCount:         groveAbsorbedByCell.size,
+      perCellAbsorbed:   Array.from(groveAbsorbedByCell.entries()),
+      totalAbsorbed:     groveTotalAbsorbed,
+      revengeThreshold:  GROVE_REVENGE_THRESHOLD,
+      revengeFired:      groveRevengeFired,
+      revengeProgress:   `${Math.min(100, Math.floor(groveTotalAbsorbed / GROVE_REVENGE_THRESHOLD * 100))}%`,
+    };
+  };
 }
 
 function onUmbraCellsCleared(n) {
@@ -21719,6 +21832,11 @@ async function afterPlacement(piece) {
     // HERO_GRAMMAR §4 [Frost / Tide] (Block B2) — frost chain-segment accumulator.
     // Mirrors the umbra hook above. Universal element side-system; gated inside the helper.
     onTideCellsCleared(counts.tide || 0);
+    // HERO_GRAMMAR §4 [Earth / Grove] (Phase 5 Block 1) — grove-clear universal hook.
+    // No-op past gate in Block 1; reserved for Phase 5 Block 2 Crocodile hero wiring
+    // (e.g. MOSSWEAVER Verdant Surge per-clear amp counter). Plumbed for parity with
+    // tide/umbra so Block 2 doesn't need to add this dispatch line.
+    onGroveCellsCleared(counts.grove || 0);
     // V2.0 Block 2.2: SKELETON COLD VIGIL — heal +1 HP on tide clear while boss frozen (max 1/placement)
     if (coldVigilActive && attackCountdown > 0 && (counts.tide || 0) > 0 && hp < currentMaxHP) {
       if (coldVigilUsedAt !== placementCount) {
@@ -21819,6 +21937,22 @@ async function afterPlacement(piece) {
   if (newDead > 0 && sanctuaryTurns > 0) {
     newDead = Math.ceil(newDead / 2);
     flashText('SANCTUARY · DMG /2', STIHIYA_COLORS.solar);
+  }
+  // PHASE 5 BLOCK 1 — earth-cell absorption (Combat Ref §15 defensive pipeline step 2).
+  // Runs BEFORE shield/HP. If earth-cells exist, they fully absorb incoming damage in
+  // Block 1 (no per-cell cap yet). Returns remaining damage for shield/HP fallback when
+  // earth-cells absent. Wrapped in try/catch so absorption failure never breaks combat.
+  if (newDead > 0) {
+    try {
+      if (typeof absorbBossDamage === 'function') {
+        const _absorbed = newDead;
+        newDead = absorbBossDamage(newDead);
+        if (newDead === 0 && _absorbed > 0) {
+          flashText('EARTH ABSORBED · ' + _absorbed, STIHIYA_COLORS.grove || '#5DCA79');
+          vibrate([60, 40, 60]);
+        }
+      }
+    } catch (e) { console.warn('absorbBossDamage failed:', e); }
   }
   if (newDead > 0) {
     if (shieldCount > 0) {
