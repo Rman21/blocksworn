@@ -4930,6 +4930,109 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   }
 }
 
+/* ===== PHASE 3 BLOCK 2 — CLUTCH SLOW-MO overlay =====
+   Fires once per battle at the "1 HP + boss attack incoming" moment. Visual goal:
+   make the player feel time slow + danger close. Cool-blue tint (perception slows)
+   + dark vignette (focus tightens) + dramatic banner (The Last Line / CLUTCH MOMENT). */
+.clutch-overlay {
+  position: fixed; inset: 0;
+  z-index: 9998;  /* one below sig-cinema; never both at once anyway */
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.clutch-overlay.hidden { display: none !important; }
+/* Vignette — radial gradient: center clear, edges deep black. Focus narrows. */
+.clutch-vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 25%, rgba(0,0,0,0.85) 100%);
+  opacity: 0;
+  animation: clutchVignette 2.2s ease-out forwards;
+}
+/* Cool-blue tint — perception-slows feel. Reuses tide stihiya color. */
+.clutch-tint {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, rgba(59,139,212,0.18) 0%, transparent 70%);
+  opacity: 0;
+  animation: clutchTint 2.2s ease-out forwards;
+}
+.clutch-card {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 24px 36px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(40,8,8,0.85) 0%, rgba(15,4,4,0.92) 100%);
+  border: 2px solid #FF4D4D;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    0 0 28px rgba(255,77,77,0.85),
+    0 12px 36px rgba(0,0,0,0.7);
+  opacity: 0;
+  animation: clutchCardEntry 2.2s ease-out forwards;
+}
+.clutch-tier {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: rgba(255,180,180,0.85);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.clutch-name {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: #FF4D4D;
+  text-transform: uppercase;
+  text-shadow:
+    0 2px 4px rgba(0,0,0,0.85),
+    0 0 22px rgba(255,77,77,0.95),
+    0 0 40px rgba(255,77,77,0.55);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  /* Subtle pulse during the hold phase to keep the moment "alive" */
+  animation: clutchNamePulse 0.85s ease-in-out infinite;
+}
+.clutch-bonus {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+@keyframes clutchVignette {
+  0%   { opacity: 0; }
+  18%  { opacity: 1; }
+  78%  { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+@keyframes clutchTint {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+@keyframes clutchCardEntry {
+  0%   { opacity: 0; transform: scale(0.55) translateY(15px); }
+  18%  { opacity: 1; transform: scale(1.10) translateY(-2px); }
+  30%  {              transform: scale(1.0) translateY(0); }
+  78%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+@keyframes clutchNamePulse {
+  0%, 100% { text-shadow: 0 2px 4px rgba(0,0,0,0.85), 0 0 22px rgba(255,77,77,0.95), 0 0 40px rgba(255,77,77,0.55); }
+  50%      { text-shadow: 0 2px 4px rgba(0,0,0,0.85), 0 0 32px rgba(255,77,77,1.00), 0 0 56px rgba(255,77,77,0.85); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .clutch-vignette, .clutch-tint, .clutch-card {
+    animation-duration: 1.6s !important;
+    animation-timing-function: linear !important;
+  }
+  .clutch-name { animation: none !important; }
+}
+
 /* Synergy bar pill — signature combo (highest visual prominence: animated gold/color glow) */
 .synergy-bar .syn-pill.signature {
   background: linear-gradient(180deg, rgba(255,184,74,0.22) 0%, rgba(160,117,48,0.30) 100%);
@@ -8275,6 +8378,20 @@ button.season-tier-claim:active {
   </div>
 </div>
 
+<!-- PHASE 3 BLOCK 2 — CLUTCH SLOW-MO overlay. Hidden by default; shown once per
+     battle when player at 1 HP AND boss attack incoming next placement (the
+     "2 seconds of silence before The Last Line"). Vignette + cool-tone tint +
+     CLUTCH MOMENT banner. Auto-dismiss in 2.2s. -->
+<div id="clutchOverlay" class="clutch-overlay hidden" aria-hidden="true">
+  <div class="clutch-vignette"></div>
+  <div class="clutch-tint"></div>
+  <div class="clutch-card">
+    <div class="clutch-tier">⚠ THE LAST LINE</div>
+    <div class="clutch-name">CLUTCH MOMENT</div>
+    <div class="clutch-bonus">ONE LIFE LEFT · ONE SHOT</div>
+  </div>
+</div>
+
 <div class="modal a-result" id="modal">
   <div class="modal-box" id="modalBox">
     <div class="modal-boss-emblem" id="modalBossEmblem"></div>
@@ -9316,6 +9433,39 @@ function maybeFireSignatureComboCinematic() {
   if (!activeSignatureCombo) return;
   // Defer 600ms so the boss-portrait + squad-pop animations settle first.
   setTimeout(() => showSignatureComboCinematic(activeSignatureCombo), 600);
+}
+
+// PHASE 3 BLOCK 2 — CLUTCH SLOW-MO. Fires the cinematic overlay once per battle
+// when the player is at 1 HP AND the boss attack is incoming on the next placement
+// (attackCountdown ≤ 1). Auto-dismiss in 2.2s. Single-fire via _clutchSlowMoFired
+// per-battle flag (reset in startBossBattle / resetRaceFlags).
+function showClutchMoment() {
+  const overlay = document.getElementById('clutchOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+  // Tactile "the moment" cue — strong vibration pattern for 2 short pulses.
+  try { vibrate([100, 60, 140]); } catch (e) {}
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
+  }, 2300);
+}
+
+function maybeFireClutchSlowMo() {
+  if (_clutchSlowMoFired) return;
+  if (gameEnded) return;
+  if (typeof hp !== 'number' || hp !== 1) return;
+  if (typeof attackCountdown !== 'number' || attackCountdown > 1) return;
+  // FTUE safety-rail guard — the safety rail flips hp to 1 the first time you'd die,
+  // and the clutch firing on that exact moment would feel like a cheap pop-up.
+  // We let the rail handle the moment; clutch fires only on REAL 1 HP situations.
+  if (typeof ftueSafetyRailUsed !== 'undefined' && ftueSafetyRailUsed === false
+      && typeof isFtueActive === 'function' && isFtueActive()) {
+    return;  // FTUE active + safety rail not yet consumed — skip clutch this beat
+  }
+  _clutchSlowMoFired = true;
+  showClutchMoment();
 }
 
 // Block B3: idempotent migration for existing saves (e.g. Roman's playtest state at
@@ -13952,6 +14102,11 @@ let activeSignatureCombo   = null;       // { name, race, stihiya, tier, mult, c
 let _signatureComboContext = 1;          // mult applied in dealDamage stack
 let _signatureComboCinemaShown = false;  // per-battle one-shot for the cinematic
 
+// PHASE 3 BLOCK 2 — CLUTCH SLOW-MO state. Fires once per battle when player at
+// 1 HP AND boss attack incoming next placement (attackCountdown ≤ 1) AND game not
+// already ended. Single fire per battle — flag reset in startBossBattle.
+let _clutchSlowMoFired = false;
+
 // Block 3.2 — Arcane Coven (3+ mage)
 let mageDoubleFireActive     = false;  // mage fires execute twice
 let mageDoubleFireInProgress = false;  // per-fire recursion guard
@@ -15961,6 +16116,8 @@ function startBossBattle() {
     // PHASE 3 BLOCK 1 — Signature Combo cinematic. Reset per-battle one-shot flag
     // and fire if a combo is active. Skipped for FTUE/Tower like voice lines.
     _signatureComboCinemaShown = false;
+    // PHASE 3 BLOCK 2 — Clutch Slow-Mo per-battle reset. Single fire per battle.
+    _clutchSlowMoFired = false;
     if (!_isFtueOnly && !_isTower && typeof maybeFireSignatureComboCinematic === 'function') {
       maybeFireSignatureComboCinematic();
     }
@@ -17737,6 +17894,11 @@ function maybeBossAttack() {
   } else {
     vClearAttackTelegraph();
   }
+  // PHASE 3 BLOCK 2 — Clutch Slow-Mo. After attackCountdown decrement: if player
+  // at 1 HP AND boss attack imminent next placement, fire the "2 seconds of
+  // silence" cinematic so the player feels The Last Line moment. One-shot per
+  // battle (flag in showClutchMoment / maybeFireClutchSlowMo guards).
+  try { if (typeof maybeFireClutchSlowMo === 'function') maybeFireClutchSlowMo(); } catch (e) {}
   if (attackCountdown <= 0) {
     bossAttack();
     attackCountdown = currentBoss.attackInterval;
