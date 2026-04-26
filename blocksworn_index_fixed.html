@@ -10145,6 +10145,22 @@ function applyBossDefeatProgression(bossNumber) {
 
   // Celebration order: squad-slot toast first (1.5s), then hero-unlock celebration.
   if (squadBumped) showSquadSlotUnlockToast(SQUAD_MAX);
+
+  // 2026-04-27 — Chapter 1 tutorial: after Solar Phoenix (boss 4) wins and
+  // SQUAD_MAX bumps to 5, the player must be told "fill the empty seat
+  // before the Lich". Fires once per install. Routed through playDialog so
+  // it inherits the dialog defer-queue (no plate/banner overlap with
+  // existing victory/squad-bump toasts). Delay 2400ms so the squad-slot
+  // toast + hero-unlock celebration finish first.
+  try {
+    const ftueOff = (typeof isFtueActive !== 'function') || !isFtueActive();
+    const seen    = (typeof seenDialogs !== 'undefined') && seenDialogs;
+    if (ftueOff && bossNumber === 4 && SQUAD_MAX === 5 && seen && !seen.has('tut_squad_grew_to_5')) {
+      setTimeout(() => {
+        try { if (typeof playDialog === 'function') playDialog('tut_squad_grew_to_5'); } catch (e) {}
+      }, 2400);
+    }
+  } catch (e) {}
   // PHASE 5b BLOCK 7: include Chapter 2 finale (bossNumber === 10) so HELIOTRON
   // win triggers "Chapter 2 Complete!" celebration even though no new heroes unlock.
   if (newlyUnlocked.length > 0 || bossNumber === 5 || bossNumber === 10) {
@@ -13593,6 +13609,18 @@ const DIALOG_LINES = {
   'stone_defeat':       { speaker: 'STONEMAGUS',       speakerColor: '#7DEC8F', portraitKey: 'Boss_13', text: "Mountains… remember… good stewards. Be one." },
   'sunforged_defeat':   { speaker: 'SUNFORGED',        speakerColor: '#FFE259', portraitKey: 'Boss_14', text: "The hammer… finds a new hand. Forge wisely." },
   // voidfang_defeat_a..e in Block 6.3
+
+  // ==== 2026-04-27 — Chapter 1 Tutorial dialogs ====
+  // Narrator-poet voice (consistent with NARRATOR_LINES style). Each fires
+  // ONCE per install (gated by seenDialogs.has). Suppressed during FTUE so
+  // FTUE's own scripted onboarding never collides. Routed through playDialog,
+  // which inherits the dialog defer-queue (no plate/banner overlap).
+  'tut_boss_attack_intro':  { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_placeholder_clockwork', text: "The boss attacks every few turns. When the countdown above reaches zero, it scatters VOID cells across your board — uncleared, immovable, hostile space." },
+  'tut_void_cells':         { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_placeholder_clockwork', text: "Void cells cannot be cleared like elements. They block placement. Plan around them — leave room for your next pieces." },
+  'tut_hp_loss':            { speaker: 'YOUR CHRONICLER', speakerColor: '#E85D4A', portraitKey: 'hero_placeholder_clockwork', text: "When no piece can fit a corner of your board, that cell becomes a DEAD ZONE — and you lose 1 HP per dead zone each turn. Tight corners and trapped spaces cost lives." },
+  'tut_phoenix_revive':     { speaker: 'YOUR CHRONICLER', speakerColor: '#E8B84A', portraitKey: 'hero_placeholder_clockwork', text: "The Phoenix burns twice. Even ash is patient. Strike again — only the second death is final." },
+  'tut_squad_grew_to_5':    { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_placeholder_clockwork', text: "A fifth slot opens. Your squad grows. Before you face the Lich, fill the empty seat — five hearts beat stronger than four." },
+  'tut_pre_lich_check':     { speaker: 'YOUR CHRONICLER', speakerColor: '#9B59D6', portraitKey: 'hero_placeholder_clockwork', text: "An empty slot in your squad. The Lich does not forgive incomplete cohorts. Open the SQUAD screen and add your fifth hero before this fight." },
 };
 
 // Boss canonical name → dialog ID prefix. Matches CHAPTERS[n].bosses[i].name exactly.
@@ -19907,6 +19935,17 @@ function maybePhoenixRevive() {
   renderBossHP();
   // PHASE 3 BLOCK 3 — Death Flashback log
   try { logBattleEvent('phoenix', 'PHOENIX REVIVES', 'boss restored to 60% HP', '#FF6600'); } catch (e) {}
+  // 2026-04-27 — Chapter 1 tutorial: first phoenix revive shows explanation
+  // dialog ("burns twice"). Once-per-install gate.
+  try {
+    const ftueOff = (typeof isFtueActive !== 'function') || !isFtueActive();
+    const seen    = (typeof seenDialogs !== 'undefined') && seenDialogs;
+    if (ftueOff && seen && !seen.has('tut_phoenix_revive')) {
+      setTimeout(() => {
+        try { if (typeof playDialog === 'function') playDialog('tut_phoenix_revive'); } catch (e) {}
+      }, 1200);  // let revive flash + vibration land before reading
+    }
+  } catch (e) {}
   return true;
 }
 
@@ -20920,6 +20959,31 @@ async function bossAttack() {
   render();
   const cellEls = document.querySelectorAll('.grid .cell');
   for (const [r, c] of picks) cellEls[r*SIZE+c].classList.add('spawning');
+
+  // 2026-04-27 — Chapter 1 tutorial: explain boss attacks on FIRST hit (any
+  // Chapter 1 boss, after FTUE complete). Suppressed during FTUE so the
+  // scripted Pyredrake FTUE flow stays clean. Two dialogs chained: attack
+  // mechanic first, void-cell consequence second. Gated by seenDialogs so
+  // each fires only once per install. Routed through playDialog → inherits
+  // dialog defer-queue (no plate/banner overlap).
+  try {
+    const ftueOff  = (typeof isFtueActive !== 'function') || !isFtueActive();
+    const ch1Boss  = (typeof currentChapter !== 'undefined') && currentChapter === 1;
+    const seen     = (typeof seenDialogs !== 'undefined') && seenDialogs;
+    if (ftueOff && ch1Boss && seen && !seen.has('tut_boss_attack_intro')) {
+      // Defer 600ms so the void-cell spawn animation lands first; player sees
+      // the consequence, then reads the explanation.
+      setTimeout(() => {
+        try {
+          if (typeof playDialog === 'function') {
+            playDialog('tut_boss_attack_intro', () => {
+              setTimeout(() => playDialog('tut_void_cells'), 250);
+            });
+          }
+        } catch (e) {}
+      }, 600);
+    }
+  } catch (e) { /* tutorial is decorative — never break combat */ }
 }
 
 function flashAttack(cellCount = 3) {
@@ -24620,6 +24684,19 @@ async function afterPlacement(piece) {
       // Dead-zone damage is the only player-damage path in this codebase, so this
       // single increment covers both systems.
       battleDamageTaken += newDead;
+      // 2026-04-27 — Chapter 1 tutorial: explain HP loss the FIRST time the
+      // player takes dead-zone damage. Once-per-install gate. Suppressed
+      // during FTUE so FTUE's own scripted Pyredrake flow stays clean.
+      try {
+        const ftueOff  = (typeof isFtueActive !== 'function') || !isFtueActive();
+        const ch1Boss  = (typeof currentChapter !== 'undefined') && currentChapter === 1;
+        const seen     = (typeof seenDialogs !== 'undefined') && seenDialogs;
+        if (ftueOff && ch1Boss && newDead > 0 && seen && !seen.has('tut_hp_loss')) {
+          setTimeout(() => {
+            try { if (typeof playDialog === 'function') playDialog('tut_hp_loss'); } catch (e) {}
+          }, 700);
+        }
+      } catch (e) {}
       vibrate(80);
       speakNarrator('hpLost');
       // POLISH v1 · PHASE 3 — hp-hit red flash
@@ -25650,6 +25727,26 @@ function goToSelect() {
 
 function startBattleFromMenu() {
   if (activeSquad.length < SQUAD_MAX) {
+    // 2026-04-27 — Pre-Lich (and any post-bump) tutorial. The classic flash
+    // "SELECT 5 HEROES" is terse; for the FIRST time the player hits this
+    // gate after SQUAD_MAX bumped to 5 (post-Phoenix), show a clear dialog
+    // explaining WHY + route them to the Select screen so they can add the
+    // missing hero. Gated by seenDialogs so subsequent under-squad attempts
+    // get the lighter flash. Suppressed during FTUE so scripted onboarding
+    // never collides with this gate.
+    try {
+      const ftueOff = (typeof isFtueActive !== 'function') || !isFtueActive();
+      const seen    = (typeof seenDialogs !== 'undefined') && seenDialogs;
+      if (ftueOff && SQUAD_MAX === 5 && seen && !seen.has('tut_pre_lich_check')) {
+        if (typeof playDialog === 'function') {
+          playDialog('tut_pre_lich_check', () => {
+            // After dialog: route to Select screen so player can fill the slot.
+            try { if (typeof goToSelect === 'function') goToSelect(); } catch (e) {}
+          });
+          return;  // suppress the legacy flash on this one-time tutorial path
+        }
+      }
+    } catch (e) {}
     flashText(`SELECT ${SQUAD_MAX} HEROES`, '#E85D4A');
     return;
   }
