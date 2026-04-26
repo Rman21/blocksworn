@@ -11588,6 +11588,11 @@ function playDialogScript(lines, onComplete) {
       dialogActive = false;
       dialogClickLock = false;
       if (onComplete) { try { onComplete(); } catch(e){ console.warn('dialog onComplete failed:', e); } }
+      // 2026-04-27 — drain plate-style notifications that arrived while the
+      // dialog was on screen (flashText / narrator / toast / race-passive
+      // banners). They were queued in _dialogDeferredQueue and will fire
+      // sequentially with light stagger to avoid stomping each other.
+      try { if (typeof _flushDeferredQueueAfterDialog === 'function') _flushDeferredQueueAfterDialog(); } catch (e) {}
       // TASK #2.2b: drain queued dialog request, if any. Microtask so the current
       // call stack unwinds before the next playDialogScript invocation.
       if (_pendingDialogRequest) {
@@ -25336,7 +25341,35 @@ function flashCombo(text) {
 // PHOENIX REBORN — anything with '!' or 'ULT' or '×N' for N≥4) get bumped to a
 // larger 'big' variant for visual impact. The .big modifier scales font + glow
 // via existing CSS animation (no new keyframes needed — reuses heroFlash.active).
+// 2026-04-27 — Dialog defer queue. When a dialog overlay is on screen, ALL
+// plate-style on-screen text (flashText / flashHeroTrigger / narrator / toast)
+// would otherwise stack on top of the dialog box and obscure both. Instead we
+// queue plate calls that arrive during a dialog and flush them after the
+// dialog's onComplete chain runs. Capped to prevent runaway stacks if a long
+// dialog overlaps with a flash-spammy combat phase.
+let _dialogDeferredQueue = [];
+const _DIALOG_DEFER_QUEUE_CAP = 8;
+function _isDialogActive() {
+  // dialogActive is the canonical flag set by playDialogScript.
+  // Defensive in case the file is loaded before the let initialiser runs.
+  return (typeof dialogActive !== 'undefined') && dialogActive === true;
+}
+function _deferDuringDialog(runFn) {
+  if (_dialogDeferredQueue.length >= _DIALOG_DEFER_QUEUE_CAP) return;  // drop oldest behavior: cap silently
+  _dialogDeferredQueue.push(runFn);
+}
+function _flushDeferredQueueAfterDialog() {
+  if (!_dialogDeferredQueue.length) return;
+  const items = _dialogDeferredQueue;
+  _dialogDeferredQueue = [];
+  // Stagger so each plate gets eye-time after the dialog clears.
+  items.forEach((fn, i) => {
+    setTimeout(() => { try { fn(); } catch (e) {} }, 150 + i * 280);
+  });
+}
+
 function flashText(text, color) {
+  if (_isDialogActive()) { _deferDuringDialog(() => flashText(text, color)); return; }
   const el = document.getElementById('heroFlash');
   if (!el) return;
   el.innerHTML = text;
@@ -25352,7 +25385,9 @@ function flashText(text, color) {
 // Format: [HERO NAME] — [ABILITY NAME]!
 // Hero name in element color, ability name in bone white (#E8E6DF)
 function flashHeroTrigger(heroName, abilityName, color) {
+  if (_isDialogActive()) { _deferDuringDialog(() => flashHeroTrigger(heroName, abilityName, color)); return; }
   const el = document.getElementById('heroFlash');
+  if (!el) return;
   el.innerHTML = `<span style="color:${color};text-shadow:0 0 20px ${color}">${heroName}</span>` +
                  `<span style="color:#E8E6DF;margin:0 8px;">—</span>` +
                  `<span style="color:#E8E6DF">${abilityName}!</span>`;
@@ -25400,6 +25435,9 @@ const NARRATOR_LINES = {
 let narratorBusyUntil = 0;
 let narratorTimer = null;
 function speakNarrator(trigger) {
+  // 2026-04-27 — defer if a dialog is on screen so narrator strip doesn't
+  // bleed through the dialog overlay.
+  if (_isDialogActive()) { _deferDuringDialog(() => speakNarrator(trigger)); return; }
   const lines = NARRATOR_LINES[trigger];
   if (!lines || !lines.length) return;
   const now = Date.now();
