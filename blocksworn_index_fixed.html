@@ -9808,8 +9808,9 @@ const CHRONO_BEATS = {
 function maybeChronoBeat(beatId, opts) {
   // Gate: only during pyredrake_fight FTUE state, single-shot per beat per attempt.
   // Never fires outside FTUE — won't surprise post-FTUE players on regular battles.
+  // PHASE 4 BLOCK 2 (DEBT-014): use ftueIs() helper instead of raw string equality.
   try {
-    if (typeof ftueBeat === 'undefined' || ftueBeat !== 'pyredrake_fight') return false;
+    if (typeof ftueIs !== 'function' || !ftueIs('pyredrake_fight')) return false;
     if (_chronoActive) return false;
     if (_chronoBeatsSeen[beatId]) return false;
     if (!CHRONO_BEATS[beatId]) return false;
@@ -10236,6 +10237,15 @@ if (typeof window !== 'undefined') {
 // Design principle (per Phase 1 spec): all 5 starter orcs stay unlocked at the
 // code level. FTUE is purely a presentation layer that reveals heroes one-by-one
 // narratively. No lock/unlock mutations happen during FTUE.
+//
+// PHASE 4 BLOCK 2 — DEBT-014 FSM REWORK:
+// - FTUE_TRANSITIONS table (explicit prev→next edges) replaces "any-to-any"
+//   loose validation. advanceFtue now warns on invalid edges (still permitted
+//   for back-compat with skipFtue/resetFtue and routeByFtue idempotent re-entry).
+// - ftueIs(beat) helper replaces ad-hoc `ftueBeat === 'X'` string checks.
+// - FtueState namespace (read-only debug view) gathers ftueBeat +
+//   ftueSafetyRailUsed + _chronoBeatsSeen + battleTutorialShown into one
+//   object queryable via __ftueDebug() for triage.
 
 let ftueBeat = 'not_started';
 const FTUE_STORAGE_KEY = 'blocksworn_ftue_beat';
@@ -10244,6 +10254,35 @@ const FTUE_BEATS = [
   'not_started', 'intro', 'pyredrake_fight', 'pyredrake_won',
   'hero_reveals', 'leader_choice', 'grunt_fight', 'grunt_won', 'complete'
 ];
+
+// PHASE 4 BLOCK 2 (DEBT-014) — explicit transition table. Each key = source beat,
+// value = array of allowed next beats. Self-edges are implicit (handled by
+// advanceFtue's `prev === nextBeat` early return). Transitions documented:
+//
+//   not_started     →  intro                                (auto: routeByFtue first run)
+//   intro           →  pyredrake_fight                      (auto: post intro_dialog)
+//   pyredrake_fight →  pyredrake_won                        (player wins) | grunt_fight (skip path)
+//   pyredrake_won   →  leader_choice                        (auto: post hero_reveals chain)
+//   hero_reveals    →  leader_choice                        (legacy beat, no-op handler)
+//   leader_choice   →  grunt_fight                          (player picks captain)
+//   grunt_fight     →  grunt_won                            (player wins)
+//   grunt_won       →  complete                             (auto: post grunt_outro)
+//   complete        →  (terminal)                           — only resetFtue() can leave
+//
+// The 'any → complete' / 'any → not_started' fast-paths via skipFtue/resetFtue
+// are explicitly allowed by FTUE_TRANSITIONS_FORCE for dev tooling.
+const FTUE_TRANSITIONS = {
+  not_started:     ['intro'],
+  intro:           ['pyredrake_fight'],
+  pyredrake_fight: ['pyredrake_won', 'grunt_fight'],
+  pyredrake_won:   ['hero_reveals', 'leader_choice'],
+  hero_reveals:    ['leader_choice'],
+  leader_choice:   ['grunt_fight'],
+  grunt_fight:     ['grunt_won'],
+  grunt_won:       ['complete'],
+  complete:        [], // terminal — resetFtue() bypasses via FTUE_TRANSITIONS_FORCE
+};
+const FTUE_TRANSITIONS_FORCE = ['complete', 'not_started']; // dev-tool allowed from any state
 
 // Pyredrake FTUE tuning (overrides CHAPTERS[0].bosses[0] only during pyredrake_fight)
 const FTUE_PYREDRAKE_HP              = 800;
@@ -10277,20 +10316,39 @@ function loadFtueFromStorage() {
 function isFtueComplete() { return ftueBeat === 'complete'; }
 function isFtueActive()   { return ftueBeat !== 'complete'; }
 
+// PHASE 4 BLOCK 2 (DEBT-014) — single-source predicate for "are we in beat X".
+// Replaces ad-hoc `ftueBeat === 'pyredrake_fight'` etc throughout the codebase.
+// Accepts a string OR an array of beat names (returns true if any match).
+// Defensively returns false for unknown beats so a typo never silently passes.
+function ftueIs(beat) {
+  if (Array.isArray(beat)) return beat.some(b => ftueIs(b));
+  if (typeof beat !== 'string') return false;
+  if (!FTUE_BEATS.includes(beat)) {
+    console.warn('ftueIs: unknown beat', beat);
+    return false;
+  }
+  return ftueBeat === beat;
+}
+
 // Lookup helper used by battle init to override Pyredrake stats non-destructively.
 // Never mutates CHAPTERS data — returns a shallow-copy override when applicable.
 // Grunt battle reads currentBoss directly (Block 1.3 assigns EMBER_GRUNT), and
 // this function is a no-op for it because Grunt doesn't match the Pyredrake gate.
+// DEBT-014: use ftueIs() helper.
 function getEffectiveBossStats(boss) {
   if (!boss) return boss;
-  if (ftueBeat === 'pyredrake_fight' && boss.img === 'Boss_1' && !boss._isFtueOnly) {
+  if (ftueIs('pyredrake_fight') && boss.img === 'Boss_1' && !boss._isFtueOnly) {
     return { ...boss, hp: FTUE_PYREDRAKE_HP, attackInterval: FTUE_PYREDRAKE_ATTACK_INTERVAL };
   }
   return boss;
 }
 
 // Central transition. onFtueBeatChanged dispatches side effects.
-// Block 1.2 will wire dialogs here; Block 1.3 will wire Grunt battle + finalize.
+// Block 1.2 wired dialogs here; Block 1.3 wired Grunt battle + finalize.
+// PHASE 4 BLOCK 2 (DEBT-014): added FTUE_TRANSITIONS validation. Invalid edges
+// log a warning but are still applied — preserves back-compat for any historical
+// caller that depends on loose validation. Force-paths (complete / not_started)
+// are always allowed for dev tooling (skipFtue / resetFtue).
 function advanceFtue(nextBeat) {
   if (!FTUE_BEATS.includes(nextBeat)) {
     console.warn('advanceFtue: invalid beat', nextBeat);
@@ -10298,6 +10356,13 @@ function advanceFtue(nextBeat) {
   }
   const prev = ftueBeat;
   if (prev === nextBeat) return;
+  // DEBT-014 transition validation
+  const allowed = FTUE_TRANSITIONS[prev] || [];
+  const isForce = FTUE_TRANSITIONS_FORCE.includes(nextBeat);
+  if (!isForce && !allowed.includes(nextBeat)) {
+    console.warn(`[FTUE] non-canonical transition ${prev} → ${nextBeat} (allowed: ${allowed.join(',') || '∅'})`);
+    // still proceed — back-compat
+  }
   ftueBeat = nextBeat;
   saveFtueToStorage();
   console.log(`[FTUE] ${prev} → ${nextBeat}`);
@@ -10401,7 +10466,8 @@ function routeByFtue() {
     return;
   }
   // From fresh install ('not_started'), start the flow
-  if (ftueBeat === 'not_started') {
+  // DEBT-014: use ftueIs() helper.
+  if (ftueIs('not_started')) {
     advanceFtue('intro'); // chains → pyredrake_fight → startPyredrakeFtueBattle
     return;
   }
@@ -10430,6 +10496,34 @@ if (typeof window !== 'undefined') {
   window.resetFtue = resetFtue;
   window.advanceFtue = advanceFtue; // dev aid for Block 1.2/1.3 testing
   window.getEffectiveBossStats = getEffectiveBossStats;
+  window.ftueIs    = ftueIs; // PHASE 4 BLOCK 2 (DEBT-014)
+
+  // PHASE 4 BLOCK 2 (DEBT-014) — single-call FTUE diagnostic. Returns a snapshot
+  // of all FTUE-adjacent state for triage:
+  //   - beat: current FSM state
+  //   - allowedNext: edges out of current beat (per FTUE_TRANSITIONS)
+  //   - safetyRailUsed: per-battle safety-rail flag (set when player would die in Pyredrake fight)
+  //   - chronoBeatsSeen: which Phase 4 Block 1 chronograph coachmarks fired
+  //   - chronoActive: is a chronograph beat showing right now
+  //   - battleTutorialShown: has legacy 3-step #vBattleTutorial carousel been shown
+  //   - storage: raw localStorage values backing the FSM (for save-corruption triage)
+  window.__ftueDebug = function () {
+    const safeGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    return {
+      beat: ftueBeat,
+      allowedNext: (FTUE_TRANSITIONS[ftueBeat] || []).slice(),
+      forceAlways: FTUE_TRANSITIONS_FORCE.slice(),
+      safetyRailUsed: (typeof ftueSafetyRailUsed !== 'undefined') ? ftueSafetyRailUsed : null,
+      chronoBeatsSeen: (typeof _chronoBeatsSeen !== 'undefined') ? { ..._chronoBeatsSeen } : null,
+      chronoActive: (typeof _chronoActive !== 'undefined') ? _chronoActive : null,
+      battleTutorialShown: safeGet('battleTutorialShown') === '1',
+      storage: {
+        ftue:                 safeGet(FTUE_STORAGE_KEY),
+        battleTutorial:       safeGet('battleTutorialShown'),
+        backlog002Backfilled: safeGet('blocksworn_migration_backlog002_tank_backfilled'),
+      },
+    };
+  };
 }
 // ===== END BLOCK 1.1 BACKEND =====
 
@@ -16568,8 +16662,10 @@ function startBossBattle() {
   // PHASE 4 BLOCK 1 — reset chronograph beats per FTUE Pyredrake attempt so a
   // player who retries FTUE Pyredrake gets the full curriculum re-shown rather
   // than skipping silently because the previous attempt set the seen-flags.
+  // DEBT-014: use ftueIs() helper.
   try {
-    if (ftueBeat === 'pyredrake_fight' && typeof resetChronoForFtueAttempt === 'function') {
+    if (typeof ftueIs === 'function' && ftueIs('pyredrake_fight')
+        && typeof resetChronoForFtueAttempt === 'function') {
       resetChronoForFtueAttempt();
     }
   } catch (e) {}
@@ -16630,8 +16726,8 @@ function startBossBattle() {
     // Fires for FTUE Pyredrake fight (the FIRST EVER battle for new players) once
     // the tray has rendered with the first piece. 850ms delay so initial squad-pop
     // animations + signature-combo-cinema-skip transition land cleanly before
-    // pausing for the lesson.
-    if (typeof ftueBeat !== 'undefined' && ftueBeat === 'pyredrake_fight'
+    // pausing for the lesson. DEBT-014: use ftueIs() helper.
+    if (typeof ftueIs === 'function' && ftueIs('pyredrake_fight')
         && typeof maybeChronoBeat === 'function') {
       setTimeout(() => {
         const tray = document.getElementById('tray');
@@ -22908,7 +23004,8 @@ function maybeShowBattleTutorial() {
     // (interactive coachmarks) supersedes; running both would compete for visual
     // real estate and double-pause the player. Carousel still fires for the rare
     // post-FTUE first battle (e.g. dev who used skipFtue() / resetFtue()).
-    if (typeof ftueBeat !== 'undefined' && ftueBeat === 'pyredrake_fight') return;
+    // DEBT-014: use ftueIs() helper.
+    if (typeof ftueIs === 'function' && ftueIs('pyredrake_fight')) return;
     if (localStorage.getItem(BATTLE_TUTORIAL_KEY) === '1') return;
   } catch(e){}
   runBattleTutorial(() => { try { localStorage.setItem(BATTLE_TUTORIAL_KEY, '1'); } catch(e){} });
