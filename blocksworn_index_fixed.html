@@ -17924,9 +17924,14 @@ async function ultPlaceholder() {
 // Charge cost relative: medium (combo ≥ 2 fires; ULT ~4 placements).
 // THORGAR (pirate warrior) — CLEAVER SWEEP: 200 dmg + clear 1 ember (+5 bonus, cascade if charged)
 // V2.0 Stage 5 Block 5.2 tier reads: thorgarBaseDmg (T1 230), thorgarClearCount (T2 2)
+// HOTFIX B3.6 — Warrior CREATOR per MASTER_PLAN_V3 §2.4 [Fire × Warrior].
+// Plan: "Создаёт ember-charged клетки на линии фигуры. Источник цепочки."
+// Implementation: direct hit baseDmg + cascade if any cleared cell was charged
+// (preserves §12.1 "Direct hit + clears N ember cells with cascade if charged")
+// + after the clear, ignite up to N (THORGAR_CHARGE_COUNT=3) random non-charged
+// ember cells on the board → THORGAR is now the source of the chain (§2.4).
 async function fireThorgar(counts) {
-  let baseDmg = thorgarBaseDmg;  // T0=200, T1+=230
-  // Find N random ember cells (T1+=1, T2+=2) to clear, with cascade if charged
+  let baseDmg = thorgarBaseDmg;
   const ember = [];
   for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
     if (grid[r][c] === 'ember') ember.push([r, c]);
@@ -17937,7 +17942,7 @@ async function fireThorgar(counts) {
   for (const [cr, cc] of cleaves) {
     const wasCharged = chargedCells.has(cr + '_' + cc);
     cellEls[cr * SIZE + cc].classList.add('burning');
-    baseDmg += BONUS_DMG.ember;  // +5 ember bonus per ember cleared
+    baseDmg += BONUS_DMG.ember;
     if (wasCharged) applyCascade(cr + '_' + cc);
   }
   if (cleaves.length > 0) await sleep(300);
@@ -17945,7 +17950,22 @@ async function fireThorgar(counts) {
     grid[cr][cc] = null;
     chargedCells.delete(cr + '_' + cc);
   }
-  if (cleaves.length > 0) renderChargedVisuals();
+  // CREATOR half — charge up to 3 surviving non-charged ember cells.
+  const THORGAR_CHARGE_COUNT = 3;
+  const survivors = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    if (grid[r][c] === 'ember' && !chargedCells.has(r + '_' + c)) survivors.push(r + '_' + c);
+  }
+  survivors.sort(() => Math.random() - 0.5);
+  let charged = 0;
+  for (const key of survivors) {
+    if (charged >= THORGAR_CHARGE_COUNT) break;
+    if (chargedCells.size >= EMBER_CHARGED_CAP) break;
+    chargedCells.add(key);
+    charged++;
+  }
+  if (charged > 0) flashText('CLEAVER · CHARGE ×' + charged, '#FF8B3D');
+  renderChargedVisuals();
   dealDamage(baseDmg, true);
   vibrate([40, 20, 40]);
 }
@@ -18027,34 +18047,36 @@ async function fireBlacktooth(counts) {
 // V2.0 Stage 5 Block 5.2 tier deltas (emberhandSpawnCount, emberhandSpawnCharged) are
 // now dead stores — deferred Phase 6 will rewire to extend window / boost mult.
 async function fireEmberhand() {
-  // HOTFIX B3.4 (Roman spec): EMBERHAND is now the explicit ember-ignition source
-  // (legacy tickEmberAges auto-ignition removed). On fire, light up to 6 random
-  // unignited ember cells on the board (mark as charged). These charged cells then
-  // do amplified detonation damage when BLACKTOOTH (or any future ember Hunter ULT)
-  // sweeps the board. The +50% BLOOM window stacks on top — same Mage AMPLIFIER
-  // identity, just now with an explicit "primer" half so the player has agency.
-  const EMBERHAND_IGNITE_COUNT = 6;
-  const candidates = [];
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
-      if (grid[r][c] === 'ember' && !chargedCells.has(r + '_' + c)) {
-        candidates.push(r + '_' + c);
-      }
+  // HOTFIX B3.6 — Mage AMPLIFIER per MASTER_PLAN_V3 §2.4 [Fire × Mage].
+  // Plan: "Конвертит соседей в ember-charged. Множит/распространяет существующие.
+  // NO new state — only amplifies."
+  // Implementation: scan grid for charged ember cells, look at their orthogonal
+  // neighbors that are also ember but NOT charged, and convert those neighbors to
+  // charged. Pure spreading — no new ember cells spawned, only existing ember
+  // cells get their state upgraded. The +50% BLOOM window from B0/2.2d stacks
+  // on top (BLACKTOOTH INFERNO honors emberhandBloomMult).
+  const toCharge = new Set();
+  const neighbors = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+  for (const key of chargedCells) {
+    const [r, c] = key.split('_').map(Number);
+    for (const [dr, dc] of neighbors) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) continue;
+      const nkey = nr + '_' + nc;
+      if (grid[nr][nc] === 'ember' && !chargedCells.has(nkey)) toCharge.add(nkey);
     }
   }
-  candidates.sort(() => Math.random() - 0.5);
-  let ignited = 0;
-  for (const key of candidates) {
-    if (ignited >= EMBERHAND_IGNITE_COUNT) break;
+  let converted = 0;
+  for (const key of toCharge) {
     if (chargedCells.size >= EMBER_CHARGED_CAP) break;
     chargedCells.add(key);
-    ignited++;
+    converted++;
   }
-  // BLOOM amplifier window — unchanged from B0/2.2d. Stacks with the new ignite.
+  // BLOOM amplifier window — unchanged from B0/2.2d. Stacks with the conversion.
   emberhandBloomActive   = true;
   emberhandBloomDuration = EMBERHAND_BLOOM_TURNS;
-  if (ignited > 0) {
-    flashText('EMBER BLOOM +50% · IGNITE ×' + ignited, '#FFB84A');
+  if (converted > 0) {
+    flashText('EMBER BLOOM +50% · SPREAD ×' + converted, '#FFB84A');
   } else {
     flashText('EMBER BLOOM +50%', '#FFB84A');
   }
@@ -20292,18 +20314,18 @@ async function afterPlacement(piece) {
     }
     render();
 
-    // HOTFIX B3.5 (Roman spec): passive auto-fire DISABLED for warrior/hunter/tank
-    // (striker + guard roles). Heroes only contribute via ULT (player tap on charged
-    // card → onHeroCardClick → hero.ult()) and via passive buffs/synergies (race
-    // synergy, captain dual buff, cross-hero shield-on-detonate). Captains keep
-    // their period-based auto-fire — gated below in the weaver block.
-    // The dispatch loop is intentionally removed; intent preserved as a comment so
-    // future readers understand the design choice (and to make a future re-enable
-    // a one-line edit).
-    //
-    // Removed (was firing on combo / line-clear):
-    //   striker: count >= h.minCombo && (inLines.has(h.stihiya) || piece.stihiya === h.stihiya)
-    //   guard:   inLines.has(h.stihiya)
+    // HOTFIX B3.6 — restored from B3.5 disable. MASTER_PLAN_V3 §2.3 + §4.3 require
+    // active passive cascade for combo grammar (CREATE → AMPLIFY → DETONATE works
+    // via auto-fire on combo, not 3 player taps). All 4 non-captain roles auto-fire:
+    //   striker (warrior/hunter): combo ≥ minCombo + element matches lines or piece
+    //   guard   (tank):           any line clear of stihiya
+    for (const h of HERO_DECK) {
+      if (gameEnded) break;
+      let fires = false;
+      if (h.role === 'striker' && count >= h.minCombo && (inLines.has(h.stihiya) || piece.stihiya === h.stihiya)) fires = true;
+      if (h.role === 'guard' && inLines.has(h.stihiya)) fires = true;
+      if (fires) await fireHero(h, counts);
+    }
     break;
   }
 
@@ -20335,14 +20357,11 @@ async function afterPlacement(piece) {
     frozenStreakTurns = 0;
   }
 
-  // Weaver passive — HOTFIX B3.5 (Roman spec): only CAPTAINS keep period-based auto-fire.
-  // Mages (also `role === 'weaver'`) lose passive — they only fire via ULT now (player tap).
-  // Captains stay passive because that's their entire combat identity (ENABLER role —
-  // dual buff + period-based board effect). All other hero contributions come from ULT
-  // (per-hero charge meter, B3.2) and from race synergy / captain dual buff layers.
+  // Weaver passive — HOTFIX B3.6 restore: mages + captains both period-based auto-fire
+  // per MASTER_PLAN_V3 §2.3 (Mage AMPLIFIER + Captain ENABLER both active in combo loop).
+  // Mage period 12 (EMBERHAND/KEYCRYPT/CRYOMIND), captain period 10 (CRIMSON/NIGHTLORD/ABYSSKING).
   for (const h of HERO_DECK) {
     if (h.role !== 'weaver') continue;
-    if (h.newRole !== 'captain') continue;  // mages no longer auto-fire
     const period = getEffectivePeriod(h);
     if (placementCount > 0 && placementCount % period === 0) {
       await fireHero(h);
