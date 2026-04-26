@@ -14957,6 +14957,25 @@ const GROVE_REVENGE_THRESHOLD = 1000;          // total absorbed → REVENGE BUR
 const GROVE_REVENGE_LINE_CAP  = 4;             // Hunter detonate line-width cap (Combat Ref §3.3)
 let groveRevengeFired         = false;         // per-battle one-shot banner
 
+// HERO_GRAMMAR §4 [Light / Solar] — Light cell clear → shield gain + SHIELDS-TO-DAMAGE
+// (Phase 5 Block 3). Universal element side-system. Mirror of Earth/Grove infrastructure.
+//
+// Spec (Combat Ref §3.5):
+//   - Light cell clears → +1 shield per cell
+//   - Hunter (RADIANCE Aurora Burst — Phase 5 Block 4) consumes ALL shields → burst dmg
+//   - SHIELDS-TO-DAMAGE banner cap when shieldCount ≥ 8 (after a solar clear)
+//
+// Block 3 ships universal absorb/consume/threshold infrastructure. Hero-level Spark
+// abilities (RADIANCE et al) wire to it in Block 4 without further infrastructure.
+//
+// Design note: cap banner fires ONLY after onSolarCellsCleared bumped shields past
+// threshold — not from arbitrary shield sources (Tank ULTs, IRON HIDE, etc.). This
+// preserves the "Light defensive payoff" thematic identity per spec.
+const SOLAR_SHIELDS_THRESHOLD = 8;             // shieldCount → SHIELDS-TO-DAMAGE banner
+const SOLAR_BURST_DMG_PER_SHIELD = 200;        // suggested burst dmg/shield (Block 4 reference)
+let solarShieldsCapFired      = false;         // per-battle one-shot banner
+let solarShieldsBankedTotal   = 0;             // running counter of shields gained via solar clears (debug + cap progress)
+
 // --- KEYCRYPT (rock mage) ---
 let keycryptSpawnCount        = 1;        // T0=1, T1+=2 umbra spawns per fire
 let keycryptSpawnCharged      = false;    // T2+ true — spawns are immediately charged
@@ -16290,6 +16309,9 @@ function resetRaceFlags() {
   mossweaverSurgeMult      = 1.0;
   mossweaverSurgeDuration  = 0;
   crocDeathRollUsed        = false;
+  // Phase 5 Block 3 — Light/Solar SHIELDS-TO-DAMAGE per-battle reset
+  solarShieldsCapFired     = false;
+  solarShieldsBankedTotal  = 0;
   // Stage 5 Block 5.1 — per-hero battle flags (tracks XP gain criteria)
   _currentFiringHero       = null;
   for (const h of HERO_DECK) {
@@ -17756,6 +17778,80 @@ if (typeof window !== 'undefined') {
       revengeThreshold:  GROVE_REVENGE_THRESHOLD,
       revengeFired:      groveRevengeFired,
       revengeProgress:   `${Math.min(100, Math.floor(groveTotalAbsorbed / GROVE_REVENGE_THRESHOLD * 100))}%`,
+    };
+  };
+}
+
+// PHASE 5 BLOCK 3 — universal solar-clear hook. Mirrors onTideCellsCleared /
+// onUmbraCellsCleared / onGroveCellsCleared pattern. Each solar cell cleared →
+// +1 shield (Combat Ref §3.5 Light identity: "sustain → conversion"). Cap-detection
+// for SHIELDS-TO-DAMAGE banner runs immediately after shield bump.
+function onSolarCellsCleared(n) {
+  if (!MOTIFS_ENABLED.solar) return;
+  if (!n) return;
+  if (typeof computeActiveElements === 'function' && !computeActiveElements().has('solar')) return;
+  // Each cleared solar cell → +1 shield, capped by max-shield ceiling.
+  const cap = MAX_SHIELD + 2 + (maxShieldBonus || 0);
+  let gained = 0;
+  for (let i = 0; i < n; i++) {
+    if (shieldCount < cap) {
+      shieldCount++;
+      gained++;
+    } else {
+      break;
+    }
+  }
+  if (gained > 0) {
+    solarShieldsBankedTotal += gained;
+    flashText('LIGHT WARD +' + gained + '🛡', STIHIYA_COLORS.solar || '#E8B84A');
+  }
+  // SHIELDS-TO-DAMAGE cap detection — fire banner once per battle when threshold first crossed.
+  // Fires ONLY after a solar clear (this hook), not from arbitrary shield sources.
+  try { maybeFireShieldsCap(); } catch (e) {}
+}
+
+// PHASE 5 BLOCK 3 — Light Hunter consume helper. Called by RADIANCE Aurora Burst
+// (Phase 5 Block 4) to convert ALL shields into a single burst attack. Returns the
+// shield count consumed (caller multiplies by per-shield burst damage formula).
+// Drains shieldCount to 0 on consume.
+//
+// Note: this is the universal Light Hunter consume pattern. MOSSWEAVER (Earth Mage)
+// has its own inline shield-to-damage in Block 2 — the helper is also reusable
+// there in a future cleanup pass.
+function consumeShieldsForBurst() {
+  const consumed = shieldCount;
+  shieldCount = 0;
+  return consumed;
+}
+
+// PHASE 5 BLOCK 3 — SHIELDS-TO-DAMAGE cap banner. Fires once per battle when
+// shieldCount crosses SOLAR_SHIELDS_THRESHOLD (8) AFTER a solar clear pushed it
+// there. Visual consistency with INFERNO! / SHATTER VOLLEY! / ENCORE-OF-ENCORE! /
+// REVENGE BURST! cap banners. Vibrate triple-pulse identical to grove for
+// "high-cap-reached" haptic family.
+function maybeFireShieldsCap() {
+  if (solarShieldsCapFired) return;
+  if (shieldCount < SOLAR_SHIELDS_THRESHOLD) return;
+  solarShieldsCapFired = true;
+  try {
+    const color = (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS.solar) || '#E8B84A';
+    flashText('SHIELDS-TO-DAMAGE!', color);
+  } catch (e) {}
+  try { vibrate([60, 40, 60, 40, 120]); } catch (e) {}
+}
+
+// Dev/debug helper — single-call snapshot of light/solar side-system state.
+if (typeof window !== 'undefined') {
+  window.__debugSolar = function () {
+    return {
+      enabled:                MOTIFS_ENABLED.solar,
+      shieldCount:            shieldCount,
+      shieldCap:              MAX_SHIELD + 2 + (maxShieldBonus || 0),
+      solarBankedTotal:       solarShieldsBankedTotal,
+      shieldsThreshold:       SOLAR_SHIELDS_THRESHOLD,
+      capFired:               solarShieldsCapFired,
+      capProgress:            `${Math.min(100, Math.floor(shieldCount / SOLAR_SHIELDS_THRESHOLD * 100))}%`,
+      burstDmgPerShieldHint:  SOLAR_BURST_DMG_PER_SHIELD,
     };
   };
 }
@@ -22065,6 +22161,11 @@ async function afterPlacement(piece) {
     // (e.g. MOSSWEAVER Verdant Surge per-clear amp counter). Plumbed for parity with
     // tide/umbra so Block 2 doesn't need to add this dispatch line.
     onGroveCellsCleared(counts.grove || 0);
+    // HERO_GRAMMAR §4 [Light / Solar] (Phase 5 Block 3) — solar-clear universal hook.
+    // Each clear → +1 shield (Combat Ref §3.5 Light defensive payoff). Fires SHIELDS-
+    // TO-DAMAGE cap banner when shieldCount crosses 8 post-solar-clear. Mirrors
+    // grove/tide/umbra dispatch pattern.
+    onSolarCellsCleared(counts.solar || 0);
     // V2.0 Block 2.2: SKELETON COLD VIGIL — heal +1 HP on tide clear while boss frozen (max 1/placement)
     if (coldVigilActive && attackCountdown > 0 && (counts.tide || 0) > 0 && hp < currentMaxHP) {
       if (coldVigilUsedAt !== placementCount) {
