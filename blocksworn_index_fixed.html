@@ -9787,9 +9787,15 @@ function onLeaderChosen(chosenId) {
   }
 
   // Force activeSquad to the 4 faction-pure heroes (overwrites whatever was selected).
-  // The grunt_fight beat below will pull HERO_DECK from this list.
+  // Rebuild HERO_DECK from the new activeSquad so the next fight loads with the
+  // correct heroes (rebuildHeroDeck reads activeSquad → HERO_DECK). Persist the
+  // squad via saveProgress so it survives reloads / FTUE state-machine continuation.
   activeSquad.length = 0;
   for (const id of factionHeroes) activeSquad.push(id);
+  if (typeof rebuildHeroDeck === 'function') rebuildHeroDeck();
+  if (typeof saveProgress === 'function') { try { saveProgress(); } catch (e) {} }
+  // Refresh squad-select UI if visible (defensive — typically grunt_fight beat below).
+  try { if (typeof currentScreen !== 'undefined' && currentScreen === 'select' && typeof renderSelect === 'function') renderSelect(); } catch (e) {}
 
   // Reveal OTHER captain too — they join warband visually (unlocked but not in squad)
   // so player can pick them later from squad-select. Pre-existing FTUE behavior.
