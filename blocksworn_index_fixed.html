@@ -7087,6 +7087,54 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   50%      { box-shadow: 0 0 22px 4px rgba(155, 89, 214, 0.85), inset 0 0 14px rgba(190, 130, 240, 0.50); }
 }
 
+/* ===== PHASE 5b BLOCK 3 — Hypnotist hero-card visual indicators ===== */
+/* Suggested hero (HYPNOTIC SUGGESTION) — purple glow pulse; player choice prompt
+   reads as "this hero wants to fire". Player can ignore (no penalty) or obey
+   for damage bonus (+30/50/75% per phase). */
+.hero-card.hero-card--hypno-suggested {
+  outline: 2px solid #9B59D6;
+  box-shadow: 0 0 16px 3px rgba(155, 89, 214, 0.85), 0 0 28px rgba(190, 130, 240, 0.55);
+  animation: hypnoSuggestPulse 1.8s ease-in-out infinite;
+  position: relative;
+}
+.hero-card.hero-card--hypno-suggested::after {
+  content: '🌸';
+  position: absolute;
+  top: -8px; right: -8px;
+  font-size: 20px;
+  text-shadow: 0 0 8px #9B59D6, 0 0 14px rgba(190, 130, 240, 0.85);
+  pointer-events: none;
+  animation: hypnoSuggestPulse 1.8s ease-in-out infinite;
+}
+@keyframes hypnoSuggestPulse {
+  0%, 100% { box-shadow: 0 0 16px 3px rgba(155, 89, 214, 0.85), 0 0 28px rgba(190, 130, 240, 0.55); }
+  50%      { box-shadow: 0 0 24px 5px rgba(190, 130, 240, 1.00), 0 0 40px rgba(220, 170, 255, 0.80); }
+}
+
+/* Coiled hero (TENDRIL COIL) — dimmed + tentacle overlay; cannot fire ULT for
+   2 turns (canFireUlt returns false). Visually distinct from suggestion (which
+   is "go!" prompt) — coil is "stopped" prompt. */
+.hero-card.hero-card--hypno-coiled {
+  outline: 2px solid #6B3FA0;
+  filter: brightness(0.55) saturate(0.7);
+  box-shadow: inset 0 0 24px rgba(74, 30, 110, 0.85);
+  position: relative;
+}
+.hero-card.hero-card--hypno-coiled::after {
+  content: '🔗';
+  position: absolute;
+  top: -8px; right: -8px;
+  font-size: 20px;
+  text-shadow: 0 0 8px #6B3FA0, 0 0 14px rgba(120, 60, 180, 0.85);
+  pointer-events: none;
+}
+
+/* Reduced-motion fallback — kill suggestion pulse, keep static glow + emoji */
+@media (prefers-reduced-motion: reduce) {
+  .hero-card.hero-card--hypno-suggested,
+  .hero-card.hero-card--hypno-suggested::after { animation: none !important; }
+}
+
 /* ===== PHASE 5b BLOCK 1 — Chapter 2 archetype auras ===== */
 .boss-archetype-hypnotist {
   /* Verothira — corrupted-purple hypnotic shimmer with eye-pulse rhythm */
@@ -9289,8 +9337,11 @@ const HERO_ROSTER = [
   // Death Roll (2-of) + Iron Hide (3+). Tier 3 signature combo: THE EMERALD WARDEN.
   // PHASE 5 BLOCK 5: locked: true keeps these out of squad-select until Chapter 2 ships.
   // Per Meta-Progression spec §7: VEROTHIRA (Boss 6) → 2 unlocked, GEARHEART (Boss 7) → rest.
-  { id:'crocodile_warrior', name:'MOSSJAW',      race:'crocodile', role:'striker', newRole:'warrior', stihiya:'grove', img:'hero_crocodile_warrior', roleIcon:'⚔', minCombo:2, fireText:'Bedrock Strike',  fire: fireMossjaw,      ult: ultRoleDispatch, ultSignature: ultTwistMossjaw,      ultText:'BEDROCK BASTION: empties → earth',     locked: true },
-  { id:'crocodile_hunter',  name:'THORNBACK',    race:'crocodile', role:'striker', newRole:'hunter',  stihiya:'grove', img:'hero_crocodile_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Vengeance Slam',  fire: fireThornback,    ult: ultRoleDispatch, ultSignature: ultTwistThornback,    ultText:'QUAKE: ×3 absorbed dmg',                locked: true },
+  // PHASE 5b BLOCK 3: locked: true removed for crocodile_warrior + crocodile_hunter
+  // — VEROTHIRA (Boss 6) victory unlocks them via BOSS_UNLOCKS[6]. Mage/Tank/Captain
+  // remain locked behind GEARHEART (Block 5b.4 → BOSS_UNLOCKS[7]).
+  { id:'crocodile_warrior', name:'MOSSJAW',      race:'crocodile', role:'striker', newRole:'warrior', stihiya:'grove', img:'hero_crocodile_warrior', roleIcon:'⚔', minCombo:2, fireText:'Bedrock Strike',  fire: fireMossjaw,      ult: ultRoleDispatch, ultSignature: ultTwistMossjaw,      ultText:'BEDROCK BASTION: empties → earth' },
+  { id:'crocodile_hunter',  name:'THORNBACK',    race:'crocodile', role:'striker', newRole:'hunter',  stihiya:'grove', img:'hero_crocodile_hunter',  roleIcon:'⚔', minCombo:2, fireText:'Vengeance Slam',  fire: fireThornback,    ult: ultRoleDispatch, ultSignature: ultTwistThornback,    ultText:'QUAKE: ×3 absorbed dmg' },
   { id:'crocodile_mage',    name:'MOSSWEAVER',   race:'crocodile', role:'weaver',  newRole:'mage',    stihiya:'grove', img:'hero_crocodile_mage',    roleIcon:'✦', period:12,    fireText:'Verdant Surge',   fire: fireMossweaver,   ult: ultRoleDispatch, ultSignature: ultTwistMossweaver,   ultText:'SURGE: shields → damage',               locked: true },
   { id:'crocodile_tank',    name:'IRONSCALE',    race:'crocodile', role:'guard',   newRole:'tank',    stihiya:'grove', img:'hero_crocodile_tank',    roleIcon:'🛡',                fireText:'Stone Skin',      fire: fireIronscale,    ult: ultRoleDispatch, ultSignature: ultTwistIronscale,    ultText:'AEGIS: full row earth',                 locked: true },
   { id:'crocodile_captain', name:'ANCIENTSCALE', race:'crocodile', role:'weaver',  newRole:'captain', stihiya:'grove', img:'hero_crocodile_captain', roleIcon:'✦', period:10,    fireText:'Eternal Bastion', fire: fireAncientscale, ult: ultRoleDispatch, ultSignature: ultTwistAncientscale, ultText:'DOMINION: shields + earth field',       locked: true },
@@ -9483,6 +9534,14 @@ const BOSS_UNLOCKS = {
   3: ['shark_warrior', 'shark_hunter'],                                              // Grovewarden → first 2 Sharks
   4: ['shark_mage', 'shark_tank', 'shark_captain'],                                  // Solar Phoenix → full Sharks roster
   5: [],                                                                             // Crypt Lich → chapter complete (no new heroes)
+  // PHASE 5b BLOCK 3+ — Chapter 2 unlock progression per Meta-Progression spec §7.
+  // Boss numbers are global (chapter-aware): Chapter 2 = 6-10. Crocs/Sparks `locked: true`
+  // flags are removed PER-BOSS as each block ships (5b.3 → 2 crocs, 5b.4 → rest, etc.)
+  6: ['crocodile_warrior', 'crocodile_hunter'],                                      // Verothira → first 2 Crocodiles (Block 5b.3)
+  // 7: ['crocodile_mage', 'crocodile_tank', 'crocodile_captain'],                   // Gearheart → rest of Crocs (Block 5b.4)
+  // 8: ['spark_warrior', 'spark_hunter'],                                           // Ursaro → first 2 Sparks (Block 5b.5)
+  // 9: ['spark_mage', 'spark_tank', 'spark_captain'],                               // Tidespire → rest of Sparks (Block 5b.6)
+  // 10: [],                                                                         // Heliotron → Chapter 2 finale (Block 5b.7)
 };
 
 // Block B3: SQUAD_MAX bumps per boss. Boss 2 → 4 slots, Boss 4 → 5 slots.
@@ -14712,6 +14771,14 @@ function addChargeToHero(heroId, amount) {
   }
 }
 function canFireUlt(heroId) {
+  // PHASE 5b BLOCK 3 — Hypnotist Tendril Coil: locked hero cannot fire ULT for
+  // duration of coil (2 turns by default). Visual feedback via .hero-card--hypno-coiled
+  // CSS class; canFireUlt returns false during the lock.
+  if (typeof hypnotistTendrilHeroId !== 'undefined'
+      && hypnotistTendrilHeroId === heroId
+      && hypnotistTendrilTurnsLeft > 0) {
+    return false;
+  }
   return (heroCharges[heroId] || 0) >= getUltCost(heroId);
 }
 function consumeUltCharge(heroId) {
@@ -15313,33 +15380,124 @@ function tickChapter2Archetype() {
   }
 }
 
-// HYPNOTIST tick — Suggestion, Petal Fall, Tendril Coil, Bloom Bloom (per phase)
+// HYPNOTIST tick — Suggestion, Petal Fall, Tendril Coil, Bloom Bloom (per phase).
+// PHASE 5b BLOCK 3: upgraded from Block 1 scaffolding to full mechanics per Compendium §6.
 function _tickHypnotist(phase) {
-  // Suggestion interval shrinks per phase
+  // Suggestion interval shrinks per phase (P1=8, P2=6, P3=4); count 1 (P1) → 2 (P2/P3)
   const suggestInt = phase === 1 ? HYPNOTIST_SUGGEST_INT_P1
                    : phase === 2 ? HYPNOTIST_SUGGEST_INT_P2
                    : HYPNOTIST_SUGGEST_INT_P3;
   hypnotistTurnsSinceSuggest++;
   if (hypnotistTurnsSinceSuggest >= suggestInt) {
     hypnotistTurnsSinceSuggest = 0;
-    // Pick 1 hero (P1) or 2 (P2/P3) at random from squad. Block 1: scaffolding —
-    // 5b.3 will wire visual portrait pulse + dmg bonus on obey detection.
     const candidates = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK))
-                     ? HERO_DECK.filter(h => h && h.id) : [];
+                     ? HERO_DECK.filter(h => h && h.id && h.id !== hypnotistTendrilHeroId) : [];
     candidates.sort(() => Math.random() - 0.5);
     const count = phase === 1 ? 1 : 2;
     hypnotistSuggestedHeroIds = candidates.slice(0, count).map(h => h.id);
     if (hypnotistSuggestedHeroIds.length > 0) {
-      try { flashText('🌸 SUGGESTION', '#9B59D6'); } catch(e) {}
+      const bonus = phase === 1 ? HYPNOTIST_OBEY_BONUS_P1
+                  : phase === 2 ? HYPNOTIST_OBEY_BONUS_P2
+                  : HYPNOTIST_OBEY_BONUS_P3;
+      try { flashText('🌸 SUGGESTION +' + Math.round(bonus * 100) + '%', '#9B59D6'); } catch(e) {}
+      try { renderHypnotistVisuals(); } catch(e) {}
     }
   }
-  // Tendril Coil decay
+  // Petal Fall — every 5 turns, 4 random non-umbra cells → umbra
+  hypnotistTurnsSincePetal++;
+  if (hypnotistTurnsSincePetal >= HYPNOTIST_PETAL_INT) {
+    hypnotistTurnsSincePetal = 0;
+    _hypnotistPetalFall(4);
+  }
+  // Tendril Coil (P2+) — every 6 turns, lock 1 hero from firing for 2 turns
+  if (phase >= 2) {
+    hypnotistTurnsSinceTendril++;
+    if (hypnotistTurnsSinceTendril >= HYPNOTIST_TENDRIL_INT && !hypnotistTendrilHeroId) {
+      hypnotistTurnsSinceTendril = 0;
+      _hypnotistTendrilCoil();
+    }
+  }
+  // Bloom Bloom (P3) — every 8 turns, set corruption flag for 2 turns. While active,
+  // umbra clears damage player (consumed in onUmbraCellsCleared backsplash hook).
+  if (phase >= 3) {
+    hypnotistTurnsSinceBloom++;
+    if (hypnotistTurnsSinceBloom >= HYPNOTIST_BLOOM_INT) {
+      hypnotistTurnsSinceBloom = 0;
+      hypnotistBloomCorrupted = true;
+      try { flashText('🌸🌸 BLOOM BLOOM · UMBRA HURTS', '#9B59D6'); } catch(e) {}
+      try { vibrate([60, 40, 60, 40, 100]); } catch(e) {}
+    }
+  }
+  // Tendril Coil decay (per turn)
   if (hypnotistTendrilTurnsLeft > 0) {
     hypnotistTendrilTurnsLeft--;
     if (hypnotistTendrilTurnsLeft === 0) {
       hypnotistTendrilHeroId = null;
+      try { renderHypnotistVisuals(); } catch(e) {}
     }
   }
+}
+
+// Petal Fall — convert 4 random non-umbra cells to umbra. Runs each 5 turns
+// during VEROTHIRA fight. Skips void cells. Telegraph flash precedes conversion.
+function _hypnotistPetalFall(count) {
+  if (typeof grid === 'undefined') return;
+  const targets = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    const v = grid[r][c];
+    if (v && !v.startsWith('void_') && v !== 'umbra') targets.push([r, c]);
+  }
+  if (targets.length === 0) return;
+  targets.sort(() => Math.random() - 0.5);
+  const picks = targets.slice(0, Math.min(count, targets.length));
+  const cellEls = document.querySelectorAll('.grid .cell');
+  for (const [r, c] of picks) {
+    if (cellEls[r * SIZE + c]) cellEls[r * SIZE + c].classList.add('burning');
+  }
+  setTimeout(() => {
+    for (const [r, c] of picks) grid[r][c] = 'umbra';
+    if (typeof render === 'function') render();
+  }, 250);
+  try { flashText('🌸 PETAL FALL ×' + picks.length, '#9B59D6'); } catch(e) {}
+  try { vibrate([40, 30, 40]); } catch(e) {}
+}
+
+// Tendril Coil — pick a random squad hero (avoid suggestion conflict + not already
+// coiled) and lock them from firing for 2 turns. Player can fire the hero BEFORE
+// this turn's placement to avoid (i.e. coil "lands" at end of placement). For
+// simplicity in v1: lock activates immediately on tick.
+function _hypnotistTendrilCoil() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return;
+  const candidates = HERO_DECK.filter(h =>
+    h && h.id
+    && !hypnotistSuggestedHeroIds.includes(h.id)
+    && h.id !== hypnotistTendrilHeroId
+  );
+  if (candidates.length === 0) return;
+  const target = candidates[Math.floor(Math.random() * candidates.length)];
+  hypnotistTendrilHeroId = target.id;
+  hypnotistTendrilTurnsLeft = 2;
+  try { flashText('🌸 TENDRIL · ' + target.name + ' COILED', '#9B59D6'); } catch(e) {}
+  try { vibrate([60, 40, 60]); } catch(e) {}
+  try { renderHypnotistVisuals(); } catch(e) {}
+}
+
+// Visual indicator — apply hero-card classes for suggested + coiled heroes.
+// Block 3: lightweight implementation via classList toggle. Block 5b.9 polish
+// can add dedicated CSS animations (purple shimmer for suggested, dim+chains
+// for coiled). Re-applied on render() and on tick.
+function renderHypnotistVisuals() {
+  try {
+    const cards = document.querySelectorAll('.hero-card');
+    for (const card of cards) {
+      const id = card.dataset && card.dataset.id;
+      if (!id) continue;
+      const isSuggested = hypnotistSuggestedHeroIds.includes(id);
+      const isCoiled    = hypnotistTendrilHeroId === id;
+      card.classList.toggle('hero-card--hypno-suggested', isSuggested);
+      card.classList.toggle('hero-card--hypno-coiled',    isCoiled);
+    }
+  } catch (e) { /* defensive */ }
 }
 
 // ENGINEER tick — Weld, Extract, Critical Mass (electrified row)
@@ -18489,6 +18647,28 @@ if (typeof window !== 'undefined') {
 function onUmbraCellsCleared(n) {
   if (!MOTIFS_ENABLED.umbra) return;
   if (!n) return;
+  // PHASE 5b BLOCK 3 — VEROTHIRA Bloom Bloom (P3 corruption). When hypnotistBloomCorrupted
+  // flag is active, clearing umbra cells deals damage to the PLAYER (cruel inversion of
+  // normal play — clearing umbra usually = +1 encore stack benefit). Damage scales with
+  // count cleared. Active for the rest of the battle once Bloom Bloom triggers (per
+  // Compendium §6 P3 phase: "ALL umbra cells become corrupted"). Each cleared umbra
+  // dishes ~30 dmg (capped by available shields/HP).
+  if (hypnotistBloomCorrupted && typeof currentBoss !== 'undefined' && currentBoss && currentBoss.archetype === 'hypnotist') {
+    const corruptDmg = n * 30;
+    try { flashText('🌸 BLOOM CORRUPT · ' + corruptDmg, '#9B59D6'); } catch(e) {}
+    // Apply via shields → HP path (mirrors void-cell dmg pattern). hp can't go below 0.
+    if (shieldCount > 0) {
+      shieldCount = Math.max(0, shieldCount - 1);
+    } else {
+      hp = Math.max(0, hp - corruptDmg);
+      try { battleDamageTaken += corruptDmg; } catch(e) {}
+      // Defeat check — if hp drops to 0 from Bloom corruption, game over flow
+      if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+        try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch(e) {}
+      }
+    }
+    try { vibrate([60, 40, 60]); } catch(e) {}
+  }
   // HERO_GRAMMAR §4 [Dark / Umbra] (Block B1): every umbra clear adds 1 Encore stack
   // for the next ability. Universal element mechanic — fires regardless of which heroes
   // are in squad. Gated by computeActiveElements (added in TASK #2.2c) so stacks don't
@@ -18702,10 +18882,30 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
   _captainDualContext = (captainDual_active && _currentFiringHero
                          && _currentFiringHero.race === captainDual_race) ? captainDual_raceMult : 1;
   _signatureComboContext = (activeSignatureCombo && activeSignatureCombo.mult) || 1;
+  // PHASE 5b BLOCK 3 — Hypnotist Suggestion: if VEROTHIRA "suggested" the firing hero
+  // and player obeyed (fired that hero this turn), apply phase-scaled bonus damage
+  // (P1=+30%, P2=+50%, P3=+75%). Choice-based mechanic: ignore = no penalty, obey = bonus.
+  // Consumed on use (suggestion cleared so each suggestion is one-shot).
+  let _hypnoSuggestContext = 1;
+  if (typeof hypnotistSuggestedHeroIds !== 'undefined'
+      && hypnotistSuggestedHeroIds.length > 0
+      && _currentFiringHero
+      && hypnotistSuggestedHeroIds.includes(_currentFiringHero.id)) {
+    const phase = (typeof _bossArchetypePhase === 'function') ? _bossArchetypePhase() : 1;
+    const bonus = phase === 1 ? HYPNOTIST_OBEY_BONUS_P1
+                : phase === 2 ? HYPNOTIST_OBEY_BONUS_P2
+                : HYPNOTIST_OBEY_BONUS_P3;
+    _hypnoSuggestContext = 1 + bonus;
+    // Clear suggestion to prevent stacking re-fires within same suggestion window.
+    const idx = hypnotistSuggestedHeroIds.indexOf(_currentFiringHero.id);
+    if (idx >= 0) hypnotistSuggestedHeroIds.splice(idx, 1);
+    try { flashText('🌸 OBEYED · +' + Math.round(bonus * 100) + '%', '#9B59D6'); } catch(e) {}
+    try { renderHypnotistVisuals(); } catch(e) {}
+  }
   const _multStack = currentDmgMult * _passiveDmgContext * _ultDmgContext
                    * _warbandStrikeContext * _hunterMarkContext
                    * _grommarRallyContext * _packMarkContext * _helioRoarContext
-                   * _captainDualContext * _signatureComboContext;
+                   * _captainDualContext * _signatureComboContext * _hypnoSuggestContext;
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
@@ -18855,7 +19055,12 @@ async function onBossDefeated() {
   // the boss-die FX (vPlayBossDieFx already fired) so cinematic and unlock don't race.
   try {
     if (typeof applyBossDefeatProgression === 'function') {
-      applyBossDefeatProgression(currentBossIdx + 1);
+      // PHASE 5b BLOCK 3 — chapter-aware global boss number. Chapter 1 bosses
+      // map to 1-5 (unchanged), Chapter 2 bosses map to 6-10. Without this,
+      // Chapter 2 Boss 1 (Verothira) would collide with Chapter 1 Boss 1
+      // (Pyredrake) on BOSS_UNLOCKS[1] lookup.
+      const _globalBossNum = (currentChapter - 1) * 5 + currentBossIdx + 1;
+      applyBossDefeatProgression(_globalBossNum);
     }
   } catch (e) { console.warn('B3 boss-defeat progression failed:', e); }
   // V3.0 Phase 2 Block 2.1: record floor clear if this fight was launched via launchFloor.
@@ -23788,6 +23993,10 @@ function renderDeck() {
     card.addEventListener('click', () => onHeroCardClick(h));
     el.appendChild(card);
   }
+  // PHASE 5b BLOCK 3 — re-apply Hypnotist visual indicators after deck re-render
+  // (suggested hero pulse + coiled hero dim). Idempotent: if no Hypnotist active,
+  // function does nothing (sets all cards to !suggested && !coiled).
+  try { if (typeof renderHypnotistVisuals === 'function') renderHypnotistVisuals(); } catch (e) {}
 }
 
 async function onHeroCardClick(hero) {
