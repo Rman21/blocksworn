@@ -8613,15 +8613,19 @@ loadHeroTiersFromStorage();
 // State persisted separately from blocksworn_progress so it survives save-format
 // iterations and is easier to debug / migrate independently.
 
-// Block B3: starter set reduced to 3 heroes (one per role-archetype) per the unlock
-// progression Model B — full Pirates roster fills in after Boss 1, Rock Band after
-// Boss 2, Sharks across Bosses 3 + 4. THORGAR (Warrior/CREATOR), BLACKTOOTH
-// (Hunter/DETONATOR), CRIMSON (Captain/ENABLER) form the smallest legal squad that
-// already showcases the combo grammar's 3 main verbs.
+// HOTFIX B3.1 BUG #2 (Option A from HOTFIX_B3_1_DIAG.md): reverted to the legacy
+// 4-hero mixed-element starter set. The B3 mono-ember starter trio (THORGAR/
+// BLACKTOOTH/CRIMSON) made the legacy stihiya-shared ULT charge bar visible —
+// firing one Pirate ULT visually drained all 3 starter cards because they all
+// share `ultCharges['ember']`. Restoring the mixed pirate+rock starter splits
+// the charge pool across 2 elements, so the legacy mechanic is invisible again
+// (per-faction grouping reads as natural). BOSS_UNLOCKS[1]/[2] adjusted below
+// to avoid double-unlocking starters.
 const STARTER_HEROES = new Set([
-  'pirate_warrior', // THORGAR  (CREATOR)
-  'pirate_hunter',  // BLACKTOOTH (DETONATOR)
-  'pirate_captain', // CRIMSON   (ENABLER)
+  'pirate_warrior', // THORGAR
+  'pirate_mage',    // EMBERHAND
+  'rock_warrior',   // RIFFBLADE
+  'rock_mage',      // KEYCRYPT
 ]);
 
 // Initialize unlocked flag on every roster entry. Default: starter-only.
@@ -8639,9 +8643,13 @@ const SQUAD_MAX_STORAGE_KEY = 'blocksworn_squad_max';
 
 // Block B3: hero unlock progression — heroes added per boss tier (Model B per MGD).
 // Boss N defeat → unlocks the listed IDs via revealHero() in onBossDefeated.
+// HOTFIX B3.1 BUG #2 (Option A): adjusted to skip starters (pirate_warrior +
+// pirate_mage + rock_warrior + rock_mage are now starter set). Boss 1 still
+// rounds out Pirates, Boss 2 still rounds out Rock Band — same narrative arc,
+// just no double-unlock attempts on already-starter IDs.
 const BOSS_UNLOCKS = {
-  1: ['pirate_mage', 'pirate_tank'],                                                 // Pyredrake → full Pirates roster (5)
-  2: ['rock_warrior', 'rock_hunter', 'rock_mage', 'rock_tank', 'rock_captain'],      // Abyssal Tyrant → full Rock Band
+  1: ['pirate_hunter', 'pirate_tank', 'pirate_captain'],                             // Pyredrake → completes Pirates (5)
+  2: ['rock_hunter', 'rock_tank', 'rock_captain'],                                   // Abyssal Tyrant → completes Rock Band
   3: ['shark_warrior', 'shark_hunter'],                                              // Grovewarden → first 2 Sharks
   4: ['shark_mage', 'shark_tank', 'shark_captain'],                                  // Solar Phoenix → full Sharks roster
   5: [],                                                                             // Crypt Lich → chapter complete (no new heroes)

@@ -23,21 +23,27 @@
 
 **Why B3 exposed it:** the `STARTER_HEROES` change from a 2-element 4-hero set (pirate W+M, rock W+M) to a mono-element 3-hero set (pirate W+H+C) made the legacy shared-stihiya bar visible — all 3 starter cards now share `ultCharges['ember']`, so firing CRIMSON visually drains THORGAR + BLACKTOOTH + CRIMSON simultaneously.
 
-**Fix in this commit:** **NONE.** Per the task's explicit ESCALATE criteria:
+### Fix applied — Option A (per MGD selection / DIAG recommendation)
 
-> ESCALATE if:
-> - Either bug has root cause OUTSIDE B3 changes (means it's a pre-existing bug exposed by B3, requires MGD decision on scope)
-> - Fix would require touching unrelated systems
+**Action:** reverted `STARTER_HEROES` to the legacy 4-hero mixed-element starter set:
+```
+{ pirate_warrior (THORGAR, ember),
+  pirate_mage    (EMBERHAND, ember),
+  rock_warrior   (RIFFBLADE, umbra),
+  rock_mage      (KEYCRYPT,  umbra) }
+```
+Two factions, two elements — `ultCharges['ember']` is shared between THORGAR + EMBERHAND only, `ultCharges['umbra']` between RIFFBLADE + KEYCRYPT only. Visually the player sees per-faction grouping rather than "all 4 cards drain together," which reads as natural element identity (not as a bug).
 
-Both criteria hit. The minimal scope-bounded patch (Option A in DIAG doc — revert STARTER_HEROES to mixed-element) is one option; the architecturally correct patch (Option C — per-hero charge meters) is a Phase-4-scale rewrite that was deliberately archived. MGD picks the path. This hotfix touches **zero** lines related to charges, ultCharges, onHeroCardClick, STARTER_HEROES, or any shared-stihiya logic.
+**Companion change:** `BOSS_UNLOCKS[1]` and `[2]` adjusted to avoid double-unlocking starters:
+- Boss 1 (Pyredrake) now unlocks `pirate_hunter`, `pirate_tank`, `pirate_captain` (was `pirate_mage`, `pirate_tank`) — completes Pirates roster (5).
+- Boss 2 (Abyssal Tyrant) now unlocks `rock_hunter`, `rock_tank`, `rock_captain` (was all 5 rock IDs) — completes Rock Band (5).
+- Bosses 3-5 unchanged. Migration logic auto-uses the new IDs (it reads `BOSS_UNLOCKS` directly).
 
-**Decision queue for MGD** (from DIAG doc Section MGD decision options):
-- **A** — Revert STARTER_HEROES to mixed-element (cheapest, fully reversible).
-- **B** — Keep new STARTER_HEROES, add UI hint explaining shared-element charge.
-- **C** — Restore archived/phase-4 per-hero charge architecture (largest scope).
-- **D** — Hybrid: per-hero meter UI rendering, per-stihiya pool internally.
+**What this commit does NOT touch:** `onHeroCardClick` (line 20744), `ultCharges` declaration, `currentStartCharges`, `renderDeck` charge-bar rendering, or any per-stihiya synergy code. The architectural rewrite (Options C / D in DIAG) remains a separate decision if MGD ever wants to revisit per-hero charge meters; it is **not in scope** for this hotfix.
 
-DIAG doc recommends Option A.
+**Diff scope:** STARTER_HEROES set rewrite (4 IDs) + BOSS_UNLOCKS[1]/[2] reassignment + comment block updates. ~10 lines.
+
+**Side effect — Roman's existing save:** the migration `runMigration_B3` is gated by `localStorage[SQUAD_MAX_STORAGE_KEY]` — if Roman already migrated under B3's mono-ember starter set, his existing unlocks are preserved (no regression — just don't re-fire migration). Going forward, any new boss-defeat unlocks use the corrected `BOSS_UNLOCKS` lists.
 
 ---
 
@@ -87,12 +93,20 @@ JS syntax verified post-fix via JavaScriptCore (4.38MB parses clean). Roman to v
 
 5. **No console errors** during full Chapter 1 run.
 
-6. **BUG #2 status check** — confirm by playtest that this hotfix did NOT touch the charge mechanic:
-   - Squad with 3 starter Pirates (THORGAR, BLACKTOOTH, CRIMSON).
-   - Fire any ULT. All 3 hero cards' charge bars visually drain to 0 — **expected** (legacy stihiya-shared design, escalated).
-   - This is the bug Roman reported in #2 — it remains until MGD picks an option from DIAG Section MGD decision options.
+6. **BUG #2 verify (Option A applied):**
+   - Fresh start (clear localStorage). Squad-select shows 4 starters: THORGAR / EMBERHAND / RIFFBLADE / KEYCRYPT (2 pirates + 2 rock).
+   - Build a 3-hero squad of mixed elements (e.g., THORGAR + EMBERHAND + RIFFBLADE).
+   - Fire any Pirate ULT (when ember charge ≥ threshold). Expected: THORGAR + EMBERHAND charge bars drain together (they share `ultCharges['ember']`) but RIFFBLADE bar UNCHANGED (different stihiya).
+   - This is per-faction shared-element behavior — reads as natural, not as a bug.
+7. **Win Boss 1 (Pyredrake)** as fresh player:
+   - "Full Pirates Roster!" celebration unlocks BLACKTOOTH + IRONBELLY + CRIMSON (3 new heroes — pirate_mage already a starter).
+   - Squad-select shows 7 unlocked heroes total (4 starters + 3 from Boss 1).
+8. **Win Boss 2 (Abyssal Tyrant)**:
+   - "+1 SQUAD SLOT" toast then "Rock Band Joins the Fight!" unlocks SHRIEK + THUNDERBEAT + NIGHTLORD (3 new — rock_warrior + rock_mage already starters).
+   - Squad slots = 4. Total unlocked = 10.
+9. **Boss 3-5** unchanged from B3 — Sharks unlock unchanged.
 
-If voice portraits work in browser, BUG #1 is closed. BUG #2 remains open pending MGD.
+If voice portraits work AND mixed-element starter visibly splits charge per-faction, both BUGs are closed.
 
 ---
 
