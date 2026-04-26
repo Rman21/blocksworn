@@ -1105,6 +1105,18 @@
   font-weight: 500;
   color: var(--a-text-secondary);
 }
+/* 2026-04-27 — race-passive pill variant. Uses inline border/text color from
+ * the race's _RACE_PASSIVE_DETAILS color so each pill is element-tinted.
+ * Slightly more saturated background to distinguish from generic synergies. */
+.a-synergy-row .v-syn-pill-race {
+  background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.35));
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+.a-synergy-row .v-syn-pill-race .detail {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
 .a-synergy-row .v-syn-empty {
   font-size: 10px;
   color: var(--a-text-muted);
@@ -10988,7 +11000,13 @@ function addGold(n) {
     if (v > 0 && Array.isArray(HERO_DECK)) {
       const pirateCount = HERO_DECK.filter(h => h && h.race === 'pirate').length;
       if (pirateCount >= 2) {
+        const bonus = Math.floor(v * PIRATE_GOLD_DROP_MULT) - v;
         v = Math.floor(v * PIRATE_GOLD_DROP_MULT);
+        // First gold-bonus per battle: explanatory banner so player connects
+        // the +10% to their pirate squad.
+        if (bonus > 0 && typeof flashRacePassiveOnce === 'function') {
+          try { flashRacePassiveOnce('pirate2', 'PLUNDER +' + bonus + '💰', '#FFD53D'); } catch (e2) {}
+        }
       }
     }
   } catch (e) {}
@@ -17912,6 +17930,10 @@ function resetRaceFlags() {
   // 2026-04-27 §8 v1 race-passive per-battle telemetry resets
   pirateDoubleComboFiredThisBattle = 0;
   sharkSwimThroughFiredThisBattle  = 0;
+  // 2026-04-27 — first-proc UNLOCKED banner tracker per race-passive.
+  // Set true after first proc; cleared at battle start so each fight gets one
+  // explanatory banner per active passive.
+  racePassiveFirstProcSeen = {};
   // Phase 5b Block 1 — Chapter 2 archetype state per-battle reset (unconditional;
   // initChapter2Archetype runs in the boss-battle init hook below for Chapter 2
   // bosses specifically, but we reset here defensively so Chapter 1 battles never
@@ -18626,6 +18648,23 @@ function startBossBattle() {
   // Narrator: boss appears + run start (delayed so UI settles)
   setTimeout(() => speakNarrator('bossAppears'), 500);
   setTimeout(() => speakNarrator('runStart'), 4200);
+  // 2026-04-27 — Race-passive UX visibility banner. Show 1 banner per active
+  // passive at battle start, staggered so each gets eye-time. Fires AFTER boss
+  // intro/narrator so it doesn't collide with the boss reveal moment.
+  try {
+    if (typeof getActiveRacePassives === 'function') {
+      const active = getActiveRacePassives();
+      active.forEach((p, i) => {
+        setTimeout(() => {
+          try {
+            if (typeof flashText === 'function') {
+              flashText(p.label + ' ACTIVE · ' + p.desc, p.color);
+            }
+          } catch (e) {}
+        }, 1400 + i * 1100);  // 1.4s start, 1.1s gap → never overlaps boss banners
+      });
+    }
+  } catch (e) { console.warn('race-passive banner failed:', e); }
   // V3.0 Phase 6 Block 6.2: pre-battle boss intro on FIRST encounter (non-FTUE, non-F1).
   // Floor 1 skips intros to keep trial runs snappy — Floor 2+ introduces narrative.
   // Fires after a short delay so boss-appears narration doesn't collide with dialog.
@@ -18860,6 +18899,10 @@ function applyCascade(fromKey) {
       const rockCount = HERO_DECK.filter(h => h && h.race === 'rock').length;
       if (rockCount >= 2 && Math.random() < ROCK_CASCADE_BONUS_CHANCE) {
         cascadeCount++;
+        // First proc-per-battle: explanatory banner.
+        if (typeof flashRacePassiveOnce === 'function' && !racePassiveFirstProcSeen['rock2']) {
+          try { flashRacePassiveOnce('rock2', 'CASCADE BONUS', STIHIYA_COLORS.umbra || '#9B59D6'); } catch (e2) {}
+        }
       }
     }
   } catch (e) {}
@@ -19800,6 +19843,10 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
       const sharkCount = HERO_DECK.filter(h => h && h.race === 'shark').length;
       if (sharkCount >= 3 && (bossHP / bossMaxHP) < SHARK_BLOODHUNT_THRESHOLD) {
         _bloodhuntContext = SHARK_BLOODHUNT_MULT;
+        // First-proc-per-battle banner so player knows BLOODHUNT just activated.
+        if (!racePassiveFirstProcSeen['shark3']) {
+          try { flashRacePassiveOnce('shark3', 'BLOODHUNT +30%', STIHIYA_COLORS.tide || '#3B8BD4'); } catch (e3) {}
+        }
       }
     }
   } catch (e) {}
@@ -19812,7 +19859,7 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
       if (pirateCount >= 3 && Math.random() < PIRATE_DOUBLE_COMBO_CHANCE) {
         _pirateDoubleContext = 2;
         pirateDoubleComboFiredThisBattle++;
-        try { flashText('PIRATE DOUBLE ×2', '#FFD53D'); } catch (e2) {}
+        try { flashRacePassiveOnce('pirate3', 'PIRATE DOUBLE ×2', '#FFD53D'); } catch (e2) {}
       }
     }
   } catch (e) {}
@@ -21249,7 +21296,7 @@ async function ultRoleDispatch() {
     // During phoenix immunity, Encore still fires (raw ULT mechanics execute; motif multipliers gated as usual).
     if (encoreActive && !encoreUsed && hero && hero.stihiya === 'umbra') {
       encoreUsed = true;
-      flashText('ENCORE', STIHIYA_COLORS.umbra);
+      flashRacePassiveOnce('rock3', 'ENCORE — ULT ×2', STIHIYA_COLORS.umbra);
       vibrate([80, 40, 80, 40, 80, 40, 120]);
       const ctx2 = { burnedCount: 0, burnedStihiyas: [], convertedCount: 0 };
       if (role === 'warrior')      await applyWarriorUlt(hero, ctx2);
@@ -24415,7 +24462,7 @@ async function afterPlacement(piece) {
           shieldCount = 0;
           hp = 1;
           newDead = 0; // damage fully consumed by Death Roll
-          flashText('DEATH ROLL · HP = 1', STIHIYA_COLORS.grove || '#5DCA79');
+          flashRacePassiveOnce('crocodile2', 'DEATH ROLL · HP = 1', STIHIYA_COLORS.grove || '#5DCA79');
           vibrate([100, 50, 100, 50, 200]);
         }
       }
@@ -24573,7 +24620,7 @@ async function afterPlacement(piece) {
           grid[vr][vc] = null;
           sharkSwimThroughFiredThisBattle++;
           try { render(); } catch (e2) {}
-          flashText('SWIM THROUGH', STIHIYA_COLORS.tide || '#3B8BD4');
+          flashRacePassiveOnce('shark2', 'SWIM THROUGH', STIHIYA_COLORS.tide || '#3B8BD4');
         }
       }
     }
@@ -24587,7 +24634,7 @@ async function afterPlacement(piece) {
         const cap = MAX_SHIELD + 2 + (maxShieldBonus || 0);
         if (shieldCount < cap) {
           shieldCount++;
-          flashText('IRON HIDE +1🛡', STIHIYA_COLORS.grove || '#5DCA79');
+          flashRacePassiveOnce('crocodile3', 'IRON HIDE +1🛡', STIHIYA_COLORS.grove || '#5DCA79');
         }
       }
     }
@@ -24604,7 +24651,7 @@ async function afterPlacement(piece) {
           staticFieldCounter = 0;
           const dmg = sparkCount * STATIC_FIELD_BASE_DMG;
           dealDamage(dmg, false, 0);
-          flashText('STATIC FIELD · ' + dmg, STIHIYA_COLORS.solar || '#E8B84A');
+          flashRacePassiveOnce('spark3', 'STATIC FIELD · ' + dmg, STIHIYA_COLORS.solar || '#E8B84A');
           vibrate([40, 30, 40, 30, 60]);
         }
       } else {
@@ -26197,6 +26244,29 @@ function vRenderSynergyRow() {
     if (detail) { const d = document.createElement('span'); d.className = 'detail'; d.textContent = detail; pill.appendChild(d); }
     host.appendChild(pill);
   }
+  // 2026-04-27 — §8 race-passive pills. Built from getActiveRacePassives()
+  // which counts current activeSquad. Shows Roman's audit list (PLUNDER /
+  // CASCADE / SWIM / BLOODHUNT / DEATH ROLL / IRON HIDE / CHARGE REGEN /
+  // STATIC FIELD / ENCORE / DOUBLE COMBO) so the player sees them in the
+  // squad-screen BEFORE entering the fight.
+  try {
+    // Pass current squadHeroes to getActiveRacePassives so the pills reflect
+    // the SQUAD being assembled (not the previous battle's HERO_DECK).
+    const active = (typeof getActiveRacePassives === 'function') ? getActiveRacePassives(squadHeroes) : [];
+    for (const p of active) {
+      const pill = document.createElement('span');
+      pill.className = 'v-syn-pill v-syn-pill-race';
+      pill.style.borderColor = p.color;
+      pill.style.color = p.color;
+      const tag = document.createElement('span');
+      tag.textContent = (p.tier === 2 ? '◆◆ ' : '◆◆◆ ') + p.label;
+      pill.appendChild(tag);
+      const d = document.createElement('span'); d.className = 'detail';
+      d.textContent = p.desc;
+      pill.appendChild(d);
+      host.appendChild(pill);
+    }
+  } catch (e) { console.warn('race-passive pills failed:', e); }
 }
 
 function vRenderFilterSubrow() {
@@ -26752,6 +26822,70 @@ const _RACE_BULLET = {
   crocodile: '2+ crocs: DEATH ROLL (revive 1HP) · 3+: IRON HIDE +1🛡/turn',
   spark:     '2+ sparks: CHARGE REGEN +10% · 3+: STATIC FIELD AoE every 5',
 };
+// 2026-04-27 — first-proc tracker (declared in per-battle reset block as
+// racePassiveFirstProcSeen). flashRacePassiveOnce(key, msg, color) shows a
+// long banner the first time a race-passive procs in a battle, and a normal
+// flash on subsequent procs. Use from race-passive trigger sites.
+let racePassiveFirstProcSeen = {};
+function flashRacePassiveOnce(key, msg, color) {
+  if (typeof flashText !== 'function') return;
+  if (!racePassiveFirstProcSeen[key]) {
+    racePassiveFirstProcSeen[key] = true;
+    try { flashText('★ ' + msg + ' UNLOCKED', color); } catch (e) {}
+  } else {
+    try { flashText(msg, color); } catch (e) {}
+  }
+}
+
+// 2026-04-27 — collect all currently-active race-passives based on HERO_DECK.
+// Returns array of { tier: 2|3, race, label, desc, color } objects ordered by
+// race then tier. Used for pre-battle banner + squad-screen indicator.
+const _RACE_PASSIVE_DETAILS = {
+  pirate: {
+    color: '#FF8B3D',
+    2: { label: 'PLUNDER',     desc: '+10% gold drop' },
+    3: { label: 'DOUBLE COMBO', desc: '15% chance to ×2 your damage multiplier' },
+  },
+  rock: {
+    color: '#9B59D6',
+    2: { label: 'CASCADE',     desc: '+5% bonus cascade neighbor' },
+    3: { label: 'ENCORE',      desc: 'First 🌑 ULT fires twice' },
+  },
+  shark: {
+    color: '#3B8BD4',
+    2: { label: 'SWIM',        desc: 'Dissolve void_tide cells per turn' },
+    3: { label: 'BLOODHUNT',   desc: '+30% damage when boss HP < 30%' },
+  },
+  crocodile: {
+    color: '#5DCA79',
+    2: { label: 'DEATH ROLL',  desc: 'First lethal hit revives at 1 HP' },
+    3: { label: 'IRON HIDE',   desc: '+1 🛡 every turn' },
+  },
+  spark: {
+    color: '#E8B84A',
+    2: { label: 'CHARGE REGEN', desc: 'ULT charges +10% faster' },
+    3: { label: 'STATIC FIELD', desc: 'AoE light burst every 5 placements' },
+  },
+};
+function getActiveRacePassives(deckOverride) {
+  const out = [];
+  const deck = Array.isArray(deckOverride) ? deckOverride
+             : (Array.isArray(HERO_DECK) ? HERO_DECK : null);
+  if (!deck) return out;
+  const counts = {};
+  for (const h of deck) {
+    if (h && h.race) counts[h.race] = (counts[h.race] || 0) + 1;
+  }
+  for (const race of ['pirate','rock','shark','crocodile','spark']) {
+    const cfg = _RACE_PASSIVE_DETAILS[race];
+    if (!cfg) continue;
+    const n = counts[race] || 0;
+    if (n >= 2 && cfg[2]) out.push({ tier: 2, race, count: n, label: cfg[2].label, desc: cfg[2].desc, color: cfg.color });
+    if (n >= 3 && cfg[3]) out.push({ tier: 3, race, count: n, label: cfg[3].label, desc: cfg[3].desc, color: cfg.color });
+  }
+  return out;
+}
+
 function getHeroBullets(hero) {
   if (!hero) return [];
   const role = _ROLE_BULLET[hero.newRole];
