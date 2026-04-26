@@ -9764,7 +9764,35 @@ function onLeaderChosen(chosenId) {
   }
   const otherId = chosenId === 'pirate_captain' ? 'rock_captain' : 'pirate_captain';
   setLeader(chosenId);
-  // Both revealed — unchosen still joins the warband visually; only chosen gets 👑
+
+  // BACKLOG-002 Branching FTUE: captain pick determines faction-pure 4-hero squad
+  // for the next fight. Crimson → 4 Pirates (Fire). Nightlord → 4 Rock Band (Dark).
+  // Unlocks the 3 corresponding warrior/mage/hunter IDs of the chosen faction
+  // (idempotent — pirate_warrior is already unlocked as starter, rock_* are new).
+  const factionHeroes = chosenId === 'pirate_captain'
+    ? ['pirate_warrior', 'pirate_mage', 'pirate_hunter', 'pirate_captain']  // 4 Fire
+    : ['rock_warrior',   'rock_mage',   'rock_hunter',   'rock_captain'];   // 4 Dark
+  for (const id of factionHeroes) {
+    const h = HERO_ROSTER.find(x => x.id === id);
+    if (h && !h.locked && !h.unlocked) h.unlocked = true;
+  }
+  saveUnlockedHeroesToStorage();
+
+  // Bump SQUAD_MAX to 4 early (B3 default was 3 → 4 after Boss 2). Captain pick now
+  // gates the early bump so the chosen faction's 4-hero squad fits immediately.
+  if (typeof SQUAD_MAX !== 'undefined' && SQUAD_MAX < 4) {
+    SQUAD_MAX = 4;
+    if (typeof saveSquadMaxToStorage === 'function') saveSquadMaxToStorage();
+    try { flashText('+1 SQUAD SLOT — 4 HEROES', '#FFD53D'); } catch (e) {}
+  }
+
+  // Force activeSquad to the 4 faction-pure heroes (overwrites whatever was selected).
+  // The grunt_fight beat below will pull HERO_DECK from this list.
+  activeSquad.length = 0;
+  for (const id of factionHeroes) activeSquad.push(id);
+
+  // Reveal OTHER captain too — they join warband visually (unlocked but not in squad)
+  // so player can pick them later from squad-select. Pre-existing FTUE behavior.
   revealHero(chosenId);
   revealHero(otherId);
   closeLeaderChoiceModal();
