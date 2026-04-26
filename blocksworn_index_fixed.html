@@ -13206,7 +13206,22 @@ let ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
 // (DEBT-014) until rewired in Task 4.2/4.3.
 let heroCharges = {};                  // { heroId: charge } — battle-scope, reset on startBossBattle()
 const HERO_CHARGE_MAX = 120;           // ceiling cap (over-charge buffer for Pillar 4 chain combo, Task 4.3)
-const HERO_ULT_COST_DEFAULT = 100;     // Tier 2 default cost; tier-aware costs land in Task 4.2
+const HERO_ULT_COST_DEFAULT = 100;     // fallback when hero.newRole is missing / unknown
+// HOTFIX B3.3 — per-role ULT cost (Roman spec). Cheaper for warrior/tank (frequent
+// utility); standard for mage/captain; expensive for hunter (payoff detonator).
+const HERO_ULT_COST_BY_NEWROLE = {
+  warrior: 80,
+  mage:    100,
+  hunter:  120,
+  tank:    80,
+  captain: 100,
+};
+function getUltCost(heroId) {
+  if (!heroId) return HERO_ULT_COST_DEFAULT;
+  const hero = (typeof HERO_DECK !== 'undefined') && HERO_DECK.find(h => h && h.id === heroId);
+  if (!hero || !hero.newRole) return HERO_ULT_COST_DEFAULT;
+  return HERO_ULT_COST_BY_NEWROLE[hero.newRole] || HERO_ULT_COST_DEFAULT;
+}
 const HERO_CHARGE_PER_CELL_BY_COUNT = { 1: 20, 2: 14, 3: 10 }; // inverse-scaling fill rate per spec
 function _heroChargePerCell(matchingCount) {
   if (matchingCount <= 0) return 0;
@@ -13227,7 +13242,9 @@ function addChargeToHero(heroId, amount) {
   if (next === prev) return;
   heroCharges[heroId] = next;
   // ULT-READY transition flash — fires once when crossing from below cost to >= cost.
-  if (prev < HERO_ULT_COST_DEFAULT && next >= HERO_ULT_COST_DEFAULT) {
+  // HOTFIX B3.3: cost is per-role via getUltCost (warrior/tank=80, mage/captain=100, hunter=120).
+  const cost = getUltCost(heroId);
+  if (prev < cost && next >= cost) {
     const hero = (typeof HERO_DECK !== 'undefined') && HERO_DECK.find(h => h && h.id === heroId);
     if (hero) {
       try { flashText(`${hero.name} · ULT READY`, STIHIYA_COLORS[hero.stihiya] || '#ffd53d'); } catch(e){}
@@ -13236,7 +13253,7 @@ function addChargeToHero(heroId, amount) {
   }
 }
 function canFireUlt(heroId) {
-  return (heroCharges[heroId] || 0) >= HERO_ULT_COST_DEFAULT;
+  return (heroCharges[heroId] || 0) >= getUltCost(heroId);
 }
 function consumeUltCharge(heroId) {
   if (!heroId) return;
@@ -13255,13 +13272,16 @@ try {
     }
     const deck = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) ? HERO_DECK : [];
     return {
-      cost: HERO_ULT_COST_DEFAULT,
+      defaultCost: HERO_ULT_COST_DEFAULT,
       max:  HERO_CHARGE_MAX,
       perCellRate: HERO_CHARGE_PER_CELL_BY_COUNT,
+      // HOTFIX B3.3 — per-role cost surfaced in DevTools snapshot.
+      costsByRole: HERO_ULT_COST_BY_NEWROLE,
       heroes: deck.filter(Boolean).map(h => ({
-        id: h.id, name: h.name, stihiya: h.stihiya,
+        id: h.id, name: h.name, stihiya: h.stihiya, newRole: h.newRole,
         charge: heroCharges[h.id] || 0,
-        ready: (heroCharges[h.id] || 0) >= HERO_ULT_COST_DEFAULT,
+        cost: getUltCost(h.id),
+        ready: (heroCharges[h.id] || 0) >= getUltCost(h.id),
       })),
     };
   };
@@ -20757,17 +20777,17 @@ function renderDeck() {
     ultBar.className = 'ult-bar';
     const ultFill = document.createElement('div');
     ultFill.className = 'ult-fill';
-    // V4.0 Phase 4 Task 4.1 — read per-hero charge; max = HERO_ULT_COST_DEFAULT (Tier 2).
-    // The over-charge buffer (cost..MAX, i.e. 100..120) renders as a clamped 100%-full bar.
+    // HOTFIX B3.3 — per-role cost (warrior/tank=80, mage/captain=100, hunter=120).
+    // Bar width scales to per-hero cost so 100% fill always means "ready" regardless of role.
     const charge = heroCharges[h.id] || 0;
-    const max = HERO_ULT_COST_DEFAULT;
+    const max = getUltCost(h.id);
     ultFill.style.width = Math.min(100, (charge / max) * 100) + '%';
     ultFill.style.background = STIHIYA_COLORS[h.stihiya];
     ultFill.style.color = STIHIYA_COLORS[h.stihiya];
     ultBar.appendChild(ultFill);
     card.appendChild(ultBar);
-    // Ready state — gated on per-hero charge >= cost (Task 4.1).
-    if (charge >= HERO_ULT_COST_DEFAULT) {
+    // Ready state — gated on per-hero charge >= per-role cost.
+    if (charge >= max) {
       card.classList.add('ult-ready');
       card.style.setProperty('--glow', STIHIYA_COLORS[h.stihiya]);
     }
@@ -20814,7 +20834,10 @@ async function onHeroCardClick(hero) {
   // V4.0 Phase 4 Task 4.1 — gate ult-fire on per-hero charge meter, not element pool.
   if (!canFireUlt(hero.id)) {
     const charge = Math.floor(heroCharges[hero.id] || 0);
-    flashText(`ULT: ${charge}/${HERO_ULT_COST_DEFAULT} · CHARGE NOT FULL`, '#A8A5B8');
+    // HOTFIX B3.3 — show per-role cost in toast (X/80 for warrior/tank, X/100 for
+    // mage/captain, X/120 for hunter) so the player understands the threshold.
+    const cost = getUltCost(hero.id);
+    flashText(`ULT: ${charge}/${cost} · CHARGE NOT FULL`, '#A8A5B8');
     return;
   }
   // Fire ultimate — consume per-hero charge.
