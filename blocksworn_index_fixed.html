@@ -9681,10 +9681,22 @@ function setChapter(n) {
   // V3.0 Phase 2 Block 2.1 trap 3: if floor selector is open for a boss in the
   // old chapter, close it before switching — data underneath changes meaning.
   try { closeFloorSelector(); } catch(e){}
-  // Task #1.5: Chapters 2/3 removed — clamp to 1. Any legacy caller that passes
-  // n=2 or 3 is pre-reduction state and must resolve back to Chapter 1.
-  const idx = (Number(n) === 1) ? 0 : 0;
-  currentChapter = 1;
+  // 2026-04-27 HOTFIX — restore proper chapter binding. The previous clamp
+  // (Task #1.5 "Chapters 2/3 removed") was Phase 1 tech debt that was never
+  // reverted after Phase 5b shipped Chapter 2. Result: even after Crypt Lich
+  // unlocked Chapter 2 + cinematic played, switchChapter(2) silently rebinds
+  // back to Chapter 1. Now setChapter(n) honors n with bounds + unlock guards.
+  const requestedIdx = Math.max(1, Math.min(CHAPTERS.length, Number(n) || 1)) - 1;
+  // Bounds + unlock guards: never bind to a locked chapter even if caller asks.
+  let idx = 0;
+  if (requestedIdx === 0) {
+    idx = 0;
+  } else if (requestedIdx === 1 && (typeof chapter2Unlocked === 'undefined' || chapter2Unlocked)) {
+    idx = 1;
+  } else if (requestedIdx === 2 && (typeof chapter3Unlocked === 'undefined' || chapter3Unlocked)) {
+    idx = 2;
+  }
+  currentChapter = idx + 1;
   BOSSES = CHAPTERS[idx].bosses;
   applyBossEmblems();
 }
@@ -10181,8 +10193,19 @@ function applyBossDefeatProgression(bossNumber) {
       try {
         if (typeof showCryptLichAftermathCinematic === 'function') {
           showCryptLichAftermathCinematic(() => {
-            // After dismiss: re-render menu so Chapter 2 tab is now visible/active
-            try { if (typeof renderMenu === 'function') renderMenu(); } catch (e) {}
+            // 2026-04-27 HOTFIX — after dismiss, AUTO-SWITCH the player to
+            // Chapter 2 instead of leaving them on a now-cleared Chapter 1
+            // menu. switchChapter(2) sets currentChapter=2, rebinds BOSSES
+            // to Chapter 2's roster, resets selectedBossIdx, then renderMenu.
+            // Roman saw "Chapter 2 doesn't auto-launch after Lich" — this is it.
+            try {
+              if (typeof switchChapter === 'function') {
+                switchChapter(2);
+              } else if (typeof setChapter === 'function') {
+                setChapter(2);
+                if (typeof renderMenu === 'function') renderMenu();
+              }
+            } catch (e) { console.warn('auto-switch to Chapter 2 failed:', e); }
           });
         }
       } catch (e) { console.warn('Crypt Lich aftermath cinematic failed:', e); }
