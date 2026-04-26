@@ -370,3 +370,60 @@ Embedded sha256 = `8f0aa1c3d77c472ddd862f488fb9b8cc4cbd0af6f168a1a28244be4462004
 grep -cE "^\s*hero_pirate_gun:" blocksworn_index_fixed.html
 # → 1 ✓
 ```
+
+## DEBT-014 · Phase 4 Task 4.1 · Element-pool charge writes are dead state
+**Introduced:** 2026-04-25 · Task #4.1 (per-hero charge meters)
+**What:** Task 4.1 replaced the ult-fire gate from the legacy element-pool model
+(`ultCharges = {ember:0, tide:0, grove:0, solar:0, umbra:0}`) to the new per-hero
+model (`heroCharges = {heroId: charge}`). The canonical line-clear fill site (in
+the placement handler around L19200) was rewired to call
+`distributeChargeOnElementClear`, but ~12 secondary write sites still bump
+the legacy element pool:
+
+| Line  | Source                                                         |
+|-------|----------------------------------------------------------------|
+| 15457 | LION ROAR — first detonate grants +5 solar to element pool     |
+| 15463 | HUMAN HALO CHAIN — every detonate grants +1 solar pool         |
+| 15578 | (radiant chain proc) — element pool                            |
+| 15610 | UMBRA chain accumulator — every Nth umbra clear                |
+| 16874 | Ember ULT umbra-charge bonus (when ult resolves)               |
+| 16925 | (weapon-stihiya proc) — +3 to weapon's stihiya pool            |
+| 17316 | (per-stihiya proc inside ultRoleDispatch)                      |
+| 17638 | (per-hero-stihiya bump)                                        |
+| 17690 | (per-hero-stihiya bump, second site)                           |
+| 18031 | (umbra-stihiya bump)                                           |
+| 18334 | (target-stihiya bump)                                          |
+| 19084 | STRIKE FORCE RELENTLESS — combo ≥ 2 grants +1 random striker   |
+| 19378-80 | ASTARION STARPATH — +1 to all non-Astarion teammates' pool  |
+| 19396 | KEYCRYPT AMPLIFIER — +1 umbra pool per amp placement           |
+
+These sites still execute and write to `ultCharges[s]`, but `ultCharges` no
+longer drives ult-fire (the gate at `onHeroCardClick` now reads `heroCharges`).
+Effect: artifacts/passives that grant "+N ult charge to element X" silently
+no-op for ult-readiness purposes. Their other side-effects (UI flashes, etc.)
+still fire correctly.
+
+**Why deferred:** Most affected effects are mid-to-late-game artifacts /
+passives (T2/T3 specials, Astarion Starpath, Keycrypt Amplifier, Lion Roar).
+Phase 1 reduced roster to 15 active heroes; the actively-relevant procs in
+the 15-hero MVP are minimal. Rewiring all 12+ sites would inflate Task 4.1
+scope and conflict with the spec's "не trogai existing ult effects" rule.
+
+**Resolution plan:** Task #4.2 (3-tier ULT cost system) will introduce
+tier-aware cost gating. At that time, the secondary fill sites should be
+rewired through a new helper `addChargeToHeroesOfElement(element, amount)`
+that walks `HERO_DECK` and bumps each matching hero's `heroCharges[id]` by
+`amount` (respecting `HERO_CHARGE_MAX` ceiling). Task 4.3 (chain combo)
+may further consolidate fill paths.
+
+**Action now:** none — all writes still execute without error. Preview test
+verifies primary line-clear fill works; legacy procs may not contribute to
+ult-readiness until 4.2 rewire.
+
+**Verification:**
+```bash
+# Sites bumping legacy element pool (should equal pre-4.1 count, ≈12-15):
+grep -cE "ultCharges\[" blocksworn_index_fixed.html
+# Per-hero callsites (should be > 0 after 4.1):
+grep -cE "heroCharges\[" blocksworn_index_fixed.html
+```

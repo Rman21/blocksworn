@@ -8613,15 +8613,17 @@ loadHeroTiersFromStorage();
 // State persisted separately from blocksworn_progress so it survives save-format
 // iterations and is easier to debug / migrate independently.
 
-// Block B3: starter set reduced to 3 heroes (one per role-archetype) per the unlock
-// progression Model B — full Pirates roster fills in after Boss 1, Rock Band after
-// Boss 2, Sharks across Bosses 3 + 4. THORGAR (Warrior/CREATOR), BLACKTOOTH
-// (Hunter/DETONATOR), CRIMSON (Captain/ENABLER) form the smallest legal squad that
-// already showcases the combo grammar's 3 main verbs.
+// HOTFIX B3.2 — Option C applied (per-hero charge architecture restored from
+// archived/phase-4 b0796ac). With per-hero `heroCharges` driving the gate
+// (canFireUlt/consumeUltCharge), each card has its own meter — Option A's
+// mixed-element starter workaround is no longer needed. Reverting to the
+// B3 mono-pirate starter trio which Roman originally approved — smallest
+// legal squad showcasing all 3 main combo verbs.
+// BOSS_UNLOCKS[1]/[2] reverted to B3 layout below (they pair with this set).
 const STARTER_HEROES = new Set([
-  'pirate_warrior', // THORGAR  (CREATOR)
-  'pirate_hunter',  // BLACKTOOTH (DETONATOR)
-  'pirate_captain', // CRIMSON   (ENABLER)
+  'pirate_warrior', // THORGAR    (Warrior / CREATOR)
+  'pirate_hunter',  // BLACKTOOTH (Hunter / DETONATOR)
+  'pirate_captain', // CRIMSON    (Captain / ENABLER)
 ]);
 
 // Initialize unlocked flag on every roster entry. Default: starter-only.
@@ -8639,6 +8641,10 @@ const SQUAD_MAX_STORAGE_KEY = 'blocksworn_squad_max';
 
 // Block B3: hero unlock progression — heroes added per boss tier (Model B per MGD).
 // Boss N defeat → unlocks the listed IDs via revealHero() in onBossDefeated.
+// HOTFIX B3.2: reverted to original B3 layout. With per-hero charges (Option C
+// from HOTFIX_B3_1_DIAG.md), the mono-pirate starter trio doesn't suffer from
+// shared-charge-bar drain — Boss 1 unlocks the remaining 2 Pirates, Boss 2
+// unlocks all 5 Rock Band, etc.
 const BOSS_UNLOCKS = {
   1: ['pirate_mage', 'pirate_tank'],                                                 // Pyredrake → full Pirates roster (5)
   2: ['rock_warrior', 'rock_hunter', 'rock_mage', 'rock_tank', 'rock_captain'],      // Abyssal Tyrant → full Rock Band
@@ -13193,6 +13199,73 @@ function rebuildHeroDeck() {
 // ===== STATE =====
 let grid, hp, damageDealt, pieces, knownDeadZones, placementCount, shieldCount, heroFireCount;
 let ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+// V4.0 Phase 4 Task 4.1 — per-hero individual charge meters (Pillars 1, 2, 4 foundation).
+// Each hero in HERO_DECK now has an independent 0..HERO_CHARGE_MAX meter that drives
+// ULT-fire eligibility. The legacy `ultCharges` element pool above is still bumped by
+// various artifact/passive procs at other callsites — those bumps are dead-write residue
+// (DEBT-014) until rewired in Task 4.2/4.3.
+let heroCharges = {};                  // { heroId: charge } — battle-scope, reset on startBossBattle()
+const HERO_CHARGE_MAX = 120;           // ceiling cap (over-charge buffer for Pillar 4 chain combo, Task 4.3)
+const HERO_ULT_COST_DEFAULT = 100;     // Tier 2 default cost; tier-aware costs land in Task 4.2
+const HERO_CHARGE_PER_CELL_BY_COUNT = { 1: 20, 2: 14, 3: 10 }; // inverse-scaling fill rate per spec
+function _heroChargePerCell(matchingCount) {
+  if (matchingCount <= 0) return 0;
+  return HERO_CHARGE_PER_CELL_BY_COUNT[matchingCount] || Math.max(6, Math.floor(30 / matchingCount));
+}
+function distributeChargeOnElementClear(element, cellsCleared) {
+  if (!cellsCleared || cellsCleared <= 0) return;
+  if (!Array.isArray(HERO_DECK) || HERO_DECK.length === 0) return;
+  const matching = HERO_DECK.filter(h => h && h.stihiya === element);
+  if (matching.length === 0) return;
+  const gain = _heroChargePerCell(matching.length) * cellsCleared;
+  for (const h of matching) addChargeToHero(h.id, gain);
+}
+function addChargeToHero(heroId, amount) {
+  if (!heroId || !amount) return;
+  const prev = heroCharges[heroId] || 0;
+  const next = Math.min(HERO_CHARGE_MAX, prev + amount);
+  if (next === prev) return;
+  heroCharges[heroId] = next;
+  // ULT-READY transition flash — fires once when crossing from below cost to >= cost.
+  if (prev < HERO_ULT_COST_DEFAULT && next >= HERO_ULT_COST_DEFAULT) {
+    const hero = (typeof HERO_DECK !== 'undefined') && HERO_DECK.find(h => h && h.id === heroId);
+    if (hero) {
+      try { flashText(`${hero.name} · ULT READY`, STIHIYA_COLORS[hero.stihiya] || '#ffd53d'); } catch(e){}
+      try { vibrate(60); } catch(e){}
+    }
+  }
+}
+function canFireUlt(heroId) {
+  return (heroCharges[heroId] || 0) >= HERO_ULT_COST_DEFAULT;
+}
+function consumeUltCharge(heroId) {
+  if (!heroId) return;
+  heroCharges[heroId] = 0;
+}
+// Smoke-test console helper — Task #4.1. Inspect runtime charge state from DevTools:
+//   __debugCharges()        → snapshot of squad ids + per-hero charges + readiness flags
+//   __debugCharges(id, n)   → manually set heroCharges[id] = n (clamped to MAX). Useful for
+//                             testing the ult-fire gate without grinding line clears.
+try {
+  window.__debugCharges = (heroId, value) => {
+    if (heroId && typeof value === 'number') {
+      heroCharges[heroId] = Math.max(0, Math.min(HERO_CHARGE_MAX, value));
+      try { if (typeof renderHeroCards === 'function') renderHeroCards(); } catch(e){}
+      try { if (typeof render === 'function') render(); } catch(e){}
+    }
+    const deck = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) ? HERO_DECK : [];
+    return {
+      cost: HERO_ULT_COST_DEFAULT,
+      max:  HERO_CHARGE_MAX,
+      perCellRate: HERO_CHARGE_PER_CELL_BY_COUNT,
+      heroes: deck.filter(Boolean).map(h => ({
+        id: h.id, name: h.name, stihiya: h.stihiya,
+        charge: heroCharges[h.id] || 0,
+        ready: (heroCharges[h.id] || 0) >= HERO_ULT_COST_DEFAULT,
+      })),
+    };
+  };
+} catch(e) {}
 let currentBossIdx = 0, bossHP = 0, bossMaxHP = 0, attackCountdown = 0;
 let revivesRemaining = 0;
 let currentBoss = null, battleStartTime = 0;
@@ -15361,6 +15434,11 @@ function startBossBattle() {
   placementCount = 0;
   shieldCount = currentStartShields;
   ultCharges = { ...currentStartCharges };
+  // V4.0 Phase 4 Task 4.1 — reset per-hero charges; seed every active deck member at 0.
+  heroCharges = {};
+  if (Array.isArray(HERO_DECK)) {
+    for (const _h of HERO_DECK) if (_h && _h.id) heroCharges[_h.id] = 0;
+  }
   heroFireCount = 0;
   knownDeadZones = new Set();
   gameEnded = false;
@@ -20113,20 +20191,14 @@ async function afterPlacement(piece) {
       }
     }
 
-    // ULT charge — each cleared cell adds to that stihiya's hero ult bar
+    // V4.0 Phase 4 Task 4.1 — per-hero charge distribution with inverse scaling.
+    // Replaces the legacy element-pool fill at this canonical line-clear site.
+    // (Element-pool `ultCharges[s]` is still bumped by various artifact/passive
+    // procs elsewhere in this file — those are dead-write residue documented as
+    // DEBT-014, to be cleaned up in Task 4.2/4.3.)
+    // ULT-READY flash is now emitted once per hero from inside addChargeToHero().
     for (const s of STIHIYAS) {
-      if (counts[s] > 0) {
-        const prev = ultCharges[s];
-        ultCharges[s] = Math.min(currentUltThreshold[s], ultCharges[s] + counts[s]);
-        // Flash the bar when just filled
-        if (prev < currentUltThreshold[s] && ultCharges[s] >= currentUltThreshold[s]) {
-          const hero = HERO_DECK.find(h => h.stihiya === s);
-          if (hero) {
-            flashText(`${hero.name} · ULT READY`, STIHIYA_COLORS[s]);
-            vibrate(60);
-          }
-        }
-      }
+      if (counts[s] > 0) distributeChargeOnElementClear(s, counts[s]);
     }
     render();
 
@@ -20685,15 +20757,17 @@ function renderDeck() {
     ultBar.className = 'ult-bar';
     const ultFill = document.createElement('div');
     ultFill.className = 'ult-fill';
-    const charge = ultCharges[h.stihiya] || 0;
-    const max = currentUltThreshold[h.stihiya];
+    // V4.0 Phase 4 Task 4.1 — read per-hero charge; max = HERO_ULT_COST_DEFAULT (Tier 2).
+    // The over-charge buffer (cost..MAX, i.e. 100..120) renders as a clamped 100%-full bar.
+    const charge = heroCharges[h.id] || 0;
+    const max = HERO_ULT_COST_DEFAULT;
     ultFill.style.width = Math.min(100, (charge / max) * 100) + '%';
     ultFill.style.background = STIHIYA_COLORS[h.stihiya];
     ultFill.style.color = STIHIYA_COLORS[h.stihiya];
     ultBar.appendChild(ultFill);
     card.appendChild(ultBar);
-    // Ready state
-    if (charge >= max) {
+    // Ready state — gated on per-hero charge >= cost (Task 4.1).
+    if (charge >= HERO_ULT_COST_DEFAULT) {
       card.classList.add('ult-ready');
       card.style.setProperty('--glow', STIHIYA_COLORS[h.stihiya]);
     }
@@ -20737,14 +20811,14 @@ function renderDeck() {
 
 async function onHeroCardClick(hero) {
   if (gameEnded) return;
-  const charge = ultCharges[hero.stihiya] || 0;
-  const max = currentUltThreshold[hero.stihiya];
-  if (charge < max) {
-    flashText(`ULT: ${charge}/${max} · NEED MORE ${hero.stihiya.toUpperCase()}`, '#A8A5B8');
+  // V4.0 Phase 4 Task 4.1 — gate ult-fire on per-hero charge meter, not element pool.
+  if (!canFireUlt(hero.id)) {
+    const charge = Math.floor(heroCharges[hero.id] || 0);
+    flashText(`ULT: ${charge}/${HERO_ULT_COST_DEFAULT} · CHARGE NOT FULL`, '#A8A5B8');
     return;
   }
-  // Fire ultimate
-  ultCharges[hero.stihiya] = 0;
+  // Fire ultimate — consume per-hero charge.
+  consumeUltCharge(hero.id);
   const card = document.querySelector(`.hero-card[data-id="${hero.id}"]`);
   if (card) {
     card.classList.remove('ult-ready');
