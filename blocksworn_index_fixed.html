@@ -9811,13 +9811,24 @@ function showDeathFlashback(onDismiss) {
 // overlay bleed if cells-cleared setTimeout queues a beat just before victory).
 let _chronoBeatsSeen = {};   // { match, charge, ult, telegraph, race, captain } → true once shown
 let _chronoActive    = false; // is overlay showing right now (gates double-fire)
+// LOCALIZATION (EN): all 6 chronograph beat copy follows AAA+ tutorial rules:
+//   - verb-first imperative where possible (Drag, Match, Tap)
+//   - jargon-light (kept "ULT" since it's UI-ubiquitous; dropped "stihiya")
+//   - concrete numbers ("3+ tiles") not abstractions
+//   - visual anchors point at UI ("gold ring", "badge above", "Number =")
+//   - length 50–85 chars per body (10–25% shorter than RU originals)
+//   - reward stated in second clause ("to deal damage", "huge chain explosions")
+// Renamed `BOSS TELEGRAPH` → `INCOMING ATTACK` — "telegraph" is a fighting-game
+// term opaque to a casual match-3 audience; the new name reads clear at a glance.
+// Fact correction: CHARGE no longer says "heroes of your race" — ULT meter
+// fills by element, not race; "your heroes" is the accurate generic phrasing.
 const CHRONO_BEATS = {
-  match:     { phase: 'A', idx: 1, total: 4, tier: 'BASICS',   name: 'MATCH',          body: 'Перетащи фигуру в сетку. Совмести 3+ клеток одного цвета — они исчезнут и нанесут урон.' },
-  charge:    { phase: 'A', idx: 2, total: 4, tier: 'BASICS',   name: 'CHARGE',         body: 'Каждый матч заряжает ULT героев твоей расы. Жёлтое кольцо вокруг портрета растёт.' },
-  ult:       { phase: 'A', idx: 3, total: 4, tier: 'BASICS',   name: 'ULT',            body: 'Герой готов. Тапни портрет — выстрел уникальной способности (огонь, лёд, тьма).' },
-  telegraph: { phase: 'A', idx: 4, total: 4, tier: 'BASICS',   name: 'BOSS TELEGRAPH', body: 'Босс готовит удар. Цифра — сколько ходов до импакта. Планируй защиту или добивай первым.' },
-  race:      { phase: 'B', idx: 1, total: 2, tier: 'ADVANCED', name: 'RACE BUFF',      body: '3+ героя одной расы → пассивный бонус к урону. Пилл сверху показывает активный комбо.' },
-  captain:   { phase: 'B', idx: 2, total: 2, tier: 'ADVANCED', name: 'CAPTAIN DROP',   body: 'Капитан уронил element-charged клетки на сетку. Цепляй их в матч — они взрывают цепи.' },
+  match:     { phase: 'A', idx: 1, total: 4, tier: 'BASICS',   name: 'MATCH',           body: 'Drag pieces onto the grid. Match 3+ tiles of the same color to deal damage.' },
+  charge:    { phase: 'A', idx: 2, total: 4, tier: 'BASICS',   name: 'CHARGE',          body: 'Every match charges your heroes. Gold ring on each portrait = ULT progress.' },
+  ult:       { phase: 'A', idx: 3, total: 4, tier: 'BASICS',   name: 'ULT',             body: 'Hero is charged! Tap the portrait to fire the ULT.' },
+  telegraph: { phase: 'A', idx: 4, total: 4, tier: 'BASICS',   name: 'INCOMING ATTACK', body: 'Boss is winding up. Number = turns until his attack. Defend or strike first.' },
+  race:      { phase: 'B', idx: 1, total: 2, tier: 'ADVANCED', name: 'RACE BUFF',       body: '3+ same-race heroes give a passive damage boost. See the badge above.' },
+  captain:   { phase: 'B', idx: 2, total: 2, tier: 'ADVANCED', name: 'CAPTAIN DROP',    body: 'Captain dropped charged tiles. Match them to trigger huge chain explosions.' },
 };
 // Phase → required FTUE state. Beat fires only when ftueBeat matches.
 const CHRONO_PHASE_FTUE = { A: 'pyredrake_fight', B: 'grunt_fight' };
