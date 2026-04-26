@@ -9583,14 +9583,15 @@ const CHAPTERS = [
     id: 1,
     name: 'ASHEN DOMINION',
     bosses: [
-      // Block B3: archetype field activated. Drives BOSS_ARCHETYPES profile, archetype-aura
-      // CSS class on portrait, and per-archetype attack telegraph label. Phoenix's revives:1
-      // remains the legacy multi-life hook; the BOSS_ARCHETYPES.phoenix.special='revive'
-      // path (maybePhoenixRevive) is the modern equivalent — both are wired.
+      // Block B3: archetype field drives BOSS_ARCHETYPES profile, aura CSS class,
+      // and attack-telegraph label. Phoenix revive flow lives in maybePhoenixRevive
+      // (gated on bossArchetype === 'phoenix'). The legacy `revives` field path is
+      // suppressed for phoenix archetype boses to avoid double-revive (HOTFIX
+      // 2026-04-27 — Roman saw 3 lives instead of 2 because both paths fired).
       { name: 'PYREDRAKE',       title: 'Lvl 1 · Fire Dragon',    hp: 1800,  attackInterval: 11, img: 'Boss_1', color: '#E85D4A', stihiya: 'ember', archetype: 'berserker' },
       { name: 'ABYSSAL TYRANT',  title: 'Lvl 2 · Sea Overlord',   hp: 3800,  attackInterval: 9,  img: 'Boss_2', color: '#3B8BD4', stihiya: 'tide',  archetype: 'armored'   },
       { name: 'GROVEWARDEN',     title: 'Lvl 3 · Ancient Keeper', hp: 6500,  attackInterval: 7,  img: 'Boss_3', color: '#5DCA79', stihiya: 'grove', archetype: 'bruiser'   },
-      { name: 'SOLAR PHOENIX',   title: 'Lvl 4 · Reborn Tyrant',  hp: 7500,  attackInterval: 6,  img: 'Boss_4', color: '#E8B84A', stihiya: 'solar', archetype: 'phoenix',   revives: 1 },
+      { name: 'SOLAR PHOENIX',   title: 'Lvl 4 · Reborn Tyrant',  hp: 7500,  attackInterval: 6,  img: 'Boss_4', color: '#E8B84A', stihiya: 'solar', archetype: 'phoenix'   },
       { name: 'CRYPT LICH',      title: 'Lvl 5 · Final Overlord', hp: 11000, attackInterval: 5,  img: 'Boss_5', color: '#9B59D6', stihiya: 'umbra', archetype: 'assassin'  },
     ]
   },
@@ -20010,7 +20011,12 @@ async function onBossDefeated() {
   // V2.0 Block 1.3: PHOENIX ARCHETYPE revive — one-time, 60% HP + 2-turn motif immunity
   if (maybePhoenixRevive()) return;
   // PHOENIX REVIVE: boss comes back with full HP before actually dying (legacy multi-phase)
-  if (revivesRemaining > 0) {
+  // 2026-04-27 HOTFIX — guard so phoenix archetype bosses do NOT also use the legacy
+  // path. Earlier SOLAR PHOENIX had both `archetype: 'phoenix'` and `revives: 1`,
+  // letting BOTH revive flows fire (3 lives instead of 2). Even with revives:1 now
+  // removed from SOLAR PHOENIX, this guard prevents the same bug if any future
+  // phoenix-archetype boss has revives>0.
+  if (revivesRemaining > 0 && bossArchetype !== 'phoenix') {
     revivesRemaining--;
     bossHP = bossMaxHP;
     vibrate([200, 100, 200]);
