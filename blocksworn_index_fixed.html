@@ -8139,6 +8139,182 @@ body.tempo-slow-tint::after {
   cursor: pointer;
   font-family: inherit;
 }
+
+/* 2026-04-27 — Block T.5 — Tower upgrades button + modal */
+.tower-upgrades-btn {
+  margin-top: 6px;
+  padding: 10px;
+  background: linear-gradient(180deg, rgba(232, 93, 74, 0.20), rgba(60, 20, 14, 0.55));
+  color: #FFB8A8;
+  border: 1px solid rgba(232, 93, 74, 0.55);
+  border-radius: 8px;
+  font-weight: 700; font-size: 12px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.15s, transform 0.12s;
+}
+.tower-upgrades-btn:hover { filter: brightness(1.1); }
+.tower-upgrades-btn:active { transform: scale(0.97); }
+
+.tower-heart-modal {
+  position: fixed; inset: 0;
+  z-index: 10003;
+  background: rgba(5, 3, 8, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center; justify-content: center;
+  padding: 16px;
+  animation: introFadeIn 0.3s ease-out;
+}
+.tower-heart-modal.hidden { display: none; }
+.tower-heart-modal .thm-card-wrap {
+  width: 100%; max-width: 440px; max-height: 88vh;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, rgba(20, 12, 6, 0.95), rgba(8, 5, 3, 0.97));
+  border: 1.5px solid var(--a-gold-700, #B0832D);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.tower-heart-modal .thm-header {
+  position: relative;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(255, 213, 61, 0.20);
+  text-align: center;
+}
+.tower-heart-modal .thm-close {
+  position: absolute;
+  top: 8px; right: 10px;
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid rgba(168, 165, 184, 0.4);
+  color: #A8A5B8;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.tower-heart-modal .thm-title {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  text-shadow: 0 0 12px rgba(255, 213, 61, 0.4);
+}
+.tower-heart-modal .thm-balance {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #FFB8A8;
+  margin-top: 4px;
+}
+.tower-heart-modal .thm-balance #thmHeartCount {
+  color: var(--a-gold-300, #FFD53D);
+  font-weight: 800;
+}
+.tower-heart-modal .thm-branches {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.tower-heart-modal .thm-branch-head {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 12px;
+  letter-spacing: 1.8px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  background: rgba(255, 213, 61, 0.08);
+  border-radius: 6px;
+  border-left: 3px solid var(--a-gold-300, #FFD53D);
+}
+.tower-heart-modal .thm-branch-tiers {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.tower-heart-modal .thm-tier {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 184, 74, 0.25);
+  border-radius: 8px;
+  font-family: inherit;
+}
+.tower-heart-modal .thm-tier.owned {
+  border-color: rgba(93, 202, 121, 0.55);
+  background: rgba(93, 202, 121, 0.08);
+}
+.tower-heart-modal .thm-tier.buyable {
+  border-color: rgba(255, 213, 61, 0.55);
+}
+.tower-heart-modal .thm-tier.locked {
+  opacity: 0.55;
+}
+.tower-heart-modal .thm-tier-row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.tower-heart-modal .thm-tier-num {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 10px;
+  background: rgba(255, 184, 74, 0.18);
+  color: var(--a-gold-300, #FFD53D);
+  padding: 2px 5px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+.tower-heart-modal .thm-tier-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--a-text-primary, #E8E6DF);
+  letter-spacing: 0.5px;
+}
+.tower-heart-modal .thm-tier-cost {
+  font-size: 11px;
+  font-weight: 800;
+  color: #FFB8A8;
+  letter-spacing: 0.5px;
+}
+.tower-heart-modal .thm-tier-desc {
+  font-size: 10.5px;
+  color: var(--a-text-secondary, #A8A5B8);
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+.tower-heart-modal .thm-tier-buy {
+  width: 100%;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, #FFD53D, #FF8B3D);
+  color: #1A0F08;
+  border: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 10.5px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.tower-heart-modal .thm-tier-buy:hover { filter: brightness(1.08); }
+.tower-heart-modal .thm-tier-buy:active { transform: scale(0.97); }
+.tower-heart-modal .thm-tier-state {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  padding: 5px;
+  border-radius: 5px;
+}
+.tower-heart-modal .thm-state-owned {
+  color: #5DCA79;
+  background: rgba(93, 202, 121, 0.10);
+}
+.tower-heart-modal .thm-state-locked {
+  color: #A8A5B8;
+  background: rgba(168, 165, 184, 0.08);
+}
 .tower-history {
   background: rgba(0,0,0,0.3);
   border-radius: 10px;
@@ -9413,6 +9589,7 @@ button.season-tier-claim:active {
     <div class="tower-current" id="towerCurrent"></div>
     <button class="tower-enter-btn" id="towerEnterBtn" onclick="startTowerRun()">▲ ENTER TOWER</button>
     <button class="tower-shop-btn" onclick="openTowerShop()">🗼 TOWER SHOP</button>
+    <button class="tower-upgrades-btn" onclick="openHeartModal()">♥ UPGRADES</button>
     <div class="tower-history">
       <h3>RECENT WEEKS</h3>
       <div class="tower-history-list" id="towerHistoryList"></div>
@@ -9424,6 +9601,19 @@ button.season-tier-claim:active {
     <div class="v-nav-item" data-nav="tower" onclick="goToTower()"><span class="icn">🗼</span>TOWER</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
   </nav>
+</div>
+
+<!-- 2026-04-27 — Block T.5 Tower Heart upgrade screen. 4 functional
+     branches × 4 tiers = 16 upgrades. Bought permanently with ♥ Hearts. -->
+<div class="tower-heart-modal hidden" id="towerHeartModal">
+  <div class="thm-card-wrap">
+    <div class="thm-header">
+      <button class="thm-close" onclick="closeHeartModal()" aria-label="Close">✕</button>
+      <div class="thm-title">♥ TOWER UPGRADES</div>
+      <div class="thm-balance">YOU HAVE <span id="thmHeartCount">0</span> ♥</div>
+    </div>
+    <div class="thm-branches" id="thmBranches"></div>
+  </div>
 </div>
 
 <!-- 2026-04-27 — Block T.6 24h Buff Picker. Fires after Daily Gauntlet
@@ -11629,6 +11819,14 @@ function addGold(n) {
     if (v > 0 && typeof getBuffValue === 'function') {
       const goldMult = getBuffValue('goldMult', 1.0);
       if (goldMult > 1.0) v = Math.floor(v * goldMult);
+    }
+  } catch (e) {}
+  // 2026-04-27 — Block T.5 — Tower Heart "+10/+25% gold" upgrade. Tower-only
+  // (gated via _isTowerBattle inside getHeartTowerMult).
+  try {
+    if (v > 0 && typeof getHeartTowerMult === 'function') {
+      const m = getHeartTowerMult('goldMult');
+      if (m > 1.0) v = Math.floor(v * m);
     }
   } catch (e) {}
   gold = Math.max(0, gold + v);
@@ -14498,6 +14696,8 @@ let towerState = {
   // ===== T.6 24h buff system =====
   activeBuff: null,          // buff id (string) or null
   buffActiveUntil: 0,        // unix ms timestamp when buff expires
+  // ===== T.5 Tower Heart meta upgrades =====
+  purchasedHeartUpgrades: [],  // array of upgrade ids permanently purchased
 };
 const TOWER_KEY = 'blocksworn_tower_state';
 const TOWER_MAX_ATTEMPTS_PER_DAY  = 5;
@@ -14514,6 +14714,99 @@ const TOWER_DAILY_SIGILS          = 5;
 const TOWER_DAILY_HEART_FRAGMENTS = 1;
 let _isTowerBattle = false;
 let _towerPreFloor = null;
+
+// 2026-04-27 — Block T.5 — Tower Heart meta upgrades (spec §10). Permanent
+// progression bought with Tower Hearts (5 fragments → 1 heart). Effects
+// active in Tower fights only (Chapter unaffected). Tiers stack within a
+// branch via "highest-tier replaces lower" semantics.
+//
+// 4 functional branches × 4 tiers = 16 upgrades. Cosmetic branch (per spec
+// §10.1) deferred to Block T.9. Tier 4 entries marked DEBT for follow-up
+// (revive / startUlt / freeRetry / extraPlacement / bossNerf / heroCardBonus
+// require deeper engine integration).
+const HEART_UPGRADES = [
+  // ENDURANCE — survivability
+  { id: 'end_1', branch: 'endurance', tier: 1, cost: 1,  name: '+5% HP',          desc: 'All heroes in Tower gain +5% max HP',                kind: 'hpMult',       value: 1.05 },
+  { id: 'end_2', branch: 'endurance', tier: 2, cost: 3,  name: '+10% HP',         desc: '+10% max HP in Tower (replaces previous tier)',      kind: 'hpMult',       value: 1.10 },
+  { id: 'end_3', branch: 'endurance', tier: 3, cost: 8,  name: '+20% HP + 🛡',    desc: '+20% max HP + 1 starting shield in Tower',           kind: 'hpMult',       value: 1.20, extraShield: 1 },
+  { id: 'end_4', branch: 'endurance', tier: 4, cost: 15, name: 'REVIVE ONCE',     desc: 'Squad revives once per Tower run (DEBT — coming)',   kind: 'revive',       value: 1 },
+  // POWER — damage
+  { id: 'pow_1', branch: 'power', tier: 1, cost: 1,  name: '+10% DAMAGE',         desc: '+10% damage in Tower',                               kind: 'damageMult',   value: 1.10 },
+  { id: 'pow_2', branch: 'power', tier: 2, cost: 4,  name: '+20% DAMAGE',         desc: '+20% damage in Tower (replaces previous tier)',      kind: 'damageMult',   value: 1.20 },
+  { id: 'pow_3', branch: 'power', tier: 3, cost: 10, name: '+30% DAMAGE',         desc: '+30% damage + ULTs may crit (CRIT — DEBT)',          kind: 'damageMult',   value: 1.30 },
+  { id: 'pow_4', branch: 'power', tier: 4, cost: 20, name: '+1 ULT START',        desc: 'Tower fights start with 1 ULT charge (DEBT — coming)', kind: 'startUlt',  value: 1 },
+  // TEMPO — turn flow
+  { id: 'tem_1', branch: 'tempo', tier: 1, cost: 3,  name: '−1 BOSS TURN',        desc: 'Boss attacks 1 turn later in Tower',                 kind: 'attackCdBonus', value: 1 },
+  { id: 'tem_2', branch: 'tempo', tier: 2, cost: 8,  name: '+1 PLACEMENT',        desc: 'Tower fights have +1 placement per turn (DEBT)',     kind: 'extraPlacement', value: 1 },
+  { id: 'tem_3', branch: 'tempo', tier: 3, cost: 15, name: 'BOSS −1 ABILITY',     desc: 'Tower bosses skip 1 ability per phase (DEBT)',       kind: 'bossNerf',     value: 1 },
+  { id: 'tem_4', branch: 'tempo', tier: 4, cost: 25, name: 'FREE RETRY',          desc: 'Tower runs include 1 free retry (DEBT — coming)',    kind: 'freeRetry',    value: 1 },
+  // WEALTH — currency
+  { id: 'wea_1', branch: 'wealth', tier: 1, cost: 1,  name: '+10% GOLD',          desc: '+10% gold from Tower',                               kind: 'goldMult',     value: 1.10 },
+  { id: 'wea_2', branch: 'wealth', tier: 2, cost: 3,  name: '+25% GOLD',          desc: '+25% gold from Tower (replaces previous tier)',      kind: 'goldMult',     value: 1.25 },
+  { id: 'wea_3', branch: 'wealth', tier: 3, cost: 8,  name: '+1 SIGIL/FLOOR',     desc: '+1 Sigil Shard per Tower floor cleared',             kind: 'sigilPerFloor', value: 1 },
+  { id: 'wea_4', branch: 'wealth', tier: 4, cost: 20, name: '+1 HERO CARD',       desc: '+1 Hero Card per Tower completion (DEBT — coming)',  kind: 'heroCardBonus', value: 1 },
+];
+
+// Returns aggregated stats from purchased upgrades.
+//   For replacement-style kinds (hpMult/damageMult/goldMult): max value among purchased.
+//   For additive kinds (extraShield/sigilPerFloor/etc): sum of values.
+//   For boolean kinds (revive/startUlt/etc): true if any purchased.
+function getHeartUpgradeStats() {
+  const out = {
+    hpMult: 1.0, damageMult: 1.0, goldMult: 1.0,
+    extraShield: 0, attackCdBonus: 0, sigilPerFloor: 0,
+    revive: false, startUlt: false, extraPlacement: false,
+    bossNerf: false, freeRetry: false, heroCardBonus: false,
+  };
+  const list = (towerState.purchasedHeartUpgrades || []);
+  for (const id of list) {
+    const u = HEART_UPGRADES.find(x => x.id === id);
+    if (!u) continue;
+    if (u.kind === 'hpMult' || u.kind === 'damageMult' || u.kind === 'goldMult') {
+      if (u.value > out[u.kind]) out[u.kind] = u.value;
+    } else if (u.kind === 'extraShield' || u.kind === 'attackCdBonus' || u.kind === 'sigilPerFloor') {
+      out[u.kind] += u.value;
+    } else {
+      out[u.kind] = true;
+    }
+    // end_3 has extraShield as a side-field on the entry
+    if (u.extraShield) out.extraShield += u.extraShield;
+  }
+  return out;
+}
+
+// Tower-only multiplier for combat hooks. Returns 1.0 outside Tower fights.
+function getHeartTowerMult(kind) {
+  if (!_isTowerBattle) return 1.0;
+  const stats = getHeartUpgradeStats();
+  return stats[kind] || 1.0;
+}
+
+// Returns true if upgrade `id` is purchasable now: not owned, previous tier
+// owned (or tier === 1), and player has enough Hearts.
+function canPurchaseHeartUpgrade(id) {
+  const u = HEART_UPGRADES.find(x => x.id === id);
+  if (!u) return false;
+  const purchased = new Set(towerState.purchasedHeartUpgrades || []);
+  if (purchased.has(id)) return false;
+  if (u.tier > 1) {
+    // Previous tier in same branch must be owned
+    const prevTier = HEART_UPGRADES.find(x => x.branch === u.branch && x.tier === u.tier - 1);
+    if (!prevTier || !purchased.has(prevTier.id)) return false;
+  }
+  return towerState.towerHearts >= u.cost;
+}
+
+function purchaseHeartUpgrade(id) {
+  if (!canPurchaseHeartUpgrade(id)) return false;
+  const u = HEART_UPGRADES.find(x => x.id === id);
+  if (!u) return false;
+  towerState.towerHearts -= u.cost;
+  if (!Array.isArray(towerState.purchasedHeartUpgrades)) towerState.purchasedHeartUpgrades = [];
+  towerState.purchasedHeartUpgrades.push(id);
+  saveTowerState();
+  return true;
+}
 
 // 2026-04-27 — Block T.6 — 24h Buff System (spec §9). Each daily completion
 // offers 1-of-3 random buffs. Selected buff active for 24h, applies across
@@ -15094,6 +15387,13 @@ function onTowerFloorClear() {
   const ptsReward = 5 * floor + (floor % 10 === 0 ? 50 : 0);
   try { addGold(goldReward); } catch (e) {}
   towerState.towerPoints += ptsReward;
+  // 2026-04-27 — Block T.5 — Tower Heart "+1 sigil/floor" upgrade.
+  try {
+    if (typeof getHeartUpgradeStats === 'function') {
+      const hs = getHeartUpgradeStats();
+      if (hs.sigilPerFloor > 0) towerState.sigilShards += hs.sigilPerFloor;
+    }
+  } catch (e) {}
   // Update bests
   if (floor > towerState.weeklyBest)  towerState.weeklyBest  = floor;
   if (floor > towerState.allTimeBest) towerState.allTimeBest = floor;
@@ -15328,6 +15628,71 @@ function renderTowerScreen() {
 }
 
 // Continue/bank modal — custom DOM instead of confirm() for better mobile UX
+// 2026-04-27 — Block T.5 — Tower Heart upgrade screen open/close + render.
+function openHeartModal() {
+  const modal = document.getElementById('towerHeartModal');
+  if (!modal) return;
+  renderHeartModal();
+  modal.classList.add('active');
+  modal.classList.remove('hidden');
+}
+function closeHeartModal() {
+  const modal = document.getElementById('towerHeartModal');
+  if (modal) { modal.classList.remove('active'); modal.classList.add('hidden'); }
+}
+function renderHeartModal() {
+  const balanceEl = document.getElementById('thmHeartCount');
+  if (balanceEl) balanceEl.textContent = String(towerState.towerHearts);
+  const host = document.getElementById('thmBranches');
+  if (!host) return;
+  const purchased = new Set(towerState.purchasedHeartUpgrades || []);
+  const branches = ['endurance', 'power', 'tempo', 'wealth'];
+  const ICONS = { endurance: '❤️', power: '⚔', tempo: '⚡', wealth: '💰' };
+  let html = '';
+  for (const br of branches) {
+    const items = HEART_UPGRADES.filter(u => u.branch === br);
+    html += `<div class="thm-branch"><div class="thm-branch-head">${ICONS[br] || ''} ${br.toUpperCase()}</div><div class="thm-branch-tiers">`;
+    for (const u of items) {
+      const owned = purchased.has(u.id);
+      const canBuy = canPurchaseHeartUpgrade(u.id);
+      let stateCls = '';
+      let btnHtml = '';
+      if (owned) {
+        stateCls = ' owned';
+        btnHtml = `<div class="thm-tier-state thm-state-owned">OWNED ✓</div>`;
+      } else if (canBuy) {
+        stateCls = ' buyable';
+        btnHtml = `<button class="thm-tier-buy" onclick="onPurchaseHeartUpgrade('${u.id}')">BUY · ${u.cost}♥</button>`;
+      } else {
+        const prevTier = u.tier > 1 ? HEART_UPGRADES.find(x => x.branch === u.branch && x.tier === u.tier - 1) : null;
+        const lockedReason = (prevTier && !purchased.has(prevTier.id))
+          ? `Need tier ${u.tier - 1}`
+          : `Need ${u.cost}♥ (have ${towerState.towerHearts})`;
+        stateCls = ' locked';
+        btnHtml = `<div class="thm-tier-state thm-state-locked">🔒 ${lockedReason}</div>`;
+      }
+      html += `<div class="thm-tier${stateCls}">
+        <div class="thm-tier-row1"><span class="thm-tier-num">T${u.tier}</span><span class="thm-tier-name">${u.name}</span><span class="thm-tier-cost">${u.cost}♥</span></div>
+        <div class="thm-tier-desc">${u.desc}</div>
+        ${btnHtml}
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+  host.innerHTML = html;
+}
+function onPurchaseHeartUpgrade(id) {
+  if (purchaseHeartUpgrade(id)) {
+    try { flashText('UPGRADE PURCHASED', '#5DCA79'); } catch (e) {}
+    try { vibrate([50, 30, 100]); } catch (e) {}
+    renderHeartModal();
+    // Re-render tower screen so balance updates
+    try { if (typeof renderTowerScreen === 'function') renderTowerScreen(); } catch (e) {}
+  } else {
+    try { flashText('CANNOT PURCHASE', '#E85D4A'); } catch (e) {}
+  }
+}
+
 // 2026-04-27 — Block T.6 — 24h Buff picker. Fires after daily complete.
 // Shows 3 random buffs; player picks 1; selected buff persists 24h.
 let _buffPickerNextCallback = null;
@@ -19952,6 +20317,13 @@ function startBossBattle() {
   attackCountdown = currentBoss.attackInterval;
   // MODIFIER: Double Time — boss attacks 2× faster (halve interval)
   if (activeModifiers.has('doubleTime')) attackCountdown = Math.max(2, Math.floor(attackCountdown / MODIFIERS.doubleTime.speedMult));
+  // 2026-04-27 — Block T.5 — Tower Heart "−1 boss turn" upgrade. Tower-only.
+  if (_isTowerBattle && typeof getHeartUpgradeStats === 'function') {
+    try {
+      const hs = getHeartUpgradeStats();
+      if (hs.attackCdBonus > 0) attackCountdown += hs.attackCdBonus;
+    } catch (e) {}
+  }
   grid = Array.from({length: SIZE}, () => Array(SIZE).fill(null));
   // Compute synergies from current HERO_DECK composition
   computeSynergies();
@@ -19967,6 +20339,21 @@ function startBossBattle() {
   if (_isTowerBattle && typeof pactRunState !== 'undefined' && pactRunState.shieldsBonus > 0) {
     const _shieldCap = (typeof MAX_SHIELD === 'number' ? MAX_SHIELD : 5) + 2 + (typeof maxShieldBonus === 'number' ? maxShieldBonus : 0);
     shieldCount = Math.min(_shieldCap, shieldCount + pactRunState.shieldsBonus);
+  }
+  // 2026-04-27 — Block T.5 — Tower Heart upgrades: HP mult + extra starting
+  // shield. Apply Tower-only.
+  if (_isTowerBattle && typeof getHeartUpgradeStats === 'function') {
+    try {
+      const hs = getHeartUpgradeStats();
+      if (hs.hpMult > 1.0) {
+        currentMaxHP = Math.ceil(currentMaxHP * hs.hpMult);
+        if (typeof hp === 'number') hp = Math.min(currentMaxHP, Math.ceil(hp * hs.hpMult));
+      }
+      if (hs.extraShield > 0) {
+        const _shieldCap = (typeof MAX_SHIELD === 'number' ? MAX_SHIELD : 5) + 2 + (typeof maxShieldBonus === 'number' ? maxShieldBonus : 0);
+        shieldCount = Math.min(_shieldCap, shieldCount + hs.extraShield);
+      }
+    } catch (e) {}
   }
   ultCharges = { ...currentStartCharges };
   // V4.0 Phase 4 Task 4.1 — reset per-hero charges; seed every active deck member at 0.
@@ -21327,7 +21714,7 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
                    * _grommarRallyContext * _packMarkContext * _helioRoarContext
                    * _captainDualContext * _signatureComboContext * _hypnoSuggestContext
                    * _bloodhuntContext * _pirateDoubleContext * _pactDamageMult
-                   * _towerThemeMult * _buffDamageMult;
+                   * _towerThemeMult * _buffDamageMult * (typeof getHeartTowerMult === 'function' ? getHeartTowerMult('damageMult') : 1.0);
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
