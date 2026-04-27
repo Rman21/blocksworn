@@ -1547,6 +1547,31 @@
   box-shadow: 0 0 6px rgba(122, 236, 74, 0.6);
 }
 
+/* 2026-04-27 — Block 6.4 — Tier 2 Ascension badge on roster card.
+ * Cosmic-purple chip in the bottom-right corner. Distinguishes ascended
+ * heroes at a glance. Slight glow + diagonal shine = "earned" feel. */
+.a-roster-grid .v-hero-card .a-hero-t2-badge {
+  position: absolute;
+  bottom: 38px; right: 6px;
+  padding: 2px 6px;
+  background: linear-gradient(135deg, #C0A6DF 0%, #6B4A99 100%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  font-family: var(--a-font-display);
+  font-size: 8.5px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.8px;
+  z-index: 5;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 8px rgba(192, 166, 223, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: t2BadgePulse 2.4s ease-in-out infinite;
+}
+@keyframes t2BadgePulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(192, 166, 223, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+  50%      { box-shadow: 0 0 14px rgba(192, 166, 223, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+}
+
 /* 2026-04-27 — Role-verb tag on roster card. Sits just above the name label.
  * Single-word combat verb (CREATE / AMPLIFY / DETONATE / PROTECT / ENABLE)
  * for at-a-glance squad-building decisions. Matches design palette. */
@@ -9005,6 +9030,36 @@ button.season-tier-claim:active {
   letter-spacing: 1px;
 }
 .detail-tier-badge.t0 { display: none; }
+/* 2026-04-27 — Block 6.4 — Tier 2 Ascension badge in detail modal. */
+.detail-t2-badge {
+  display: inline-block;
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 11px; font-weight: 800;
+  padding: 3px 9px; border-radius: 10px; margin-top: 6px; margin-left: 6px;
+  background: linear-gradient(135deg, #C0A6DF 0%, #6B4A99 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  letter-spacing: 1.2px;
+  box-shadow: 0 0 10px rgba(192, 166, 223, 0.55);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+/* ASCEND button — cosmic purple gradient, distinct from squad action. */
+.detail-actions .btn-ascend {
+  background: linear-gradient(180deg, #C0A6DF 0%, #6B4A99 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  font-weight: 800;
+  letter-spacing: 1px;
+  box-shadow: 0 0 12px rgba(192, 166, 223, 0.45);
+  transition: filter 0.15s, transform 0.12s;
+}
+.detail-actions .btn-ascend:hover  { filter: brightness(1.12); }
+.detail-actions .btn-ascend:active { transform: scale(0.97); }
+.detail-actions .btn-ascend:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
 .detail-abilities {
   margin: 12px 0;
   font-size: 11px; line-height: 1.55; color: #A8A5B8;
@@ -10305,6 +10360,10 @@ button.season-tier-claim:active {
         <div class="detail-name" id="detailName">—</div>
         <div class="detail-meta" id="detailMeta">—</div>
         <div class="detail-tier-badge" id="detailTierBadge"></div>
+        <!-- 2026-04-27 — Block 6.4 — Tier 2 Ascension badge (visible on
+             ascended heroes). Hidden by default; shown via JS in
+             openHeroDetail when isHeroAscended(heroId). -->
+        <div class="detail-t2-badge" id="detailT2Badge" style="display:none;">⚡ T2 ASCENDED</div>
       </div>
     </div>
     <div class="v-hero-tabs">
@@ -10338,6 +10397,11 @@ button.season-tier-claim:active {
     </div>
     <div class="detail-actions v-hero-sheet-actions">
       <button class="btn" id="detailSquadBtn" onclick="toggleSquadFromDetail()">ADD TO SQUAD</button>
+      <!-- 2026-04-27 — Block 6.4 — Tier 2 Ascension button. Hidden by default;
+           shown when canAscendHero(hero.id) is true (player has T2 stones +
+           hero not yet ascended). Cosmic-purple palette to distinguish
+           from squad action. -->
+      <button class="btn btn-ascend" id="detailAscendBtn" onclick="onTryAscend()" style="display:none;">⚡ ASCEND (1 STONE)</button>
     </div>
   </div>
 </div>
@@ -10781,6 +10845,36 @@ function setChapter(n) {
 // pieces inherit them (they share the .cell.<stihiya>/.pcell.<stihiya> styles).
 // Emblems are race/element-based, not per-specific-boss — one emblem per stihiya
 // covers both chapters uniformly.
+// 2026-04-27 — Block 6.4 — Tier 2 Hero Ascension (spec §2.7 + §7).
+// 1 Tier 2 Stone (Chapter 3 Forgotten Pack reward) ascends 1 hero of player's
+// choice. Ascended hero gains permanent +20% damage and visible T2 badge.
+// One-shot per hero — cannot un-ascend (legendary commitment).
+const TIER2_ASCEND_COST     = 1;     // stones per ascension
+const TIER2_DAMAGE_BONUS    = 1.20;  // +20% multiplier in damage stack
+function isHeroAscended(heroId) {
+  return Array.isArray(towerState.ascendedHeroes)
+      && towerState.ascendedHeroes.includes(heroId);
+}
+function canAscendHero(heroId) {
+  if (!heroId) return false;
+  if (isHeroAscended(heroId)) return false;
+  return (towerState.tier2Stones || 0) >= TIER2_ASCEND_COST;
+}
+function ascendHero(heroId) {
+  if (!canAscendHero(heroId)) return false;
+  towerState.tier2Stones -= TIER2_ASCEND_COST;
+  if (!Array.isArray(towerState.ascendedHeroes)) towerState.ascendedHeroes = [];
+  towerState.ascendedHeroes.push(heroId);
+  saveTowerState();
+  return true;
+}
+// Combat hook helper — returns 1.20 for ascended heroes, 1.0 otherwise.
+// Read from inside dealDamage damage stack.
+function getHeroAscensionMult(hero) {
+  if (!hero || !hero.id) return 1.0;
+  return isHeroAscended(hero.id) ? TIER2_DAMAGE_BONUS : 1.0;
+}
+
 // 2026-04-27 — Inject UI icon CSS variables once at startup. Each var
 // references an inlined ASSETS data URI, so CSS rules can use them
 // (e.g. background-image: var(--icon-gold)). Re-runnable safely.
@@ -15231,6 +15325,8 @@ let towerState = {
   // ===== Block 6.3 — Chapter 3 reward state =====
   tier2Stones: 0,             // count of Tier 2 Ascension Stones (Forgotten Pack §2.7)
   chapter3FinalRewardClaimed: false,   // idempotent gate for boss 15 reward bundle
+  // ===== Block 6.4 — Tier 2 Ascension =====
+  ascendedHeroes: [],         // array of hero ids permanently ascended to T2
   // ===== T.4 Weekly + Seasonal Gauntlets =====
   weeklyRunStarted: false,
   weeklyCurrentFloor: 0,
@@ -23070,6 +23166,7 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
                    //   VOIDPRIESTESS hunter_silenced — Hunter dmg ×0.5
                    //   VOIDPRIESTESS mage_halved — Mage dmg ×0.5
                    //   ARCHIVAL ETERNAL dmg_halved seal — all dmg ×0.5
+                   * (typeof getHeroAscensionMult === 'function' && _currentFiringHero ? getHeroAscensionMult(_currentFiringHero) : 1.0)
                    * (typeof _ch3TwilightMult === 'function' && _currentFiringHero ? _ch3TwilightMult(_currentFiringHero) : 1.0)
                    * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('hunter_silenced') && _currentFiringHero && _currentFiringHero.newRole === 'hunter') ? 0.5 : 1.0)
                    * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('mage_halved') && _currentFiringHero && _currentFiringHero.newRole === 'mage') ? 0.5 : 1.0)
@@ -29820,6 +29917,14 @@ function vRenderRoster() {
       tm.textContent = ['','I','II','III','IV'][tier] || '';
       card.appendChild(tm);
     }
+    // 2026-04-27 — Block 6.4 — Tier 2 Ascension badge on roster card.
+    // Cosmic-purple ⚡T2 chip in bottom-right; visible when ascended.
+    if (!locked && typeof isHeroAscended === 'function' && isHeroAscended(h.id)) {
+      const t2 = document.createElement('div');
+      t2.className = 'a-hero-t2-badge';
+      t2.textContent = '⚡T2';
+      card.appendChild(t2);
+    }
     // Lock / claim overlay
     if (phase2Locked) {
       const l = document.createElement('div'); l.className = 'lock-icn'; l.textContent = '🔒 PHASE 2';
@@ -30349,6 +30454,29 @@ function openHeroDetail(heroId) {
   const inSquad = activeSquad.includes(heroId);
   squadBtn.textContent = inSquad ? 'REMOVE FROM SQUAD' : 'ADD TO SQUAD';
   squadBtn.classList.toggle('in-squad', inSquad);
+  // 2026-04-27 — Block 6.4 — Tier 2 Ascension UI surface
+  try {
+    const t2Badge = document.getElementById('detailT2Badge');
+    const ascendBtn = document.getElementById('detailAscendBtn');
+    const isT2 = (typeof isHeroAscended === 'function') && isHeroAscended(heroId);
+    const canT2 = (typeof canAscendHero === 'function') && canAscendHero(heroId);
+    if (t2Badge) t2Badge.style.display = isT2 ? '' : 'none';
+    if (ascendBtn) {
+      if (canT2) {
+        ascendBtn.style.display = '';
+        const stones = (towerState && towerState.tier2Stones) || 0;
+        ascendBtn.textContent = `⚡ ASCEND TO T2  (${stones} stones available)`;
+        ascendBtn.disabled = false;
+      } else if (isT2) {
+        // Already ascended — show inert reminder pill instead of button
+        ascendBtn.style.display = '';
+        ascendBtn.textContent = '⚡ ALREADY ASCENDED';
+        ascendBtn.disabled = true;
+      } else {
+        ascendBtn.style.display = 'none';
+      }
+    }
+  } catch (e) { console.warn('Tier 2 detail render failed:', e); }
   // Show
   document.getElementById('heroDetailModal').classList.add('active');
   // V3.0 Phase 8 Vivid: default to STATS tab on open, sync equipment grid, wire swipe-close.
@@ -30611,6 +30739,37 @@ function claimFromLockedModal() {
   const heroId = btn.dataset.heroId;
   if (!heroId) return;
   craftHero(heroId); // craftHero also closes the modal on success
+}
+
+// 2026-04-27 — Block 6.4 — Tier 2 Ascension confirmation + apply.
+// Confirms with player (cosmic-themed prompt — ascension is permanent),
+// then ascends + plays celebration banners + re-renders detail/roster.
+function onTryAscend() {
+  if (!detailHeroId) return;
+  const hero = HERO_ROSTER.find(h => h.id === detailHeroId);
+  if (!hero) return;
+  if (!canAscendHero(detailHeroId)) {
+    try { showToast('Cannot ascend: no Tier 2 stones'); } catch (e) {}
+    return;
+  }
+  const ok = confirm(
+    `Ascend ${hero.name} to Tier 2?\n\n` +
+    `Cost: 1 Tier 2 Stone (${towerState.tier2Stones} available)\n` +
+    `Effect: +20% damage permanent\n\n` +
+    `This is FINAL — no un-ascend.`
+  );
+  if (!ok) return;
+  if (ascendHero(detailHeroId)) {
+    try {
+      flashText('⚡ ' + hero.name + ' ASCENDED', '#A88AC8');
+      setTimeout(() => flashText('+20% DAMAGE PERMANENT', '#A88AC8'), 1100);
+      vibrate([100, 50, 100, 50, 200]);
+    } catch (e) {}
+    // Re-render detail to update badge + button state
+    try { openHeroDetail(detailHeroId); } catch (e) {}
+    // Refresh roster cards (T2 badge added to ascended)
+    try { if (typeof vRenderRoster === 'function') vRenderRoster(); } catch (e) {}
+  }
 }
 
 function toggleSquadFromDetail() {
