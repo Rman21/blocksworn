@@ -10938,23 +10938,69 @@ function setChapter(n) {
 // Emblems are race/element-based, not per-specific-boss — one emblem per stihiya
 // covers both chapters uniformly.
 // 2026-04-27 — Block 6.4 — Tier 2 Hero Ascension (spec §2.7 + §7).
-// 1 Tier 2 Stone (Chapter 3 Forgotten Pack reward) ascends 1 hero of player's
-// choice. Ascended hero gains permanent +20% damage and visible T2 badge.
+// 2026-04-27 — Block H.1 — full cost compliance per HERO_COMPENDIUM §8.1:
+//   5 hero cards (heroFragments) of THAT hero
+//   + 1 Tier 2 Ascension Stone
+//   + 200 gold
+//   + 5 element essence (matching hero stihiya)
+// Ascended hero gains permanent +20% damage and visible T2 badge.
 // One-shot per hero — cannot un-ascend (legendary commitment).
 const TIER2_ASCEND_COST     = 1;     // stones per ascension
+const TIER2_CARDS_COST      = 5;     // hero fragments per ascension (Block H.1)
+const TIER2_GOLD_COST       = 200;   // gold per ascension (Block H.1)
+const TIER2_ESSENCE_COST    = 5;     // element essence per ascension (Block H.1)
 const TIER2_DAMAGE_BONUS    = 1.20;  // +20% multiplier in damage stack
 function isHeroAscended(heroId) {
   return Array.isArray(towerState.ascendedHeroes)
       && towerState.ascendedHeroes.includes(heroId);
 }
+// Returns null if all reqs met; else returns array of failing reqs as { type, have, need }.
+// Block H.1 — used by both canAscendHero (boolean gate) and showHeroDetail
+// (shows red/green chips per requirement).
+function getAscensionMissing(heroId) {
+  if (!heroId) return [{ type: 'unknown', have: 0, need: 1 }];
+  if (isHeroAscended(heroId)) return [{ type: 'already_ascended', have: 1, need: 0 }];
+  const hero = HERO_ROSTER.find(h => h.id === heroId);
+  if (!hero) return [{ type: 'unknown', have: 0, need: 1 }];
+  const missing = [];
+  const stones  = (towerState && towerState.tier2Stones) || 0;
+  const cards   = (typeof getHeroFragments === 'function') ? getHeroFragments(heroId) : 0;
+  const goldAvail = (typeof gold !== 'undefined') ? (gold || 0) : 0;
+  const essAvail  = (typeof essences !== 'undefined' && essences && hero.stihiya)
+                  ? (essences[hero.stihiya] || 0) : 0;
+  if (stones    < TIER2_ASCEND_COST)  missing.push({ type: 'stone',   have: stones,    need: TIER2_ASCEND_COST });
+  if (cards     < TIER2_CARDS_COST)   missing.push({ type: 'cards',   have: cards,     need: TIER2_CARDS_COST });
+  if (goldAvail < TIER2_GOLD_COST)    missing.push({ type: 'gold',    have: goldAvail, need: TIER2_GOLD_COST });
+  if (essAvail  < TIER2_ESSENCE_COST) missing.push({ type: 'essence', have: essAvail,  need: TIER2_ESSENCE_COST, stihiya: hero.stihiya });
+  return missing.length ? missing : null;
+}
 function canAscendHero(heroId) {
-  if (!heroId) return false;
-  if (isHeroAscended(heroId)) return false;
-  return (towerState.tier2Stones || 0) >= TIER2_ASCEND_COST;
+  return getAscensionMissing(heroId) === null;
 }
 function ascendHero(heroId) {
   if (!canAscendHero(heroId)) return false;
+  const hero = HERO_ROSTER.find(h => h.id === heroId);
+  if (!hero) return false;
+  // Atomic deduction — all 4 reqs validated by canAscendHero, so safe to mutate.
   towerState.tier2Stones -= TIER2_ASCEND_COST;
+  // Hero cards: heroFragments goes through subtractive path (no helper exists,
+  // direct map mutation matches the addHeroFragments pattern).
+  if (typeof heroFragments === 'object') {
+    heroFragments[heroId] = Math.max(0, (heroFragments[heroId] || 0) - TIER2_CARDS_COST);
+    try { if (typeof saveHeroFragmentsToStorage === 'function') saveHeroFragmentsToStorage(); } catch (e) {}
+  }
+  // Gold deduction
+  if (typeof gold !== 'undefined') {
+    gold = Math.max(0, gold - TIER2_GOLD_COST);
+    try { if (typeof saveGoldToStorage === 'function') saveGoldToStorage(); } catch (e) {}
+    try { if (typeof renderResourceBar === 'function') renderResourceBar(); } catch (e) {}
+  }
+  // Element essence
+  if (typeof essences === 'object' && hero.stihiya) {
+    essences[hero.stihiya] = Math.max(0, (essences[hero.stihiya] || 0) - TIER2_ESSENCE_COST);
+    try { if (typeof saveProgress === 'function') saveProgress(); } catch (e) {}
+  }
+  // Final commit: append to ascended list and persist tower state.
   if (!Array.isArray(towerState.ascendedHeroes)) towerState.ascendedHeroes = [];
   towerState.ascendedHeroes.push(heroId);
   saveTowerState();
@@ -12324,7 +12370,11 @@ if (typeof window !== 'undefined') {
 // For now, only addHeroFragments() (console) produces fragments.
 
 let heroFragments = {}; // { heroId: count } — missing entries default to 0
-const HERO_FRAGMENT_CAP = 50;
+// 2026-04-27 — Block H.1 — cap raised from 50 → 99 to support T2/T3/Mythic
+// stockpile post-unlock (T2=5 cards, T3=+10 = 15 total, Mythic=+25 = 40 total
+// per HERO_COMPENDIUM §8-10). 99 leaves margin while still bounded.
+const HERO_FRAGMENT_CAP = 99;
+const HERO_FRAGMENT_UNLOCK_THRESHOLD = 50; // unchanged: 50 fragments still unlocks a locked hero
 const HERO_FRAGMENTS_STORAGE_KEY = 'blocksworn_hero_fragments';
 
 function saveHeroFragmentsToStorage() {
@@ -12371,16 +12421,16 @@ function canCraftHero(heroId) {
   const hero = HERO_ROSTER.find(h => h.id === heroId);
   if (!hero) return false;
   if (hero.unlocked) return false;
-  return (heroFragments[heroId] || 0) >= HERO_FRAGMENT_CAP;
+  // Block H.1 — unlock threshold is 50 (constant) regardless of cap raise to 99.
+  return (heroFragments[heroId] || 0) >= HERO_FRAGMENT_UNLOCK_THRESHOLD;
 }
 
 function addHeroFragments(heroId, count) {
   const hero = HERO_ROSTER.find(h => h.id === heroId);
   if (!hero) { console.warn('addHeroFragments: unknown hero', heroId); return 0; }
-  if (hero.unlocked) {
-    console.log('addHeroFragments: hero already unlocked, fragments ignored:', heroId);
-    return 0;
-  }
+  // 2026-04-27 — Block H.1 — fragments now accumulate past unlock to feed
+  // Tier 2 ascension (5 cards), Tier 3 (+10), Mythic (+25) per spec §8-10.
+  // Old behavior: ignored if unlocked. New: cap at 99 (HERO_FRAGMENT_CAP).
   const n = Math.floor(Number(count));
   if (!Number.isFinite(n) || n <= 0) {
     console.warn('addHeroFragments: invalid count', count);
@@ -12408,6 +12458,55 @@ function addHeroFragments(heroId, count) {
     }
   } catch (e) {}
   return added;
+}
+
+// 2026-04-27 — Block H.2 — Hero Cards drop economy (HERO_COMPENDIUM §12).
+// Drop 1-N random hero cards weighted toward heroes the player owns LESS of.
+// Returns array of dropped {heroId, count}. Used by onBossDefeated, Tower
+// daily/weekly/seasonal completion, and chapter completion bonuses.
+function dropRandomHeroCards(count, opts) {
+  count = Math.max(0, Math.floor(Number(count) || 0));
+  if (count <= 0) return [];
+  opts = opts || {};
+  // Pool: all heroes EXCEPT placeholders (Phase 2 clockwork etc.). Already-unlocked
+  // heroes ARE eligible — fragments now feed T2/T3/Mythic ascension stockpile per H.1.
+  const pool = HERO_ROSTER.filter(h => h && h.id && h.race !== 'clockwork' && h.fireText !== '[PHASE 2]');
+  if (pool.length === 0) return [];
+  // Weight inversely proportional to current fragment count so heroes the player
+  // owns less of are rarer to fill — encourages collection completion (Standard
+  // Hero Pack rule, spec §11.2). Each card drops independently.
+  const dropped = {};
+  for (let i = 0; i < count; i++) {
+    const weights = pool.map(h => {
+      const cur = (heroFragments && heroFragments[h.id]) || 0;
+      // weight = max(1, HERO_FRAGMENT_CAP - cur); heroes near cap get weight=1.
+      return Math.max(1, HERO_FRAGMENT_CAP - cur);
+    });
+    const total = weights.reduce((a, b) => a + b, 0);
+    if (total <= 0) break;
+    let pick = Math.random() * total;
+    let chosen = pool[0];
+    for (let j = 0; j < pool.length; j++) {
+      pick -= weights[j];
+      if (pick <= 0) { chosen = pool[j]; break; }
+    }
+    if (!chosen) chosen = pool[pool.length - 1];
+    dropped[chosen.id] = (dropped[chosen.id] || 0) + 1;
+  }
+  // Award: addHeroFragments() handles cap clamping + flash + persistence.
+  const result = [];
+  for (const id of Object.keys(dropped)) {
+    const added = addHeroFragments(id, dropped[id]);
+    if (added > 0) result.push({ heroId: id, count: added });
+  }
+  // Single summary banner so multi-drop bursts don't spam screen.
+  if (result.length > 0 && opts.silent !== true) {
+    const total = result.reduce((sum, r) => sum + r.count, 0);
+    setTimeout(() => {
+      try { flashText('🃏 HERO CARDS ×' + total, '#FFD53D'); } catch (e) {}
+    }, 600);
+  }
+  return result;
 }
 
 function craftHero(heroId) {
@@ -13945,6 +14044,66 @@ function getLevelBonuses(heroId) {
     hpBonus:  delta * LEVEL_HP_PER,
     ultBonus: delta * LEVEL_ULT_PER,
   };
+}
+// 2026-04-27 — Block H.8 — Tier 1 Milestone Passives (HERO_COMPENDIUM §7.2).
+// LV3 → Critical Strike: 5% chance for ×1.5 damage on this hero's fires
+// LV5 → Cascade Bonus: +10% damage during combo (currentDmgMult > 1)
+// LV7 → Element Mastery: +1 flat damage per charged cell on board
+// LV10 → ULT unlocked (Captains have ULT from LV1 — guard via newRole === 'captain')
+//        Note: ULT gating is non-trivial mid-fight (charge UI pre-built);
+//        deferred to a later block. The other 3 ship now.
+const HERO_LV3_CRIT_THRESH = 3;
+const HERO_LV5_CASCADE_THRESH = 5;
+const HERO_LV7_ELEMENT_THRESH = 7;
+const HERO_LV3_CRIT_CHANCE = 0.05;
+const HERO_LV3_CRIT_MULT   = 1.5;
+const HERO_LV5_CASCADE_BONUS = 0.10;  // +10%
+const HERO_LV7_ELEMENT_FLAT  = 1;     // +1 dmg per charged cell
+// Returns multiplier folded into damage stack for LV3 Crit + LV5 Cascade.
+// Element Mastery (LV7) is flat damage, applied post-clamp — see _heroLevelFlatBonus().
+function _heroLevelMilestoneMult(hero) {
+  if (!hero || !hero.id) return 1.0;
+  const lvl = (typeof getHeroLevel === 'function') ? getHeroLevel(hero.id) : 1;
+  let m = 1.0;
+  // LV3 Critical Strike — 5% chance × 1.5
+  if (lvl >= HERO_LV3_CRIT_THRESH && Math.random() < HERO_LV3_CRIT_CHANCE) {
+    m *= HERO_LV3_CRIT_MULT;
+    try { flashText('💥 CRIT!', '#FFD53D'); } catch (e) {}
+  }
+  // LV5 Cascade Bonus — +10% during combos (currentDmgMult > 1 means multi-line clear in flight)
+  if (lvl >= HERO_LV5_CASCADE_THRESH
+      && typeof currentDmgMult !== 'undefined' && currentDmgMult > 1) {
+    m *= (1 + HERO_LV5_CASCADE_BONUS);
+  }
+  return m;
+}
+// Returns flat damage bonus for LV7 Element Mastery (+1 dmg per ember-charged cell).
+// Folded post-clamp so it isn't subject to FIRE_MULT_CAP (intentionally additive).
+function _heroLevelFlatBonus(hero) {
+  if (!hero || !hero.id) return 0;
+  const lvl = (typeof getHeroLevel === 'function') ? getHeroLevel(hero.id) : 1;
+  if (lvl < HERO_LV7_ELEMENT_THRESH) return 0;
+  // Count charged cells matching hero's stihiya. Reuses existing "charged" concepts:
+  //   ember → chargedCells (Set of "r_c")
+  //   solar → radiantCells
+  //   tide  → chainStack (numeric, board-scope)
+  //   grove → earth-cells (groveAbsorbedByCell entries)
+  //   umbra → encoreStacks
+  let count = 0;
+  try {
+    if (hero.stihiya === 'ember' && typeof chargedCells !== 'undefined' && chargedCells.size) {
+      count = chargedCells.size;
+    } else if (hero.stihiya === 'solar' && typeof radiantCells !== 'undefined' && radiantCells.size) {
+      count = radiantCells.size;
+    } else if (hero.stihiya === 'tide' && typeof chainStack !== 'undefined') {
+      count = chainStack;
+    } else if (hero.stihiya === 'grove' && typeof groveAbsorbedByCell !== 'undefined' && groveAbsorbedByCell.size) {
+      count = groveAbsorbedByCell.size;
+    } else if (hero.stihiya === 'umbra' && typeof encoreStacks !== 'undefined') {
+      count = encoreStacks;
+    }
+  } catch (e) {}
+  return count * HERO_LV7_ELEMENT_FLAT;
 }
 
 function levelUpHero(heroId) {
@@ -16681,6 +16840,9 @@ function onTowerWeeklyComplete(clearedFloor) {
   try { addGold(bonusGold); } catch (e) {}
   towerState.sigilShards += 25;
   towerState.towerHeartFragments += TOWER_FRAGMENTS_PER_HEART;  // = 1 full heart
+  // 2026-04-27 — Block H.2 — weekly gauntlet hero card drop (§12: "1-3 cards").
+  // Mid-tier reward: 2 cards flat for participation.
+  try { dropRandomHeroCards(2); } catch (e) { console.warn('H.2 weekly card drop failed:', e); }
   while (towerState.towerHeartFragments >= TOWER_FRAGMENTS_PER_HEART) {
     towerState.towerHeartFragments -= TOWER_FRAGMENTS_PER_HEART;
     towerState.towerHearts += 1;
@@ -16727,6 +16889,10 @@ function onTowerSeasonalComplete(clearedFloor) {
   try { addGold(bonusGold); } catch (e) {}
   towerState.sigilShards += 50;
   towerState.towerHearts += 10;
+  // 2026-04-27 — Block H.2 — seasonal Tower hero card drop (§12: "5-25 top ranks").
+  // Single-player local: flat 5 cards for participation tier (leaderboard scaling
+  // deferred per TOWER-DEBT-4).
+  try { dropRandomHeroCards(5); } catch (e) { console.warn('H.2 seasonal card drop failed:', e); }
   // Mark this season's clear
   towerState.seasonalClearedKey = towerState.seasonalKey;
   towerState.seasonalRunStarted = false;
@@ -16761,6 +16927,9 @@ function onTowerDailyComplete(clearedFloor) {
   try { addGold(bonusGold); } catch (e) {}
   towerState.sigilShards += TOWER_DAILY_SIGILS;
   towerState.towerHeartFragments += TOWER_DAILY_HEART_FRAGMENTS;
+  // 2026-04-27 — Block H.2 — daily gauntlet hero card drop (HERO_COMPENDIUM §12).
+  // "Daily Gauntlet completion: 0-1 random" — flat 1 card on clear.
+  try { dropRandomHeroCards(1); } catch (e) { console.warn('H.2 daily card drop failed:', e); }
   // 5 fragments → +1 full Tower Heart
   while (towerState.towerHeartFragments >= TOWER_FRAGMENTS_PER_HEART) {
     towerState.towerHeartFragments -= TOWER_FRAGMENTS_PER_HEART;
@@ -23469,9 +23638,19 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
                    // 2026-04-27 — Block 6.5 DEBT-10: dual-element pact synergies.
                    //  Folds the product of all squad-satisfied dual pacts into the stack.
                    //  Returns 1.0 outside Tower or when no dual pacts active.
-                   * (typeof _pactDualElementMult === 'function' ? _pactDualElementMult() : 1.0);
+                   * (typeof _pactDualElementMult === 'function' ? _pactDualElementMult() : 1.0)
+                   // 2026-04-27 — Block H.8: Tier 1 milestone passives.
+                   //  LV3 Crit (5%×1.5) + LV5 Cascade (+10% during combos). Folds per firing hero.
+                   //  LV7 Element Mastery applied as flat post-clamp bonus below.
+                   * (typeof _heroLevelMilestoneMult === 'function' && _currentFiringHero ? _heroLevelMilestoneMult(_currentFiringHero) : 1.0);
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
+  // Block H.8 — LV7 Element Mastery flat add (post-clamp, not subject to FIRE_MULT_CAP).
+  try {
+    if (typeof _heroLevelFlatBonus === 'function' && _currentFiringHero) {
+      amount += _heroLevelFlatBonus(_currentFiringHero);
+    }
+  } catch (e) {}
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
   // (consumption triggers even if clamp cut the bonus — the Mark was "used" even though effective mult capped)
   if (_hunterMarkContext > 1) _hunterMarkConsumed = true;
@@ -23779,6 +23958,15 @@ async function onBossDefeated() {
       }
     }
   }
+  // 2026-04-27 — Block H.2 — Hero Cards drop on boss kill (HERO_COMPENDIUM §12).
+  // 30% chance of 1 random hero card per chapter-mode boss kill. Weighted toward
+  // heroes the player owns less of. Tower path skipped (Tower has its own drops
+  // wired into onTowerDailyComplete / onTowerWeeklyComplete / onTowerSeasonalComplete).
+  try {
+    if (Math.random() < 0.30) {
+      dropRandomHeroCards(1);
+    }
+  } catch (e) { console.warn('Block H.2 hero card drop failed:', e); }
   // V3.0 Phase 3 Block 3.2: offer triggers on boss-defeat events.
   // Floor 1 clears → STARTER (first clear ch1 boss 0), GROWTH (all 5 ch1 F1).
   // Floor 3 clears → retract stihiya_focus if it was triggered for THIS specific boss.
@@ -30795,25 +30983,41 @@ function openHeroDetail(heroId) {
   squadBtn.textContent = inSquad ? 'REMOVE FROM SQUAD' : 'ADD TO SQUAD';
   squadBtn.classList.toggle('in-squad', inSquad);
   // 2026-04-27 — Block 6.4 — Tier 2 Ascension UI surface
+  // 2026-04-27 — Block H.1 — full cost-chip surface (cards/stone/gold/essence).
   try {
     const t2Badge = document.getElementById('detailT2Badge');
     const ascendBtn = document.getElementById('detailAscendBtn');
     const isT2 = (typeof isHeroAscended === 'function') && isHeroAscended(heroId);
-    const canT2 = (typeof canAscendHero === 'function') && canAscendHero(heroId);
     if (t2Badge) t2Badge.style.display = isT2 ? '' : 'none';
     if (ascendBtn) {
-      if (canT2) {
+      if (isT2) {
+        // Already ascended — inert reminder
         ascendBtn.style.display = '';
-        const stones = (towerState && towerState.tier2Stones) || 0;
-        ascendBtn.textContent = `⚡ ASCEND TO T2  (${stones} stones available)`;
-        ascendBtn.disabled = false;
-      } else if (isT2) {
-        // Already ascended — show inert reminder pill instead of button
-        ascendBtn.style.display = '';
-        ascendBtn.textContent = '⚡ ALREADY ASCENDED';
+        ascendBtn.innerHTML = '⚡ ALREADY ASCENDED';
         ascendBtn.disabled = true;
       } else {
-        ascendBtn.style.display = 'none';
+        // Build cost chip strip — 4 chips, red/green per requirement.
+        ascendBtn.style.display = '';
+        const stones = (towerState && towerState.tier2Stones) || 0;
+        const cards  = (typeof getHeroFragments === 'function') ? getHeroFragments(heroId) : 0;
+        const goldA  = (typeof gold !== 'undefined') ? (gold || 0) : 0;
+        const essA   = (typeof essences === 'object' && hero.stihiya) ? (essences[hero.stihiya] || 0) : 0;
+        const sOK = stones >= TIER2_ASCEND_COST;
+        const cOK = cards  >= TIER2_CARDS_COST;
+        const gOK = goldA  >= TIER2_GOLD_COST;
+        const eOK = essA   >= TIER2_ESSENCE_COST;
+        const canT2 = sOK && cOK && gOK && eOK;
+        const chip = (label, have, need, ok) =>
+          `<span style="display:inline-block;padding:2px 7px;margin:0 3px;border-radius:8px;` +
+          `background:${ok ? 'rgba(93,202,121,0.25)' : 'rgba(232,93,74,0.25)'};` +
+          `border:1px solid ${ok ? '#5DCA79' : '#E85D4A'};` +
+          `font-size:10px;color:${ok ? '#5DCA79' : '#E85D4A'};">${label} ${have}/${need}</span>`;
+        ascendBtn.innerHTML = '⚡ ASCEND TO T2<br>' +
+          chip('🃏 CARDS', cards, TIER2_CARDS_COST, cOK) +
+          chip('💎 STONE', stones, TIER2_ASCEND_COST, sOK) +
+          chip('💰 GOLD', goldA, TIER2_GOLD_COST, gOK) +
+          chip('🌟 ' + (hero.stihiya || '').toUpperCase().slice(0,4), essA, TIER2_ESSENCE_COST, eOK);
+        ascendBtn.disabled = !canT2;
       }
     }
   } catch (e) { console.warn('Tier 2 detail render failed:', e); }
@@ -31088,13 +31292,21 @@ function onTryAscend() {
   if (!detailHeroId) return;
   const hero = HERO_ROSTER.find(h => h.id === detailHeroId);
   if (!hero) return;
-  if (!canAscendHero(detailHeroId)) {
-    try { showToast('Cannot ascend: no Tier 2 stones'); } catch (e) {}
+  // Block H.1 — surface specific missing requirement(s) instead of generic toast.
+  const missing = (typeof getAscensionMissing === 'function') ? getAscensionMissing(detailHeroId) : null;
+  if (missing && missing.length) {
+    const labels = { stone: 'T2 Stone', cards: 'Hero Cards', gold: 'Gold', essence: (hero.stihiya || 'element') + ' essence' };
+    const reasons = missing.map(m => `${labels[m.type] || m.type}: ${m.have}/${m.need}`).join('\n  • ');
+    try { showToast('Need:\n  • ' + reasons); } catch (e) { try { alert('Need:\n  • ' + reasons); } catch (e2) {} }
     return;
   }
   const ok = confirm(
     `Ascend ${hero.name} to Tier 2?\n\n` +
-    `Cost: 1 Tier 2 Stone (${towerState.tier2Stones} available)\n` +
+    `Cost (per spec §8.1):\n` +
+    `  • ${TIER2_CARDS_COST} ${hero.name} Hero Cards\n` +
+    `  • ${TIER2_ASCEND_COST} Tier 2 Ascension Stone\n` +
+    `  • ${TIER2_GOLD_COST} gold\n` +
+    `  • ${TIER2_ESSENCE_COST} ${hero.stihiya} essence\n\n` +
     `Effect: +20% damage permanent\n\n` +
     `This is FINAL — no un-ascend.`
   );
