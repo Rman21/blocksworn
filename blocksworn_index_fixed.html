@@ -7785,6 +7785,34 @@ body.tempo-slow-tint::after {
   color: #FFD53D; font-weight: 800; font-size: 12px;
   letter-spacing: 1.5px;
 }
+/* 2026-04-27 — Block T.1 Daily Gauntlet status pills (streak / attempts /
+ * currency counters). Compact row, wraps on narrow screens. */
+.tower-daily-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.tower-daily-status .t-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  background: linear-gradient(180deg, rgba(58, 42, 24, 0.55), rgba(26, 15, 8, 0.55));
+  border: 1px solid rgba(255, 184, 74, 0.45);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  color: #FFD53D;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+}
+.tower-enter-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
 .tower-enter-btn {
   padding: 14px;
   background: linear-gradient(180deg, #FFD53D, #FF8B3D);
@@ -14072,7 +14100,15 @@ if (typeof window !== 'undefined') {
 // skip BOSSES[idx] reassignment when _isTowerBattle is active.
 
 // ========= Tower state =========
+// 2026-04-27 — Block T.1 (Endless Tower rework per BLOCKSWORN_TOWER_OF_ENDLESS.md).
+// Extended with daily-gauntlet fields: dailyKey/attemptsToday for the 4AM
+// reset cycle, dailyStreak for consecutive-day completion, towerHearts +
+// sigilShards as the new currency primitives. Backward compat: existing
+// fields (currentFloor, weeklyBest, allTimeBest, towerPoints, runHistory)
+// retained — Object.assign in loadTowerState fills new fields with defaults
+// for players upgrading from pre-T.1 builds.
 let towerState = {
+  // ===== legacy (Phase 7 Block 7.1) =====
   currentFloor: 0,
   currentRunStarted: false,
   allTimeBest: 0,
@@ -14080,8 +14116,30 @@ let towerState = {
   currentWeekStart: null,
   towerPoints: 0,
   runHistory: [],
+  // ===== T.1 daily gauntlet =====
+  dailyKey: null,           // YYYY-MM-DD of last reset (4AM-bounded local time)
+  attemptsToday: 0,         // 0..TOWER_MAX_ATTEMPTS_PER_DAY (5)
+  dailyStreak: 0,           // consecutive days with full F10 clear
+  dailyClearsTotal: 0,      // lifetime daily completions
+  lastDailyClearKey: null,  // dailyKey of most recent clear (for streak math)
+  // ===== T.1 currencies =====
+  towerHearts: 0,           // permanent meta-upgrade currency (1 heart = 5 fragments)
+  towerHeartFragments: 0,   // 0..4 (5 → +1 heart, drops back to 0)
+  sigilShards: 0,           // 24h Buff currency (24h buffs land in Block T.6)
 };
 const TOWER_KEY = 'blocksworn_tower_state';
+const TOWER_MAX_ATTEMPTS_PER_DAY  = 5;
+const TOWER_DAILY_FLOORS          = 10;       // Daily Gauntlet length per spec §2.1
+const TOWER_MID_BOSS_FLOOR        = 5;        // F5 mid-boss
+const TOWER_CLIMAX_BOSS_FLOOR     = 10;       // F10 climax
+const TOWER_DAILY_RESET_HOUR      = 4;        // local 4 AM per spec §2.1
+const TOWER_FRAGMENTS_PER_HEART   = 5;        // 5 fragments = 1 full heart
+// Retry cost progression per §7.2 (gold cost for attempts 2-5; attempt 1 is free).
+const TOWER_RETRY_GOLD_COST = [0, 100, 500, 2000, 5000];
+// Daily completion rewards per §2.1
+const TOWER_DAILY_BASE_GOLD       = 100;
+const TOWER_DAILY_SIGILS          = 5;
+const TOWER_DAILY_HEART_FRAGMENTS = 1;
 let _isTowerBattle = false;
 let _towerPreFloor = null;
 
@@ -14105,6 +14163,50 @@ function loadTowerState() {
   } catch (e) { console.warn('loadTowerState:', e); }
 }
 loadTowerState();
+
+// 2026-04-27 — Block T.1 daily reset key. Returns YYYY-MM-DD where the day
+// is bounded by 4 AM local time (per spec §2.1). E.g., a play session at
+// 2 AM Mar 15 returns "2026-03-14" (still on yesterday's daily cycle); after
+// 4 AM Mar 15, returns "2026-03-15".
+function getTowerDailyKey(now) {
+  const d = (now instanceof Date) ? new Date(now.getTime()) : new Date();
+  // Subtract reset offset so a 0:00..3:59 timestamp falls into the previous day.
+  d.setHours(d.getHours() - TOWER_DAILY_RESET_HOUR);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Daily reset gate. Call before any tower-mode interaction. Updates streak
+// based on lastDailyClearKey vs new dailyKey. Idempotent: only acts if the
+// key actually changed since last reset.
+function checkTowerDailyReset() {
+  const todayKey = getTowerDailyKey();
+  if (towerState.dailyKey === todayKey) return;
+  // Streak math: if yesterday had a clear, streak continues. Otherwise reset.
+  if (towerState.lastDailyClearKey) {
+    // Compute "yesterday" key by subtracting 24h from now (ish).
+    const yest = new Date();
+    yest.setHours(yest.getHours() - TOWER_DAILY_RESET_HOUR - 24);
+    const y = yest.getFullYear();
+    const m = String(yest.getMonth() + 1).padStart(2, '0');
+    const day = String(yest.getDate()).padStart(2, '0');
+    const yesterdayKey = `${y}-${m}-${day}`;
+    if (towerState.lastDailyClearKey !== yesterdayKey
+     && towerState.lastDailyClearKey !== todayKey) {
+      // Missed at least one full day — reset streak.
+      towerState.dailyStreak = 0;
+    }
+  }
+  towerState.dailyKey = todayKey;
+  towerState.attemptsToday = 0;
+  // Mid-run state is wiped at daily reset (spec: 1 attempt per day base).
+  towerState.currentRunStarted = false;
+  towerState.currentFloor = 0;
+  saveTowerState();
+}
+checkTowerDailyReset();
 
 function isTowerUnlocked() {
   // Task #1.5: gating switched from Voidfang (Ch3 boss, removed) to Chapter 1 completion.
@@ -14219,14 +14321,43 @@ function getTowerFloorConfig(floor) {
 }
 
 // ========= Run lifecycle =========
+// 2026-04-27 — Block T.1 reworked startTowerRun + retry helpers per spec
+// §2.1 (Daily Gauntlet) and §7 (retry economics). Free first attempt per
+// day; subsequent retries cost escalating gold (TOWER_RETRY_GOLD_COST).
+// Cap of 5 attempts/day prevents grinding.
 function startTowerRun() {
-  if (!isTowerUnlocked()) { showToast('Defeat Voidfang first'); return; }
+  if (!isTowerUnlocked()) { showToast('Defeat CRYPT LICH first'); return; }
   if (typeof isFtueActive === 'function' && isFtueActive()) return;
-  // Starting fresh — reset floor to 1 + mark run started
+  checkTowerDailyReset();
+  // Cap check: after 5 attempts the player must wait until tomorrow's reset.
+  if (towerState.attemptsToday >= TOWER_MAX_ATTEMPTS_PER_DAY) {
+    showToast('Daily attempt cap reached. Reset at 4 AM.');
+    return;
+  }
+  // First attempt of the day is free. Subsequent attempts cost gold per
+  // TOWER_RETRY_GOLD_COST progression. Player must confirm the gold spend.
+  if (towerState.attemptsToday > 0) {
+    const cost = TOWER_RETRY_GOLD_COST[towerState.attemptsToday] || 5000;
+    if ((typeof gold !== 'number') || gold < cost) {
+      showToast(`Not enough gold (need ${cost})`);
+      return;
+    }
+    if (!confirm(`Retry costs ${cost} gold. Continue?`)) return;
+    try { addGold(-cost); } catch (e) {}
+  }
+  towerState.attemptsToday++;
   towerState.currentFloor = 1;
   towerState.currentRunStarted = true;
   saveTowerState();
   launchTowerFloor();
+}
+
+// Returns the gold cost for the player's NEXT retry attempt this day.
+// Returns 0 if the next attempt is free (first attempt of the day).
+// Returns -1 if the daily cap has been reached.
+function getNextTowerRetryCost() {
+  if (towerState.attemptsToday >= TOWER_MAX_ATTEMPTS_PER_DAY) return -1;
+  return TOWER_RETRY_GOLD_COST[towerState.attemptsToday] || 0;
 }
 
 function continueTowerRun() {
@@ -14270,8 +14401,57 @@ function onTowerFloorClear() {
   try { vibrate([60, 40, 60, 40, 120]); } catch (e) {}
   // V3.0 Phase 7 Block 7.5: Season XP (+10 per floor, scaling)
   try { if (typeof addSeasonXP === 'function') addSeasonXP(10 * floor); } catch (e) {}
-  // Present continue/bank modal
+  // 2026-04-27 — Block T.1 — Daily Gauntlet completion gate.
+  // Reaching F10 = full daily clear. Dispatch daily reward bundle, bump
+  // streak, mark run complete. Subsequent floors no longer auto-launch
+  // (Weekly/Seasonal gauntlets ship in later blocks).
+  if (floor >= TOWER_DAILY_FLOORS) {
+    onTowerDailyComplete(floor);
+    return;
+  }
+  // Present continue/bank modal (mid-run, F1-F9)
   setTimeout(() => showTowerFloorClearModal(floor), 1400);
+}
+
+// 2026-04-27 — Block T.1 daily completion. Fires on F10 clear (or future
+// gauntlet length). Awards completion bundle, streak bump, ends run.
+function onTowerDailyComplete(clearedFloor) {
+  // Reward bundle per spec §2.1
+  const bonusGold = TOWER_DAILY_BASE_GOLD + 10 * clearedFloor;  // +scaled bonus
+  try { addGold(bonusGold); } catch (e) {}
+  towerState.sigilShards += TOWER_DAILY_SIGILS;
+  towerState.towerHeartFragments += TOWER_DAILY_HEART_FRAGMENTS;
+  // 5 fragments → +1 full Tower Heart
+  while (towerState.towerHeartFragments >= TOWER_FRAGMENTS_PER_HEART) {
+    towerState.towerHeartFragments -= TOWER_FRAGMENTS_PER_HEART;
+    towerState.towerHearts += 1;
+  }
+  // Streak math
+  const todayKey = getTowerDailyKey();
+  if (towerState.lastDailyClearKey !== todayKey) {
+    towerState.dailyStreak = (towerState.dailyStreak || 0) + 1;
+    towerState.lastDailyClearKey = todayKey;
+    towerState.dailyClearsTotal = (towerState.dailyClearsTotal || 0) + 1;
+  }
+  // End run
+  towerState.currentRunStarted = false;
+  towerState.currentFloor = 0;
+  saveTowerState();
+  // Single celebratory banner (separate setTimeouts so each plate gets eye-time)
+  try {
+    flashText('🏆 DAILY GAUNTLET CLEARED', '#FFD53D');
+    setTimeout(() => flashText(
+      `+${bonusGold}💰 · +${TOWER_DAILY_SIGILS}◈ · +${TOWER_DAILY_HEART_FRAGMENTS}♥`,
+      '#FFD53D'
+    ), 1100);
+    setTimeout(() => flashText(
+      `STREAK ${towerState.dailyStreak} · NEXT @ 4 AM`,
+      '#FFD53D'
+    ), 2200);
+  } catch (e) {}
+  try { vibrate([100, 50, 100, 50, 200]); } catch (e) {}
+  // After banner sequence, return to tower screen.
+  setTimeout(() => { try { goToTower(); } catch (e) { try { goToMenu(); } catch (e2) {} } }, 3400);
 }
 
 function endTowerRun() {
@@ -14311,20 +14491,47 @@ function goToTower() {
 }
 
 function renderTowerScreen() {
+  // 2026-04-27 — Block T.1: ensure daily reset before UI render so attempts
+  // counter + streak reflect the current 4 AM-bounded day.
+  checkTowerDailyReset();
   const at = document.getElementById('towerAllTime'); if (at) at.textContent = String(towerState.allTimeBest);
   const wk = document.getElementById('towerWeekly');  if (wk) wk.textContent = String(towerState.weeklyBest);
   const pt = document.getElementById('towerPoints');  if (pt) pt.textContent = String(towerState.towerPoints);
   const btn     = document.getElementById('towerEnterBtn');
   const current = document.getElementById('towerCurrent');
+  // T.1 daily status row — streak / attempts / currencies
+  const attemptsLeft = TOWER_MAX_ATTEMPTS_PER_DAY - towerState.attemptsToday;
+  const nextRetryCost = getNextTowerRetryCost();
+  const dailyStatus = `<div class="tower-daily-status">
+    <span class="t-pill">DAY ${towerState.dailyKey || '-'}</span>
+    <span class="t-pill">STREAK ${towerState.dailyStreak || 0} 🔥</span>
+    <span class="t-pill">ATTEMPTS ${attemptsLeft}/${TOWER_MAX_ATTEMPTS_PER_DAY}</span>
+    <span class="t-pill">♥ ${towerState.towerHearts} (${towerState.towerHeartFragments}/${TOWER_FRAGMENTS_PER_HEART})</span>
+    <span class="t-pill">◈ ${towerState.sigilShards}</span>
+  </div>`;
   if (btn && current) {
     if (towerState.currentRunStarted) {
-      btn.textContent = `▶ CONTINUE — FLOOR ${towerState.currentFloor}`;
+      btn.textContent = `▶ CONTINUE — FLOOR ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}`;
       btn.onclick = continueTowerRun;
-      current.innerHTML = `<div class="tower-run-active">Run in progress · best this week F${towerState.weeklyBest}</div>`;
+      btn.disabled = false;
+      current.innerHTML = dailyStatus
+        + `<div class="tower-run-active">Run in progress · floor ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}</div>`;
+    } else if (attemptsLeft <= 0) {
+      btn.textContent = '🔒 DAILY CAP REACHED';
+      btn.onclick = () => showToast('Reset at 4 AM');
+      btn.disabled = true;
+      current.innerHTML = dailyStatus
+        + `<div class="tower-hint">Daily attempt cap reached. Come back at 4 AM for a fresh climb.</div>`;
     } else {
-      btn.textContent = '▲ ENTER TOWER';
+      const isFirstAttempt = (towerState.attemptsToday === 0);
+      const costLabel = isFirstAttempt ? 'FREE' : `${nextRetryCost}💰`;
+      btn.textContent = `▲ DAILY GAUNTLET — ${costLabel}`;
       btn.onclick = startTowerRun;
-      current.innerHTML = `<div class="tower-hint">Climb until you fall · every floor earns rewards · refresh ends run</div>`;
+      btn.disabled = false;
+      const hint = isFirstAttempt
+        ? `10 floors · F5 mid-boss · F10 climax · earn 💰 ◈ ♥ on full clear`
+        : `Retry attempt ${towerState.attemptsToday + 1}/${TOWER_MAX_ATTEMPTS_PER_DAY} · cost ${nextRetryCost} gold`;
+      current.innerHTML = dailyStatus + `<div class="tower-hint">${hint}</div>`;
     }
   }
   // History list (recent 5 weeks)
