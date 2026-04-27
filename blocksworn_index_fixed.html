@@ -8311,6 +8311,29 @@ body.tempo-slow-tint::after {
   font-family: inherit;
 }
 
+/* 2026-04-27 HOTFIX — Abandon Run button (only when run in progress).
+ * Red-tinted ghost button to feel destructive — player must confirm
+ * before clicking. Below the run-in-progress label. */
+.tower-abandon-btn {
+  display: block;
+  margin: 8px auto 0;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid rgba(232, 93, 74, 0.45);
+  border-radius: 6px;
+  color: #E85D4A;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.tower-abandon-btn:hover {
+  background: rgba(232, 93, 74, 0.10);
+  border-color: #E85D4A;
+}
+
 /* 2026-04-27 — Block T.4 — Weekly + Seasonal Gauntlet entry buttons.
  * Distinct palettes so player visually differentiates the 3 modes:
  *   Daily — gold (existing)
@@ -15837,18 +15860,24 @@ function startTowerRun() {
     if (!confirm(label)) return;
     try { addGold(-cost); } catch (e) {}
   }
-  towerState.attemptsToday++;
+  // 2026-04-27 HOTFIX — DEFER attempt commit. Old code incremented attempts
+  // here, so any failure between this point and actual battle start (boss
+  // spawn, render, etc.) would burn an attempt. New flow: stage a pending
+  // commit; launchTowerFloor finalises it AFTER startBossBattle returns.
+  // Roman ran into this — saw 1000g cost despite never playing.
+  _pendingTowerAttemptCommit = true;
   towerState.currentFloor = 1;
   towerState.currentRunStarted = true;
-  // 2026-04-27 — Block T.2: reset pact run state at the start of every run.
-  // Pacts accumulate ONLY for the current run; on retry/new-day, the slate
-  // wipes clean (per spec §5.1 "Pacts persist for the entire run").
   resetPactRunState();
-  // 2026-04-27 — Block T.4: mark mode for floor-flow / pact tier / completion.
   _currentGauntletMode = 'daily';
   saveTowerState();
   launchTowerFloor();
 }
+
+// Pending-commit flag — set in startTowerRun when gates pass, consumed in
+// launchTowerFloor after startBossBattle completes. Ensures attempts are
+// only counted when the player ACTUALLY enters a fight.
+let _pendingTowerAttemptCommit = false;
 
 // Returns the gold cost for the player's NEXT retry attempt this day.
 // Returns 0 if the next attempt is free (first attempt of the day).
@@ -15991,9 +16020,11 @@ function continueTowerRun() {
 
 // 2026-04-27 HOTFIX — Recovery hatch for stale attempt counter. If the
 // player's state has attemptsToday > 0 but currentRunStarted=false AND
-// currentFloor=0 AND no clear logged today, that's a "ghost attempt" from
-// an aborted launch (e.g. pre-fix curse gate edge case). Refund it once
-// per day (gated by _staleStateRefundedKey) on tower screen render.
+// currentFloor=0 AND no clear logged today, those are "ghost attempts"
+// from aborted launches (pre-defer-commit fix or earlier edge cases).
+// REVISED: refund ALL stale attempts to 0 (was: only 1) so players who
+// accumulated multiple ghosts get fully restored. Still gated by
+// _staleStateRefundedKey so this only fires once per day.
 function _maybeRefundStaleTowerAttempt() {
   try {
     const todayKey = (typeof getTowerDailyKey === 'function') ? getTowerDailyKey() : null;
@@ -16003,12 +16034,35 @@ function _maybeRefundStaleTowerAttempt() {
     if (towerState.currentFloor > 0) return;
     if (towerState.lastDailyClearKey === todayKey) return;
     if (towerState.attemptsToday <= 0) return;
-    // Conditions match a ghost attempt — refund 1 attempt.
-    towerState.attemptsToday = Math.max(0, towerState.attemptsToday - 1);
+    // All conditions match: zero out attempts (full refund of ghost stack).
+    const ghosts = towerState.attemptsToday;
+    towerState.attemptsToday = 0;
     towerState._staleStateRefundedKey = todayKey;
     saveTowerState();
-    try { showToast('Ghost attempt refunded'); } catch (e) {}
+    try { showToast(`${ghosts} ghost attempt${ghosts > 1 ? 's' : ''} refunded`); } catch (e) {}
   } catch (e) {}
+}
+
+// 2026-04-27 HOTFIX — Abandon Run hatch. Player can reset a stuck/
+// in-progress Tower run from the entry screen (e.g. wrong squad, lost
+// patience, want fresh start). Consumes the attempt + gold (already paid),
+// resets currentRunStarted/currentFloor + pact run state. Player can then
+// launch again with a different squad (next attempt cost ladder).
+function abandonTowerRun() {
+  if (!towerState.currentRunStarted) return;
+  if (!confirm('Abandon current Tower run? Your attempt + gold are NOT refunded.')) return;
+  towerState.currentRunStarted = false;
+  towerState.currentFloor = 0;
+  towerState.weeklyRunStarted = false;
+  towerState.weeklyCurrentFloor = 0;
+  towerState.seasonalRunStarted = false;
+  towerState.seasonalCurrentFloor = 0;
+  resetPactRunState();
+  _currentGauntletMode = 'daily';
+  _pendingTowerAttemptCommit = false;
+  saveTowerState();
+  try { renderTowerScreen(); } catch (e) {}
+  try { showToast('Run abandoned'); } catch (e) {}
 }
 
 function launchTowerFloor() {
@@ -16024,7 +16078,20 @@ function launchTowerFloor() {
   _isTowerBattle = true;
   // Route through existing battle entry. startBossBattle guard patched below to
   // respect the _isTowerBattle flag (analogous to FTUE _isFtueOnly pattern).
-  try { startBossBattle(); } catch (e) { console.warn('launchTowerFloor startBossBattle failed:', e); }
+  let battleStarted = false;
+  try {
+    startBossBattle();
+    battleStarted = true;
+  } catch (e) { console.warn('launchTowerFloor startBossBattle failed:', e); }
+  // 2026-04-27 HOTFIX — commit pending attempt only AFTER battle truly
+  // started. If startBossBattle threw, attempt isn't counted (gold isn't
+  // refunded automatically — that's a separate balance call). Ensures
+  // "boss didn't start → no attempt spent" per Roman.
+  if (battleStarted && _pendingTowerAttemptCommit) {
+    _pendingTowerAttemptCommit = false;
+    towerState.attemptsToday++;
+    saveTowerState();
+  }
 }
 
 function onTowerFloorClear() {
@@ -16381,7 +16448,8 @@ function renderTowerScreen() {
       btn.onclick = continueTowerRun;
       btn.disabled = false;
       current.innerHTML = titleBanner + buffBanner + themeBanner + curseBanner + dailyStatus
-        + `<div class="tower-run-active">Run in progress · floor ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}</div>`;
+        + `<div class="tower-run-active">Run in progress · floor ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}</div>`
+        + `<button class="tower-abandon-btn" onclick="abandonTowerRun()">⊘ ABANDON RUN</button>`;
     } else if (attemptsLeft <= 0) {
       btn.textContent = '🔒 DAILY CAP REACHED';
       btn.onclick = () => showToast('Reset at 4 AM');
