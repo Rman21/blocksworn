@@ -24067,6 +24067,8 @@ function startBossBattle() {
   // 2026-04-27 — Audio A.2.8: reset shield-tracker to current start count so
   // the first renderHP() of the battle doesn't fire a phantom shield SFX.
   try { _audioPrevShieldCount = currentStartShields; } catch (e) {}
+  // 2026-04-27 — Audio: switch to boss battle music on fight start.
+  try { if (typeof playContextMusic === 'function') playContextMusic('boss'); } catch (e) {}
   // 2026-04-27 — Anti-Deadlock: reset Hunter turn counters + emergency flags
   // + Rainbow tier state on battle start (spec §7.3 cooldown rule).
   try { resetAntiDeadlockState(); } catch (e) {}
@@ -32201,6 +32203,39 @@ function playPauseMenu()  { _audioMakeOscillator('sine', 440, 0.3, 0.4); }
 function playResumeGame() { _audioMakeOscillator('sine', 660, 0.3, 0.3); }
 function playNewDay()     { playHeroUnlock(); }
 
+// 2026-04-27 — Music tracks catalog (Roman curation per spec §15).
+// First 3 tracks shipped (pirate-themed):
+//   - ebunny-pirate-adventure         — atmospheric ascending → menu / map
+//   - alex_besss-pirate-ship-battle   — battle intensity      → boss fights
+//   - audiodollar-pirate-music-pirate — general pirate ambient → tower mode
+// Paths are relative to blocksworn_index_fixed.html. Missing tracks fail
+// silently in playMusic (console.warn only).
+const MUSIC_TRACKS = {
+  menu:    'assets/audio/music/ebunny-pirate-adventure-361663.mp3',
+  chapter: 'assets/audio/music/ebunny-pirate-adventure-361663.mp3',  // share with menu until per-chapter tracks land
+  boss:    'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',
+  tower:   'assets/audio/music/audiodollar-pirate-music-pirate-331490.mp3',
+  victory: 'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',  // reused until short victory track lands
+  defeat:  null,  // no defeat track yet; stopMusic suffices
+};
+
+// Plays the music for a given context. Re-entrant — if same context's track
+// is already playing, no-op. Otherwise crossfades over 1.5s.
+let _audioCurrentMusicContext = null;
+function playContextMusic(context) {
+  const url = MUSIC_TRACKS[context];
+  if (!url) {
+    if (_audioCurrentMusicContext) {
+      try { stopMusic(); } catch (e) {}
+      _audioCurrentMusicContext = null;
+    }
+    return;
+  }
+  if (_audioCurrentMusicContext === context && currentMusicAudio) return;
+  _audioCurrentMusicContext = context;
+  try { playMusic(url, { crossfadeDuration: 1500, loop: true }); } catch (e) {}
+}
+
 // ===== MUSIC PLAYER (Layer 2 — HTML5 Audio for MP3 streaming) =====
 
 function playMusic(trackUrl, options) {
@@ -32431,6 +32466,20 @@ function showScreen(name) {
   if (name === 'select') renderSelect();
   // V3.0 Phase 2 Vivid Stylized: sync bottom-nav active state on every transition.
   try { activateNavFor(name); } catch(e) {}
+  // 2026-04-27 — Audio: per-screen background music routing.
+  // Battle screen audio is handled by startBossBattle (per-fight context); this
+  // hook covers menu / map / select / shop / dailies / tower / season screens.
+  try {
+    if (typeof playContextMusic === 'function') {
+      if (name === 'tower' || name === 'season') {
+        playContextMusic('tower');
+      } else if (name === 'battle') {
+        // battle music set by startBossBattle directly — leave current context
+      } else {
+        playContextMusic('menu');
+      }
+    }
+  } catch (e) {}
 }
 
 function goToMenu() {
