@@ -8025,6 +8025,177 @@ body.tempo-slow-tint::after {
   cursor: not-allowed;
   filter: grayscale(0.5);
 }
+/* 2026-04-27 — Block T.9 — Title banner + Achievements modal */
+.tower-title-banner {
+  margin: 0 auto 6px;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, rgba(255, 213, 61, 0.10), rgba(40, 25, 8, 0.45));
+  border: 1px solid rgba(255, 213, 61, 0.40);
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.tower-title-banner:hover {
+  background: linear-gradient(180deg, rgba(255, 213, 61, 0.18), rgba(60, 35, 12, 0.5));
+  border-color: var(--a-gold-300, #FFD53D);
+}
+.tower-title-banner .ttitle-name {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 2px;
+}
+.tower-title-banner .ttitle-name.ttitle-empty {
+  color: var(--a-text-secondary, #A8A5B8);
+  font-weight: 600;
+  font-style: italic;
+}
+.tower-title-banner .ttitle-meta {
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  color: var(--a-text-secondary, #A8A5B8);
+}
+
+.tower-ach-modal {
+  position: fixed; inset: 0;
+  z-index: 10003;
+  background: rgba(5, 3, 8, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  animation: introFadeIn 0.3s ease-out;
+}
+.tower-ach-modal.hidden { display: none; }
+.tower-ach-modal .tam-card-wrap {
+  width: 100%; max-width: 440px; max-height: 88vh;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, rgba(20, 12, 6, 0.95), rgba(8, 5, 3, 0.97));
+  border: 1.5px solid var(--a-gold-700, #B0832D);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.tower-ach-modal .tam-header {
+  position: relative;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(255, 213, 61, 0.20);
+  text-align: center;
+}
+.tower-ach-modal .tam-close {
+  position: absolute;
+  top: 8px; right: 10px;
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid rgba(168, 165, 184, 0.4);
+  color: #A8A5B8;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.tower-ach-modal .tam-title {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  text-shadow: 0 0 12px rgba(255, 213, 61, 0.4);
+}
+.tower-ach-modal .tam-progress {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--a-text-secondary, #A8A5B8);
+  margin-top: 4px;
+}
+.tower-ach-modal .tam-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.tower-ach-modal .tam-row {
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 184, 74, 0.15);
+  border-left: 3px solid #B07840;
+  border-radius: 6px;
+}
+.tower-ach-modal .tam-row.owned {
+  background: rgba(255, 213, 61, 0.05);
+  border-color: rgba(255, 184, 74, 0.40);
+}
+.tower-ach-modal .tam-row.active {
+  background: rgba(255, 213, 61, 0.12);
+  border-color: rgba(255, 213, 61, 0.7);
+  box-shadow: 0 0 10px rgba(255, 213, 61, 0.25);
+}
+.tower-ach-modal .tam-row.locked { opacity: 0.55; }
+.tower-ach-modal .tam-row-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.tower-ach-modal .tam-rarity {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+}
+.tower-ach-modal .tam-name {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 13px;
+  letter-spacing: 1.2px;
+  color: var(--a-text-primary, #E8E6DF);
+  font-weight: 700;
+}
+.tower-ach-modal .tam-desc {
+  font-size: 11px;
+  color: var(--a-text-secondary, #A8A5B8);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+.tower-ach-modal .tam-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tower-ach-modal .tam-title-label {
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 0.5px;
+}
+.tower-ach-modal .tam-title-btn {
+  padding: 5px 10px;
+  background: linear-gradient(180deg, #FFD53D, #FF8B3D);
+  color: #1A0F08;
+  border: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+}
+.tower-ach-modal .tam-title-btn:hover { filter: brightness(1.1); }
+.tower-ach-modal .tam-title-btn.active {
+  background: rgba(255, 213, 61, 0.20);
+  color: var(--a-gold-300, #FFD53D);
+  border: 1px solid var(--a-gold-300, #FFD53D);
+}
+.tower-ach-modal .tam-title-locked {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #A8A5B8;
+  padding: 5px 10px;
+  border: 1px solid rgba(168, 165, 184, 0.3);
+  border-radius: 5px;
+}
+
 /* 2026-04-27 — Block T.6 — Active buff indicator banner. Green palette
  * (positive ongoing effect); rare variant uses purple. */
 .tower-buff-banner {
@@ -9651,6 +9822,19 @@ button.season-tier-claim:active {
     <div class="v-nav-item" data-nav="tower" onclick="goToTower()"><span class="icn">🗼</span>TOWER</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
   </nav>
+</div>
+
+<!-- 2026-04-27 — Block T.9 Achievements + Title selector modal. Pure
+     cosmetic per spec §12.3 — never affects gameplay. -->
+<div class="tower-ach-modal hidden" id="towerAchModal">
+  <div class="tam-card-wrap">
+    <div class="tam-header">
+      <button class="tam-close" onclick="closeAchievementsModal()" aria-label="Close">✕</button>
+      <div class="tam-title">★ ACHIEVEMENTS</div>
+      <div class="tam-progress" id="tamProgress">0 / 0 unlocked</div>
+    </div>
+    <div class="tam-list" id="tamList"></div>
+  </div>
 </div>
 
 <!-- 2026-04-27 — Block T.5 Tower Heart upgrade screen. 4 functional
@@ -14780,6 +14964,11 @@ let towerState = {
   buffActiveUntil: 0,        // unix ms timestamp when buff expires
   // ===== T.5 Tower Heart meta upgrades =====
   purchasedHeartUpgrades: [],  // array of upgrade ids permanently purchased
+  // ===== T.9 Cosmetics & Prestige =====
+  unlockedAchievements: [],   // achievement ids unlocked (pact_master, tower_walker, ...)
+  unlockedTitles: [],         // titles available to select
+  selectedTitle: null,        // currently displayed title id (or null)
+  seenPactIds: [],            // unique pact ids seen across all runs (for Pact Master)
   // ===== T.4 Weekly + Seasonal Gauntlets =====
   weeklyRunStarted: false,
   weeklyCurrentFloor: 0,
@@ -14799,6 +14988,66 @@ const TOWER_SEASONAL_FLOORS = 50;
 // at run launch. Read by onTowerFloorClear to decide completion gate, by
 // getPactOfferings to pick tier, by reward dispatch to pick bundle.
 let _currentGauntletMode = 'daily';
+
+// 2026-04-27 — Block T.9 — Cosmetics & Prestige (spec §12). Achievements
+// track player milestones; each grants a Title selectable from the profile.
+// Titles display below player name on Tower entry screen + battle banner.
+// All pure cosmetic — never affect gameplay (per spec §12.3).
+const TOWER_ACHIEVEMENTS = [
+  { id: 'first_climb',     name: 'FIRST CLIMB',       title: 'First Climber',     desc: 'Clear your first Daily Gauntlet',                  rarity: 'bronze' },
+  { id: 'tower_walker',    name: 'TOWER WALKER',      title: 'Eternal Climber',   desc: 'Clear 100 Daily Gauntlets',                        rarity: 'silver' },
+  { id: 'pact_master',     name: 'PACT MASTER',       title: 'Architect of Fate', desc: 'Encounter all 24 pact types in your runs',         rarity: 'gold' },
+  { id: 'weekly_champion', name: 'WEEKLY CHAMPION',   title: 'Weekly Champion',   desc: 'Clear a Weekly Gauntlet (25 floors)',              rarity: 'gold' },
+  { id: 'crown_breaker',   name: 'CROWN BREAKER',     title: 'Crown Breaker',     desc: 'Defeat UROBOROS at Seasonal F50',                  rarity: 'mythic' },
+];
+function unlockTowerAchievement(id) {
+  if (!Array.isArray(towerState.unlockedAchievements)) towerState.unlockedAchievements = [];
+  if (towerState.unlockedAchievements.includes(id)) return false;
+  const ach = TOWER_ACHIEVEMENTS.find(a => a.id === id);
+  if (!ach) return false;
+  towerState.unlockedAchievements.push(id);
+  if (ach.title && !towerState.unlockedTitles.includes(ach.id)) {
+    towerState.unlockedTitles.push(ach.id);
+  }
+  // Auto-select first earned title
+  if (!towerState.selectedTitle) towerState.selectedTitle = ach.id;
+  saveTowerState();
+  // Celebration banner — defers via existing dialog/banner queue.
+  try {
+    const rareCol = ach.rarity === 'mythic' ? '#FFD53D'
+                  : ach.rarity === 'gold'   ? '#FFAA00'
+                  : ach.rarity === 'silver' ? '#C0C8D8'
+                  : '#B07840';
+    setTimeout(() => flashText('★ ' + ach.name + ' UNLOCKED', rareCol), 400);
+    setTimeout(() => flashText('TITLE: ' + ach.title, rareCol),       1500);
+    vibrate([100, 50, 100, 50, 200]);
+  } catch (e) {}
+  return true;
+}
+function getActiveTitle() {
+  const id = towerState.selectedTitle;
+  if (!id) return null;
+  const ach = TOWER_ACHIEVEMENTS.find(a => a.id === id);
+  return ach ? ach.title : null;
+}
+function setActiveTitle(id) {
+  if (id !== null && !towerState.unlockedTitles.includes(id)) return false;
+  towerState.selectedTitle = id;
+  saveTowerState();
+  return true;
+}
+// Pact Master tracking — call when a pact is offered/seen.
+function markPactSeen(pactId) {
+  if (!pactId) return;
+  if (!Array.isArray(towerState.seenPactIds)) towerState.seenPactIds = [];
+  if (towerState.seenPactIds.includes(pactId)) return;
+  towerState.seenPactIds.push(pactId);
+  saveTowerState();
+  // Pact Master gate — all 24 pacts seen
+  if (typeof PACTS !== 'undefined' && towerState.seenPactIds.length >= PACTS.length) {
+    unlockTowerAchievement('pact_master');
+  }
+}
 
 // 2026-04-27 — Block T.8 — Tower boss roster (spec §6). 10 unique tower
 // bosses + 1 mythic (Uroboros). Each maps to one of the existing engine
@@ -15300,6 +15549,17 @@ function getPactOfferings(nextFloor) {
     ? getPactTierForFloor(nextFloor, _currentGauntletMode)
     : ((nextFloor <= TOWER_MID_BOSS_FLOOR) ? 1 : 2);
   const taken = new Set(pactRunState.active);
+  // 2026-04-27 — Block T.9: track unique pacts seen for Pact Master achievement.
+  // Records every offering shown (not just accepted) so player gets credit
+  // for the breadth of their exposure.
+  setTimeout(() => {
+    try {
+      if (typeof markPactSeen === 'function') {
+        const offered = PACTS.filter(p => p.tier === tier && !taken.has(p.id));
+        for (const p of offered) markPactSeen(p.id);
+      }
+    } catch (e) {}
+  }, 0);
   const pool = PACTS.filter(p => p.tier === tier && !taken.has(p.id));
   if (pool.length < 2) return pool.slice();  // not enough left → return whatever
   // Fisher-Yates shuffle, take 2
@@ -15786,6 +16046,8 @@ function onTowerWeeklyComplete(clearedFloor) {
   towerState.weeklyClearedKey = towerState.weeklyKey;
   towerState.weeklyRunStarted = false;
   towerState.weeklyCurrentFloor = 0;
+  // 2026-04-27 — Block T.9: Weekly Champion achievement
+  try { unlockTowerAchievement('weekly_champion'); } catch (e) {}
   // Update bests (weekly clears feed weeklyBest)
   if (clearedFloor > (towerState.weeklyBest || 0)) towerState.weeklyBest = clearedFloor;
   saveTowerState();
@@ -15826,6 +16088,10 @@ function onTowerSeasonalComplete(clearedFloor) {
   towerState.seasonalClearedKey = towerState.seasonalKey;
   towerState.seasonalRunStarted = false;
   towerState.seasonalCurrentFloor = 0;
+  // 2026-04-27 — Block T.9: Crown Breaker achievement (defeating UROBOROS at F50).
+  try {
+    if (clearedFloor >= TOWER_SEASONAL_FLOORS) unlockTowerAchievement('crown_breaker');
+  } catch (e) {}
   if (clearedFloor > (towerState.allTimeBest || 0)) towerState.allTimeBest = clearedFloor;
   saveTowerState();
   _currentGauntletMode = 'daily';
@@ -15864,6 +16130,13 @@ function onTowerDailyComplete(clearedFloor) {
     towerState.lastDailyClearKey = todayKey;
     towerState.dailyClearsTotal = (towerState.dailyClearsTotal || 0) + 1;
   }
+  // 2026-04-27 — Block T.9: achievement hooks on Daily clear.
+  try {
+    unlockTowerAchievement('first_climb');
+    if ((towerState.dailyClearsTotal || 0) >= 100) {
+      unlockTowerAchievement('tower_walker');
+    }
+  } catch (e) {}
   // End run
   towerState.currentRunStarted = false;
   towerState.currentFloor = 0;
@@ -15988,6 +16261,19 @@ function renderTowerScreen() {
     <span class="t-pill">♥ ${towerState.towerHearts} (${towerState.towerHeartFragments}/${TOWER_FRAGMENTS_PER_HEART})</span>
     <span class="t-pill">◈ ${towerState.sigilShards}</span>
   </div>`;
+  // 2026-04-27 — Block T.9 — Title banner. Sits at the very top above
+  // buffs/themes/curses. Also shows count of unlocked achievements + clickable
+  // arrow into Achievements modal.
+  let titleBanner = '';
+  try {
+    const t = (typeof getActiveTitle === 'function') ? getActiveTitle() : null;
+    const unlockedCount = (towerState.unlockedAchievements || []).length;
+    const totalCount = (typeof TOWER_ACHIEVEMENTS !== 'undefined') ? TOWER_ACHIEVEMENTS.length : 0;
+    titleBanner = `<div class="tower-title-banner" onclick="openAchievementsModal()">
+      ${t ? `<div class="ttitle-name">「 ${t} 」</div>` : '<div class="ttitle-name ttitle-empty">No title selected</div>'}
+      <div class="ttitle-meta">★ ${unlockedCount}/${totalCount} achievements ▸</div>
+    </div>`;
+  } catch (e) {}
   // 2026-04-27 — Block T.6 — Active buff indicator. Sits above the theme
   // banner so player sees their active 24h buff on every Tower entry.
   let buffBanner = '';
@@ -16045,13 +16331,13 @@ function renderTowerScreen() {
       btn.textContent = `▶ CONTINUE — FLOOR ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}`;
       btn.onclick = continueTowerRun;
       btn.disabled = false;
-      current.innerHTML = buffBanner + themeBanner + curseBanner + dailyStatus
+      current.innerHTML = titleBanner + buffBanner + themeBanner + curseBanner + dailyStatus
         + `<div class="tower-run-active">Run in progress · floor ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}</div>`;
     } else if (attemptsLeft <= 0) {
       btn.textContent = '🔒 DAILY CAP REACHED';
       btn.onclick = () => showToast('Reset at 4 AM');
       btn.disabled = true;
-      current.innerHTML = buffBanner + themeBanner + curseBanner + dailyStatus
+      current.innerHTML = titleBanner + buffBanner + themeBanner + curseBanner + dailyStatus
         + `<div class="tower-hint">Daily attempt cap reached. Come back at 4 AM for a fresh climb.</div>`;
     } else {
       const isFirstAttempt = (towerState.attemptsToday === 0);
@@ -16062,7 +16348,7 @@ function renderTowerScreen() {
       const hint = isFirstAttempt
         ? `10 floors · F5 mid-boss · F10 climax · earn 💰 ◈ ♥ on full clear`
         : `Retry attempt ${towerState.attemptsToday + 1}/${TOWER_MAX_ATTEMPTS_PER_DAY} · cost ${nextRetryCost} gold`;
-      current.innerHTML = buffBanner + themeBanner + curseBanner + dailyStatus + `<div class="tower-hint">${hint}</div>`;
+      current.innerHTML = titleBanner + buffBanner + themeBanner + curseBanner + dailyStatus + `<div class="tower-hint">${hint}</div>`;
     }
   }
   // Auto-roll curses on first render if missing (handles upgrade path where
@@ -16094,6 +16380,62 @@ function renderTowerScreen() {
 }
 
 // Continue/bank modal — custom DOM instead of confirm() for better mobile UX
+// 2026-04-27 — Block T.9 — Achievements modal open/close + render. Lists
+// all 5 achievements with state (unlocked/locked) + lets player pick which
+// title (if any) to display. Title selection saves immediately.
+function openAchievementsModal() {
+  const modal = document.getElementById('towerAchModal');
+  if (!modal) return;
+  renderAchievementsModal();
+  modal.classList.add('active');
+  modal.classList.remove('hidden');
+}
+function closeAchievementsModal() {
+  const modal = document.getElementById('towerAchModal');
+  if (modal) { modal.classList.remove('active'); modal.classList.add('hidden'); }
+}
+function renderAchievementsModal() {
+  const progEl = document.getElementById('tamProgress');
+  const listEl = document.getElementById('tamList');
+  if (!listEl) return;
+  const unlocked = new Set(towerState.unlockedAchievements || []);
+  const total = TOWER_ACHIEVEMENTS.length;
+  if (progEl) progEl.textContent = `${unlocked.size} / ${total} unlocked`;
+  const RARITY_COL = { mythic: '#FFD53D', gold: '#FFAA00', silver: '#C0C8D8', bronze: '#B07840' };
+  let html = '';
+  for (const ach of TOWER_ACHIEVEMENTS) {
+    const isOwned = unlocked.has(ach.id);
+    const isActive = (towerState.selectedTitle === ach.id);
+    const col = RARITY_COL[ach.rarity] || '#C0C8D8';
+    const stateCls = isOwned ? (isActive ? 'owned active' : 'owned') : 'locked';
+    let titleBtn = '';
+    if (isOwned) {
+      titleBtn = isActive
+        ? `<button class="tam-title-btn active" onclick="onSelectTitle(null)">DEACTIVATE</button>`
+        : `<button class="tam-title-btn" onclick="onSelectTitle('${ach.id}')">USE TITLE</button>`;
+    } else {
+      titleBtn = `<div class="tam-title-locked">🔒 LOCKED</div>`;
+    }
+    html += `<div class="tam-row ${stateCls}" style="border-left-color:${col}">
+      <div class="tam-row-head">
+        <span class="tam-rarity" style="color:${col}">${ach.rarity.toUpperCase()}</span>
+        <span class="tam-name">${ach.name}</span>
+      </div>
+      <div class="tam-desc">${ach.desc}</div>
+      <div class="tam-title-row">
+        <span class="tam-title-label">「 ${ach.title} 」</span>
+        ${titleBtn}
+      </div>
+    </div>`;
+  }
+  listEl.innerHTML = html;
+}
+function onSelectTitle(id) {
+  if (typeof setActiveTitle === 'function') setActiveTitle(id);
+  renderAchievementsModal();
+  try { if (typeof renderTowerScreen === 'function') renderTowerScreen(); } catch (e) {}
+}
+
 // 2026-04-27 — Block T.5 — Tower Heart upgrade screen open/close + render.
 function openHeartModal() {
   const modal = document.getElementById('towerHeartModal');
