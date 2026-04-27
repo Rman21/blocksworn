@@ -31504,10 +31504,23 @@ function saveAudioSettings() {
   try { localStorage.setItem('audioSettings', JSON.stringify(audioSettings)); } catch (e) {}
 }
 
+// Ensures audioContext exists AND is running. Called before every SFX play so
+// console-driven test calls (post-user-gesture) work, and so SFX after long
+// idle periods (where the OS may have suspended audio) auto-resume.
+function _audioEnsureRunning() {
+  if (!audioContext) initAudioSystem();
+  if (audioContext && audioContext.state === 'suspended') {
+    try { audioContext.resume(); } catch (e) {}
+  }
+}
+
 // Voice-limit guard: returns true if a new oscillator is allowed; false if cap hit.
-// Mobile safeguard per spec §13.1.
+// Mobile safeguard per spec §13.1. Also auto-resumes audioContext if suspended
+// so SFX called from console (after a prior page tap unlocked audio) plays.
 function _audioCanPlay() {
+  _audioEnsureRunning();
   if (!audioContext || audioSettings.muted) return false;
+  if (audioContext.state !== 'running') return false;
   if (_audioActiveVoices >= _AUDIO_VOICE_LIMIT) return false;
   return true;
 }
@@ -31666,7 +31679,8 @@ function playCaptainBuff() {
 
 // playVictory — major scale ascend (5 notes: C5/E5/G5/C6/E6)
 function playVictory() {
-  if (!audioContext) return;
+  _audioEnsureRunning();
+  if (!audioContext || audioSettings.muted || audioContext.state !== 'running') return;
   const notes = [
     { freq: 523,  time: 0.0 },
     { freq: 659,  time: 0.1 },
@@ -31693,7 +31707,8 @@ function playVictory() {
 
 // playDefeat — minor scale descend (4 notes: A3/G3/F3/D3)
 function playDefeat() {
-  if (!audioContext) return;
+  _audioEnsureRunning();
+  if (!audioContext || audioSettings.muted || audioContext.state !== 'running') return;
   const notes = [
     { freq: 220, time: 0.0 },
     { freq: 196, time: 0.2 },
@@ -31764,7 +31779,8 @@ function playModalDismiss()    { _audioMakeOscillator('sine',     330, 0.18, 0.1
 
 // playHeroUnlock — celebration sting (C major triad ascend)
 function playHeroUnlock() {
-  if (!audioContext) return;
+  _audioEnsureRunning();
+  if (!audioContext || audioSettings.muted || audioContext.state !== 'running') return;
   const notes = [{ f:523, t:0 }, { f:659, t:0.08 }, { f:784, t:0.16 }, { f:1046, t:0.30 }];
   notes.forEach(n => {
     try {
@@ -31799,7 +31815,8 @@ function playPackOpen() {
 
 // playAchievementUnlock — bright fanfare (3-note ascending major)
 function playAchievementUnlock() {
-  if (!audioContext) return;
+  _audioEnsureRunning();
+  if (!audioContext || audioSettings.muted || audioContext.state !== 'running') return;
   const notes = [{ f:659, t:0 }, { f:880, t:0.10 }, { f:1318, t:0.22 }];
   notes.forEach(n => {
     try {
@@ -31928,9 +31945,37 @@ function duckMusic(reductionAmount, durationMs) {
   }, halfDur);
 }
 
+// Diagnostic helper — call audioStatus() in console to see why SFX may be silent.
+function audioStatus() {
+  const info = {
+    audioContextExists: !!audioContext,
+    state:              audioContext ? audioContext.state : 'NOT_INITIALIZED',
+    masterGain:         masterGain ? masterGain.gain.value : null,
+    musicGain:          musicGain ? musicGain.gain.value : null,
+    sfxGain:            sfxGain ? sfxGain.gain.value : null,
+    muted:              audioSettings.muted,
+    masterVolume:       audioSettings.masterVolume,
+    sfxVolume:          audioSettings.sfxVolume,
+    activeVoices:       _audioActiveVoices,
+  };
+  console.table(info);
+  if (!audioContext) {
+    console.log('%c→ Tap anywhere on the GAME PAGE first (not DevTools), then retry.', 'color:#FFD53D');
+  } else if (audioContext.state === 'suspended') {
+    console.log('%c→ AudioContext suspended. Tap on the GAME PAGE to unlock.', 'color:#FFD53D');
+    audioContext.resume().then(() => console.log('%c✓ Audio resumed', 'color:#5DCA79')).catch(e => console.log('✗ resume failed:', e));
+  } else if (audioSettings.muted) {
+    console.log('%c→ Muted. Set audioSettings.muted=false; applyAudioSettings();', 'color:#FFD53D');
+  } else {
+    console.log('%c✓ Audio is running. SFX should play.', 'color:#5DCA79');
+  }
+  return info;
+}
+
 // Console helpers for testing
 if (typeof window !== 'undefined') {
   window.audioSettings = audioSettings;
+  window.audioStatus = audioStatus;
   window.initAudioSystem = initAudioSystem;
   window.playCellPlacement = playCellPlacement;
   window.playCellClear     = playCellClear;
