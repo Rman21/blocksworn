@@ -3192,50 +3192,64 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
 }
 
 /* Deck (squad row) — 5 mini-pedestal slots + ult button area */
+/* 2026-04-27 — V.1 Floating Hero Tiles: Arena-scoped overrides for slot
+   structure. Slots are transparent flex columns; the visual frame lives on
+   .hero-card (rectangular 3:4, rounded corners, NOT oval). */
 .a-battle .deck {
   display: flex;
-  gap: 6px;
-  padding: 8px 8px 0;
-  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 0;
+  align-items: flex-start;
   justify-content: center;
 }
 .a-battle .deck > * {
-  /* each hero/ult slot */
   position: relative;
-  background: radial-gradient(circle at 30% 30%,
-    var(--slot-color, rgba(255,184,74,0.15)),
-    var(--a-bg-deepest));
-  border: 2px solid var(--slot-border, var(--a-gold-700));
-  border-radius: 50%;
-  box-shadow:
-    0 0 10px var(--slot-glow, rgba(255,184,74,0.3)),
-    inset 0 -3px 6px rgba(0,0,0,0.5);
-  overflow: hidden;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
 }
 .a-battle .deck > *.ember  { --slot-color: var(--a-ember);  --slot-border: rgba(255,90,58,0.6);  --slot-glow: rgba(255,90,58,0.5); }
 .a-battle .deck > *.tide   { --slot-color: var(--a-tide);   --slot-border: rgba(74,219,255,0.6); --slot-glow: rgba(74,219,255,0.5); }
 .a-battle .deck > *.grove  { --slot-color: var(--a-grove);  --slot-border: rgba(122,236,74,0.6); --slot-glow: rgba(122,236,74,0.5); }
 .a-battle .deck > *.solar  { --slot-color: var(--a-solar);  --slot-border: rgba(255,225,74,0.6); --slot-glow: rgba(255,225,74,0.5); }
 .a-battle .deck > *.umbra  { --slot-color: var(--a-umbra);  --slot-border: rgba(192,106,223,0.6); --slot-glow: rgba(192,106,223,0.5); }
+/* Visual frame goes on the inner .hero-card — radial gradient bg + border + glow.
+   Rectangular 3:4 with 10px rounded corners (NOT oval). */
+.a-battle .deck > * > .hero-card {
+  background: radial-gradient(circle at 30% 30%,
+    var(--slot-color, rgba(255,184,74,0.15)),
+    var(--a-bg-deepest));
+  border: 2px solid var(--slot-border, var(--a-gold-700));
+  border-radius: 10px;
+  box-shadow:
+    0 0 12px var(--slot-glow, rgba(255,184,74,0.3)),
+    inset 0 -3px 6px rgba(0,0,0,0.5),
+    0 4px 10px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
 .a-battle .deck img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
 
-/* ===== POLISH v1 · PHASE 4 · HERO CARD RARITY RING ===== */
-.a-battle .deck > .rarity-common    { border-width: 2px; }
-.a-battle .deck > .rarity-rare      {
+/* ===== POLISH v1 · PHASE 4 · HERO CARD RARITY RING — re-targeted to .hero-card ===== */
+.a-battle .deck > * > .hero-card.rarity-common    { border-width: 2px; }
+.a-battle .deck > * > .hero-card.rarity-rare      {
   border-width: 2px;
   box-shadow:
     0 0 10px var(--slot-glow),
     inset 0 -3px 6px rgba(0,0,0,0.5),
-    0 0 0 1px rgba(74, 219, 255, 0.6);
+    0 0 0 1px rgba(74, 219, 255, 0.6),
+    0 4px 10px rgba(0, 0, 0, 0.55);
 }
-.a-battle .deck > .rarity-epic      {
+.a-battle .deck > * > .hero-card.rarity-epic      {
   border-width: 2px;
   box-shadow:
     0 0 14px var(--slot-glow),
     inset 0 -3px 6px rgba(0,0,0,0.5),
-    0 0 0 1.5px rgba(192, 106, 223, 0.75);
+    0 0 0 1.5px rgba(192, 106, 223, 0.75),
+    0 4px 10px rgba(0, 0, 0, 0.55);
 }
-.a-battle .deck > .rarity-legendary {
+.a-battle .deck > * > .hero-card.rarity-legendary {
   border-width: 2px;
   box-shadow:
     0 0 16px var(--slot-glow),
@@ -3243,7 +3257,7 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
     0 0 0 2px rgba(255, 184, 74, 0.85),
     0 0 20px rgba(255, 184, 74, 0.4);
 }
-.a-battle .deck > .rarity-mythic    {
+.a-battle .deck > * > .hero-card.rarity-mythic    {
   border-width: 2px;
   box-shadow:
     0 0 18px var(--slot-glow),
@@ -6013,7 +6027,7 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   align-items: stretch;
   flex: 1 1 0;
   min-width: 0;
-  max-width: 120px;
+  max-width: 102px;  /* -15% from 120 */
   cursor: pointer;
   transition: transform 0.15s;
 }
@@ -6127,19 +6141,25 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   letter-spacing: 0.5px;
   box-shadow: 0 0 6px rgba(0,0,0,0.5);
 }
+/* V.1: role badge promoted to TOP-CENTER overlay, prominent. Important visual
+   signal — players need to see Warrior/Hunter/Mage/Tank/Captain at a glance. */
 .hero-role-badge {
   position: absolute;
-  top: 3px; left: 3px;
-  background: rgba(0,0,0,0.7);
+  top: 4px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.82);
   color: var(--glow);
-  font-size: 11px;
-  width: 18px; height: 18px;
+  font-size: 13px;
+  width: 26px; height: 26px;
   border-radius: 50%;
+  border: 1.5px solid var(--glow, var(--a-gold-500));
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
   overflow: hidden;
+  z-index: 5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.7), 0 0 8px var(--glow);
 }
 .hero-role-badge img {
   width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
@@ -6211,27 +6231,46 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 
 /* ULT progress bar on hero cards */
 .hero-card { position: relative; }
-/* V.1 Floating Hero Tile — ULT bar lives below the name (slot sibling), not
-   absolute-positioned inside the card. Wider, more readable, full slot width. */
+/* V.1 Floating Hero Tile — ULT charge bar is a critical signal (players read
+   it constantly). Visually separated from the card with a visible gap and
+   distinct chrome. Taller for legibility. */
 .hero-slot .ult-bar {
-  margin-top: 4px;
-  height: 5px;
-  background: rgba(0, 0, 0, 0.55);
-  border-radius: 3px;
+  margin-top: 8px;        /* clear gap from name above */
+  height: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 4px;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.45);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 213, 61, 0.25);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.7),
+    0 1px 2px rgba(0, 0, 0, 0.6);
   pointer-events: none;
+  position: relative;
 }
 .hero-slot .ult-fill {
   height: 100%;
   width: 0%;
-  border-radius: 2px;
+  border-radius: 3px;
   transition: width 0.4s ease-out, filter 0.2s, box-shadow 0.2s;
+  /* subtle inner highlight gives the fill a "charged" feel */
+  position: relative;
+}
+.hero-slot .ult-fill::after {
+  content: '';
+  position: absolute;
+  top: 1px; left: 0; right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 2px;
 }
 .hero-slot.ult-ready .ult-fill {
-  box-shadow: 0 0 8px currentColor;
-  filter: brightness(1.55) saturate(1.2);
+  box-shadow: 0 0 10px currentColor, inset 0 0 4px rgba(255, 255, 255, 0.4);
+  filter: brightness(1.7) saturate(1.3);
+  animation: ultFillShimmer 1.4s ease-in-out infinite;
+}
+@keyframes ultFillShimmer {
+  0%, 100% { filter: brightness(1.7) saturate(1.3); }
+  50%      { filter: brightness(2.1) saturate(1.5); }
 }
 .hero-card.ult-ready { 
   cursor: pointer; 
