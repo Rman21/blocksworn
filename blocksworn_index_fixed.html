@@ -2075,6 +2075,180 @@
   display: block;
 }
 
+/* 2026-04-27 — Block H.10 — Cosmetic Shop UI (HERO_COMPENDIUM §11.3). */
+.shop-cosmetics-header {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #C0A6DF;
+  text-align: center;
+  margin: 24px 0 8px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(192,166,223,0.4);
+}
+.shop-cosmetic-btn {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: linear-gradient(180deg, rgba(192,166,223,0.08), rgba(0,0,0,0.30));
+  border: 1.5px solid rgba(192,166,223,0.35);
+  border-radius: 8px;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s;
+  text-align: left;
+}
+.shop-cosmetic-btn:not(:disabled):active { transform: scale(0.98); }
+.shop-cosmetic-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.shop-cosmetic-btn.equipped {
+  background: linear-gradient(180deg, rgba(93,202,121,0.20), rgba(0,0,0,0.30));
+}
+.cosmetic-name {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  color: #FFD53D;
+}
+.cosmetic-desc {
+  grid-column: 1;
+  font-size: 9px;
+  color: #B8B5C4;
+}
+.cosmetic-state {
+  grid-row: span 2;
+  align-self: center;
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+/* === Block H.10 — Equipped cosmetic visuals === */
+
+/* PORTRAIT FRAMES — race-themed border + corner accent on hero cards.
+   ::before pseudos need position:relative on parent to anchor. */
+body[class*="cosmetic-frame-"] .hero-card,
+body[class*="cosmetic-frame-"] .v-hero-card {
+  position: relative;
+}
+body.cosmetic-frame-pirate_crown .hero-card,
+body.cosmetic-frame-pirate_crown .v-hero-card {
+  border-color: rgba(255,170,0,0.85) !important;
+  box-shadow: 0 0 0 1px rgba(232,93,74,0.4), 0 0 12px rgba(232,93,74,0.4) !important;
+}
+body.cosmetic-frame-pirate_crown .hero-card::before,
+body.cosmetic-frame-pirate_crown .v-hero-card::before {
+  content: '☠';
+  position: absolute;
+  top: 2px; right: 4px;
+  font-size: 11px;
+  color: rgba(255,213,61,0.95);
+  text-shadow: 0 0 4px rgba(232,93,74,0.95);
+  z-index: 4;
+}
+body.cosmetic-frame-rock_spike .hero-card,
+body.cosmetic-frame-rock_spike .v-hero-card {
+  border-color: rgba(192,166,223,0.85) !important;
+  border-style: dashed !important;
+  box-shadow: 0 0 12px rgba(155,89,214,0.4) !important;
+}
+body.cosmetic-frame-shark_tooth .hero-card,
+body.cosmetic-frame-shark_tooth .v-hero-card {
+  border-color: rgba(180,235,255,0.95) !important;
+  box-shadow: 0 0 0 1px rgba(74,219,255,0.4), 0 0 14px rgba(74,219,255,0.45) !important;
+}
+body.cosmetic-frame-grove_moss .hero-card,
+body.cosmetic-frame-grove_moss .v-hero-card {
+  border-color: rgba(122,236,74,0.95) !important;
+  box-shadow: 0 0 0 1px rgba(93,202,121,0.4), 0 0 14px rgba(93,202,121,0.45) !important;
+}
+body.cosmetic-frame-grove_moss .hero-card::before,
+body.cosmetic-frame-grove_moss .v-hero-card::before {
+  content: '🌿';
+  position: absolute;
+  top: 2px; left: 4px;
+  font-size: 10px;
+  z-index: 4;
+}
+body.cosmetic-frame-solar_halo .hero-card,
+body.cosmetic-frame-solar_halo .v-hero-card {
+  border-color: rgba(255,213,61,1) !important;
+  box-shadow: 0 0 0 1px rgba(255,213,61,0.7), 0 0 18px rgba(255,184,74,0.6) !important;
+  animation: solarHaloPulse 2.5s ease-in-out infinite;
+}
+@keyframes solarHaloPulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255,213,61,0.5), 0 0 12px rgba(255,184,74,0.4); }
+  50%      { box-shadow: 0 0 0 2px rgba(255,213,61,0.9), 0 0 22px rgba(255,184,74,0.7); }
+}
+
+/* HERO AURAS — ::after radial-gradient overlay on portrait. position:relative
+   ensures absolute children anchor to the card; overflow:hidden so radial
+   doesn't bleed past rounded corners. */
+body[class*="cosmetic-aura-"] .hero-card,
+body[class*="cosmetic-aura-"] .v-hero-card {
+  position: relative;
+  overflow: hidden;
+}
+body.cosmetic-aura-ember .hero-card::after,
+body.cosmetic-aura-ember .v-hero-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 80%, rgba(232,93,74,0.45), transparent 65%);
+  pointer-events: none;
+  z-index: 3;
+  animation: emberAuraFlicker 1.6s ease-in-out infinite;
+  border-radius: inherit;
+}
+@keyframes emberAuraFlicker {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1.0; }
+}
+body.cosmetic-aura-solar .hero-card::after,
+body.cosmetic-aura-solar .v-hero-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(255,213,61,0.35), transparent 70%);
+  pointer-events: none; z-index: 3; border-radius: inherit;
+}
+body.cosmetic-aura-mythic .hero-card::after,
+body.cosmetic-aura-mythic .v-hero-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(192,106,223,0.35), rgba(255,213,61,0.30), rgba(192,106,223,0.35));
+  pointer-events: none; z-index: 3; border-radius: inherit;
+  animation: mythicAuraShift 4s linear infinite;
+}
+@keyframes mythicAuraShift {
+  0%   { background-position: 0% 50%; filter: hue-rotate(0deg); }
+  100% { background-position: 100% 50%; filter: hue-rotate(360deg); }
+}
+
+/* PROFILE BACKGROUNDS — applied to home hub via .a-hub or fallback body */
+body.cosmetic-bg-burning_coast .a-hub,
+body.cosmetic-bg-burning_coast #screenMenu {
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(232,93,74,0.22), transparent 70%),
+    var(--a-bg-radial, #14091F) !important;
+}
+body.cosmetic-bg-frozen_deep .a-hub,
+body.cosmetic-bg-frozen_deep #screenMenu {
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(74,219,255,0.22), transparent 70%),
+    linear-gradient(180deg, #061421 0%, #02080C 100%) !important;
+}
+body.cosmetic-bg-eternal_dawn .a-hub,
+body.cosmetic-bg-eternal_dawn #screenMenu {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,213,61,0.30), transparent 65%),
+    linear-gradient(180deg, #2a1a05 0%, #0a0612 100%) !important;
+}
+
 /* 2026-04-27 — Block H.5 — Pack System UI (HERO_COMPENDIUM §11.2 + §14.2). */
 .shop-pack-header {
   font-family: var(--a-font-display);
@@ -13115,6 +13289,107 @@ function dropRandomHeroCards(count, opts) {
   return result;
 }
 
+// 2026-04-27 — Block H.10 — Cosmetic Shop (HERO_COMPENDIUM §11.3).
+// Pure cosmetic catalog. Gold-only purchases, F2P-friendly (§11.4).
+// Three slots: portrait frame, hero aura, profile background.
+// State persists in towerState.cosmetics. Reuses Block 6.5 DEBT-7 body-class
+// pattern (cosmetic-forgotten-names) so CSS rules cascade to all hero cards.
+const COSMETICS_CATALOG = [
+  // Frames — race-themed (200-500g per spec §11.3)
+  { id: 'frame_pirate_crown', slot: 'frame', name: 'Pirate Crown',  cost: 250, race: 'pirate',    desc: 'Skull-and-crossbones gold frame' },
+  { id: 'frame_rock_spike',   slot: 'frame', name: 'Stage Spikes',  cost: 250, race: 'rock',      desc: 'Punk-stage chrome spikes' },
+  { id: 'frame_shark_tooth',  slot: 'frame', name: 'Shark Tooth',   cost: 250, race: 'shark',     desc: 'Bone-white shark fang corners' },
+  { id: 'frame_grove_moss',   slot: 'frame', name: 'Mossy Vines',   cost: 250, race: 'crocodile', desc: 'Wrapping vines + emerald accent' },
+  { id: 'frame_solar_halo',   slot: 'frame', name: 'Solar Halo',    cost: 500, race: 'spark',     desc: 'Radiant gold-on-gold ring' },
+  // Auras (500-1000g per spec)
+  { id: 'aura_ember',  slot: 'aura', name: 'Ember Aura',  cost: 500,  desc: 'Flickering orange glow on hero portraits' },
+  { id: 'aura_solar',  slot: 'aura', name: 'Solar Aura',  cost: 750,  desc: 'Steady gold radiance' },
+  { id: 'aura_mythic', slot: 'aura', name: 'Mythic Aura', cost: 1000, desc: 'Shifting purple/gold rainbow' },
+  // Profile backgrounds (1000-2000g per spec)
+  { id: 'bg_burning_coast', slot: 'bg', name: 'Burning Coast',  cost: 1000, desc: 'Ember-tinted home hub backdrop' },
+  { id: 'bg_frozen_deep',   slot: 'bg', name: 'Frozen Deep',    cost: 1500, desc: 'Tide-cyan abyss backdrop' },
+  { id: 'bg_eternal_dawn',  slot: 'bg', name: 'Eternal Dawn',   cost: 2000, desc: 'Solar-gold sunrise backdrop' },
+];
+function _ensureCosmeticState() {
+  if (!towerState.cosmetics) towerState.cosmetics = { owned: [], frame: null, aura: null, bg: null };
+  if (!Array.isArray(towerState.cosmetics.owned)) towerState.cosmetics.owned = [];
+  return towerState.cosmetics;
+}
+function isCosmeticOwned(id) {
+  const c = _ensureCosmeticState();
+  return c.owned.includes(id);
+}
+function buyCosmetic(id) {
+  const item = COSMETICS_CATALOG.find(x => x.id === id);
+  if (!item) { try { flashText('Unknown cosmetic', '#E85D4A'); } catch (e) {} return false; }
+  const c = _ensureCosmeticState();
+  if (c.owned.includes(id)) { try { flashText('ALREADY OWNED', '#9A98A4'); } catch (e) {} return false; }
+  if ((gold || 0) < item.cost) { try { flashText('❌ NOT ENOUGH GOLD', '#E85D4A'); } catch (e) {} return false; }
+  // Atomic deduct + add to owned
+  gold -= item.cost;
+  try { saveGoldToStorage(); } catch (e) {}
+  try { renderResourceBar(); } catch (e) {}
+  c.owned.push(id);
+  try { saveTowerState(); } catch (e) {}
+  try { flashText('✦ ' + item.name.toUpperCase() + ' UNLOCKED', '#FFD53D'); } catch (e) {}
+  try { vibrate([60, 40, 60, 40, 100]); } catch (e) {}
+  // Auto-equip when first item of slot acquired (so player feels immediate effect)
+  if (!c[item.slot]) equipCosmetic(id);
+  // Refresh shop list to reflect ownership
+  try { if (typeof renderShopPacks === 'function' && currentScreen === 'shop') renderShopPacks(); } catch (e) {}
+  return true;
+}
+function equipCosmetic(id) {
+  const item = COSMETICS_CATALOG.find(x => x.id === id);
+  if (!item) return false;
+  const c = _ensureCosmeticState();
+  if (!c.owned.includes(id)) { try { flashText('Buy it first', '#E85D4A'); } catch (e) {} return false; }
+  c[item.slot] = id;
+  try { saveTowerState(); } catch (e) {}
+  try { applyCosmeticBodyClasses(); } catch (e) {}
+  try { flashText('EQUIPPED · ' + item.name.toUpperCase(), '#5DCA79'); } catch (e) {}
+  try { if (typeof renderShopPacks === 'function' && currentScreen === 'shop') renderShopPacks(); } catch (e) {}
+  return true;
+}
+function unequipCosmetic(slot) {
+  const c = _ensureCosmeticState();
+  if (!c[slot]) return false;
+  c[slot] = null;
+  try { saveTowerState(); } catch (e) {}
+  try { applyCosmeticBodyClasses(); } catch (e) {}
+  try { if (typeof renderShopPacks === 'function' && currentScreen === 'shop') renderShopPacks(); } catch (e) {}
+  return true;
+}
+// Apply body classes for currently-equipped cosmetics. Each slot adds one
+// class. CSS rules cascade to all matching DOM (hero cards, hub bg, etc.).
+function applyCosmeticBodyClasses() {
+  try {
+    const c = _ensureCosmeticState();
+    const body = document.body;
+    if (!body) return;
+    // Strip any existing cosmetic-* classes (except cosmetic-forgotten-names
+    // which is owned by Block 6.5 DEBT-7 — title-driven, separate system).
+    const toRemove = [];
+    for (const cls of Array.from(body.classList)) {
+      if (cls.startsWith('cosmetic-frame-') || cls.startsWith('cosmetic-aura-') || cls.startsWith('cosmetic-bg-')) {
+        toRemove.push(cls);
+      }
+    }
+    for (const cls of toRemove) body.classList.remove(cls);
+    if (c.frame) body.classList.add('cosmetic-frame-' + c.frame.replace(/^frame_/, ''));
+    if (c.aura)  body.classList.add('cosmetic-aura-'  + c.aura.replace(/^aura_/,  ''));
+    if (c.bg)    body.classList.add('cosmetic-bg-'    + c.bg.replace(/^bg_/,    ''));
+  } catch (e) {}
+}
+// Apply on initial load (after towerState loaded).
+try {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { try { applyCosmeticBodyClasses(); } catch (e) {} });
+  } else {
+    setTimeout(() => { try { applyCosmeticBodyClasses(); } catch (e) {} }, 0);
+  }
+} catch (e) {}
+
 // 2026-04-27 — Block H.5 — Pack System (HERO_COMPENDIUM §11.2).
 // F2P-only: gold purchases, no premium currency required.
 const PACK_STANDARD_COST = 500;   // 1 random hero card (any race), weighted
@@ -13240,6 +13515,34 @@ function renderShopPacks() {
       <span class="shop-pack-cost">${PACK_RACE_COST} 💰</span>
     </button>`;
   }).join('');
+  // 2026-04-27 — Block H.10 — Cosmetic catalog rendered below pack catalog.
+  // Three slots: frame / aura / bg. Owned items show "EQUIP" / "EQUIPPED";
+  // unowned show price + "BUY" if affordable, else greyed out.
+  const cState = _ensureCosmeticState();
+  const cosmeticHtml = ['frame', 'aura', 'bg'].map(slot => {
+    const slotLabel = { frame: 'PORTRAIT FRAMES', aura: 'HERO AURAS', bg: 'PROFILE BACKGROUNDS' }[slot];
+    const items = COSMETICS_CATALOG.filter(c => c.slot === slot);
+    const itemsHtml = items.map(item => {
+      const owned   = cState.owned.includes(item.id);
+      const equipped = (cState[item.slot] === item.id);
+      const afford  = (goldNow >= item.cost);
+      const stateLabel = equipped ? 'EQUIPPED ★' : (owned ? 'EQUIP' : `${item.cost} 💰`);
+      const stateColor = equipped ? '#5DCA79' : (owned ? '#FFD53D' : (afford ? '#FFD53D' : '#9A98A4'));
+      const onclick   = equipped ? `unequipCosmetic('${slot}')`
+                       : owned   ? `equipCosmetic('${item.id}')`
+                       : afford  ? `buyCosmetic('${item.id}')`
+                       : '';
+      return `<button class="shop-cosmetic-btn ${equipped ? 'equipped' : ''}"
+                      ${owned || afford ? '' : 'disabled'}
+                      style="border-color:${stateColor}"
+                      onclick="${onclick}">
+        <span class="cosmetic-name">${item.name}</span>
+        <span class="cosmetic-desc">${item.desc}</span>
+        <span class="cosmetic-state" style="color:${stateColor}">${stateLabel}</span>
+      </button>`;
+    }).join('');
+    return `<div class="shop-pack-divider">${slotLabel}</div>${itemsHtml}`;
+  }).join('');
   host.innerHTML = `
     <div class="shop-pack-header">PACKS · F2P · No premium currency</div>
     <button class="shop-pack-btn shop-pack-standard" ${stdAffordable ? '' : 'disabled'} onclick="buyStandardPack()">
@@ -13252,6 +13555,12 @@ function renderShopPacks() {
     <div class="shop-pack-grid">${raceCardsHtml}</div>
     <div class="shop-pack-footer">
       All packs purchasable with gold. Hero cards stockpile toward Tier 2 / Tier 3 / Mythic ascension.
+    </div>
+    <div class="shop-cosmetics-header">COSMETICS · Pure visual · No gameplay impact</div>
+    ${cosmeticHtml}
+    <div class="shop-pack-footer">
+      Cosmetics never affect combat — they live alongside the "Voice of the Forgotten" frame
+      from Chapter 3 finale. Pure prestige.
     </div>`;
 }
 
