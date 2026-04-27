@@ -31405,6 +31405,558 @@ function flashHeroTrigger(heroName, abilityName, color) {
   el.classList.remove('active'); void el.offsetWidth; el.classList.add('active');
 }
 
+// ===== 2026-04-27 — AUDIO SYSTEM (BLOCKSWORN_AUDIO_SOUND.md) =====
+// Layer 1: Web Audio API generative SFX + Layer 2: HTML5 Audio music player.
+// Per spec §14 Claude Code Block. $0 budget. AAA mobile feel.
+//
+// Architecture:
+//   audioContext  → masterGain → audioContext.destination
+//                              ↘ musicGain (HTML5 Audio elements pipe here)
+//                              ↘ sfxGain  (Web Audio oscillators pipe here)
+//
+// iOS Safari requires user interaction to unlock audio — initAudioSystem()
+// runs on first touch (wired below), and resume() called whenever ctx.state
+// is 'suspended'. All SFX entry points lazy-init the context, so they're
+// safe to call from any event without an explicit init step.
+
+let audioContext      = null;
+let masterGain        = null;
+let musicGain         = null;
+let sfxGain           = null;
+let currentMusicAudio = null;        // Layer 2: HTML5 Audio for music
+let _audioActiveVoices = 0;          // Voice-limit per spec §13.1 (max 8)
+const _AUDIO_VOICE_LIMIT = 8;
+
+// Default audio settings — overridden by localStorage on init.
+let audioSettings = {
+  masterVolume:     0.75,
+  musicVolume:      0.60,
+  sfxVolume:        1.0,
+  tutorialVolume:   0.90,
+  audioQuality:     'medium',   // 'high' | 'medium' | 'low'
+  muteWhenUnfocused: true,
+  hapticFeedback:    true,
+  muted:             false,     // quick-mute toggle (preserves volumes)
+};
+
+function initAudioSystem() {
+  if (audioContext) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) { console.warn('[audio] Web Audio API unavailable'); return; }
+    audioContext = new Ctx();
+    masterGain = audioContext.createGain();
+    masterGain.connect(audioContext.destination);
+    musicGain  = audioContext.createGain();
+    musicGain.connect(masterGain);
+    sfxGain    = audioContext.createGain();
+    sfxGain.connect(masterGain);
+    // Load persisted settings
+    try {
+      const saved = JSON.parse(localStorage.getItem('audioSettings') || '{}');
+      Object.assign(audioSettings, saved);
+    } catch (e) {}
+    applyAudioSettings();
+    // Auto-pause when tab/app backgrounded (spec §11.1 muteWhenUnfocused)
+    try {
+      document.addEventListener('visibilitychange', () => {
+        if (!audioContext) return;
+        if (document.hidden && audioSettings.muteWhenUnfocused) {
+          if (currentMusicAudio) try { currentMusicAudio.pause(); } catch (e) {}
+          if (audioContext.state === 'running') try { audioContext.suspend(); } catch (e) {}
+        } else {
+          if (audioContext.state === 'suspended') try { audioContext.resume(); } catch (e) {}
+          if (currentMusicAudio && currentMusicAudio.paused && audioSettings.muteWhenUnfocused) {
+            try { currentMusicAudio.play(); } catch (e) {}
+          }
+        }
+      });
+    } catch (e) {}
+  } catch (e) { console.warn('[audio] init failed:', e); }
+}
+
+// Resume audioContext after iOS Safari first-touch suspension. Wire on first
+// document interaction (touchstart / click / keydown).
+function _audioFirstInteractionUnlock() {
+  if (!audioContext) initAudioSystem();
+  if (audioContext && audioContext.state === 'suspended') {
+    audioContext.resume().catch(() => {});
+  }
+}
+try {
+  ['touchstart', 'click', 'keydown'].forEach(evt =>
+    document.addEventListener(evt, _audioFirstInteractionUnlock, { once: false, passive: true })
+  );
+} catch (e) {}
+
+function applyAudioSettings() {
+  if (!audioContext || !masterGain) return;
+  const m = audioSettings.muted ? 0 : (audioSettings.masterVolume || 0);
+  masterGain.gain.value = m;
+  musicGain.gain.value  = audioSettings.musicVolume || 0;
+  sfxGain.gain.value    = audioSettings.sfxVolume || 0;
+  if (currentMusicAudio) {
+    currentMusicAudio.volume = (audioSettings.musicVolume || 0) * 0.6;  // -40% from full per spec §7.3
+  }
+}
+
+function saveAudioSettings() {
+  try { localStorage.setItem('audioSettings', JSON.stringify(audioSettings)); } catch (e) {}
+}
+
+// Voice-limit guard: returns true if a new oscillator is allowed; false if cap hit.
+// Mobile safeguard per spec §13.1.
+function _audioCanPlay() {
+  if (!audioContext || audioSettings.muted) return false;
+  if (_audioActiveVoices >= _AUDIO_VOICE_LIMIT) return false;
+  return true;
+}
+function _audioVoiceStart() { _audioActiveVoices++; }
+function _audioVoiceEnd()   { _audioActiveVoices = Math.max(0, _audioActiveVoices - 1); }
+
+// ===== SFX generator helpers (return early if disabled) =====
+
+function _audioMakeOscillator(type, freq, gainStart, durationSec) {
+  if (!_audioCanPlay()) return null;
+  try {
+    const osc = audioContext.createOscillator();
+    const g   = audioContext.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(gainStart, audioContext.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + durationSec);
+    osc.connect(g);
+    g.connect(sfxGain);
+    osc.start();
+    osc.stop(audioContext.currentTime + durationSec);
+    _audioVoiceStart();
+    osc.onended = _audioVoiceEnd;
+    return osc;
+  } catch (e) { return null; }
+}
+
+// ===== COMBAT SFX (per spec §2.4) =====
+
+// playCellPlacement — element-themed tap (sine wave, 50ms decay)
+function playCellPlacement(element) {
+  if (!_audioCanPlay()) return;
+  const frequencies = { ember: 440, tide: 330, grove: 392, umbra: 220, solar: 523 };
+  _audioMakeOscillator('sine', frequencies[element] || 440, 0.3, 0.05);
+}
+
+// playCellClear — whoosh (white-noise burst + lowpass filter)
+function playCellClear() {
+  if (!_audioCanPlay()) return;
+  try {
+    const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.15, audioContext.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.3;
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    const gainNode = audioContext.createGain();
+    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+    const filter = audioContext.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(2000, audioContext.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.15);
+    source.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(sfxGain);
+    source.start();
+    _audioVoiceStart();
+    source.onended = _audioVoiceEnd;
+  } catch (e) {}
+}
+
+// playComboCascade — pitch escalates with combo level (×1.2 per level)
+function playComboCascade(comboLevel) {
+  if (!_audioCanPlay()) return;
+  const baseFreq = 440;
+  const freq = baseFreq * Math.pow(1.2, Math.max(0, comboLevel - 1));
+  _audioMakeOscillator('triangle', freq, 0.4, 0.2);
+}
+
+// playBannerSting — banner stings (INFERNO!, SHATTER!, etc.)
+function playBannerSting(bannerType) {
+  if (!_audioCanPlay()) return;
+  const notes = {
+    inferno: [330, 440, 550],
+    shatter: [220, 277, 330],
+    encore:  [220, 261, 330, 440],
+    revenge: [165, 220, 277],
+    radiance:[440, 550, 660],
+  };
+  const noteFreqs = notes[bannerType] || [440, 550, 660];
+  noteFreqs.forEach((freq, idx) => {
+    try {
+      const osc = audioContext.createOscillator();
+      const g   = audioContext.createGain();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      const t0 = audioContext.currentTime + idx * 0.05;
+      g.gain.setValueAtTime(0.5, t0);
+      g.gain.exponentialRampToValueAtTime(0.01, t0 + 0.3);
+      osc.connect(g);
+      g.connect(sfxGain);
+      osc.start(t0);
+      osc.stop(t0 + 0.3);
+      _audioVoiceStart();
+      osc.onended = _audioVoiceEnd;
+    } catch (e) {}
+  });
+}
+
+// playULTReady — rising chime (440Hz → 880Hz over 300ms)
+function playULTReady() {
+  if (!_audioCanPlay()) return;
+  try {
+    const osc = audioContext.createOscillator();
+    const g   = audioContext.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(440, audioContext.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(880, audioContext.currentTime + 0.3);
+    g.gain.setValueAtTime(0.4, audioContext.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+    osc.connect(g); g.connect(sfxGain);
+    osc.start(); osc.stop(audioContext.currentTime + 0.3);
+    _audioVoiceStart();
+    osc.onended = _audioVoiceEnd;
+  } catch (e) {}
+}
+
+// playULTTrigger — impactful release (descending square wave + noise burst)
+function playULTTrigger() {
+  if (!_audioCanPlay()) return;
+  try {
+    const osc = audioContext.createOscillator();
+    const g   = audioContext.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(660, audioContext.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(110, audioContext.currentTime + 0.4);
+    g.gain.setValueAtTime(0.6, audioContext.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+    osc.connect(g); g.connect(sfxGain);
+    osc.start(); osc.stop(audioContext.currentTime + 0.4);
+    _audioVoiceStart();
+    osc.onended = _audioVoiceEnd;
+  } catch (e) {}
+}
+
+// playCaptainBuff — regal chord (E major triad sustained)
+function playCaptainBuff() {
+  if (!_audioCanPlay()) return;
+  const notes = [330, 440, 550];
+  notes.forEach(freq => {
+    try {
+      const osc = audioContext.createOscillator();
+      const g   = audioContext.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0.3, audioContext.currentTime);
+      g.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.1);
+      g.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+      osc.connect(g); g.connect(sfxGain);
+      osc.start(); osc.stop(audioContext.currentTime + 0.4);
+      _audioVoiceStart();
+      osc.onended = _audioVoiceEnd;
+    } catch (e) {}
+  });
+}
+
+// playVictory — major scale ascend (5 notes: C5/E5/G5/C6/E6)
+function playVictory() {
+  if (!audioContext) return;
+  const notes = [
+    { freq: 523,  time: 0.0 },
+    { freq: 659,  time: 0.1 },
+    { freq: 784,  time: 0.2 },
+    { freq: 1046, time: 0.3 },
+    { freq: 1318, time: 0.5 },
+  ];
+  notes.forEach(n => {
+    try {
+      const osc = audioContext.createOscillator();
+      const g   = audioContext.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = n.freq;
+      const t0 = audioContext.currentTime + n.time;
+      g.gain.setValueAtTime(0.4, t0);
+      g.gain.exponentialRampToValueAtTime(0.01, t0 + 0.2);
+      osc.connect(g); g.connect(sfxGain);
+      osc.start(t0); osc.stop(t0 + 0.2);
+      _audioVoiceStart();
+      osc.onended = _audioVoiceEnd;
+    } catch (e) {}
+  });
+}
+
+// playDefeat — minor scale descend (4 notes: A3/G3/F3/D3)
+function playDefeat() {
+  if (!audioContext) return;
+  const notes = [
+    { freq: 220, time: 0.0 },
+    { freq: 196, time: 0.2 },
+    { freq: 175, time: 0.4 },
+    { freq: 147, time: 0.6 },
+  ];
+  notes.forEach(n => {
+    try {
+      const osc = audioContext.createOscillator();
+      const g   = audioContext.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = n.freq;
+      const t0 = audioContext.currentTime + n.time;
+      g.gain.setValueAtTime(0.5, t0);
+      g.gain.exponentialRampToValueAtTime(0.01, t0 + 0.3);
+      osc.connect(g); g.connect(sfxGain);
+      osc.start(t0); osc.stop(t0 + 0.3);
+      _audioVoiceStart();
+      osc.onended = _audioVoiceEnd;
+    } catch (e) {}
+  });
+}
+
+// playBossDamage — varies by intensity ('light' / 'medium' / 'heavy')
+function playBossDamage(intensity) {
+  if (!_audioCanPlay()) return;
+  const intensities = {
+    light:  { freq: 220, gain: 0.25, dur: 0.10 },
+    medium: { freq: 165, gain: 0.40, dur: 0.18 },
+    heavy:  { freq: 110, gain: 0.55, dur: 0.30 },
+  };
+  const cfg = intensities[intensity] || intensities.medium;
+  _audioMakeOscillator('square', cfg.freq, cfg.gain, cfg.dur);
+}
+
+// playShieldGain — protective bell (high A + brief decay)
+function playShieldGain() {
+  if (!_audioCanPlay()) return;
+  _audioMakeOscillator('sine', 880, 0.35, 0.18);
+}
+
+// playShieldBreak — shattered tone (downward sweep + noise)
+function playShieldBreak() {
+  if (!_audioCanPlay()) return;
+  try {
+    const osc = audioContext.createOscillator();
+    const g   = audioContext.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(440, audioContext.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(110, audioContext.currentTime + 0.25);
+    g.gain.setValueAtTime(0.45, audioContext.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.25);
+    osc.connect(g); g.connect(sfxGain);
+    osc.start(); osc.stop(audioContext.currentTime + 0.25);
+    _audioVoiceStart();
+    osc.onended = _audioVoiceEnd;
+  } catch (e) {}
+}
+
+// ===== UI SFX (per spec §5) =====
+
+function playMenuTap()         { _audioMakeOscillator('triangle', 880, 0.18, 0.05); }
+function playCardFlip()        { _audioMakeOscillator('square',   660, 0.20, 0.08); }
+function playButtonHover()     { _audioMakeOscillator('sine',     1320, 0.10, 0.04); }
+function playNotification()    { _audioMakeOscillator('sine',     880, 0.30, 0.15); }
+function playModalAppear()     { _audioMakeOscillator('sine',     440, 0.20, 0.18); }
+function playModalDismiss()    { _audioMakeOscillator('sine',     330, 0.18, 0.15); }
+
+// playHeroUnlock — celebration sting (C major triad ascend)
+function playHeroUnlock() {
+  if (!audioContext) return;
+  const notes = [{ f:523, t:0 }, { f:659, t:0.08 }, { f:784, t:0.16 }, { f:1046, t:0.30 }];
+  notes.forEach(n => {
+    try {
+      const osc = audioContext.createOscillator();
+      const g   = audioContext.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = n.f;
+      const t0 = audioContext.currentTime + n.t;
+      g.gain.setValueAtTime(0.4, t0);
+      g.gain.exponentialRampToValueAtTime(0.01, t0 + 0.25);
+      osc.connect(g); g.connect(sfxGain);
+      osc.start(t0); osc.stop(t0 + 0.25);
+      _audioVoiceStart();
+      osc.onended = _audioVoiceEnd;
+    } catch (e) {}
+  });
+}
+
+// playPackOpen — treasure chest crack (low thud + bright sparkle)
+function playPackOpen() {
+  if (!_audioCanPlay()) return;
+  // Low thud
+  _audioMakeOscillator('sawtooth', 110, 0.5, 0.15);
+  // Bright sparkle (delayed)
+  try {
+    setTimeout(() => {
+      _audioMakeOscillator('triangle', 1760, 0.3, 0.20);
+      setTimeout(() => _audioMakeOscillator('triangle', 2349, 0.25, 0.18), 80);
+    }, 150);
+  } catch (e) {}
+}
+
+// playAchievementUnlock — bright fanfare (3-note ascending major)
+function playAchievementUnlock() {
+  if (!audioContext) return;
+  const notes = [{ f:659, t:0 }, { f:880, t:0.10 }, { f:1318, t:0.22 }];
+  notes.forEach(n => {
+    try {
+      const osc = audioContext.createOscillator();
+      const g   = audioContext.createGain();
+      osc.type = 'square';
+      osc.frequency.value = n.f;
+      const t0 = audioContext.currentTime + n.t;
+      g.gain.setValueAtTime(0.5, t0);
+      g.gain.exponentialRampToValueAtTime(0.01, t0 + 0.3);
+      osc.connect(g); g.connect(sfxGain);
+      osc.start(t0); osc.stop(t0 + 0.3);
+      _audioVoiceStart();
+      osc.onended = _audioVoiceEnd;
+    } catch (e) {}
+  });
+}
+
+// playBossPhaseShift — dramatic shift (low rumble + rising tone)
+function playBossPhaseShift() {
+  if (!_audioCanPlay()) return;
+  _audioMakeOscillator('sawtooth', 82, 0.5, 0.6);
+  try {
+    setTimeout(() => {
+      const osc = audioContext.createOscillator();
+      const g   = audioContext.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(220, audioContext.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, audioContext.currentTime + 0.4);
+      g.gain.setValueAtTime(0.4, audioContext.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+      osc.connect(g); g.connect(sfxGain);
+      osc.start(); osc.stop(audioContext.currentTime + 0.4);
+      _audioVoiceStart();
+      osc.onended = _audioVoiceEnd;
+    }, 200);
+  } catch (e) {}
+}
+
+function playPauseMenu()  { _audioMakeOscillator('sine', 440, 0.3, 0.4); }
+function playResumeGame() { _audioMakeOscillator('sine', 660, 0.3, 0.3); }
+function playNewDay()     { playHeroUnlock(); }
+
+// ===== MUSIC PLAYER (Layer 2 — HTML5 Audio for MP3 streaming) =====
+
+function playMusic(trackUrl, options) {
+  options = options || {};
+  if (!trackUrl) return;
+  if (!audioContext) initAudioSystem();
+  // Stop previous music with crossfade
+  if (currentMusicAudio) {
+    fadeMusicOut(currentMusicAudio, options.crossfadeDuration || 1000);
+  }
+  try {
+    const audio = new Audio(trackUrl);
+    audio.loop = options.loop !== false;
+    audio.volume = 0;
+    const targetVol = (options.targetVolume != null ? options.targetVolume : (audioSettings.musicVolume * 0.6));
+    audio.play().then(() => {
+      fadeMusicIn(audio, options.crossfadeDuration || 1000, targetVol);
+      currentMusicAudio = audio;
+    }).catch(err => {
+      // 404 / blocked autoplay / user-gesture-required — fail silently per spec
+      console.warn('[audio] music play failed:', trackUrl, err && err.message);
+    });
+  } catch (e) {}
+}
+
+function fadeMusicIn(audio, duration, targetVolume) {
+  if (!audio) return;
+  const intervalMs = 50;
+  const steps = Math.max(1, Math.floor(duration / intervalMs));
+  let step = 0;
+  const id = setInterval(() => {
+    step++;
+    audio.volume = Math.min(targetVolume, targetVolume * (step / steps));
+    if (step >= steps) clearInterval(id);
+  }, intervalMs);
+}
+
+function fadeMusicOut(audio, duration) {
+  if (!audio) return;
+  const startVol = audio.volume;
+  const intervalMs = 50;
+  const steps = Math.max(1, Math.floor(duration / intervalMs));
+  let step = 0;
+  const id = setInterval(() => {
+    step++;
+    audio.volume = Math.max(0, startVol * (1 - step / steps));
+    if (step >= steps) {
+      try { audio.pause(); audio.src = ''; } catch (e) {}
+      clearInterval(id);
+    }
+  }, intervalMs);
+}
+
+function stopMusic() {
+  if (currentMusicAudio) {
+    fadeMusicOut(currentMusicAudio, 500);
+    currentMusicAudio = null;
+  }
+}
+
+// duckMusic — auto-ducking per spec §12.2 (reduce music for important moments)
+function duckMusic(reductionAmount, durationMs) {
+  if (!currentMusicAudio) return;
+  const original = currentMusicAudio.volume;
+  const target = original * reductionAmount;
+  const halfDur = durationMs / 2;
+  const fadeDown = 50;
+  const downSteps = Math.max(1, halfDur / fadeDown);
+  let s = 0;
+  const id = setInterval(() => {
+    s++;
+    currentMusicAudio.volume = original - (original - target) * (s / downSteps);
+    if (s >= downSteps) clearInterval(id);
+  }, fadeDown);
+  setTimeout(() => {
+    if (!currentMusicAudio) return;
+    let s2 = 0;
+    const upId = setInterval(() => {
+      s2++;
+      currentMusicAudio.volume = target + (original - target) * (s2 / downSteps);
+      if (s2 >= downSteps) clearInterval(upId);
+    }, fadeDown);
+  }, halfDur);
+}
+
+// Console helpers for testing
+if (typeof window !== 'undefined') {
+  window.audioSettings = audioSettings;
+  window.initAudioSystem = initAudioSystem;
+  window.playCellPlacement = playCellPlacement;
+  window.playCellClear     = playCellClear;
+  window.playComboCascade  = playComboCascade;
+  window.playBannerSting   = playBannerSting;
+  window.playULTReady      = playULTReady;
+  window.playULTTrigger    = playULTTrigger;
+  window.playCaptainBuff   = playCaptainBuff;
+  window.playVictory       = playVictory;
+  window.playDefeat        = playDefeat;
+  window.playBossDamage    = playBossDamage;
+  window.playShieldGain    = playShieldGain;
+  window.playShieldBreak   = playShieldBreak;
+  window.playMenuTap       = playMenuTap;
+  window.playCardFlip      = playCardFlip;
+  window.playHeroUnlock    = playHeroUnlock;
+  window.playPackOpen      = playPackOpen;
+  window.playAchievementUnlock = playAchievementUnlock;
+  window.playBossPhaseShift = playBossPhaseShift;
+  window.playMusic         = playMusic;
+  window.stopMusic         = stopMusic;
+  window.duckMusic         = duckMusic;
+}
+// ===== END AUDIO SYSTEM =====
+
+
 function vibrate(p) { if (navigator.vibrate) try { navigator.vibrate(p); } catch(e){} }
 
 // ===== V3.0 PHASE 9 · HAPTICS =====
