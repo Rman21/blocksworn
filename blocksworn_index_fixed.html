@@ -18796,6 +18796,160 @@ function _bossArchetypePhase() {
 // per-placement post-hook alongside MOSSWEAVER/LUMENWIND amp window decrements + IRON
 // HIDE / Static Field / Death Roll race-passives. No-op if current boss is not
 // using a Chapter 2 archetype. Drives counters + queues phase-gated effects.
+// 2026-04-27 — Chapter 3 (VEIL OF FORGOTTEN GODS) — Block 6.2 mechanics.
+// Each boss has a custom archetype state read by combat hooks. Mirrors
+// Phase 5b Block 1 pattern: state + per-tick update + hook reads.
+//
+// 5 mechanics (simplified MVP per spec §2.2-2.6):
+//   TWILIGHT VESSEL — DUAL SHIFT:    damage mult by hero element/role per phase
+//   STORMSHEPHERD — STORM SUMMONING: spawn extra void cells per turn (1-3 by phase)
+//   VOIDPRIESTESS — CONFESSION READ: per-turn debuff against squad role
+//   ROOT-OF-NOTHING — WITHER:        permanent cell lock per turn (heals boss if standing 3+ turns)
+//   ARCHIVAL ETERNAL — LIBRARIAN SEAL: combo cap reduce + per-turn ability seal
+let _ch3BossId = null;        // 'twilight' | 'storm' | 'priestess' | 'root' | 'archival' | null
+let _ch3State  = {};
+function _ch3PhaseFromHp() {
+  if (!bossMaxHP) return 1;
+  const r = bossHP / bossMaxHP;
+  if (r > 0.66) return 1;
+  if (r > 0.33) return 2;
+  return 3;
+}
+function initChapter3Boss() {
+  _ch3BossId = null;
+  _ch3State  = { turn: 0, debuffs: [], witherCells: [], seals: [], stormFlash: '' };
+  if (currentChapter !== 3 || !currentBoss) return;
+  const map = {
+    'TWILIGHT VESSEL':  'twilight',
+    'STORMSHEPHERD':    'storm',
+    'VOIDPRIESTESS':    'priestess',
+    'ROOT-OF-NOTHING':  'root',
+    'ARCHIVAL ETERNAL': 'archival',
+  };
+  _ch3BossId = map[currentBoss.name] || null;
+}
+function tickChapter3Boss() {
+  if (currentChapter !== 3 || !_ch3BossId) return;
+  _ch3State.turn++;
+  const phase = _ch3PhaseFromHp();
+  // ===== TWILIGHT VESSEL — DUAL SHIFT =====
+  // Phase 1 (66-100%): Light state — Hunters with 'umbra' (Dark) +50%, others -25%
+  // Phase 2 (33-66%):  Dark state  — Hunters with 'solar' (Light) +50%, others -25%
+  // Phase 3 (0-33%):   Both states active — chaos
+  if (_ch3BossId === 'twilight') {
+    _ch3State.lightActive = (phase === 1 || phase === 3);
+    _ch3State.darkActive  = (phase === 2 || phase === 3);
+  }
+  // ===== STORMSHEPHERD — STORM SUMMONING =====
+  // Spawn N extra storm voids per turn (N = phase). 3 storm types cycle.
+  if (_ch3BossId === 'storm') {
+    const stormCount = phase;
+    const stormTypes = ['❄ BLIZZARD', '🌍 EARTHQUAKE', '⚡ LIGHTNING'];
+    const empties = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      if (grid[r][c] === null) empties.push([r, c]);
+    }
+    empties.sort(() => Math.random() - 0.5);
+    const picks = empties.slice(0, stormCount);
+    for (const [r, c] of picks) grid[r][c] = 'void_' + (currentBoss.stihiya || 'tide');
+    if (picks.length > 0) {
+      const stormName = stormTypes[Math.floor(Math.random() * 3)];
+      try { flashText('⚡ ' + stormName + ' ×' + picks.length, '#9CC8DE'); } catch (e) {}
+      try { render(); } catch (e) {}
+    }
+  }
+  // ===== VOIDPRIESTESS — CONFESSION READ =====
+  // Roll N debuffs per turn (N = phase). Each lasts 3 turns. Effects read
+  // by relevant combat hooks (debuffs array drives flags below).
+  if (_ch3BossId === 'priestess') {
+    const debuffPool = [
+      'hunter_silenced',  // Hunters get -50% damage
+      'mage_halved',      // Mages amp window mult halved
+      'tank_halved',      // Tanks gain half shields
+      'captain_disabled', // Captain dual buff disabled (mult = 1.0)
+      'warrior_blocked',  // Warrior fire creates 1 fewer cell
+    ];
+    // Decrement existing debuff timers, drop expired
+    _ch3State.debuffs = _ch3State.debuffs
+      .map(d => ({ id: d.id, turns: d.turns - 1 }))
+      .filter(d => d.turns > 0);
+    // Add new debuffs based on phase (avoid duplicates)
+    for (let i = 0; i < phase; i++) {
+      const choices = debuffPool.filter(p => !_ch3State.debuffs.some(d => d.id === p));
+      if (choices.length === 0) break;
+      const pick = choices[Math.floor(Math.random() * choices.length)];
+      _ch3State.debuffs.push({ id: pick, turns: 3 });
+      try { flashText('✦ CONFESSION: ' + pick.replace('_', ' ').toUpperCase(), '#C0A6DF'); } catch (e) {}
+    }
+  }
+  // ===== ROOT-OF-NOTHING — WITHER =====
+  // Wither N random cells per turn (N = phase). Withered cells are
+  // permanent void_grove that cannot be cleared. Boss heals 5% HP per
+  // wither standing 3+ turns (capped at +15% per tick).
+  if (_ch3BossId === 'root') {
+    const witherCount = phase;
+    const empties = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      if (grid[r][c] === null) empties.push([r, c]);
+    }
+    empties.sort(() => Math.random() - 0.5);
+    const picks = empties.slice(0, witherCount);
+    for (const [r, c] of picks) {
+      grid[r][c] = 'void_grove';
+      _ch3State.witherCells.push({ r, c, age: 0 });
+    }
+    // Age existing withers; heal boss for any 3+ turn standing wither.
+    let healCount = 0;
+    _ch3State.witherCells.forEach(w => {
+      w.age++;
+      if (w.age >= 3 && grid[w.r] && grid[w.r][w.c] === 'void_grove') healCount++;
+    });
+    if (healCount > 0) {
+      const healAmt = Math.floor(bossMaxHP * 0.05 * Math.min(3, healCount));
+      bossHP = Math.min(bossMaxHP, bossHP + healAmt);
+      try { flashText('🌑 WITHER HEAL +' + healAmt, '#6E7A6A'); } catch (e) {}
+      try { renderBossHP(); } catch (e) {}
+    }
+    if (picks.length > 0) {
+      try { flashText('🌑 WITHER ×' + picks.length, '#6E7A6A'); } catch (e) {}
+      try { render(); } catch (e) {}
+    }
+  }
+  // ===== ARCHIVAL ETERNAL — LIBRARIAN SEAL =====
+  // Apply N seals per turn (N = phase). Seals are 2-turn debuffs read
+  // by combat hooks. Pool: combo_cap_4 / ults_disabled / dmg_halved.
+  if (_ch3BossId === 'archival') {
+    const sealPool = ['combo_cap_4', 'ults_disabled', 'dmg_halved'];
+    _ch3State.seals = _ch3State.seals
+      .map(s => ({ id: s.id, turns: s.turns - 1 }))
+      .filter(s => s.turns > 0);
+    for (let i = 0; i < phase; i++) {
+      const choices = sealPool.filter(p => !_ch3State.seals.some(s => s.id === p));
+      if (choices.length === 0) break;
+      const pick = choices[Math.floor(Math.random() * choices.length)];
+      _ch3State.seals.push({ id: pick, turns: 2 });
+      try { flashText('📜 SEAL: ' + pick.replace(/_/g, ' ').toUpperCase(), '#E8D88A'); } catch (e) {}
+    }
+  }
+}
+// Helpers used by combat hooks to read Ch3 archetype state.
+function _ch3HasDebuff(id) {
+  return _ch3BossId === 'priestess' && _ch3State.debuffs.some(d => d.id === id);
+}
+function _ch3HasSeal(id) {
+  return _ch3BossId === 'archival' && _ch3State.seals.some(s => s.id === id);
+}
+// Twilight DUAL SHIFT — returns multiplier for hero damage based on hero
+// element + boss state. Default 1.0. Hunters with bonus element get +50%;
+// other heroes get -25%.
+function _ch3TwilightMult(hero) {
+  if (_ch3BossId !== 'twilight' || !hero) return 1.0;
+  const isHunter = hero.newRole === 'hunter';
+  if (_ch3State.lightActive && hero.stihiya === 'umbra' && isHunter) return 1.50;
+  if (_ch3State.darkActive  && hero.stihiya === 'solar' && isHunter) return 1.50;
+  return 0.75;
+}
+
 function tickChapter2Archetype() {
   if (typeof currentBoss === 'undefined' || !currentBoss || !currentBoss.archetype) return;
   const arch = currentBoss.archetype;
@@ -21436,6 +21590,8 @@ function startBossBattle() {
         initChapter2Archetype(currentBoss.archetype);
       }
     } catch (e) { console.warn('Chapter 2 archetype init failed:', e); }
+    // 2026-04-27 — Chapter 3 archetype init (VEIL OF FORGOTTEN GODS).
+    try { if (typeof initChapter3Boss === 'function') initChapter3Boss(); } catch (e) { console.warn('Chapter 3 archetype init failed:', e); }
   } catch (e) { console.warn('B3 boss-battle init hook failed:', e); }
   // V3.0 Phase 2 Block 2.2 trap 5: reset _lastReward at battle start so a stale
   // floor-context from a previous fight can't contaminate the victory modal of
@@ -22768,6 +22924,12 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
   const _baseAmount = amount;
   _captainDualContext = (captainDual_active && _currentFiringHero
                          && _currentFiringHero.race === captainDual_race) ? captainDual_raceMult : 1;
+  // 2026-04-27 — Ch3 VOIDPRIESTESS "captain_disabled" debuff — disable dual buff.
+  try {
+    if (typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('captain_disabled')) {
+      _captainDualContext = 1;
+    }
+  } catch (e) {}
   _signatureComboContext = (activeSignatureCombo && activeSignatureCombo.mult) || 1;
   // PHASE 5b BLOCK 3 — Hypnotist Suggestion: if VEROTHIRA "suggested" the firing hero
   // and player obeyed (fired that hero this turn), apply phase-scaled bonus damage
@@ -22850,7 +23012,16 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
                    * _grommarRallyContext * _packMarkContext * _helioRoarContext
                    * _captainDualContext * _signatureComboContext * _hypnoSuggestContext
                    * _bloodhuntContext * _pirateDoubleContext * _pactDamageMult
-                   * _towerThemeMult * _buffDamageMult * (typeof getHeartTowerMult === 'function' ? getHeartTowerMult('damageMult') : 1.0);
+                   * _towerThemeMult * _buffDamageMult * (typeof getHeartTowerMult === 'function' ? getHeartTowerMult('damageMult') : 1.0)
+                   // 2026-04-27 — Ch3 mechanics:
+                   //   TWILIGHT VESSEL DUAL SHIFT — hunter+matching-element +50%, others -25%
+                   //   VOIDPRIESTESS hunter_silenced — Hunter dmg ×0.5
+                   //   VOIDPRIESTESS mage_halved — Mage dmg ×0.5
+                   //   ARCHIVAL ETERNAL dmg_halved seal — all dmg ×0.5
+                   * (typeof _ch3TwilightMult === 'function' && _currentFiringHero ? _ch3TwilightMult(_currentFiringHero) : 1.0)
+                   * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('hunter_silenced') && _currentFiringHero && _currentFiringHero.newRole === 'hunter') ? 0.5 : 1.0)
+                   * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('mage_halved') && _currentFiringHero && _currentFiringHero.newRole === 'mage') ? 0.5 : 1.0)
+                   * ((typeof _ch3HasSeal === 'function' && _ch3HasSeal('dmg_halved')) ? 0.5 : 1.0);
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
@@ -24248,6 +24419,13 @@ async function ultRoleDispatch() {
   const hero = this;
   const role = hero && hero.newRole;
   const ctx = { burnedCount: 0, burnedStihiyas: [], convertedCount: 0 };
+  // 2026-04-27 — Ch3 ARCHIVAL ETERNAL "ults_disabled" seal — block ULT firing.
+  try {
+    if (typeof _ch3HasSeal === 'function' && _ch3HasSeal('ults_disabled')) {
+      try { flashText('📜 ULTS SEALED', '#E8D88A'); } catch (e) {}
+      return;
+    }
+  } catch (e) {}
   // V3.0 Phase 5 Block 5.1: mission tracking — one increment per ult fire
   try { if (typeof trackMissionEvent === 'function') trackMissionEvent('ult_fired'); } catch (e) {}
   // PHASE 3 BLOCK 3 — Death Flashback log (hero ULT fire)
@@ -27105,6 +27283,12 @@ async function afterPlacement(piece) {
         if (buffCap > 0) mult = Math.min(buffCap, COMBO_MULT[Math.min(count, 4)] || 25);
       }
     } catch (e) {}
+    // 2026-04-27 — Ch3 ARCHIVAL ETERNAL "combo_cap_4" seal — clamps mult ≤ 4.
+    try {
+      if (typeof _ch3HasSeal === 'function' && _ch3HasSeal('combo_cap_4')) {
+        mult = Math.min(mult, 4);
+      }
+    } catch (e) {}
     const baseDmg = BASE_LINE_SCORE * count * mult;
 
     // Count stihiyas in cleared cells (dedup intersections) BEFORE clearing
@@ -27707,6 +27891,8 @@ async function afterPlacement(piece) {
   // queued effects, Battery charge meter. No-op when current boss is not using
   // a Chapter 2 archetype. Wrapped try/catch so archetype glitches never break combat.
   try { if (typeof tickChapter2Archetype === 'function') tickChapter2Archetype(); } catch (e) { console.warn('Chapter 2 archetype tick failed:', e); }
+  // 2026-04-27 — Chapter 3 archetype tick (VEIL OF FORGOTTEN GODS).
+  try { if (typeof tickChapter3Boss === 'function') tickChapter3Boss(); } catch (e) { console.warn('Chapter 3 archetype tick failed:', e); }
   // V2.0 Block 3.3: VANGUARD HUNTER MARK — decrement unconsumed window; expired marks silently drop.
   if (hunterMarkWindow > 0) {
     hunterMarkWindow--;
