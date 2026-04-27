@@ -11369,14 +11369,61 @@ function applyBossDefeatProgression(bossNumber) {
       } catch (e) { console.warn('Chapter 3 unlock chain failed:', e); }
     }, c3Delay);
   }
-  // 2026-04-27 — Chapter 3 finale: Archival Eternal (boss 15) → outro dialog.
-  // Reward pack (Tier 2 Ascension stones / Forgotten Pack) deferred to a
-  // follow-up block per spec §2.7.
+  // 2026-04-27 — Chapter 3 finale: Archival Eternal (boss 15) → THE FORGOTTEN
+  // PACK reward bundle per spec §2.7. Idempotent — only first clear awards
+  // the bundle (gated by towerState.chapter3FinalRewardClaimed flag).
   if (bossNumber === 15) {
+    const alreadyClaimed = !!(towerState && towerState.chapter3FinalRewardClaimed);
     setTimeout(() => {
       try {
+        if (!alreadyClaimed) {
+          // Mark claimed BEFORE awarding to prevent re-fire on rapid clicks
+          if (towerState) {
+            towerState.chapter3FinalRewardClaimed = true;
+            try { saveTowerState(); } catch (e) {}
+          }
+          // 1. 500 gold
+          try { addGold(500); } catch (e) {}
+          // 2. 50 of each element essence
+          try {
+            ['ember','tide','grove','solar','umbra'].forEach(s => {
+              essences[s] = (essences[s] || 0) + 50;
+            });
+            saveProgress();
+          } catch (e) {}
+          // 3. 5 Tower Hearts
+          try {
+            if (towerState) {
+              towerState.towerHearts += 5;
+              saveTowerState();
+            }
+          } catch (e) {}
+          // 4. 15 Hero Cards (1 fragment per unlocked hero, up to 15)
+          try {
+            const unlocked = HERO_ROSTER.filter(h => h && h.unlocked !== false && !h.locked);
+            const cards = unlocked.slice(0, 15);
+            for (const h of cards) {
+              try { addHeroFragments(h.id, 1); } catch (e) {}
+            }
+          } catch (e) {}
+          // 5. 3 Tier 2 Ascension Stones (storage exists, full Tier 2 system DEBT)
+          try {
+            if (towerState) {
+              towerState.tier2Stones = (towerState.tier2Stones || 0) + 3;
+              saveTowerState();
+            }
+          } catch (e) {}
+          // 6. Title: "Voice of the Forgotten"
+          try { unlockTowerAchievement('voice_forgotten'); } catch (e) {}
+          // Celebratory banner sequence (staggered)
+          try { flashText('🌌 THE FORGOTTEN PACK', '#A88AC8'); } catch (e) {}
+          setTimeout(() => { try { flashText('+500💰 · +5♥ · +15 cards · +3 ascension', '#FFD53D'); } catch (e) {} }, 1100);
+          setTimeout(() => { try { flashText('+250 element essences', '#5DCA79'); } catch (e) {} }, 2200);
+          try { vibrate([200, 80, 200, 80, 300, 80, 400]); } catch (e) {}
+        }
+        // Always play outro dialog (idempotent flag is on the reward, not the dialog)
         if (typeof playDialog === 'function') playDialog('chapter_3_outro');
-      } catch (e) {}
+      } catch (e) { console.warn('Chapter 3 finale reward chain failed:', e); }
     }, (squadBumped ? 1500 : 250) + 2200);
   }
 }
@@ -15181,6 +15228,9 @@ let towerState = {
   unlockedTitles: [],         // titles available to select
   selectedTitle: null,        // currently displayed title id (or null)
   seenPactIds: [],            // unique pact ids seen across all runs (for Pact Master)
+  // ===== Block 6.3 — Chapter 3 reward state =====
+  tier2Stones: 0,             // count of Tier 2 Ascension Stones (Forgotten Pack §2.7)
+  chapter3FinalRewardClaimed: false,   // idempotent gate for boss 15 reward bundle
   // ===== T.4 Weekly + Seasonal Gauntlets =====
   weeklyRunStarted: false,
   weeklyCurrentFloor: 0,
@@ -15211,6 +15261,8 @@ const TOWER_ACHIEVEMENTS = [
   { id: 'pact_master',     name: 'PACT MASTER',       title: 'Architect of Fate', desc: 'Encounter all 24 pact types in your runs',         rarity: 'gold' },
   { id: 'weekly_champion', name: 'WEEKLY CHAMPION',   title: 'Weekly Champion',   desc: 'Clear a Weekly Gauntlet (25 floors)',              rarity: 'gold' },
   { id: 'crown_breaker',   name: 'CROWN BREAKER',     title: 'Crown Breaker',     desc: 'Defeat UROBOROS at Seasonal F50',                  rarity: 'mythic' },
+  // 2026-04-27 — Chapter 3 (VEIL OF FORGOTTEN GODS) finale title (spec §2.7).
+  { id: 'voice_forgotten', name: 'VOICE OF THE FORGOTTEN', title: 'Voice of the Forgotten', desc: 'Defeat ARCHIVAL ETERNAL — clear Chapter 3', rarity: 'mythic' },
 ];
 function unlockTowerAchievement(id) {
   if (!Array.isArray(towerState.unlockedAchievements)) towerState.unlockedAchievements = [];
