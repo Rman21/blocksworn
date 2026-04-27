@@ -7930,6 +7930,30 @@ body.tempo-slow-tint::after {
   cursor: not-allowed;
   filter: grayscale(0.5);
 }
+/* 2026-04-27 — Block T.3 — Daily curse banner. Red-violet warning palette
+ * to feel ominous; sits at the top of the tower entry screen above status. */
+.tower-curse-banner {
+  margin: 0 auto 8px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(155, 89, 214, 0.20), rgba(40, 18, 56, 0.45));
+  border: 1px solid rgba(155, 89, 214, 0.55);
+  border-radius: 8px;
+  text-align: center;
+}
+.tower-curse-banner .tcb-label {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: #C0A6DF;
+  margin-bottom: 3px;
+}
+.tower-curse-banner .tcb-names {
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  color: #E0B8FF;
+  font-weight: 600;
+  line-height: 1.4;
+}
 .tower-enter-btn {
   padding: 14px;
   background: linear-gradient(180deg, #FFD53D, #FF8B3D);
@@ -14270,6 +14294,10 @@ let towerState = {
   towerHearts: 0,           // permanent meta-upgrade currency (1 heart = 5 fragments)
   towerHeartFragments: 0,   // 0..4 (5 → +1 heart, drops back to 0)
   sigilShards: 0,           // 24h Buff currency (24h buffs land in Block T.6)
+  // ===== T.3 daily curses =====
+  dailyCurses: [],           // hero ids LOCKED from Tower play this 24h cycle
+  dailyCursesKey: null,      // dailyKey when current curses were rolled
+  prevDailyCurses: [],       // yesterday's curses (anti-repeat per §3.2)
 };
 const TOWER_KEY = 'blocksworn_tower_state';
 const TOWER_MAX_ATTEMPTS_PER_DAY  = 5;
@@ -14286,6 +14314,60 @@ const TOWER_DAILY_SIGILS          = 5;
 const TOWER_DAILY_HEART_FRAGMENTS = 1;
 let _isTowerBattle = false;
 let _towerPreFloor = null;
+
+// 2026-04-27 — Block T.3 — Daily Curses (spec §3). Each 4 AM reset rolls
+// 2-4 random unlocked heroes as LOCKED-FROM-TOWER for the 24h cycle.
+// Captains immune (always ≥1 available). No race elimination (always
+// leaves ≥1 from each race). Same curse can't repeat 2 days in a row.
+// FTUE protection: needs 5+ unlocked heroes before curses activate.
+//
+// Scope per §3.4: Daily + Weekly Tower runs are cursed. Chapter and
+// Seasonal Tower are NOT (Chapter has full roster always; Seasonal is
+// pure prestige test).
+function rollDailyCurses() {
+  // Build pool of curse-eligible heroes from current unlocked roster.
+  let unlocked = [];
+  try {
+    if (typeof HERO_ROSTER !== 'undefined' && Array.isArray(HERO_ROSTER)) {
+      unlocked = HERO_ROSTER.filter(h => h && h.unlocked !== false && !h.locked);
+    }
+  } catch (e) {}
+  const N = unlocked.length;
+  if (N < 5) return [];  // FTUE protection
+  // Curse count scaling per §3.2
+  let curseCount;
+  if (N <= 10)      curseCount = 1;
+  else if (N <= 19) curseCount = 2;
+  else              curseCount = 2 + Math.floor(Math.random() * 3);  // 2-4
+  // Eligible pool: not captain, not yesterday's curse
+  const yesterday = new Set(towerState.prevDailyCurses || []);
+  const eligible = unlocked.filter(h =>
+    h.newRole !== 'captain' && !yesterday.has(h.id));
+  if (eligible.length === 0) return [];
+  // Shuffle eligible
+  const shuf = eligible.slice();
+  for (let i = shuf.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuf[i], shuf[j]] = [shuf[j], shuf[i]];
+  }
+  // Pick respecting "no race elimination" rule: never lock all heroes of a race.
+  const out = [];
+  const lockedByRace = {};
+  for (const h of shuf) {
+    if (out.length >= curseCount) break;
+    const race = h.race || '_';
+    const racePoolSize = unlocked.filter(x => (x.race || '_') === race).length;
+    const wouldLock = (lockedByRace[race] || 0) + 1;
+    if (wouldLock >= racePoolSize) continue;  // would eliminate race
+    out.push(h.id);
+    lockedByRace[race] = wouldLock;
+  }
+  return out;
+}
+// Returns true if hero is locked from Tower play this 24h cycle.
+function isHeroCursedToday(heroId) {
+  return Array.isArray(towerState.dailyCurses) && towerState.dailyCurses.includes(heroId);
+}
 
 // 2026-04-27 — Block T.2 — Pact System (BLOCKSWORN_TOWER_OF_ENDLESS.md §5).
 // Pacts are run-defining risk/reward modifiers. After each floor (F1-F9) the
@@ -14467,6 +14549,14 @@ function checkTowerDailyReset() {
   // Mid-run state is wiped at daily reset (spec: 1 attempt per day base).
   towerState.currentRunStarted = false;
   towerState.currentFloor = 0;
+  // 2026-04-27 — Block T.3: re-roll daily curses on day rollover.
+  // prevDailyCurses tracked for anti-repeat (same curse can't repeat 2 days
+  // in row per §3.2).
+  try {
+    towerState.prevDailyCurses = (towerState.dailyCurses || []).slice();
+    towerState.dailyCurses     = rollDailyCurses();
+    towerState.dailyCursesKey  = todayKey;
+  } catch (e) { console.warn('rollDailyCurses failed:', e); }
   saveTowerState();
 }
 checkTowerDailyReset();
@@ -14601,6 +14691,24 @@ function startTowerRun() {
     showToast('Daily attempt cap reached. Reset at 4 AM.');
     return;
   }
+  // 2026-04-27 — Block T.3: gate cursed heroes from Tower squad. If active
+  // squad has any cursed members, block start with explanatory toast +
+  // route player to Hero select to swap them out.
+  try {
+    if (Array.isArray(towerState.dailyCurses) && towerState.dailyCurses.length > 0
+        && Array.isArray(activeSquad)) {
+      const cursedInSquad = activeSquad.filter(id => isHeroCursedToday(id));
+      if (cursedInSquad.length > 0) {
+        const names = cursedInSquad.map(id => {
+          const h = HERO_ROSTER.find(x => x.id === id);
+          return h ? h.name : id;
+        }).join(', ');
+        showToast(`Cursed: ${names} — swap out before Tower`);
+        try { if (typeof goToSelect === 'function') setTimeout(goToSelect, 700); } catch (e) {}
+        return;
+      }
+    }
+  } catch (e) {}
   // First attempt of the day is free. Subsequent attempts cost gold per
   // TOWER_RETRY_GOLD_COST progression. Player must confirm the gold spend.
   if (towerState.attemptsToday > 0) {
@@ -14782,18 +14890,34 @@ function renderTowerScreen() {
     <span class="t-pill">♥ ${towerState.towerHearts} (${towerState.towerHeartFragments}/${TOWER_FRAGMENTS_PER_HEART})</span>
     <span class="t-pill">◈ ${towerState.sigilShards}</span>
   </div>`;
+  // 2026-04-27 — Block T.3 — Daily curse banner. Shows above status when at
+  // least 1 hero is cursed today. Lists curse names so player can plan squad
+  // swap before entering Tower.
+  let curseBanner = '';
+  try {
+    if (Array.isArray(towerState.dailyCurses) && towerState.dailyCurses.length > 0) {
+      const names = towerState.dailyCurses.map(id => {
+        const h = (typeof HERO_ROSTER !== 'undefined') ? HERO_ROSTER.find(x => x.id === id) : null;
+        return h ? h.name : id;
+      });
+      curseBanner = `<div class="tower-curse-banner">
+        <div class="tcb-label">⚠ TODAY'S CURSE — UNTIL 4 AM TOMORROW</div>
+        <div class="tcb-names">Locked: ${names.join(' · ')}</div>
+      </div>`;
+    }
+  } catch (e) {}
   if (btn && current) {
     if (towerState.currentRunStarted) {
       btn.textContent = `▶ CONTINUE — FLOOR ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}`;
       btn.onclick = continueTowerRun;
       btn.disabled = false;
-      current.innerHTML = dailyStatus
+      current.innerHTML = curseBanner + dailyStatus
         + `<div class="tower-run-active">Run in progress · floor ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}</div>`;
     } else if (attemptsLeft <= 0) {
       btn.textContent = '🔒 DAILY CAP REACHED';
       btn.onclick = () => showToast('Reset at 4 AM');
       btn.disabled = true;
-      current.innerHTML = dailyStatus
+      current.innerHTML = curseBanner + dailyStatus
         + `<div class="tower-hint">Daily attempt cap reached. Come back at 4 AM for a fresh climb.</div>`;
     } else {
       const isFirstAttempt = (towerState.attemptsToday === 0);
@@ -14804,8 +14928,18 @@ function renderTowerScreen() {
       const hint = isFirstAttempt
         ? `10 floors · F5 mid-boss · F10 climax · earn 💰 ◈ ♥ on full clear`
         : `Retry attempt ${towerState.attemptsToday + 1}/${TOWER_MAX_ATTEMPTS_PER_DAY} · cost ${nextRetryCost} gold`;
-      current.innerHTML = dailyStatus + `<div class="tower-hint">${hint}</div>`;
+      current.innerHTML = curseBanner + dailyStatus + `<div class="tower-hint">${hint}</div>`;
     }
+  }
+  // Auto-roll curses on first render if missing (handles upgrade path where
+  // pre-T.3 saves don't have dailyCurses field; checkTowerDailyReset handles
+  // ongoing rolls).
+  if (towerState.dailyCursesKey !== towerState.dailyKey) {
+    try {
+      towerState.dailyCurses    = rollDailyCurses();
+      towerState.dailyCursesKey = towerState.dailyKey;
+      saveTowerState();
+    } catch (e) {}
   }
   // History list (recent 5 weeks)
   const list = document.getElementById('towerHistoryList');
