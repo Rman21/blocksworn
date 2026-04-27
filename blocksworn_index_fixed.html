@@ -2912,7 +2912,10 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
 }
 .a-battle .v-battle-topbar {
   gap: 8px;
-  padding: max(44px, env(safe-area-inset-top, 0px) + 40px) 8px 0;
+  /* 2026-04-27 — User: «между кнопкой назад и боссов сократи в 2раза».
+     Halved top padding (44/40 → 22/20) so back button + boss card sit closer
+     to viewport top, freeing vertical room for the grid + tray below. */
+  padding: max(22px, env(safe-area-inset-top, 0px) + 20px) 8px 0;
 }
 .a-battle .back-btn.battle-back,
 .a-battle .v-battle-topbar .v-btn-icon {
@@ -2959,12 +2962,13 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   pointer-events: none;
 }
 
-/* Boss portrait as mini-pedestal (round gold-ringed) */
+/* Boss portrait as gold-ringed rounded square (matches V.1 hero card style).
+   2026-04-27 — User: «помести в квадрат». Was border-radius:50% (circular). */
 .a-battle .v-battle-boss-portrait {
   position: relative;
   width: 68px; height: 68px;
   flex-shrink: 0;
-  border-radius: 50%;
+  border-radius: 12px;
   overflow: hidden;
   background: radial-gradient(circle at 30% 30%, rgba(255,184,74,0.25), var(--a-bg-deepest));
   border: 2px solid var(--a-gold-300);
