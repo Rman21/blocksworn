@@ -15311,6 +15311,10 @@ const DAILY_MISSION_POOL = [
 ];
 
 // ========= Login streak reward table =========
+// 2026-04-27 — Block H.6 — Daily Login Pack expanded per HERO_COMPENDIUM §11.2.
+// Day 7 now ALSO drops 1 random Hero Card (heroCard: true) — the spec-required
+// "Hero Card on day 7" payoff. Existing rewards (gold/gems/essence/T2 artifact)
+// preserved so saves don't regress.
 const LOGIN_STREAK_REWARDS = [
   { day: 1, gold: 200 },
   { day: 2, gold: 300, essencesRandom: 20 },
@@ -15318,7 +15322,7 @@ const LOGIN_STREAK_REWARDS = [
   { day: 4, gems: 30 },
   { day: 5, gold: 500, essencesRandom: 50 },
   { day: 6, gold: 1000 },
-  { day: 7, gems: 100, t2ArtifactRandom: true },
+  { day: 7, gems: 100, t2ArtifactRandom: true, heroCard: true },  // H.6
 ];
 
 // ========= State + persistence =========
@@ -15415,6 +15419,12 @@ function claimLoginStreakReward() {
   }
   if (reward.t2ArtifactRandom) {
     try { grantRandomArtifactAtTier(2); } catch (e) { addGems(50); } // fallback to gems if grant fails
+  }
+  // 2026-04-27 — Block H.6 — Day 7 Hero Card drop (HERO_COMPENDIUM §11.2).
+  // Reuses dropRandomHeroCards from H.2: weighted to less-owned heroes,
+  // accumulates past unlock toward T2/T3/Mythic ascension stockpile.
+  if (reward.heroCard) {
+    try { dropRandomHeroCards(1); } catch (e) { console.warn('H.6 day-7 card drop failed:', e); }
   }
   loginStreakState.claimedToday = true;
   saveLoginStreak();
@@ -15558,6 +15568,8 @@ function renderDailiesScreen() {
       if (r.gems) rewardText += `💎${r.gems}`;
       if (r.essencesRandom) rewardText += `🔮`;
       if (r.t2ArtifactRandom) rewardText += `🌟`;
+      // 2026-04-27 — Block H.6 — Day 7 Hero Card icon (HERO_COMPENDIUM §11.2).
+      if (r.heroCard) rewardText += `🃏`;
       dayEl.innerHTML = `
         <div class="streak-day-label">D${r.day}</div>
         <div class="streak-day-reward">${rewardText}</div>
