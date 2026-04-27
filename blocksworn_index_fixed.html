@@ -3959,12 +3959,7 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   min-height: 0;
 }
 
-/* Task #1.7.1 hotfix: FTUE splash slide visibility — Task #1.6 VIVID STYLIZED
-   block removal took the `.v-splash-card.active { display: block }` baseline
-   with it, so all three intro slides rendered stacked at once (Roman's smoke
-   test). Gate display on .active with !important so any stale rule loses. */
-#vSplashTrack .v-splash-card:not(.active) { display: none !important; }
-#vSplashTrack .v-splash-card.active       { display: flex !important; }
+/* .v-splash-card display gating CSS removed 2026-04-28 with splash HTML/JS. */
 
 /* Task #1.8: TOWER nav-button lock state on the Hub. Driven by `.locked` class
    from updateTowerNavButton(). Other screens' Tower buttons don't carry the
@@ -4954,364 +4949,6 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   color: var(--a-fire-300) !important;
   text-shadow: none !important;
   box-shadow: none !important;
-}
-
-/* First-run splash */
-#vSplash:not([hidden]) {
-  position: fixed; inset: 0;
-  z-index: 10003;
-  background: var(--a-bg-radial) !important;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 20px;
-  color: var(--a-text-primary);
-  font-family: var(--a-font-body);
-}
-#vSplash[hidden] { display: none !important; }
-#vSplash .v-splash-skip {
-  position: absolute;
-  top: max(16px, env(safe-area-inset-top, 0px) + 8px);
-  right: 16px;
-  padding: 6px 14px;
-  background: rgba(26,16,40,0.7);
-  border: 1px solid var(--a-gold-700);
-  border-radius: var(--a-radius-btn);
-  font-family: var(--a-font-display);
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: var(--a-gold-300);
-  cursor: pointer;
-}
-#vSplash .v-splash-logo-sub {
-  font-family: var(--a-font-display);
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: 3px;
-  color: var(--a-gold-500);
-  text-align: center;
-  margin-top: 8px;
-  text-transform: uppercase;
-}
-/* AAA+ splash card — layered dark background + gold inner-edge ring + lift shadow.
-   ::before pseudo adds top-edge radial highlight for "lit from above" feel. */
-#vSplash .v-splash-card {
-  background:
-    radial-gradient(ellipse at 50% 0%, rgba(255,184,74,0.10) 0%, transparent 60%),
-    linear-gradient(180deg, rgba(58,42,24,0.55) 0%, rgba(26,15,8,0.88) 100%) !important;
-  border: 2px solid var(--a-gold-700) !important;
-  border-radius: 18px !important;
-  color: var(--a-text-primary) !important;
-  padding: 30px 26px 24px !important;
-  text-align: center !important;
-  position: relative !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,184,74,0.30),
-    inset 0 -2px 0 rgba(0,0,0,0.45),
-    0 10px 28px rgba(0,0,0,0.65),
-    0 0 0 1px rgba(0,0,0,0.55),
-    0 0 32px rgba(255,184,74,0.10) !important;
-}
-#vSplash .v-splash-card::before {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border-radius: 16px;
-  pointer-events: none;
-  background: linear-gradient(180deg, rgba(255,184,74,0.10) 0%, transparent 28%);
-}
-#vSplash .v-splash-card > * {
-  position: relative;
-  z-index: 1;
-}
-/* Title — gradient gold text + dual drop-shadow for depth (filter chain works
-   with currentColor / -webkit-text-fill-color for the gradient effect). */
-#vSplash .v-splash-card h2 {
-  font-family: var(--a-font-display) !important;
-  font-weight: 900 !important;
-  font-size: 22px !important;
-  letter-spacing: 2.5px !important;
-  color: var(--a-gold-100) !important;
-  background: linear-gradient(180deg, var(--a-gold-100) 0%, var(--a-gold-300) 100%) !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  filter:
-    drop-shadow(0 1px 0 rgba(0,0,0,0.7))
-    drop-shadow(0 2px 6px rgba(255,184,74,0.35)) !important;
-  margin-bottom: 12px !important;
-  text-transform: uppercase;
-}
-#vSplash .v-splash-card p {
-  font-size: 13px !important;
-  color: var(--a-text-secondary) !important;
-  line-height: 1.55 !important;
-  max-width: 340px !important;
-  margin: 0 auto !important;
-}
-/* Icon medallion — 56px circular gold emblem with multi-layer shadow stack */
-#vSplash .v-splash-icon {
-  width: 56px !important;
-  height: 56px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 26px !important;
-  border-radius: 50% !important;
-  margin: 0 auto 18px !important;
-  background: radial-gradient(circle at 32% 28%, var(--a-gold-100) 0%, var(--a-gold-300) 35%, var(--a-gold-700) 80%, var(--a-gold-900) 100%) !important;
-  border: 2px solid var(--a-gold-100) !important;
-  color: #2a1810 !important;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.55) !important;
-  box-shadow:
-    inset 0 -4px 8px rgba(0,0,0,0.50),
-    inset 0 2px 0 rgba(255,255,255,0.45),
-    0 0 24px rgba(255,184,74,0.55),
-    0 5px 12px rgba(0,0,0,0.55),
-    0 0 0 4px rgba(255,184,74,0.10) !important;
-}
-/* 5-element row on slide 2 (MATCH ELEMENTS · TRIGGER ULTS) — each icon glows in
-   its stihiya color. Hover lift only when prefers-reduced-motion is OFF. */
-#vSplash .v-splash-elements {
-  display: flex !important;
-  justify-content: center !important;
-  gap: 10px !important;
-  margin-top: 18px !important;
-  padding-top: 14px !important;
-  border-top: 1px solid rgba(255,184,74,0.22) !important;
-}
-#vSplash .v-splash-elem {
-  width: 48px; height: 48px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.12), rgba(0,0,0,0.55) 70%);
-  border: 2px solid currentColor;
-  filter: drop-shadow(0 0 10px currentColor);
-  transition: transform 0.2s ease, filter 0.2s ease;
-  overflow: hidden;
-}
-#vSplash .v-splash-elem-img {
-  width: 36px; height: 36px;
-  object-fit: contain;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
-}
-#vSplash .v-splash-elem.ember { color: #E85D4A; }
-#vSplash .v-splash-elem.tide  { color: #3B8BD4; }
-#vSplash .v-splash-elem.grove { color: #5DCA79; }
-#vSplash .v-splash-elem.solar { color: #E8B84A; }
-#vSplash .v-splash-elem.umbra { color: #9B59D6; }
-#vSplash .v-splash-elem:hover {
-  transform: translateY(-2px) scale(1.10);
-  filter: drop-shadow(0 0 12px currentColor) drop-shadow(0 0 4px currentColor);
-}
-@media (prefers-reduced-motion: reduce) {
-  #vSplash .v-splash-elem { transition: none !important; }
-  #vSplash .v-splash-elem:hover { transform: none !important; }
-}
-#vSplash .v-splash-dots .dot {
-  background: var(--a-gold-900) !important;
-  border: 2px solid var(--a-gold-700) !important;
-}
-#vSplash .v-splash-dots .dot.active {
-  background: var(--a-gold-300) !important;
-  border-color: var(--a-gold-100) !important;
-  box-shadow: 0 0 8px rgba(255,184,74,0.7) !important;
-}
-#vSplash .v-splash-cta {
-  background: linear-gradient(180deg, var(--a-fire-300), var(--a-fire-700)) !important;
-  border: 2px solid var(--a-fire-100) !important;
-  border-radius: var(--a-radius-btn) !important;
-  padding: 14px 20px !important;
-  font-family: var(--a-font-display) !important;
-  font-weight: 900 !important;
-  font-size: 14px !important;
-  letter-spacing: 2px !important;
-  color: #2a0808 !important;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.3) !important;
-  box-shadow: var(--a-shadow-cta) !important;
-  text-transform: uppercase;
-}
-
-/* Daily / mission / weekly / streak lists get chip-panel look via child rendering */
-.v-secondary .missions-list > *,
-.v-secondary .weekly-missions-list > *,
-.v-secondary .ach-list > *,
-.v-secondary .codex-entries > *,
-.v-secondary .tower-history-list > *,
-.v-secondary .arena-history-list > *,
-.v-secondary .awaken-list > *:not(.awaken-empty) {
-  background: linear-gradient(180deg, rgba(58,42,24,0.4), rgba(26,15,8,0.5));
-  border: 1px solid var(--a-gold-900);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 6px;
-  font-family: var(--a-font-body);
-  font-size: 12px;
-  color: var(--a-text-primary);
-}
-.v-secondary .streak-strip {
-  display: flex; gap: 4px;
-  margin: 8px 0;
-  flex-wrap: wrap;
-}
-.v-secondary .streak-strip > * {
-  padding: 4px 8px;
-  background: rgba(26,16,40,0.7);
-  border: 1px solid var(--a-gold-900);
-  border-radius: 8px;
-  font-family: var(--a-font-num);
-  font-weight: 800;
-  font-size: 10px;
-  color: var(--a-gold-500);
-}
-.v-secondary .streak-strip > *.claimed,
-.v-secondary .streak-strip > *.today,
-.v-secondary .streak-strip > *.active {
-  background: linear-gradient(180deg, var(--a-gold-300), var(--a-fire-700));
-  border-color: var(--a-gold-100);
-  color: #1a0f08;
-  box-shadow: 0 0 8px rgba(255,184,74,0.5);
-  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
-}
-.v-secondary .streak-section-label,
-.v-secondary .weeklies-section-label,
-.v-secondary .missions-section-label {
-  font-family: var(--a-font-display);
-  font-weight: 800;
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: var(--a-gold-300);
-  text-transform: uppercase;
-}
-.v-secondary .streak-section-day,
-.v-secondary .weeklies-reset-label {
-  font-family: var(--a-font-num);
-  font-weight: 700;
-  font-size: 10px;
-  color: var(--a-text-muted);
-  letter-spacing: 1px;
-}
-
-/* --- FTUE Dialog overlay: visible CONTINUE button (tap-anywhere still works) --- */
-#dialogOverlay {
-  background: rgba(5,3,8,0.92) !important;
-}
-#dialogOverlay .dialog-portrait-wrap {
-  border-color: var(--a-gold-300) !important;
-  box-shadow: 0 0 32px rgba(255,184,74,0.4), inset 0 0 0 1px rgba(255,184,74,0.15) !important;
-  background: var(--a-bg-deepest) !important;
-}
-#dialogOverlay .dialog-speaker {
-  font-family: var(--a-font-display);
-  font-weight: 900 !important;
-  color: var(--a-text-gold) !important;
-  letter-spacing: 3px !important;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.9), 0 0 12px rgba(255,184,74,0.35) !important;
-}
-#dialogOverlay .dialog-text {
-  color: var(--a-text-primary) !important;
-  font-family: var(--a-font-body) !important;
-}
-/* Turn the dim tap-hint into a clearly visible CTA pill */
-#dialogOverlay .dialog-tap-hint {
-  margin-top: 14px !important;
-  padding: 12px 28px !important;
-  background: linear-gradient(180deg, var(--a-fire-300), var(--a-fire-700)) !important;
-  border: 2px solid var(--a-fire-100) !important;
-  border-radius: var(--a-radius-btn) !important;
-  color: #2a0808 !important;
-  font-family: var(--a-font-display) !important;
-  font-weight: 900 !important;
-  font-size: 13px !important;
-  letter-spacing: 2.5px !important;
-  text-transform: uppercase !important;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.3) !important;
-  box-shadow: var(--a-shadow-cta) !important;
-  animation: aCtaPulse 1.8s ease-in-out infinite !important;
-  opacity: 1 !important;
-  pointer-events: none;
-}
-/* Keep the original "tap to continue" text; style it as the CTA */
-@keyframes aCtaPulse {
-  0%, 100% { box-shadow: 0 3px 0 var(--a-fire-900), 0 0 14px rgba(255,138,74,0.4); transform: scale(1); }
-  50%      { box-shadow: 0 3px 0 var(--a-fire-900), 0 0 22px rgba(255,184,74,0.75); transform: scale(1.04); }
-}
-
-/* Splash CONTINUE button — force-visible even over any inherited .v-btn-primary rule.
-   AAA+ polish: narrower pill (was full-width), self-centered via margin:auto, layered
-   inner sheen + outer glow + depth shadow. Hover brightens slightly. Active sinks. */
-#vSplash .v-splash-cta,
-#vSplash #vSplashCta {
-  display: block !important;
-  margin: 16px auto 0 !important;             /* self-center horizontally */
-  width: auto !important;                     /* was: 100% — too wide */
-  min-width: 200px !important;
-  max-width: 280px !important;
-  min-height: 50px !important;
-  height: auto !important;
-  background: linear-gradient(180deg,
-                  var(--a-fire-300) 0%,
-                  var(--a-fire-500) 55%,
-                  var(--a-fire-700) 100%) !important;
-  border: 2px solid var(--a-fire-100) !important;
-  border-radius: 14px !important;
-  padding: 12px 28px !important;
-  font-family: var(--a-font-display) !important;
-  font-weight: 900 !important;
-  font-size: 15px !important;
-  letter-spacing: 3px !important;
-  text-align: center !important;
-  line-height: 1.2 !important;
-  color: #2a0808 !important;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.40) !important;
-  text-transform: uppercase !important;
-  /* Layered shadow stack: dark inner edge + top sheen + bottom inset shadow +
-     outer glow + depth — gives the button physical weight typical of AAA UIs. */
-  box-shadow:
-    0 0 0 1px rgba(0,0,0,0.38) inset,
-    0 1px 0 rgba(255,255,255,0.50) inset,
-    0 -2px 0 rgba(0,0,0,0.28) inset,
-    0 5px 14px rgba(232,93,74,0.45),
-    0 2px 0 var(--a-fire-900) !important;
-  cursor: pointer !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  z-index: 10 !important;
-  transition: transform 0.12s ease, filter 0.18s ease, box-shadow 0.18s ease !important;
-}
-#vSplash .v-splash-cta:hover,
-#vSplash #vSplashCta:hover {
-  filter: brightness(1.08) !important;
-  box-shadow:
-    0 0 0 1px rgba(0,0,0,0.38) inset,
-    0 1px 0 rgba(255,255,255,0.55) inset,
-    0 -2px 0 rgba(0,0,0,0.28) inset,
-    0 7px 20px rgba(232,93,74,0.62),
-    0 2px 0 var(--a-fire-900) !important;
-}
-#vSplash .v-splash-cta:active,
-#vSplash #vSplashCta:active {
-  transform: translateY(2px) !important;
-  filter: brightness(0.96) !important;
-  box-shadow:
-    0 0 0 1px rgba(0,0,0,0.40) inset,
-    0 1px 0 rgba(255,255,255,0.30) inset,
-    0 3px 8px rgba(232,93,74,0.40),
-    0 0 0 var(--a-fire-900) !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  #vSplash .v-splash-cta,
-  #vSplash #vSplashCta { transition: none !important; }
-}
-#vSplash .v-splash-cta::after {
-  display: none !important; /* kill v-btn-primary shine that might steal clicks */
-}
-
-/* Splash SKIP — always tappable */
-#vSplash .v-splash-skip {
-  z-index: 11 !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
 }
 
 /* ===== ARENA PREMIUM · MOBILE POLISH & SAFETY ===== */
@@ -7634,11 +7271,7 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   box-shadow: inset 0 0 8px rgba(255,213,61,0.08);
 }
 .resource-counter.gold .resource-amt { color: #FFD53D; }
-.resource-counter.energy {
-  border-color: rgba(63,169,255,0.45);
-  box-shadow: inset 0 0 8px rgba(63,169,255,0.08);
-}
-.resource-counter.energy .resource-amt { color: #3FA9FF; }
+/* .resource-counter.energy CSS removed 2026-04-28 — Energy system gone (Task #1.7). */
 /* V3.0 Phase 3 Block 3.1: gem chip — matches resource-counter aesthetic,
    violet accent. Clickable, hover nudge to signal tap-affordance. */
 .resource-counter.gem {
@@ -7671,58 +7304,7 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .resource-counter .regen-timer { font-size: 8px; }
 }
 
-/* ===== Not-enough-energy modal ===== */
-.no-energy-box {
-  max-width: 280px;
-  text-align: center;
-  border-color: #3FA9FF !important;
-  box-shadow: 0 0 24px rgba(63,169,255,0.35), 0 0 0 1px #3FA9FF;
-}
-.no-energy-icon {
-  font-size: 48px;
-  margin-bottom: 4px;
-  filter: drop-shadow(0 0 8px rgba(63,169,255,0.6));
-}
-.no-energy-title {
-  font-size: 16px; font-weight: 800;
-  letter-spacing: 1.2px;
-  color: #3FA9FF;
-  margin-bottom: 14px;
-}
-.no-energy-stats {
-  background: rgba(0,0,0,0.3);
-  border: 1px solid rgba(63,169,255,0.25);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin-bottom: 14px;
-}
-.no-energy-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 4px 0;
-  font-size: 11px; font-weight: 700;
-  letter-spacing: 0.5px;
-}
-.no-energy-row + .no-energy-row {
-  border-top: 1px solid rgba(255,255,255,0.05);
-}
-.no-energy-label {
-  color: #8A88A0;
-}
-.no-energy-val {
-  color: #E4E1F0;
-  font-variant-numeric: tabular-nums;
-}
-.no-energy-val.warn {
-  color: #E85D4A;
-}
-.no-energy-refill {
-  background: linear-gradient(135deg, #8C3BFF 0%, #5E1FAA 100%) !important;
-  color: #fff !important;
-  font-weight: 800 !important;
-  letter-spacing: 1px !important;
-  border-color: #8C3BFF !important;
-  box-shadow: 0 0 14px rgba(140,59,255,0.4) !important;
-}
+/* .no-energy-* modal CSS removed 2026-04-28 — Energy system gone (Task #1.7). */
 
 /* ===== 2026-04-27 — INTRO VIDEO OVERLAY ===== */
 /* Shown once on first launch. z-index 10000 — above dialog overlay so it
@@ -11550,48 +11132,9 @@ button.season-tier-claim:active {
 </div>
 
 <!-- V3.0 Phase 10: first-run splash + intro carousel. Shown only once. -->
-<div class="v-splash" id="vSplash" hidden>
-  <button class="v-splash-skip" onclick="vSplashDone()">SKIP</button>
-  <div class="v-splash-logo" id="vSplashLogo">
-    <img class="v-splash-logo-img" id="vSplashLogoImg" alt="BLOCKSWORN">
-    <div class="v-splash-logo-sub">CLEAR LINES · SUMMON LEGENDS</div>
-  </div>
-  <div class="v-splash-intro" id="vSplashIntro" hidden>
-    <div class="v-splash-track" id="vSplashTrack">
-      <div class="v-splash-card" data-slide="0">
-        <div class="v-splash-icon">⚔</div>
-        <h2>YOU ARE THE SUMMONER</h2>
-        <p>Lead a squad of three heroes into battle against elemental bosses.</p>
-      </div>
-      <div class="v-splash-card" data-slide="1">
-        <div class="v-splash-icon">🧩</div>
-        <h2>PLACE BLOCKS · CLEAR LINES</h2>
-        <p>Drag pieces onto the 8×8 grid. Full rows and columns vanish, dealing damage.</p>
-      </div>
-      <div class="v-splash-card" data-slide="2">
-        <div class="v-splash-icon">🔥</div>
-        <h2>MATCH ELEMENTS · TRIGGER ULTS</h2>
-        <p>Clearing lines of a hero's element powers their Ultimate — unleash them on the boss.</p>
-        <!-- AAA+ polish: 5-element emblem row using new high-res art (emblem_*_v2)
-             from /assets/elements emblems/. Each glows in its stihiya color.
-             img.src is set programmatically when splash opens (initSplashEmblems). -->
-        <div class="v-splash-elements" aria-label="Five elements">
-          <span class="v-splash-elem ember" title="Fire"><img class="v-splash-elem-img" data-emblem="ember" alt="Fire"></span>
-          <span class="v-splash-elem tide"  title="Frost"><img class="v-splash-elem-img" data-emblem="tide"  alt="Frost"></span>
-          <span class="v-splash-elem grove" title="Earth"><img class="v-splash-elem-img" data-emblem="grove" alt="Earth"></span>
-          <span class="v-splash-elem solar" title="Light"><img class="v-splash-elem-img" data-emblem="solar" alt="Light"></span>
-          <span class="v-splash-elem umbra" title="Dark"><img class="v-splash-elem-img" data-emblem="umbra" alt="Dark"></span>
-        </div>
-      </div>
-    </div>
-    <div class="v-splash-dots" id="vSplashDots">
-      <span class="dot active" data-slide="0"></span>
-      <span class="dot"          data-slide="1"></span>
-      <span class="dot"          data-slide="2"></span>
-    </div>
-    <button class="v-btn-primary v-splash-cta" id="vSplashCta" onclick="vSplashAdvance()">CONTINUE</button>
-  </div>
-</div>
+<!-- v-splash HTML removed 2026-04-28 (3-card intro carousel + logo splash were
+     stubbed out in vMaybeShowSplash and never shown to players). All `.v-splash-*`
+     CSS rules removed alongside; players now land directly on FTUE/menu route. -->
 
 <!-- ============ V3.0 BLOCK 0.1 · LOCKED HERO INFO MODAL ============ -->
 <div class="modal" id="lockedHeroModal" onclick="if(event.target===this) closeLockedHeroModal()">
@@ -11939,8 +11482,6 @@ const ASSETS = {
   emblem_role_tank: 'data:image/jpeg;base64,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',
   emblem_role_captain: 'data:image/jpeg;base64,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',
 
-  // Task #1.4: Clockwork placeholder portrait (1×1 transparent PNG — real art in Phase 2 Task #2.8)
-  hero_placeholder_clockwork: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
 };
 /* ===== ARENA PREMIUM · ASSET OVERRIDES (added 2026-04-23) ===== */
 /* Replaces portraits for orcs, trolls, starter heroes, and all 15 bosses. */
@@ -12535,12 +12076,9 @@ const HERO_ROSTER = [
   { id:'spark_mage',    name:'LUMENWIND',  race:'spark', role:'weaver',  newRole:'mage',    stihiya:'solar', img:'hero_spark_mage',    roleIcon:'✦', period:12,    fireText:'Halo Window',    fire: fireLumenwind,  ult: ultRoleDispatch, ultSignature: ultTwistLumenwind,  ultText:'HALO: double shields' },
   { id:'spark_tank',    name:'AEGIS',      race:'spark', role:'guard',   newRole:'tank',    stihiya:'solar', img:'hero_spark_tank',    roleIcon:'🛡',                fireText:'Sun Guard',      fire: fireAegis,      ult: ultRoleDispatch, ultSignature: ultTwistAegis,      ultText:'EQUILIBRIUM: shields + immunity' },
   { id:'spark_captain', name:'SOLARLORD',  race:'spark', role:'weaver',  newRole:'captain', stihiya:'solar', img:'hero_spark_captain', roleIcon:'✦', period:10,    fireText:'Eternal Dawn',   fire: fireSolarlord,  ult: ultRoleDispatch, ultSignature: ultTwistSolarlord,  ultText:'DOMINION: heal + shields + solar cells' },
-  // --- CLOCKWORK (Tide) — PLACEHOLDER: Phase 2 implementation ---
-  { id:'clockwork_warrior', name:'GEARSWORN',  race:'clockwork', role:'striker', newRole:'warrior', stihiya:'tide', img:'hero_placeholder_clockwork', roleIcon:'⚔', minCombo:2, fireText:'[PHASE 2]', fire: firePlaceholder, ult: ultPlaceholder, ultSignature: ultPlaceholder, ultText:'[Coming in Phase 2]', locked: true },
-  { id:'clockwork_hunter',  name:'TICKTOCK',   race:'clockwork', role:'striker', newRole:'hunter',  stihiya:'tide', img:'hero_placeholder_clockwork', roleIcon:'⚔', minCombo:2, fireText:'[PHASE 2]', fire: firePlaceholder, ult: ultPlaceholder, ultSignature: ultPlaceholder, ultText:'[Coming in Phase 2]', locked: true },
-  { id:'clockwork_mage',    name:'CHRONOS',    race:'clockwork', role:'weaver',  newRole:'mage',    stihiya:'tide', img:'hero_placeholder_clockwork', roleIcon:'✦', period:12, fireText:'[PHASE 2]', fire: firePlaceholder, ult: ultPlaceholder, ultSignature: ultPlaceholder, ultText:'[Coming in Phase 2]', locked: true },
-  { id:'clockwork_tank',    name:'PENDULUM',   race:'clockwork', role:'guard',   newRole:'tank',    stihiya:'tide', img:'hero_placeholder_clockwork', roleIcon:'🛡',             fireText:'[PHASE 2]', fire: firePlaceholder, ult: ultPlaceholder, ultSignature: ultPlaceholder, ultText:'[Coming in Phase 2]', locked: true },
-  { id:'clockwork_captain', name:'HOROLOGE',   race:'clockwork', role:'weaver',  newRole:'captain', stihiya:'tide', img:'hero_placeholder_clockwork', roleIcon:'✦', period:10, fireText:'[PHASE 2]', fire: firePlaceholder, ult: ultPlaceholder, ultSignature: ultPlaceholder, ultText:'[Coming in Phase 2]', locked: true },
+  // CLOCKWORK placeholder roster removed 2026-04-28 (was Task #1.4 scaffolding for
+  // a Phase 2 race that won't ship in v1; reintroduce when actual Clockwork heroes
+  // are designed). Removal cleans 5 dead roster entries + 2 placeholder functions.
 ];
 
 // ===== V2.0 STAGE 5 BLOCK 5.1 — TIER PROGRESSION FRAMEWORK =====
@@ -12696,8 +12234,7 @@ for (const h of HERO_ROSTER) {
 const HEROES_UNLOCKED_STORAGE_KEY = 'blocksworn_heroes_unlocked';
 
 // Block B3: SQUAD_MAX is now mutable. Progression: 3 (default) → 4 (after Boss 2) →
-// 5 (after Boss 4). Hooked from onBossDefeated. Persisted in localStorage. Migration
-// (runMigration_B3) backfills from bossesDefeated for existing saves.
+// 5 (after Boss 4). Hooked from onBossDefeated. Persisted in localStorage.
 let SQUAD_MAX = 3;
 const SQUAD_MAX_STORAGE_KEY = 'blocksworn_squad_max';
 
@@ -13572,164 +13109,15 @@ if (typeof window !== 'undefined') {
 }
 // ===== END PHASE 4 BLOCK 1 — FTUE CHRONOGRAPH =====
 
-// Block B3: idempotent migration for existing saves (e.g. Roman's playtest state at
-// Boss 4). Runs once per install (gated by SQUAD_MAX_STORAGE_KEY's existence — if
-// SQUAD_MAX storage is already populated, migration was already applied or doesn't
-// apply). Backfills hero unlocks + SQUAD_MAX from bossesDefeated.
-function runMigration_B3() {
-  // Skip if we've already persisted SQUAD_MAX once — this means a) fresh install
-  // (next-line save below seeds storage) or b) already migrated (no-op).
-  const alreadyHasStorage = (() => {
-    try { return localStorage.getItem(SQUAD_MAX_STORAGE_KEY) !== null; } catch (e) { return false; }
-  })();
-  if (alreadyHasStorage) return;
+// 4 idempotent migrations (runMigration_B3, _BACKLOG002_tank_backfill,
+// _PHASE5B_chapter2_unlock, _PHASE5_lock_chapter2_heroes) removed 2026-04-28.
+// They targeted save shapes from pre-SAVE_VERSION-2 installs; the global
+// save-version gate at script top now wipes any such state on next launch,
+// so these migrations would have nothing to migrate. Their localStorage
+// flags (blocksworn_migration_*) are also wiped by _wipeAllBlocksworn().
 
-  // Determine current progression. `bossesDefeated` may not be ready at parse time
-  // (it's loaded later from chapterProgress), so peek directly at storage.
-  let bd = 0;
-  try {
-    const cpRaw = localStorage.getItem('blocksworn_chapter_progress');
-    if (cpRaw) {
-      const cp = JSON.parse(cpRaw);
-      // chapterProgress is keyed by chapter id; chapter 1 is the only Phase 2 chapter.
-      bd = (cp && (cp[1] || cp['1'])) || 0;
-    }
-  } catch (e) { /* fresh install — bd stays 0 */ }
-
-  // Backfill heroes
-  for (let n = 1; n <= bd; n++) {
-    for (const id of (BOSS_UNLOCKS[n] || [])) {
-      const hero = HERO_ROSTER.find(h => h.id === id);
-      if (hero && !hero.locked) hero.unlocked = true;
-    }
-  }
-  saveUnlockedHeroesToStorage();
-
-  // Backfill SQUAD_MAX
-  for (const [n, target] of Object.entries(BOSS_SQUAD_BUMPS)) {
-    if (bd >= parseInt(n, 10)) SQUAD_MAX = Math.max(SQUAD_MAX, target);
-  }
-  saveSquadMaxToStorage();
-
-  console.log('[B3 Migration] bossesDefeated=' + bd
-    + ' → unlocked heroes=' + HERO_ROSTER.filter(h => h.unlocked).length
-    + ' SQUAD_MAX=' + SQUAD_MAX);
-}
-
-// HOTFIX — backfill missing faction-tank for existing saves that hit BACKLOG-002 bug.
-// Branching FTUE in onLeaderChosen used to unlock 4 of 5 faction heroes (forgot tank).
-// If a save shows EITHER captain is unlocked AND that captain's faction has 4 of 5
-// heroes unlocked (missing only the tank), unlock the tank. Idempotent — re-running
-// is no-op when full faction is already unlocked.
-function runMigration_BACKLOG002_tank_backfill() {
-  try {
-    const FLAG = 'blocksworn_migration_backlog002_tank_backfilled';
-    if (localStorage.getItem(FLAG) === 'true') return;
-    const factions = [
-      { capId: 'pirate_captain', tankId: 'pirate_tank',
-        ids: ['pirate_warrior','pirate_mage','pirate_hunter','pirate_tank','pirate_captain'] },
-      { capId: 'rock_captain',   tankId: 'rock_tank',
-        ids: ['rock_warrior','rock_mage','rock_hunter','rock_tank','rock_captain'] },
-    ];
-    let backfilled = 0;
-    for (const f of factions) {
-      const cap  = HERO_ROSTER.find(h => h.id === f.capId);
-      const tank = HERO_ROSTER.find(h => h.id === f.tankId);
-      if (!cap || !tank) continue;
-      if (!cap.unlocked) continue;        // captain not unlocked → faction not committed
-      if (tank.unlocked) continue;        // tank already unlocked → skip
-      tank.unlocked = true;
-      backfilled++;
-    }
-    if (backfilled > 0) {
-      saveUnlockedHeroesToStorage();
-      console.log('[BACKLOG-002 backfill] unlocked ' + backfilled + ' missing faction-tank(s)');
-    }
-    localStorage.setItem(FLAG, 'true');
-  } catch (e) { console.warn('BACKLOG-002 backfill failed:', e); }
-}
-
-// PHASE 5b BLOCK 8 — Chapter 2 unlock backfill. Existing playtest saves with
-// bossesDefeated >= 5 in chapterProgress[1] should have chapter2Unlocked = true
-// (they earned it but pre-Block-8 the flag never got set). Idempotent — flag
-// in localStorage prevents re-running.
-function runMigration_PHASE5B_chapter2_unlock() {
-  const FLAG = 'blocksworn_migration_phase5b_chapter2_unlock';
-  try {
-    if (localStorage.getItem(FLAG) === 'true') return;
-    // Read chapterProgress from saveProgress storage
-    const raw = localStorage.getItem('blocksworn_progress');
-    if (raw) {
-      const data = JSON.parse(raw);
-      // chapterProgress is keyed by chapter id; chapter 1 has 5 bosses
-      const ch1Defeated = (data && data.chapterProgress && (data.chapterProgress[1] || data.chapterProgress['1'])) || 0;
-      if (ch1Defeated >= 5 && !data.chapter2Unlocked) {
-        data.chapter2Unlocked = true;
-        localStorage.setItem('blocksworn_progress', JSON.stringify(data));
-        console.log('[PHASE 5b Block 8] chapter2Unlocked backfilled (Crypt Lich already defeated)');
-      }
-    }
-    localStorage.setItem(FLAG, 'true');
-  } catch (e) { console.warn('PHASE 5b chapter-2 unlock migration failed:', e); }
-}
-
-// PHASE 5 BLOCK 5 — strip Crocs/Sparks from any save state (one-time per install).
-// Sparks/Crocs were temporarily unlockable during Phase 5 Block 2-4 dev/playtest;
-// per Meta-Progression spec §7 they're gated behind Chapter 2 (Phase 5b). This
-// migration scrubs any prior unlocks for those races so the lock state is honest.
-// Idempotent — flag set after first run.
-function runMigration_PHASE5_lock_chapter2_heroes() {
-  const FLAG = 'blocksworn_migration_phase5_chapter2_lock';
-  try {
-    if (localStorage.getItem(FLAG) === 'true') return;
-    const raw = localStorage.getItem(HEROES_UNLOCKED_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const filtered = parsed.filter(id =>
-          !id.startsWith('crocodile_') && !id.startsWith('spark_')
-        );
-        if (filtered.length !== parsed.length) {
-          localStorage.setItem(HEROES_UNLOCKED_STORAGE_KEY, JSON.stringify(filtered));
-          console.log('[PHASE 5 Migration] stripped ' + (parsed.length - filtered.length)
-                    + ' Croc/Spark unlock(s) from storage (locked behind Chapter 2)');
-        }
-      }
-    }
-    // Also strip from active squad if any are present
-    try {
-      const sqRaw = localStorage.getItem('blocksworn_squad');
-      if (sqRaw) {
-        const sq = JSON.parse(sqRaw);
-        if (Array.isArray(sq)) {
-          const sqFiltered = sq.filter(id =>
-            !id.startsWith('crocodile_') && !id.startsWith('spark_')
-          );
-          if (sqFiltered.length !== sq.length) {
-            localStorage.setItem('blocksworn_squad', JSON.stringify(sqFiltered));
-            console.log('[PHASE 5 Migration] stripped ' + (sq.length - sqFiltered.length)
-                      + ' Croc/Spark hero(es) from saved squad');
-          }
-        }
-      }
-    } catch (e) {}
-    localStorage.setItem(FLAG, 'true');
-  } catch (e) { console.warn('PHASE 5 chapter-2 lock migration failed:', e); }
-}
-
-// Order matters: load unlock state, then load SQUAD_MAX, then run migrations (which
-// only fire on installs that pre-date the relevant fix). All three complete before
-// any UI render.
-// NOTE: PHASE 5 migration runs FIRST so it scrubs storage before loadUnlockedHeroesFromStorage
-// reads it; otherwise Crocs/Sparks would briefly appear as unlocked then get re-locked.
-runMigration_PHASE5_lock_chapter2_heroes();
-// PHASE 5b BLOCK 8 — chapter2Unlocked backfill for saves where Crypt Lich was
-// already defeated (chapterProgress[1] >= 5). Runs BEFORE loadProgress reads it.
-runMigration_PHASE5B_chapter2_unlock();
 loadUnlockedHeroesFromStorage();
 loadSquadMaxFromStorage();
-runMigration_B3();
-runMigration_BACKLOG002_tank_backfill();
 
 // Console helpers for dev + Block 0.2 (fragment craft → unlock) to call.
 if (typeof window !== 'undefined') {
@@ -14679,7 +14067,6 @@ if (typeof window !== 'undefined') {
       storage: {
         ftue:                 safeGet(FTUE_STORAGE_KEY),
         battleTutorial:       safeGet('battleTutorialShown'),
-        backlog002Backfilled: safeGet('blocksworn_migration_backlog002_tank_backfilled'),
       },
     };
   };
@@ -20274,11 +19661,10 @@ function resetProgress() {
   // V3.0 Block 0.1: restore starter squad on wipe
   activeSquad = HERO_ROSTER.filter(h => STARTER_HEROES.has(h.id)).map(h => h.id).slice(0, SQUAD_MAX);
   // V3.0 Block 0.3: reset resources to fresh-install state
+  // Energy system was deleted with Task #1.7; the energy/MAX_ENERGY/saveEnergyToStorage
+  // calls here were silent ghost references (variables never declared). Removed 2026-04-28.
   gold = 0;
-  energy = MAX_ENERGY;
-  lastEnergyTimestamp = Date.now();
   saveGoldToStorage();
-  saveEnergyToStorage();
   // V3.0 Phase 1 Block 1.1: also wipe FTUE state so a reset from the info modal
   // fully re-runs the tutorial. Explicit localStorage.removeItem so stale keys
   // from old saves don't leak.
@@ -20766,8 +20152,8 @@ let _passiveDmgContext = 1;
 let _ultDmgContext = 1;
 
 // ===== V2.0 BLOCK 1.1: MOTIF STATE (per-battle ephemeral) =====
-// EMBER motif state
-let cellAge = new Map();           // "r_c" → turns alive on field
+// EMBER motif state — cellAge map (per-cell aging timer for legacy auto-ignition)
+// removed 2026-04-28; replaced by explicit EMBERHAND fire ignition (HOTFIX B3.4).
 let chargedCells = new Set();      // "r_c" → currently charged
 let turnsSinceTideGrove = 0;       // for ember rage trigger
 let bossRageEmber = 0;             // accumulating +% dmg for ember rage (translated to +void cells)
@@ -23956,66 +23342,17 @@ function init() {
   // Set apple-touch-icon for iOS Home Screen installs
   const ati = document.getElementById('appleTouchIcon');
   if (ati && ASSETS.AppleTouchIcon) ati.href = ASSETS.AppleTouchIcon;
-  // V3.0 Phase 10 Vivid: show first-run splash before FTUE routes. If splash is
-  // consumed or skipped, vSplashDone() kicks off the usual routing. If it's
-  // already been seen, skip straight to routing.
-  if (!vMaybeShowSplash()) {
-    try { routeByFtue(); } catch(e) {
-      console.warn('routeByFtue failed, falling back to menu:', e);
-      showScreen('menu');
-    }
-  }
-}
-
-// ===== V3.0 PHASE 10 · FIRST-RUN SPLASH =====
-const V_FIRST_RUN_KEY = 'vFirstRun';
-let _vSplashSlide = 0;
-const _V_SPLASH_TOTAL = 3;
-
-function vMaybeShowSplash() {
-  // 2026-04-27 — User request: removed 3-card intro carousel
-  // (SUMMONER / PLACE BLOCKS / MATCH ELEMENTS). Mark first-run as 'done'
-  // and route directly to FTUE / main hub. Logo + wordmark splash also
-  // skipped — players land straight on the game.
-  try { localStorage.setItem(V_FIRST_RUN_KEY, 'done'); } catch (e) {}
-  const host = document.getElementById('vSplash');
-  if (host) host.hidden = true;
-  return false;
-}
-
-function vSplashShowSlide(idx) {
-  _vSplashSlide = idx;
-  const cards = document.querySelectorAll('#vSplashTrack .v-splash-card');
-  cards.forEach((c, i) => c.classList.toggle('active', i === idx));
-  const dots = document.querySelectorAll('#vSplashDots .dot');
-  dots.forEach((d, i) => d.classList.toggle('active', i === idx));
-  const cta = document.getElementById('vSplashCta');
-  if (cta) cta.textContent = (idx === _V_SPLASH_TOTAL - 1) ? 'BEGIN' : 'CONTINUE';
-}
-
-function vSplashAdvance() {
-  if (_vSplashSlide < _V_SPLASH_TOTAL - 1) {
-    vSplashShowSlide(_vSplashSlide + 1);
-  } else {
-    vSplashDone();
-  }
-}
-
-function vSplashDone() {
-  try { localStorage.setItem(V_FIRST_RUN_KEY, 'done'); } catch(e){}
-  const host = document.getElementById('vSplash');
-  if (host) {
-    host.style.transition = 'opacity 260ms ease';
-    host.style.opacity = '0';
-    setTimeout(() => { host.hidden = true; host.style.opacity = ''; host.style.transition = ''; }, 280);
-  }
-  // Hand off to the regular FTUE routing (which internally decides whether
-  // to run Pyredrake intro or land in the main hub).
+  // V3.0 Phase 10 splash was removed 2026-04-28 — players land directly on
+  // FTUE / main hub via routeByFtue() with no intro carousel.
   try { routeByFtue(); } catch(e) {
-    console.warn('routeByFtue failed after splash:', e);
-    try { showScreen('menu'); } catch(_){}
+    console.warn('routeByFtue failed, falling back to menu:', e);
+    showScreen('menu');
   }
 }
+
+// ===== V3.0 PHASE 10 · FIRST-RUN SPLASH (removed 2026-04-28) =====
+// vMaybeShowSplash / vSplashShowSlide / vSplashAdvance / vSplashDone deleted —
+// HTML host removed, CSS removed, no callers remain.
 
 function injectEmblemStyles() {
   const style = document.createElement('style');
@@ -24230,7 +23567,6 @@ function startBossBattle() {
   gameEnded = false;
   battleStartTime = Date.now();
   // V2.0 Block 1.1: reset motif state
-  cellAge.clear();
   chargedCells.clear();
   turnsSinceTideGrove = 0;
   bossRageEmber = 0;
@@ -24537,23 +23873,18 @@ async function clearLines(rows, cols) {
 // (i.e. cells un-charging after N turns) is deferred to Phase 6 — see HERO_GRAMMAR
 // §8 amendment log (2026-04-26). UX gap (no flash text on maturation) filed separately.
 function tickEmberAges() {
-  if (!MOTIFS_ENABLED.ember) { cellAge.clear(); chargedCells.clear(); return; }
+  if (!MOTIFS_ENABLED.ember) { chargedCells.clear(); return; }
   // TASK #2.2c: gate on ember being an active element.
-  if (!computeActiveElements().has('ember')) { cellAge.clear(); chargedCells.clear(); return; }
-  // HOTFIX B3.4 (Roman spec): legacy auto-ignition removed — ember cells no longer
-  // age into "charged" automatically after EMBER_CHARGE_AGE placements. EMBERHAND fire
-  // is now the explicit ignition source (lights up to 6 ember cells per fire). The
-  // tick still does cleanup so chargedCells doesn't accumulate stale entries when
-  // ember cells are cleared/converted off the grid.
+  if (!computeActiveElements().has('ember')) { chargedCells.clear(); return; }
+  // HOTFIX B3.4: legacy auto-ignition removed — ember cells no longer age into
+  // "charged" automatically. EMBERHAND fire is the explicit ignition source. Tick
+  // is now pure cleanup: drops chargedCells entries for cells that are no longer
+  // ember on the grid (cleared / converted). cellAge map removed 2026-04-28.
   const active = new Set();
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
       if (grid[r][c] === 'ember') active.add(r + '_' + c);
     }
-  }
-  // Cleanup: cells no longer ember (cleared / converted) lose their tracking.
-  for (const key of [...cellAge.keys()]) {
-    if (!active.has(key)) cellAge.delete(key);
   }
   for (const key of [...chargedCells]) {
     if (!active.has(key)) chargedCells.delete(key);
@@ -25120,7 +24451,6 @@ async function _hunterUltDetonateAllCells(element, baseDmg, ampMult, bannerColor
   for (const [r, c, key] of cells) {
     grid[r][c] = null;
     if (typeof chargedCells !== 'undefined') chargedCells.delete(key);
-    if (typeof cellAge !== 'undefined') cellAge.delete(key);
   }
   if (typeof renderChargedVisuals === 'function') renderChargedVisuals();
   if (typeof render === 'function') render();
@@ -27780,17 +27110,8 @@ async function heroGrommarFire(counts) {
 // All damage flows through dealDamage which auto-applies context multipliers (Warband Strike,
 // Hunter Mark, Grommar Rally, Pack Mark) — no manual applyFireDamageMultipliers wrapping needed.
 
-// ===== PLACEHOLDER HEROES (Task #1.4 — Clockwork faction, Phase 2 implementation) =====
-// Clockwork heroes are listed in HERO_ROSTER as locked placeholders so the squad-select UI
-// can render the future roster; these no-op fires keep signature symmetry until Phase 2.
-async function firePlaceholder() {
-  if (typeof showToast === 'function') showToast('This hero arrives in Phase 2');
-  return 0;
-}
-async function ultPlaceholder() {
-  if (typeof showToast === 'function') showToast('This hero arrives in Phase 2');
-  return 0;
-}
+// PLACEHOLDER HEROES (firePlaceholder / ultPlaceholder) removed 2026-04-28 along
+// with the Clockwork roster entries — they were Phase-2 scaffolding only.
 
 // --- ORC SIGNATURES ---
 
@@ -27951,11 +27272,10 @@ async function fireBlacktooth(counts) {
   }
   await sleep(300);
 
-  // Clear cells + drop charged/age tracking, all at once.
+  // Clear cells + drop charged tracking, all at once.
   for (const [r, c, key] of charged) {
     grid[r][c] = null;
     chargedCells.delete(key);
-    if (typeof cellAge !== 'undefined') cellAge.delete(key);
   }
   renderChargedVisuals();
   render();
