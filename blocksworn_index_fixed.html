@@ -1890,26 +1890,30 @@
 
 /* Portrait + pedestal */
 /* 2026-04-27 — Spec §1.1 portrait — clean rectangle 280×373 ratio, race-themed glow.
-   Replaces previous egg/teardrop pedestal composition. No clipping; full image visible. */
+   Larger size so the hero subject reads as "full-fledged" per spec image.
+   Source images frequently have padding around the subject — we scale the
+   container up + zoom slightly via transform so the hero fills the frame. */
 .a-hero-detail .detail-portrait {
   position: relative;
-  width: 200px;
+  width: min(280px, 78vw);
   aspect-ratio: 280 / 373;  /* spec: 280×373 */
   margin: 14px auto 12px;
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
   border: 2px solid var(--detail-glow, var(--a-gold-500));
   box-shadow:
-    0 0 24px var(--detail-glow, rgba(255,184,74,0.45)),
-    0 6px 20px rgba(0,0,0,0.6);
-  background: linear-gradient(180deg, rgba(0,0,0,0.2), rgba(0,0,0,0.5));
+    0 0 28px var(--detail-glow, rgba(255,184,74,0.5)),
+    0 8px 24px rgba(0,0,0,0.7);
+  background: linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.45));
 }
 .a-hero-detail .detail-portrait img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center top;
+  object-position: center 30%;  /* anchor near upper-third where most subject art sits */
   display: block;
+  transform: scale(1.15);  /* mild zoom to fill empty source padding around the subject */
+  transform-origin: center 35%;
 }
 
 /* Hero tabs */
@@ -2018,7 +2022,11 @@
   color: #C8C5D4;
   margin-bottom: 6px;
 }
-.a-hero-detail--spec .detail-tier-badge,
+/* Tier I badge hidden in spec layout — TIER is already in the meta line.
+   T2 badge stays as the prestige marker for ascended heroes. */
+.a-hero-detail--spec .detail-tier-badge {
+  display: none !important;
+}
 .a-hero-detail--spec .detail-t2-badge {
   display: inline-block;
   margin: 0 auto 6px;
@@ -2088,6 +2096,8 @@
   margin: 0 !important;
 }
 .detail-level-section--inline .detail-level-hint { display: none; }
+/* DMG/HP/ULT chip strip duplicates the STATS bars above — hide in spec layout. */
+.a-hero-detail--spec .detail-level-stats { display: none !important; }
 
 /* TIER PROGRESSION text block (per spec §1.1) */
 .detail-tier-text {
