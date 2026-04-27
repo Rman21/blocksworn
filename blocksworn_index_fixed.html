@@ -16076,6 +16076,13 @@ function launchTowerFloor() {
   cfg.modifiers.forEach(m => activeModifiers.add(m));
   currentFloorId = null;  // not a Phase 2 floor; prevents cross-talk
   _isTowerBattle = true;
+  // 2026-04-27 HOTFIX — switch to battle screen BEFORE startBossBattle.
+  // Without this, the player stays on Tower screen while battle DOM
+  // initializes invisibly behind it; race-passive banners (set via
+  // setTimeout from startBossBattle) show on the Tower screen, looking
+  // like "buff banners appeared but no battle". Mirrors the pattern
+  // used by startBattleFromMenu (showScreen → startBossBattle).
+  try { showScreen('battle'); } catch (e) { console.warn('launchTowerFloor showScreen failed:', e); }
   // Route through existing battle entry. startBossBattle guard patched below to
   // respect the _isTowerBattle flag (analogous to FTUE _isFtueOnly pattern).
   let battleStarted = false;
