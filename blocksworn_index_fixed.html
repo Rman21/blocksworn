@@ -2567,6 +2567,137 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
 .shop-drop-boost .icon { font-size: 24px; }
 .shop-drop-boost .text { flex: 1; font-size: 10px; line-height: 1.4; color: #FFFFFF; }
 .shop-drop-boost .text strong { color: #BB60FF; letter-spacing: 1.5px; }
+/* ===== PHASE C — Season Pass subscription card (in Season screen) ===== */
+.season-sub-card { margin-top: 10px; }
+.season-sub-btn {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(187,96,255,0.20) 0%, rgba(255,213,61,0.18) 100%);
+  border: 2px solid #BB60FF;
+  border-radius: 12px;
+  color: #FFFFFF;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 0 14px rgba(187,96,255,0.30);
+}
+.season-sub-btn:hover, .season-sub-btn:active { transform: scale(0.99); box-shadow: 0 0 22px rgba(187,96,255,0.50); }
+.season-sub-btn-title {
+  font-family: var(--a-font-display);
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  color: #BB60FF;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.season-sub-btn-sub {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #E4E1F0;
+}
+.season-sub-active {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(187,96,255,0.16), rgba(0,0,0,0.30));
+  border: 2px solid rgba(187,96,255,0.6);
+  border-radius: 12px;
+}
+.season-sub-icon {
+  font-size: 26px;
+  color: #FFD53D;
+  text-shadow: 0 0 10px rgba(255,213,61,0.7);
+  flex: 0 0 auto;
+}
+.season-sub-info { flex: 1; }
+.season-sub-title {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #BB60FF;
+  font-weight: 800;
+}
+.season-sub-status {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #B8B5C4;
+  margin-top: 2px;
+}
+.season-sub-cancel {
+  padding: 8px 12px;
+  background: rgba(232,93,74,0.12);
+  border: 1px solid rgba(232,93,74,0.6);
+  border-radius: 8px;
+  color: #E85D4A;
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 1px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.season-sub-cancel:hover, .season-sub-cancel:active {
+  background: rgba(232,93,74,0.25);
+}
+.season-sub-pending {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(168,165,184,0.12);
+  color: #A8A5B8;
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+.season-premium-status.subscriber {
+  background: linear-gradient(90deg, rgba(187,96,255,0.30), rgba(255,213,61,0.20));
+  border: 1px solid #BB60FF;
+}
+/* Subscribe shortcut in Shop ("Battle Pass" tile) */
+.shop-sub-tile {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(187,96,255,0.18) 0%, rgba(255,213,61,0.15) 100%);
+  border: 2px solid #BB60FF;
+  border-radius: 12px;
+  color: #FFFFFF;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 0 14px rgba(187,96,255,0.25);
+}
+.shop-sub-tile.active {
+  background: linear-gradient(180deg, rgba(187,96,255,0.16), rgba(0,0,0,0.30));
+  border-color: rgba(187,96,255,0.6);
+  cursor: default;
+  box-shadow: none;
+}
+.shop-sub-tile-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.shop-sub-tile-icon {
+  font-size: 24px;
+  color: #FFD53D;
+  text-shadow: 0 0 10px rgba(255,213,61,0.7);
+  flex: 0 0 auto;
+}
+.shop-sub-tile-info { flex: 1; }
+.shop-sub-tile-title {
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #BB60FF;
+  font-weight: 800;
+}
+.shop-sub-tile-sub {
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: #E4E1F0;
+  margin-top: 2px;
+}
+
 /* Pack reveal — bonus loot strip below cards (T2/T3/gold/essence). */
 .pack-reveal-bonus {
   display: flex;
@@ -14098,8 +14229,39 @@ function renderShopPacks() {
     return '<div class="shop-pack-divider">' + slotLabel + '</div>' + itemsHtml;
   }).join('');
 
+  // ----- Phase C — Season Pass subscription tile (always visible at top of Shop) -----
+  const subActive = (typeof _isSeasonPassActive === 'function') && _isSeasonPassActive();
+  let subTileHtml;
+  if (subActive) {
+    const renew = (typeof _seasonPassRenewalDateText === 'function') ? _seasonPassRenewalDateText() : null;
+    const status = seasonPassSub.autoRenew
+      ? ('Auto-renews ' + (renew || 'in ' + _seasonPassDaysRemaining() + 'd'))
+      : ('Cancels in ' + _seasonPassDaysRemaining() + 'd');
+    subTileHtml =
+      '<div class="shop-sub-tile active">' +
+        '<div class="shop-sub-tile-row">' +
+          '<span class="shop-sub-tile-icon">★</span>' +
+          '<div class="shop-sub-tile-info">' +
+            '<div class="shop-sub-tile-title">SEASON PASS · SUBSCRIBED</div>' +
+            '<div class="shop-sub-tile-sub">' + status + ' · manage in Season screen</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  } else {
+    subTileHtml =
+      '<button class="shop-sub-tile" onclick="subscribeToSeasonPass()">' +
+        '<div class="shop-sub-tile-row">' +
+          '<span class="shop-sub-tile-icon">★</span>' +
+          '<div class="shop-sub-tile-info">' +
+            '<div class="shop-sub-tile-title">SEASON PASS · $' + SEASON_PASS_SUB_PRICE_USD.toFixed(2) + '/mo</div>' +
+            '<div class="shop-sub-tile-sub">' + SEASON_PASS_SUB_GEMS_BONUS + '💎/season · auto-premium · 2× retries · cancel anytime</div>' +
+          '</div>' +
+        '</div>' +
+      '</button>';
+  }
   host.innerHTML =
     firstPurchaseBannerHtml +
+    subTileHtml +
     dropBoostHtml +
     '<div class="shop-pack-divider">💎 GEM PACKS · Premium currency</div>' +
     gemPacksHtml +
@@ -19651,6 +19813,15 @@ function checkSeasonRotation() {
     };
     saveSeasonState();
     try { flashText(`✦ SEASON ${seasonState.seasonId} BEGINS`, '#FFD53D'); } catch (e) {}
+    // Phase C 2026-04-28: subscribers auto-claim premium track + starter bundle
+    // (per spec §4.5: "Premium track auto-applied each season, 500 gems each
+    // season start"). Mirrors what _grantSeasonPassSubBonus does on activation.
+    try {
+      if (typeof _isSeasonPassActive === 'function' && _isSeasonPassActive()) {
+        _grantSeasonPassSubBonus();
+        try { flashText('★ PREMIUM AUTO-APPLIED · +' + SEASON_PASS_SUB_GEMS_BONUS + '💎', '#BB60FF'); } catch (e) {}
+      }
+    } catch (e) { console.warn('subscriber season-rotate bonus failed:', e); }
   }
 }
 
@@ -19777,6 +19948,158 @@ function purchasePremiumPass() {
   return true;
 }
 
+// ===== PHASE C — SEASON PASS SUBSCRIPTION (2026-04-28) =====
+// Per BLOCKSWORN_MONETIZATION.md §4.5 (auto-renewal) + §15.3 (cancel friction).
+// Mock-IAP only — subscribeToSeasonPass() opens confirm() and grants benefits
+// directly. Phase G replaces this with real Apple/Google subscription billing.
+
+const SEASON_PASS_SUB_KEY            = 'blocksworn_season_pass_sub';
+const SEASON_PASS_SUB_PRICE_USD      = 4.99;
+const SEASON_PASS_SUB_PERIOD_DAYS    = 30;
+const SEASON_PASS_SUB_GEMS_BONUS     = 500;  // grant on activation + each renewal (spec §4.5)
+const SEASON_PASS_SUB_RETRIES        = 2;    // free Tower retries per day (vs 1 default)
+const SEASON_PASS_SUB_DAILY_LOGIN_X  = 2;    // multiplier on daily login bundle (spec §4.5)
+
+let seasonPassSub = {
+  active:      false,
+  since:       null,    // ISO of first-ever activation
+  lastRenewal: null,    // ISO of most recent renewal
+  expiresAt:   null,    // ISO of current period end
+  autoRenew:   true,    // user-toggle; cancel sets false but keeps current period
+};
+
+function loadSeasonPassSub() {
+  try {
+    const raw = localStorage.getItem(SEASON_PASS_SUB_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') {
+        seasonPassSub = Object.assign(seasonPassSub, obj);
+      }
+    }
+  } catch (e) { console.warn('loadSeasonPassSub failed:', e); }
+}
+function saveSeasonPassSub() {
+  try { localStorage.setItem(SEASON_PASS_SUB_KEY, JSON.stringify(seasonPassSub)); } catch (e) {}
+}
+
+function _isSeasonPassActive() {
+  if (!seasonPassSub.active) return false;
+  if (!seasonPassSub.expiresAt) return false;
+  try { return new Date(seasonPassSub.expiresAt).getTime() > Date.now(); } catch (e) { return false; }
+}
+function _seasonPassDaysRemaining() {
+  if (!seasonPassSub.expiresAt) return 0;
+  try {
+    const ms = new Date(seasonPassSub.expiresAt).getTime() - Date.now();
+    return Math.max(0, Math.ceil(ms / 86400000));
+  } catch (e) { return 0; }
+}
+function _seasonPassRenewalDateText() {
+  if (!seasonPassSub.expiresAt || !seasonPassSub.autoRenew) return null;
+  try {
+    const d = new Date(seasonPassSub.expiresAt);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[d.getMonth()] + ' ' + d.getDate();
+  } catch (e) { return null; }
+}
+
+function _grantSeasonPassSubBonus() {
+  // Fires on initial activation AND each successful auto-renewal.
+  // Per spec §4.5: 500 gems each season start + premium track auto-applied + 1 hero card.
+  addGems(SEASON_PASS_SUB_GEMS_BONUS);
+  // Auto-unlock premium track on the current season (retroactive — covers earned tiers).
+  if (!seasonState.premiumUnlocked) {
+    seasonState.premiumUnlocked = true;
+    saveSeasonState();
+  }
+  try {
+    if (typeof dropRandomHeroCards === 'function') {
+      dropRandomHeroCards(1, { silent: true });
+    }
+  } catch (e) {}
+}
+
+function subscribeToSeasonPass() {
+  if (_isSeasonPassActive()) {
+    try { flashText('ALREADY SUBSCRIBED', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  const msg =
+    'Subscribe to Season Pass for $' + SEASON_PASS_SUB_PRICE_USD.toFixed(2) + '/month?\n\n' +
+    'Benefits:\n' +
+    '• Premium track unlocked every season\n' +
+    '• ' + SEASON_PASS_SUB_GEMS_BONUS + ' 💎 each season start (incl. now)\n' +
+    '• ' + SEASON_PASS_SUB_RETRIES + '× free Tower retries per day\n' +
+    '• ' + SEASON_PASS_SUB_DAILY_LOGIN_X + '× bigger daily login bundle\n' +
+    '• 1 random Hero Card on each renewal\n' +
+    '• Subscriber badge\n\n' +
+    'Cancel anytime — current season always completes, no penalty.\n\n' +
+    '(Mock IAP — no real charge in dev build)';
+  if (!confirm(msg)) return false;
+  // Mock IAP success.
+  const now = new Date();
+  seasonPassSub.active      = true;
+  seasonPassSub.since       = seasonPassSub.since || now.toISOString();
+  seasonPassSub.lastRenewal = now.toISOString();
+  seasonPassSub.expiresAt   = new Date(now.getTime() + SEASON_PASS_SUB_PERIOD_DAYS * 86400000).toISOString();
+  seasonPassSub.autoRenew   = true;
+  saveSeasonPassSub();
+  _grantSeasonPassSubBonus();
+  try { flashText('★ SEASON PASS ACTIVATED ★', '#FFD53D'); } catch (e) {}
+  try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+  try { renderSeasonScreen(); } catch (e) {}
+  try { renderShopPacks(); } catch (e) {}
+  return true;
+}
+
+function cancelSeasonPassSubscription() {
+  if (!seasonPassSub.active) {
+    try { flashText('NO ACTIVE SUBSCRIPTION', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  if (!seasonPassSub.autoRenew) {
+    try { flashText('ALREADY CANCELED — ENDS ' + _seasonPassDaysRemaining() + 'd', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  const daysLeft = _seasonPassDaysRemaining();
+  const msg =
+    'Cancel Season Pass subscription?\n\n' +
+    'You\'ll keep all benefits for the remaining ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + '.\n' +
+    'After that, no auto-renewal — you\'ll revert to free track.\n\n' +
+    '(One-click cancel, no penalty.)';
+  if (!confirm(msg)) return false;
+  seasonPassSub.autoRenew = false;
+  saveSeasonPassSub();
+  try { flashText('SUBSCRIPTION ENDS IN ' + daysLeft + 'd', '#A8A5B8'); } catch (e) {}
+  try { renderSeasonScreen(); } catch (e) {}
+  try { renderShopPacks(); } catch (e) {}
+  return true;
+}
+
+function _checkSubscriptionRenewal() {
+  // Auto-renewal handler — called once on app launch.
+  // Real IAP wraps this with platform billing API in Phase G; the mock version
+  // just rolls expiresAt forward and re-grants the bundle.
+  if (!seasonPassSub.active) return;
+  if (!seasonPassSub.expiresAt) return;
+  const expiry = new Date(seasonPassSub.expiresAt).getTime();
+  if (expiry > Date.now()) return; // still in current period
+  if (!seasonPassSub.autoRenew) {
+    // Player canceled — let it expire naturally.
+    seasonPassSub.active = false;
+    saveSeasonPassSub();
+    return;
+  }
+  // Auto-renew (mock — no real charge yet).
+  const now = new Date();
+  seasonPassSub.lastRenewal = now.toISOString();
+  seasonPassSub.expiresAt   = new Date(now.getTime() + SEASON_PASS_SUB_PERIOD_DAYS * 86400000).toISOString();
+  saveSeasonPassSub();
+  _grantSeasonPassSubBonus();
+  try { flashText('★ SEASON PASS RENEWED', '#FFD53D'); } catch (e) {}
+}
+
 // ========= Screen + rendering =========
 // DEBT-010 (Task #1.7): Season entry removed from drawer; function retained for Phase 7+
 function goToSeason() {
@@ -19841,9 +20164,58 @@ function renderSeasonScreen() {
     }
   }
   if (premStatus) {
-    premStatus.textContent = seasonState.premiumUnlocked ? '✓ PREMIUM ACTIVE' : 'FREE TRACK';
-    premStatus.className = 'season-premium-status' + (seasonState.premiumUnlocked ? ' active' : '');
+    // Phase C: subscriber state shown distinctly from one-time premium.
+    const subActive = (typeof _isSeasonPassActive === 'function') && _isSeasonPassActive();
+    let label = 'FREE TRACK';
+    let cls = '';
+    if (subActive) {
+      label = '★ SUBSCRIBER · ' + (seasonPassSub.autoRenew ? 'AUTO-RENEW' : 'ENDS ' + _seasonPassDaysRemaining() + 'd');
+      cls = ' active subscriber';
+    } else if (seasonState.premiumUnlocked) {
+      label = '✓ PREMIUM ACTIVE';
+      cls = ' active';
+    }
+    premStatus.textContent = label;
+    premStatus.className = 'season-premium-status' + cls;
   }
+  // Phase C: render subscription card under the premium button. Inserts only
+  // once; subsequent renders update via querySelector. The card swaps between
+  // "Subscribe" (when not active) and "Manage" (when active).
+  try {
+    const card = document.querySelector('.season-progress-card');
+    if (card) {
+      let subCard = card.querySelector('.season-sub-card');
+      if (!subCard) {
+        subCard = document.createElement('div');
+        subCard.className = 'season-sub-card';
+        card.appendChild(subCard);
+      }
+      const subActive = (typeof _isSeasonPassActive === 'function') && _isSeasonPassActive();
+      if (subActive) {
+        const renew = _seasonPassRenewalDateText();
+        const status = seasonPassSub.autoRenew
+          ? 'Auto-renews ' + (renew || 'in ' + _seasonPassDaysRemaining() + 'd')
+          : 'Cancels in ' + _seasonPassDaysRemaining() + 'd · no auto-renewal';
+        subCard.innerHTML =
+          '<div class="season-sub-active">' +
+            '<div class="season-sub-icon">★</div>' +
+            '<div class="season-sub-info">' +
+              '<div class="season-sub-title">SEASON PASS · SUBSCRIBED</div>' +
+              '<div class="season-sub-status">' + status + '</div>' +
+            '</div>' +
+            (seasonPassSub.autoRenew
+              ? '<button class="season-sub-cancel" onclick="cancelSeasonPassSubscription()">CANCEL</button>'
+              : '<div class="season-sub-pending">CANCELED</div>') +
+          '</div>';
+      } else {
+        subCard.innerHTML =
+          '<button class="season-sub-btn" onclick="subscribeToSeasonPass()">' +
+            '<div class="season-sub-btn-title">★ SUBSCRIBE · $' + SEASON_PASS_SUB_PRICE_USD.toFixed(2) + '/mo</div>' +
+            '<div class="season-sub-btn-sub">' + SEASON_PASS_SUB_GEMS_BONUS + '💎/season · auto-premium · 2× retries · 2× login</div>' +
+          '</button>';
+      }
+    }
+  } catch (e) { console.warn('subscription card render failed:', e); }
   // Render tier list
   const list = document.getElementById('seasonTierList');
   if (!list) return;
@@ -19947,6 +20319,8 @@ if (typeof window !== 'undefined') {
 
 // Load + initial rotation check at parse time
 loadSeasonState();
+loadSeasonPassSub();
+_checkSubscriptionRenewal();
 checkSeasonRotation();
 // ===== END BLOCK 7.5 BACKEND =====
 
