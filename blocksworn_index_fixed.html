@@ -5430,6 +5430,176 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   50%      { opacity: 1.0; transform: scale(1.15); }
 }
 
+/* 2026-04-27 — Anti-Deadlock System styles (BLOCKSWORN_ANTI_DEADLOCK.md). */
+/* Hunter Emergency Charge — 3s red pulse on portrait per spec §3.4 */
+.emergency-charge-pulse {
+  animation: emergencyChargePulse 1s ease-in-out 3;
+  position: relative;
+  z-index: 5;
+}
+@keyframes emergencyChargePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 93, 74, 0); transform: scale(1); }
+  50%      { box-shadow: 0 0 24px 6px rgba(232, 93, 74, 0.85); transform: scale(1.06); }
+}
+/* Deadlock notification banner — fires once per battle, auto-dismisses ~5s */
+.deadlock-notification {
+  position: fixed;
+  top: 80px; left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  background: linear-gradient(180deg, rgba(232,93,74,0.95), rgba(120,40,30,0.95));
+  border: 2px solid #FFD53D;
+  border-radius: 14px;
+  padding: 14px 18px;
+  width: min(86vw, 360px);
+  text-align: center;
+  color: #FFFFFF;
+  font-family: var(--a-font-body, sans-serif);
+  font-size: 12px;
+  line-height: 1.5;
+  z-index: 10000;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 8px 28px rgba(232,93,74,0.55), 0 0 24px rgba(255,213,61,0.4);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+.deadlock-notification.active {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.deadlock-notification .deadlock-title {
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  font-weight: 900;
+  color: #FFD53D;
+  margin-bottom: 6px;
+  text-shadow: 0 0 6px rgba(255,213,61,0.7);
+}
+.deadlock-notification .deadlock-body {
+  font-style: italic;
+  color: #FFE6A8;
+  margin-bottom: 8px;
+}
+.deadlock-notification .deadlock-options {
+  font-size: 11px;
+  color: #FFFFFF;
+  text-align: left;
+}
+/* Tank ULT Mode selector modal — spec §4.6 layout */
+.tank-mode-modal { display: none; }
+.tank-mode-modal.active {
+  display: flex;
+  position: fixed; inset: 0;
+  background: rgba(5,3,8,0.85);
+  backdrop-filter: blur(6px);
+  z-index: 10010;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.tank-mode-box {
+  width: min(94vw, 400px);
+  background: linear-gradient(180deg, #1A1429, #0A0612);
+  border: 2px solid var(--a-gold-500, #FFAA00);
+  border-radius: 14px;
+  padding: 22px 18px;
+  text-align: center;
+  color: #FFFFFF;
+}
+.tank-mode-title {
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 12px;
+  text-shadow: 0 0 6px rgba(255,213,61,0.6);
+}
+.tank-mode-option {
+  display: block;
+  width: 100%;
+  padding: 14px 14px;
+  margin: 8px 0;
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(0,0,0,0.40));
+  border: 2px solid var(--a-gold-500, #FFAA00);
+  border-radius: 10px;
+  color: #FFFFFF;
+  font-family: var(--a-font-body, sans-serif);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s, background 0.2s;
+}
+.tank-mode-option:not(:disabled):active { transform: scale(0.98); }
+.tank-mode-option:disabled { opacity: 0.4; cursor: not-allowed; }
+.tank-mode-option .opt-name {
+  display: block;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 4px;
+}
+.tank-mode-option .opt-desc {
+  display: block;
+  font-size: 11px;
+  color: #C8C5D4;
+}
+.tank-mode-option--emergency {
+  border-color: #E85D4A;
+  background: linear-gradient(180deg, rgba(232,93,74,0.18), rgba(0,0,0,0.40));
+}
+.tank-mode-option--emergency .opt-name { color: #FF8B6F; }
+.tank-mode-cancel {
+  display: block;
+  margin: 12px auto 0;
+  padding: 8px 22px;
+  background: transparent;
+  border: 1px solid #6E6B7B;
+  border-radius: 8px;
+  color: #9A98A4;
+  font-size: 12px;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+/* Emergency ULT button — Rainbow Pro/Master, spec §5.5 + §6.3 */
+.emergency-ult-button {
+  position: fixed;
+  bottom: 90px; right: 14px;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FFAA00 0%, #FF6E28 100%);
+  border: 2px solid #FFD53D;
+  color: #1A0A05;
+  font-size: 24px;
+  font-weight: 900;
+  cursor: pointer;
+  z-index: 9000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(255,184,74,0.6), 0 0 20px rgba(255,213,61,0.5);
+  animation: emergencyUltPulse 1.8s ease-in-out infinite;
+}
+.emergency-ult-button.active { display: flex; }
+.emergency-ult-button:active { transform: scale(0.94); }
+.emergency-ult-button-count {
+  position: absolute;
+  bottom: -4px; right: -4px;
+  background: #E85D4A;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 50%;
+  width: 18px; height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #FFD53D;
+}
+@keyframes emergencyUltPulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(255,184,74,0.6), 0 0 20px rgba(255,213,61,0.5); }
+  50%      { box-shadow: 0 4px 22px rgba(255,184,74,0.9), 0 0 32px rgba(255,213,61,0.8); }
+}
+
 /* Prevent body double-scroll on Arena screens (html already overflow:hidden) */
 .a-hub, .a-loadout, .a-shop { overflow-x: hidden; }
 
@@ -15862,6 +16032,323 @@ let battleDamageTaken = 0;
 // ===== END BLOCK 5.1 BACKEND =====
 
 
+// ===== 2026-04-27 — ANTI-DEADLOCK SYSTEM (BLOCKSWORN_ANTI_DEADLOCK.md) =====
+// Three layers of protection against unwinnable game states. Per-spec literal:
+//   AD.1 Hunter Emergency Charge (auto, +50% charge when deadlock detected, 1/battle)
+//   AD.2 Tank ULT Emergency Mode (manual, clears bottom row + standard ULT, 1/battle)
+//   AD.3 Rainbow Tier 2/3 (Rainbow Pro / Master) — dormant in v1 SQUAD_MAX=5
+//        per spec contradiction (Tier 2 needs "2 of each role" = 10 heroes).
+//        Code reads spec-literal; tiers activate if SQUAD_MAX is later raised.
+
+// Global anti-deadlock state. Reset on every battle start.
+let deadlockImmunity         = false;  // AD.3 Rainbow Master grants this
+let emergencyULTRemaining    = 0;      // AD.3 Rainbow Pro (1) / Master (2)
+let rainbowEffectActive      = false;
+let rainbowTier              = null;   // 'ONE_OF_EACH' / 'TWO_OF_EACH' / 'FULL_RAINBOW_5_HEROES'
+let rainbowBonus             = null;
+let _deadlockNotifiedThisBattle = false;  // guard: notification fires once per battle
+
+// Reset all anti-deadlock state on battle start.
+function resetAntiDeadlockState() {
+  deadlockImmunity = false;
+  emergencyULTRemaining = 0;
+  rainbowEffectActive = false;
+  rainbowTier = null;
+  rainbowBonus = null;
+  _deadlockNotifiedThisBattle = false;
+  if (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) {
+    HERO_DECK.forEach(h => {
+      if (!h) return;
+      h.emergencyChargeUsed = false;
+      h.turnsSinceLastFire = 0;
+      if (h.newRole === 'tank') h.emergencyULTUsed = false;
+    });
+  }
+}
+
+// Spec §7.1 — DEADLOCK STATE detector. All 3 conditions must be met:
+//  1. Board fill ≥ 70%
+//  2. Hunter has not fired in past 3 turns
+//  3. No ULTs ready
+// Returns true only when player is genuinely stuck. Rainbow Master (Tier 3)
+// grants deadlockImmunity, short-circuiting detection per spec §5.2.
+function isDeadlockDetected() {
+  // Spec §5: Rainbow Master immunity bypass
+  if (deadlockImmunity) return false;
+  // Condition 1 — board fill ≥ 70%
+  if (typeof grid === 'undefined' || !Array.isArray(grid)) return false;
+  let filled = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (grid[r] && grid[r][c]) filled++;
+    }
+  }
+  const fillRate = filled / (SIZE * SIZE);
+  if (fillRate < 0.70) return false;
+  // Condition 2 — Hunter dormant for ≥3 turns
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return false;
+  const hunter = HERO_DECK.find(h => h && h.newRole === 'hunter');
+  if (!hunter) return false;
+  if ((hunter.turnsSinceLastFire || 0) < 3) return false;
+  // Condition 3 — no ULTs ready
+  const anyUltReady = HERO_DECK.some(h => {
+    if (!h) return false;
+    const cap = (typeof currentUltThreshold !== 'undefined' && currentUltThreshold[h.stihiya])
+              || (typeof ULT_THRESHOLD !== 'undefined' && ULT_THRESHOLD[h.stihiya])
+              || 12;
+    const cur = (typeof ultCharges !== 'undefined' && ultCharges[h.stihiya]) || 0;
+    return cur >= cap;
+  });
+  if (anyUltReady) return false;
+  return true;
+}
+
+// Spec §3.1 — Hunter Emergency Charge auto-fire. Boosts Hunter's stihiya
+// ULT charge by 50% of cap. One use per battle (gated by emergencyChargeUsed).
+function triggerAntiDeadlockSystems() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return;
+  const hunter = HERO_DECK.find(h => h && h.newRole === 'hunter');
+  if (!hunter || hunter.emergencyChargeUsed) return;
+  const cap = (typeof currentUltThreshold !== 'undefined' && currentUltThreshold[hunter.stihiya])
+            || (typeof ULT_THRESHOLD !== 'undefined' && ULT_THRESHOLD[hunter.stihiya])
+            || 12;
+  const boost = Math.floor(cap * 0.5);
+  if (typeof ultCharges === 'object') {
+    ultCharges[hunter.stihiya] = Math.min(cap, (ultCharges[hunter.stihiya] || 0) + boost);
+  }
+  hunter.emergencyChargeUsed = true;
+  // Visual: Hunter portrait pulses red, banner fires
+  try { showHunterEmergencyVisual(hunter); } catch (e) {}
+  try { flashText('⚡ HUNTER PRIMER!', '#E85D4A'); } catch (e) {}
+  try { vibrate([100, 60, 100, 60, 200]); } catch (e) {}
+  // Render ULT charge state to reflect new value
+  try { if (typeof renderHeroes === 'function') renderHeroes(); } catch (e) {}
+  try { if (typeof renderDeck === 'function') renderDeck(); } catch (e) {}
+}
+
+// Spec §3.4 — Hunter portrait emergency pulse (3-second cue).
+function showHunterEmergencyVisual(hunter) {
+  if (!hunter) return;
+  // Match against existing hero card markup (.hero-card / .v-hero-card)
+  const cards = document.querySelectorAll('.hero-card[data-id="' + hunter.id + '"], .v-hero-card[data-id="' + hunter.id + '"]');
+  cards.forEach(card => {
+    card.classList.add('emergency-charge-pulse');
+    setTimeout(() => card.classList.remove('emergency-charge-pulse'), 3000);
+  });
+}
+
+// Spec §8.1 — Deadlock notification banner. Fires once per battle when first detected.
+function showDeadlockNotification() {
+  if (_deadlockNotifiedThisBattle) return;
+  _deadlockNotifiedThisBattle = true;
+  let notif = document.getElementById('deadlockNotification');
+  if (!notif) {
+    notif = document.createElement('div');
+    notif.id = 'deadlockNotification';
+    notif.className = 'deadlock-notification';
+    document.body.appendChild(notif);
+  }
+  notif.innerHTML =
+    `<div class="deadlock-title">⚠ DEADLOCK DETECTED</div>` +
+    `<div class="deadlock-body">Board crowded — recovery available</div>` +
+    `<div class="deadlock-options">• Hunter charge boost activated<br>• Tank ULT Emergency Mode available</div>`;
+  notif.classList.add('active');
+  setTimeout(() => { try { notif.classList.remove('active'); } catch (e) {} }, 5000);
+}
+
+// Spec §7.2 — turn-end check. Increments per-Hunter turnsSinceLastFire,
+// detects deadlock, fires Hunter Emergency Charge + notification.
+// Called from afterPlacement (= per-placement, per-turn equivalent in this engine).
+function antiDeadlockTick() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return;
+  HERO_DECK.forEach(h => {
+    if (h && h.newRole === 'hunter') {
+      h.turnsSinceLastFire = (h.turnsSinceLastFire || 0) + 1;
+    }
+  });
+  if (isDeadlockDetected()) {
+    showDeadlockNotification();
+    triggerAntiDeadlockSystems();
+  }
+}
+
+// Spec §4 — Tank ULT Mode selector modal. Resolves with 'normal' or 'emergency'.
+// If Emergency already used this battle, returns 'normal' immediately (no modal).
+function maybeShowTankUltModeModal(hero) {
+  return new Promise((resolve) => {
+    if (!hero || hero.newRole !== 'tank') return resolve('normal');
+    if (hero.emergencyULTUsed) return resolve('normal');
+    let modal = document.getElementById('tankUltModeModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'tankUltModeModal';
+      modal.className = 'tank-mode-modal';
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML =
+      `<div class="tank-mode-box">
+        <div class="tank-mode-title">CHOOSE ULT MODE</div>
+        <button class="tank-mode-option" data-mode="normal">
+          <span class="opt-name">⚔ NORMAL ULT</span>
+          <span class="opt-desc">${hero.ultText || 'Standard tank ULT'}</span>
+        </button>
+        <button class="tank-mode-option tank-mode-option--emergency" data-mode="emergency">
+          <span class="opt-name">⚡ EMERGENCY MODE (1/battle)</span>
+          <span class="opt-desc">Clears bottom row (8 cells) + standard ULT effect.<br>Single use this battle.</span>
+        </button>
+      </div>`;
+    modal.classList.add('active');
+    const opts = modal.querySelectorAll('.tank-mode-option');
+    opts.forEach(opt => {
+      opt.onclick = () => {
+        const mode = opt.getAttribute('data-mode');
+        modal.classList.remove('active');
+        if (mode === 'emergency') hero.emergencyULTUsed = true;
+        resolve(mode === 'emergency' ? 'emergency' : 'normal');
+      };
+    });
+  });
+}
+
+// Spec §4.3 — Tank Emergency ULT: bottom-row clear (8 cells) + standard ULT effect.
+// Per-hero flavor (IRONBELLY +5 shields, THUNDERBEAT extra Encore, etc.) is layered
+// via existing ultSignature + tier-delta hooks — base behavior is the row clear.
+async function applyTankEmergencyUlt(hero, ctx) {
+  if (!hero) return;
+  // Step 1 — clear the bottom row (row SIZE-1). Mirrors heroEmberFire/heroSolarFire
+  // pattern: visual burning class → sleep → null cells. Counts cleared cells for ctx.
+  const bottomRow = SIZE - 1;
+  const cellEls = document.querySelectorAll('.grid .cell');
+  let clearedCount = 0;
+  for (let c = 0; c < SIZE; c++) {
+    if (grid[bottomRow] && grid[bottomRow][c]) {
+      const idx = bottomRow * SIZE + c;
+      if (cellEls[idx]) cellEls[idx].classList.add('burning');
+      clearedCount++;
+    }
+  }
+  if (clearedCount > 0) {
+    try { flashText('⚡ EMERGENCY · ' + clearedCount + ' cells cleared', '#FF8B6F'); } catch (e) {}
+    try { vibrate([100, 60, 100, 60, 200]); } catch (e) {}
+    await sleep(500);
+    for (let c = 0; c < SIZE; c++) {
+      if (grid[bottomRow]) grid[bottomRow][c] = null;
+    }
+    try { render(); } catch (e) {}
+    ctx.burnedCount = (ctx.burnedCount || 0) + clearedCount;
+  } else {
+    try { flashText('⚡ EMERGENCY · row already clear', '#FF8B6F'); } catch (e) {}
+  }
+  // Step 2 — apply normal Tank ULT on top so the player still gets the standard effect.
+  await applyTankUlt(hero, ctx);
+}
+
+// Spec §5.3 — Rainbow tier detector (LITERAL per spec). Note that Tier 2/3
+// require ≥2 of each role (=10 heroes minimum). With SQUAD_MAX = 5, those tiers
+// can never trigger; code is dormant until SQUAD_MAX is raised. This matches
+// spec §5.2 explicit acknowledgement of the constraint.
+const ANTI_DEADLOCK_RAINBOW_BONUSES = {
+  ONE_OF_EACH: { dmgMult: 1.20, charge: 1.30, label: 'RAINBOW' },
+  TWO_OF_EACH: { dmgMult: 1.50, charge: 1.50, deadlockShield: 1, emergencyULT: 1, label: 'RAINBOW PRO' },
+  FULL_RAINBOW_5_HEROES: { dmgMult: 2.00, charge: 1.75, deadlockShield: 2, emergencyULT: 2, deadlockImmunity: true, label: 'RAINBOW MASTER' },
+};
+function getRainbowTier() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return null;
+  const expectedRoles = ['warrior', 'hunter', 'mage', 'tank', 'captain'];
+  const roleCounts = {};
+  HERO_DECK.forEach(h => {
+    if (!h) return;
+    roleCounts[h.newRole] = (roleCounts[h.newRole] || 0) + 1;
+  });
+  const hasOneOfEach = expectedRoles.every(r => (roleCounts[r] || 0) >= 1);
+  // Spec-literal: Tier 2 requires ≥2 of EACH role (10 heroes); dormant at SQUAD_MAX=5.
+  const hasTwoOfEach = expectedRoles.every(r => (roleCounts[r] || 0) >= 2);
+  const filledHeroes = HERO_DECK.filter(h => h).length;
+  const isSquadFull5 = filledHeroes === 5;
+  if (hasTwoOfEach && filledHeroes >= 10) return 'FULL_RAINBOW_5_HEROES';
+  if (hasTwoOfEach && isSquadFull5)        return 'TWO_OF_EACH';
+  if (hasOneOfEach)                        return 'ONE_OF_EACH';
+  return null;
+}
+
+// Spec §5.4 — applies rainbow tier buffs to the run-time stack on battle start.
+// damage / charge multipliers fold into existing systems via _rainbowDmgMult helper
+// and ULT charge bonus on first proc.
+function applyRainbowBuff() {
+  rainbowEffectActive = false;
+  rainbowTier = null;
+  rainbowBonus = null;
+  deadlockImmunity = false;
+  emergencyULTRemaining = 0;
+  const tier = getRainbowTier();
+  if (!tier) return;
+  rainbowEffectActive = true;
+  rainbowTier = tier;
+  rainbowBonus = ANTI_DEADLOCK_RAINBOW_BONUSES[tier];
+  if (rainbowBonus.deadlockImmunity) deadlockImmunity = true;
+  if (rainbowBonus.emergencyULT) emergencyULTRemaining = rainbowBonus.emergencyULT;
+  // Initial charge boost: spec §5.4 grants +30/+50/+75% starting charge (charge mult).
+  // We translate to "fill ULT charges proportionally on battle start" so player
+  // immediately feels the rainbow benefit without a separate buff system.
+  try {
+    if (typeof ultCharges === 'object') {
+      HERO_DECK.forEach(h => {
+        if (!h || !h.stihiya) return;
+        const cap = (typeof currentUltThreshold !== 'undefined' && currentUltThreshold[h.stihiya])
+                  || (typeof ULT_THRESHOLD !== 'undefined' && ULT_THRESHOLD[h.stihiya])
+                  || 12;
+        const startBoost = Math.floor(cap * (rainbowBonus.charge - 1));
+        ultCharges[h.stihiya] = Math.min(cap, (ultCharges[h.stihiya] || 0) + startBoost);
+      });
+    }
+  } catch (e) {}
+  try { flashText('🌈 ' + (rainbowBonus.label || 'RAINBOW') + ' ACTIVE', '#FFD53D'); } catch (e) {}
+  // Surface emergency-ULT button when Pro/Master tier with charges remaining.
+  try { renderEmergencyUltButton(); } catch (e) {}
+}
+
+// Spec §5.5 + §6.3 — Emergency ULT button surface. Visible only when Rainbow
+// Pro/Master active and emergency charges remain. Tap fires next-available ULT.
+function renderEmergencyUltButton() {
+  let btn = document.getElementById('emergencyUltButton');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'emergencyUltButton';
+    btn.className = 'emergency-ult-button';
+    btn.innerHTML = '⚡<span class="emergency-ult-button-count" id="emergencyUltCount">0</span>';
+    btn.onclick = onEmergencyUltClick;
+    document.body.appendChild(btn);
+  }
+  const count = emergencyULTRemaining || 0;
+  const countEl = document.getElementById('emergencyUltCount');
+  if (countEl) countEl.textContent = String(count);
+  btn.classList.toggle('active', count > 0 && rainbowEffectActive);
+}
+
+// Spec §5.5 — Emergency ULT click flow. Forces a hero ULT to fire even if not charged.
+// Picks the first hero with a fire/ult function available.
+async function onEmergencyUltClick() {
+  if (emergencyULTRemaining <= 0) return;
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return;
+  const hero = HERO_DECK.find(h => h && h.ult);
+  if (!hero) return;
+  emergencyULTRemaining--;
+  try { renderEmergencyUltButton(); } catch (e) {}
+  try { flashText('🌈 EMERGENCY ULT · ' + hero.name, '#FFD53D'); } catch (e) {}
+  try { vibrate([100, 60, 100, 60, 200]); } catch (e) {}
+  // Force-fill charge so existing ULT pipeline accepts it.
+  try {
+    const cap = (typeof currentUltThreshold !== 'undefined' && currentUltThreshold[hero.stihiya])
+              || (typeof ULT_THRESHOLD !== 'undefined' && ULT_THRESHOLD[hero.stihiya])
+              || 12;
+    if (typeof ultCharges === 'object') ultCharges[hero.stihiya] = cap;
+  } catch (e) {}
+  try { await hero.ult.call(hero); } catch (e) { console.warn('Emergency ULT fire failed:', e); }
+}
+
+// ===== END ANTI-DEADLOCK SYSTEM =====
+
+
 // ===== V3.0 PHASE 5 BLOCK 5.3 — WEEKLY MISSIONS =====
 // Mid-term retention layer. 3 weekly missions per week from 8-template pool,
 // deterministic by (weekStart + playerSeed). Reset every Monday 00:00 local time.
@@ -23429,6 +23916,10 @@ function startBossBattle() {
   damageDealt = 0;
   placementCount = 0;
   shieldCount = currentStartShields;
+  // 2026-04-27 — Anti-Deadlock: reset Hunter turn counters + emergency flags
+  // + Rainbow tier state on battle start (spec §7.3 cooldown rule).
+  try { resetAntiDeadlockState(); } catch (e) {}
+  try { applyRainbowBuff(); } catch (e) {}
   // 2026-04-27 — Block T.2 — Tower pact starting-shields bonus. Adds on top
   // of synergy-derived start, capped at MAX_SHIELD + maxShieldBonus + 2 to
   // prevent runaway stacking. Outside Tower runs pactRunState.shieldsBonus = 0.
@@ -26641,7 +27132,19 @@ async function ultRoleDispatch() {
     if (role === 'warrior')      await applyWarriorUlt(hero, ctx);
     else if (role === 'hunter')  await applyHunterUlt(hero, ctx);
     else if (role === 'mage')    await applyMageUlt(hero, ctx);
-    else if (role === 'tank')    await applyTankUlt(hero, ctx);
+    else if (role === 'tank') {
+      // 2026-04-27 — AD.2 — Tank ULT mode selector (BLOCKSWORN_ANTI_DEADLOCK §4).
+      // Tank gets a choice modal between Normal ULT and Emergency Mode (1/battle).
+      // Modal only shown if Emergency is still available; otherwise Normal ULT
+      // fires immediately (no extra friction once 1/battle is exhausted).
+      // No cancel option — charge is already consumed upstream.
+      const useEmergency = await maybeShowTankUltModeModal(hero);
+      if (useEmergency === 'emergency') {
+        await applyTankEmergencyUlt(hero, ctx);
+      } else {
+        await applyTankUlt(hero, ctx);
+      }
+    }
     else if (role === 'captain') await applyCaptainUlt(hero, ctx);
     // (unknown role → nothing; stihiya bonus still fires as a baseline effect)
     await applyStihiyaUltBonus(hero, ctx);
@@ -30169,6 +30672,10 @@ async function afterPlacement(piece) {
   try { if (typeof tickChapter2Archetype === 'function') tickChapter2Archetype(); } catch (e) { console.warn('Chapter 2 archetype tick failed:', e); }
   // 2026-04-27 — Chapter 3 archetype tick (VEIL OF FORGOTTEN GODS).
   try { if (typeof tickChapter3Boss === 'function') tickChapter3Boss(); } catch (e) { console.warn('Chapter 3 archetype tick failed:', e); }
+  // 2026-04-27 — Anti-Deadlock: per-turn detection + Hunter Emergency Charge.
+  // Increments turnsSinceLastFire counters, fires recovery when board ≥70% +
+  // Hunter dormant 3 turns + no ULT ready (spec §7.2). One-shot per battle.
+  try { if (typeof antiDeadlockTick === 'function') antiDeadlockTick(); } catch (e) { console.warn('antiDeadlockTick failed:', e); }
   // V2.0 Block 3.3: VANGUARD HUNTER MARK — decrement unconsumed window; expired marks silently drop.
   if (hunterMarkWindow > 0) {
     hunterMarkWindow--;
@@ -30302,6 +30809,9 @@ async function fireHero(hero, counts) {
   if (gameEnded) return;
   heroFireCount++;
   markFired(hero.id);
+  // 2026-04-27 — Anti-Deadlock: reset Hunter dormancy counter when Hunter fires.
+  // Spec §7.2 condition #2: "Hunter has not fired in past 3 turns".
+  if (hero && hero.newRole === 'hunter') hero.turnsSinceLastFire = 0;
   flashHero(hero);
   vibrate([30, 50, 30]);
   // V2.0 Stage 5 Block 5.1: track hero currently executing for kill-shot attribution in dealDamage
