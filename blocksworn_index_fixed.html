@@ -11789,6 +11789,66 @@ function getHeroAscensionMult(hero) {
   return isHeroAscended(hero.id) ? TIER2_DAMAGE_BONUS : 1.0;
 }
 
+// 2026-04-27 — Block H.9 — Per-hero T2 ability runtime hooks (HERO_COMPENDIUM §8.4).
+// Each entry maps a hero id to its T2 ability mechanical bonuses. Combat sites
+// read these via _t2Bonus(heroId, key) — returns the bonus value if T2-ascended
+// AND the hero is in HERO_DECK (active battle), else returns null/0.
+// The T2 ability NAMES (FORGE / VERDANT MASTERY / etc.) are already documented
+// in HERO_T2_ABILITIES (Block H.3 — text-only previews). H.9 wires them up.
+const HERO_T2_RUNTIME = {
+  // ===== PIRATES (Ember) =====
+  pirate_warrior: { passiveEmberOnPlace: 1 },                 // FORGE — +1 ember-charged per placement
+  pirate_mage:    { mageWindow: 5, mageMult: 1.75 },          // VERDANT MASTERY — bloom 5 placements + 75%
+  pirate_hunter:  { hunterCapBonus: 1 },                      // VOLLEY MASTER — INFERNO cap +1 (3→4)
+  pirate_tank:    { ironbellyCounterAny: true, ultCellsBonus: 2 }, // IRON FORGE
+  pirate_captain: { dominionAscendant: true },                // DOMINION ASCENDANT (handled in raceMult site)
+  // ===== ROCK BAND (Umbra) =====
+  rock_warrior:   { encorePerClearBonus: 1 },                 // ENCORE MASTER — +1 stack per umbra clear
+  rock_mage:      { mageWindow: 5, mageMult: 1.25 },          // DEEP BEAT MASTERY — window 5 / +25%/stack
+  rock_hunter:    { hunterCapBonus: 1, encoreEchoPctBonus: 0.25 }, // VOLLEY MASTER — echo 50%→75%
+  rock_tank:      { shieldOnEncoreBonus: 1, ultCellsBonus: 3 },    // RHYTHMIC PROTECTOR
+  rock_captain:   { dominionAscendant: true },
+  // ===== SHARKS (Tide) =====
+  shark_warrior:  { chainPerClearBonus: 1 },                  // CHAIN MASTER — +1 chain per clear
+  shark_mage:     { mageWindow: 5, mageMult: 1.5 },           // WEAVE MASTERY — window 5 / +50%/seg
+  shark_hunter:   { hunterCapBonus: 1 },                      // VOLLEY MASTER — chain cap ×4→×5
+  shark_tank:     { shieldPerChainBonus: 1 },                 // DEEP GUARD — +2 vs +1
+  shark_captain:  { dominionAscendant: true },
+  // ===== CROCODILES (Grove) =====
+  crocodile_warrior: { earthCellAbsorb: 1.5 },                // STONE BLOOM — earth-cells 1.5×
+  crocodile_mage:    { mageWindow: 5, earthCellAbsorb: 2.0 }, // VERDANT MASTERY — window 5 / 2× absorb
+  crocodile_hunter:  { revengeBurstScale: 1.5 },              // REVENGE MASTER — scaling ×1.5
+  crocodile_tank:    { ultCellsBonus: 1 },                    // DEEP STONE — +1 cell on counter
+  crocodile_captain: { dominionAscendant: true },
+  // ===== SPARKS (Solar) =====
+  spark_warrior:  { solarShieldPerClear: 1 },                 // SOLAR CRESCENDO — +2 vs +1 shields
+  spark_mage:     { mageWindow: 5, mageMult: 1.0 },           // WEAVE MASTERY — window 5
+  spark_hunter:   { shieldDmgScaleBonus: 0.5 },               // SOLAR MASTER — +50% per shield
+  spark_tank:     { autoBlockCountBonus: 1 },                 // DEEP SHIELD — auto-block 2 vs 1
+  spark_captain:  { dominionAscendant: true },
+};
+
+// Returns the T2 bonus value for the given hero+key, or null if not ascended
+// or hero not in active deck. Used by individual mechanic sites.
+function _t2Bonus(heroId, key) {
+  if (!heroId) return null;
+  if (typeof isHeroAscended !== 'function' || !isHeroAscended(heroId)) return null;
+  // Active-battle gate: only honor T2 bonuses if the hero is in HERO_DECK
+  // (the active battle squad). Outside battle, returns the value too — read
+  // sites that care should also gate on context (e.g., ULT firing this hero).
+  const cfg = HERO_T2_RUNTIME[heroId];
+  if (!cfg) return null;
+  return (cfg[key] !== undefined) ? cfg[key] : null;
+}
+// Convenience: any hero of the given role, race, or id ascended in HERO_DECK
+// returns their T2 bonus value, else null. Used when the bonus is squad-scoped
+// (e.g., RIFFBLADE Encore Master aura affects rock heroes when RIFFBLADE present).
+function _t2BonusInDeck(heroId, key) {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return null;
+  if (!HERO_DECK.some(h => h && h.id === heroId)) return null;
+  return _t2Bonus(heroId, key);
+}
+
 // 2026-04-27 — Inject UI icon CSS variables once at startup. Each var
 // references an inlined ASSETS data URI, so CSS rules can use them
 // (e.g. background-image: var(--icon-gold)). Re-runnable safely.
@@ -22084,15 +22144,29 @@ function calcSynergyState(heroes) {
   const _captainHero = heroes.find(h => h && h.newRole === 'captain');
   if (_captainHero) {
     const _raceN = state.raceCount[_captainHero.race] || 1;
-    const _raceMult = _raceN >= 3 ? 1.30 : (_raceN === 2 ? 1.15 : 1.05);
+    let _raceMult = _raceN >= 3 ? 1.30 : (_raceN === 2 ? 1.15 : 1.05);
+    // 2026-04-27 — Block H.9a — DOMINION ASCENDANT (HERO_COMPENDIUM §2.6 / §3.6 / §4.6 / §5.6 / §6.6).
+    // T2-ascended captains scale the race buff bonus by +50%:
+    //   1-of-race:  +5%  → +7.5%
+    //   2-of-race:  +15% → +22.5%
+    //   3+-of-race: +30% → +45%
+    // Element drop bonus also raised from +25% to +50%.
+    let _captainDropBonus = 0.25;
+    try {
+      if (typeof isHeroAscended === 'function' && isHeroAscended(_captainHero.id)) {
+        _raceMult = 1 + (_raceMult - 1) * 1.5;  // bonus × 1.5
+        _captainDropBonus = 0.50;
+      }
+    } catch (e) {}
     state.captainDualActive    = true;
     state.captainDualRace      = _captainHero.race;
     state.captainDualStihiya   = _captainHero.stihiya;
     state.captainDualRaceMult  = _raceMult;
-    state.captainDualDropBonus = 0.25;
+    state.captainDualDropBonus = _captainDropBonus;
     // Fixed +25% drop weight, additive on the same pool race-affinity / artifact rings use.
+    // Block H.9a — T2 captains use _captainDropBonus (0.50) instead of fixed 0.25.
     if (state.spawnWeights[_captainHero.stihiya] != null) {
-      state.spawnWeights[_captainHero.stihiya] += 0.25;
+      state.spawnWeights[_captainHero.stihiya] += _captainDropBonus;
     }
     const _pct = Math.round((_raceMult - 1) * 100);
     const _raceLabel = _RACE_PLURAL[_captainHero.race] || (_captainHero.race || '').toUpperCase();
@@ -24114,7 +24188,11 @@ function consumeChainStack() {
   if (consumed > 0 && typeof HERO_DECK !== 'undefined' && HERO_DECK.some(h => h && h.id === 'shark_tank')) {
     const cap = MAX_SHIELD + 2 + (maxShieldBonus || 0);
     const before = shieldCount;
-    shieldCount = Math.min(cap, shieldCount + consumed);
+    // 2026-04-27 — Block H.9c — DEEP GUARD (T2): shield-per-segment +1 (so each
+    // segment broken grants 2 shields instead of 1).
+    const _t2Bonus_ = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('shark_tank', 'shieldPerChainBonus') : null;
+    const shieldsPerSeg = 1 + (_t2Bonus_ || 0);
+    shieldCount = Math.min(cap, shieldCount + (consumed * shieldsPerSeg));
     const gained = shieldCount - before;
     if (gained > 0) flashText('TOCK GUARD +' + gained + '🛡', STIHIYA_COLORS.tide);
   }
@@ -26780,12 +26858,17 @@ async function fireEmberhand() {
     converted++;
   }
   // BLOOM amplifier window — unchanged from B0/2.2d. Stacks with the conversion.
+  // 2026-04-27 — Block H.9b — VERDANT MASTERY (T2): window 3→5 + mult 1.5→1.75.
   emberhandBloomActive   = true;
-  emberhandBloomDuration = EMBERHAND_BLOOM_TURNS;
+  const _t2Window = _t2Bonus('pirate_mage', 'mageWindow');
+  emberhandBloomDuration = (_t2Window != null) ? _t2Window : EMBERHAND_BLOOM_TURNS;
+  const _t2Mult = _t2Bonus('pirate_mage', 'mageMult');
+  emberhandBloomMult = (_t2Mult != null) ? _t2Mult : 1.5;
+  const _bloomPct = Math.round((emberhandBloomMult - 1) * 100);
   if (converted > 0) {
-    flashText('EMBER BLOOM +50% · SPREAD ×' + converted, '#FFB84A');
+    flashText('EMBER BLOOM +' + _bloomPct + '% · SPREAD ×' + converted, '#FFB84A');
   } else {
-    flashText('EMBER BLOOM +50%', '#FFB84A');
+    flashText('EMBER BLOOM +' + _bloomPct + '%', '#FFB84A');
   }
   vibrate([50, 30, 50]);
   renderChargedVisuals();
@@ -27939,9 +28022,14 @@ async function fireShriek(counts) {
 async function fireKeycrypt() {
   const stacks = encoreStacks;
   keycryptDeepBeatActive   = true;
-  keycryptDeepBeatMult     = 1.0 + (stacks * 0.20);
-  keycryptDeepBeatDuration = KEYCRYPT_DEEP_BEAT_TURNS;
-  flashText('DEEP BEAT +' + Math.round(stacks * 20) + '%', STIHIYA_COLORS.umbra);
+  // 2026-04-27 — Block H.9b — DEEP BEAT MASTERY (T2): per-stack mult 0.20 → 0.25
+  // and window 3 → 5 placements.
+  const _t2Mult = _t2Bonus('rock_mage', 'mageMult');
+  const perStack = (_t2Mult != null) ? (_t2Mult - 1) : 0.20;
+  keycryptDeepBeatMult     = 1.0 + (stacks * perStack);
+  const _t2Window = _t2Bonus('rock_mage', 'mageWindow');
+  keycryptDeepBeatDuration = (_t2Window != null) ? _t2Window : KEYCRYPT_DEEP_BEAT_TURNS;
+  flashText('DEEP BEAT +' + Math.round(stacks * perStack * 100) + '%', STIHIYA_COLORS.umbra);
   vibrate([50, 30, 50]);
 }
 
@@ -28205,14 +28293,19 @@ async function fireBrineshot(counts) {
 async function fireCryomind() {
   const segments = frostChainSegments;
   cryomindWeaveActive   = true;
-  cryomindWeaveMult     = 1.0 + (segments * 0.25);
-  cryomindWeaveDuration = CRYOMIND_WEAVE_TURNS;
+  // 2026-04-27 — Block H.9b — WEAVE MASTERY (T2): per-segment mult 0.25 → 0.5
+  // and window 3 → 5 placements.
+  const _t2Mult = _t2Bonus('shark_mage', 'mageMult');
+  const perSegment = (_t2Mult != null) ? (_t2Mult - 1) : 0.25;
+  cryomindWeaveMult     = 1.0 + (segments * perSegment);
+  const _t2Window = _t2Bonus('shark_mage', 'mageWindow');
+  cryomindWeaveDuration = (_t2Window != null) ? _t2Window : CRYOMIND_WEAVE_TURNS;
   // Spec "extends every active chain by +1 cell" — bump segment counter by 1
   // (capped at FROST_CHAIN_CAP). Fires only if there's at least one chain to extend.
   if (segments > 0) {
     frostChainSegments = Math.min(FROST_CHAIN_CAP, frostChainSegments + 1);
   }
-  flashText('TIDE WEAVE +' + Math.round(segments * 25) + '%', STIHIYA_COLORS.tide);
+  flashText('TIDE WEAVE +' + Math.round(segments * perSegment * 100) + '%', STIHIYA_COLORS.tide);
   vibrate([50, 30, 50]);
 }
 
@@ -28400,8 +28493,12 @@ async function ultTwistMossjaw(ctx) {
 async function fireMossweaver(counts) {
   const total = groveTotalAbsorbed;
   mossweaverSurgeActive   = true;
-  mossweaverSurgeMult     = 1.0 + Math.min(0.5, (total / GROVE_REVENGE_THRESHOLD) * 0.5);
-  mossweaverSurgeDuration = MOSSWEAVER_SURGE_TURNS;
+  // 2026-04-27 — Block H.9b — VERDANT MASTERY (T2): window 3 → 5; mult cap 0.5 → 1.0.
+  const _t2Mult = _t2Bonus('crocodile_mage', 'earthCellAbsorb');  // 2.0 = 100% cap
+  const multCap = (_t2Mult != null) ? (_t2Mult - 1) : 0.5;
+  mossweaverSurgeMult     = 1.0 + Math.min(multCap, (total / GROVE_REVENGE_THRESHOLD) * multCap);
+  const _t2Window = _t2Bonus('crocodile_mage', 'mageWindow');
+  mossweaverSurgeDuration = (_t2Window != null) ? _t2Window : MOSSWEAVER_SURGE_TURNS;
   flashText('VERDANT SURGE +' + Math.round((mossweaverSurgeMult - 1) * 100) + '%', STIHIYA_COLORS.grove);
   vibrate([50, 30, 50]);
 }
@@ -28439,7 +28536,11 @@ async function fireThornback(counts) {
     mult = mossweaverSurgeMult;
     flashText('+' + Math.round((mult - 1) * 100) + '% SURGE', STIHIYA_COLORS.grove);
   }
-  if (groveRevengeFired) mult *= 1.5; // REVENGE BURST cap → 4-row line intent
+  // 2026-04-27 — Block H.9c — REVENGE MASTER (T2): scaling 1.5 → 2.25 (×1.5 boost).
+  if (groveRevengeFired) {
+    const _t2RevengeScale = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('crocodile_hunter', 'revengeBurstScale') : null;
+    mult *= (_t2RevengeScale != null) ? (1.5 * _t2RevengeScale) : 1.5;
+  }
   const dmg = Math.floor(total * mult);
   if (groveRevengeFired) flashText('VENGEANCE · ' + dmg, STIHIYA_COLORS.grove);
   dealDamage(dmg, groveRevengeFired || total >= 500, 0);
@@ -28596,9 +28697,17 @@ async function ultTwistEmbersark(ctx) {
 // ULT HALO OF SUNS (signature): instantly double current shieldCount (capped).
 async function fireLumenwind(counts) {
   lumenwindHaloActive       = true;
+  // 2026-04-27 — Block H.9b — WEAVE MASTERY (T2): window 3 → 5; +1 shield per
+  // clear (3 vs 2 base). Default lumenwindHaloShieldsBonus=1 → 2 shields/clear.
+  // T2 bumps the bonus to 2 → 3 shields/clear.
   lumenwindHaloShieldsBonus = 1;  // +1 extra → 2 total per clear
-  lumenwindHaloDuration     = LUMENWIND_HALO_TURNS;
-  flashText('HALO WINDOW ×2🛡/clear', STIHIYA_COLORS.solar || '#E8B84A');
+  if (_t2Bonus('spark_mage', 'mageWindow') != null) {
+    lumenwindHaloShieldsBonus = 2;  // T2 boost — 3 shields per clear
+  }
+  const _t2Window = _t2Bonus('spark_mage', 'mageWindow');
+  lumenwindHaloDuration     = (_t2Window != null) ? _t2Window : LUMENWIND_HALO_TURNS;
+  const _shieldsPerClear = 1 + lumenwindHaloShieldsBonus;
+  flashText('HALO WINDOW ×' + _shieldsPerClear + '🛡/clear', STIHIYA_COLORS.solar || '#E8B84A');
   vibrate([50, 30, 50]);
 }
 async function ultTwistLumenwind(ctx) {
@@ -29407,7 +29516,11 @@ async function afterPlacement(piece) {
     // V2.0 Block 1.3: motif multipliers also blocked during phoenix immunity.
     let motifMult = 1;
     if (!_immune) {
-      if (emberMotif.infernoLines > 0) motifMult *= Math.pow(EMBER_INFERNO_MULT, Math.min(emberMotif.infernoLines, 3));
+      // 2026-04-27 — Block H.9c — VOLLEY MASTER (T2): INFERNO cap raised
+      // ×3 → ×4 when BLACKTOOTH (pirate_hunter) is T2-ascended in deck.
+      const _t2InfernoCapBonus = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('pirate_hunter', 'hunterCapBonus') : null;
+      const _infernoCap = 3 + (_t2InfernoCapBonus || 0);
+      if (emberMotif.infernoLines > 0) motifMult *= Math.pow(EMBER_INFERNO_MULT, Math.min(emberMotif.infernoLines, _infernoCap));
       if (solarMotif.detonateMult > 1) motifMult *= solarMotif.detonateMult;
       motifMult = Math.min(motifMult, MOTIF_COMBINED_MULT_CAP);
     }
