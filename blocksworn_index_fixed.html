@@ -20807,10 +20807,11 @@ const SQUAD_POWER_CARDS            = 25;
 const SQUAD_POWER_GOLD             = 1000;
 const SQUAD_POWER_ESSENCE_PER      = 20;    // ×5 = 100 total
 
-const RACE_TO_STIHIYA = {
-  pirate: 'ember', rock: 'umbra', shark: 'tide',
-  crocodile: 'grove', spark: 'solar',
-};
+// 2026-04-28 BUGFIX: removed Phase D's duplicate RACE_TO_STIHIYA declaration
+// (the existing const lives further down at line ~24526 and already covers
+// every race we need — pirate/rock/shark/etc were merged into it). The
+// duplicate was a fatal SyntaxError that prevented the entire script from
+// parsing, leaving HERO_ROSTER undefined and the home screen blank.
 
 // Weekly offer rotation — 4 themes (spec §10.1)
 const WEEKLY_OFFERS = [
@@ -24527,6 +24528,9 @@ const RACE_TO_STIHIYA = {
   orc: 'ember', troll: 'grove', human: 'solar', dark_elf: 'umbra', elf: 'tide',
   // V18.8: NEW RACES
   pirate: 'ember', skeleton: 'tide', golem: 'grove', lion: 'solar', rock: 'umbra',
+  // 2026-04-28 — Phase D Race Launch Bundles need these (shark/crocodile/spark
+  // race entries weren't here pre-Phase-D; merged from removed duplicate).
+  shark: 'tide', crocodile: 'grove', spark: 'solar',
 };
 
 // V18.8: RACE_SYNERGY — per-race thematic bonuses at tiers 2/3/5. Each race has a distinct
