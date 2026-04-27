@@ -19966,7 +19966,7 @@ let maxShieldBonus       = 0;      // T2+: extends effective shield cap by N
 let shieldFuryActive     = false;  // T3+: +10% outgoing damage per active shield
 let graniteDefenseActive = false;  // T5: grove defense per 3 cells (same override as mossArmor)
 let aegisActive          = false;  // T5: once-per-battle shield save
-let aegisUsed            = false;  // per-battle: has aegis fired?
+let aegisUsed            = 0;     // per-battle: aegis save count (0..cap). T1 cap=1, T2 cap=2.
 let stonemasonActive     = false;  // T5: 20% chance extra bloom per grove cell cleared
 
 // Unbreakable Grove dual flags
@@ -22601,7 +22601,7 @@ function resetRaceFlags() {
   undyingUsed         = false;
   tideEchoStack       = 0;
   // Block 2.3 — grove-tribe
-  aegisUsed           = false;
+  aegisUsed           = 0;
   // Block 2.4 — solar-tribe
   roarUsed            = false;
   goldenHourRemaining = goldenHourActive ? 3 : 0;
@@ -24269,7 +24269,26 @@ function onGroveCellsCleared(n) {
   if (!n) return;
   if (typeof computeActiveElements === 'function' && !computeActiveElements().has('grove')) return;
   // Block 1: no state mutation. Reserved hook for Phase 5 Block 2 hero wiring.
-  // (Future: e.g. MOSSWEAVER amp window could increment a grove-amp counter here.)
+  // 2026-04-27 — Block H.9c — STONE BLOOM (T2): MOSSJAW ascended → +1 earth-cell
+  // spawned per grove clear (faster build). Pick a random empty cell and register
+  // as absorber. Pure passive — no banner spam unless a cell actually spawns.
+  try {
+    const _t2MossjawBonus = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('crocodile_warrior', 'earthCellAbsorb') : null;
+    if (_t2MossjawBonus && typeof groveAbsorbedByCell !== 'undefined') {
+      // Spawn 1 earth-cell on a random empty cell
+      const empties = [];
+      for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+        if (grid[r][c] === null && !groveAbsorbedByCell.has(r + '_' + c)) empties.push([r, c]);
+      }
+      if (empties.length > 0) {
+        const [r, c] = empties[Math.floor(Math.random() * empties.length)];
+        grid[r][c] = 'grove';
+        groveAbsorbedByCell.set(r + '_' + c, 0);
+        try { flashText('🌿 STONE BLOOM +1', STIHIYA_COLORS.grove); } catch (e) {}
+        try { render(); } catch (e) {}
+      }
+    }
+  } catch (e) {}
 }
 
 // PHASE 5 BLOCK 1 — earth-cell defensive absorption.
@@ -25744,11 +25763,17 @@ async function bossAttack() {
   }
   // IRONBELLY (Fire Tank): "Counter-burns boss" — chip damage proportional to
   // void cells absorbed. 25 dmg per incoming void, capped at 200 per attack.
+  // 2026-04-27 — Block H.9c — IRON FORGE (T2): IRONBELLY ascended doubles
+  // counter-burn (50/void, cap 400) and adds bonus +50% boss-HP-burn read
+  // for high-roll synergy.
   if (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)
       && HERO_DECK.some(h => h && h.id === 'pirate_tank') && MOTIFS_ENABLED.ember) {
-    const counterDmg = Math.min(200, picks.length * 25);
+    const _t2IronbellyAny = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('pirate_tank', 'ironbellyCounterAny') : null;
+    const _perVoid = _t2IronbellyAny ? 50 : 25;
+    const _cap     = _t2IronbellyAny ? 400 : 200;
+    const counterDmg = Math.min(_cap, picks.length * _perVoid);
     if (counterDmg > 0) {
-      flashText('FIREBRAND · COUNTER ' + counterDmg, '#FF8B3D');
+      flashText((_t2IronbellyAny ? '🔥 IRON FORGE · ' : 'FIREBRAND · ') + 'COUNTER ' + counterDmg, '#FF8B3D');
       dealDamage(counterDmg, true);
     }
   }
@@ -28019,14 +28044,21 @@ async function fireShriek(counts) {
   }
 
   // First echo: cap at ×3 per spec parity with INFERNO.
-  const cappedStacks = Math.min(stacks, 3);
+  // 2026-04-27 — Block H.9c — VOLLEY MASTER (T2): SHRIEK ascended → cap raised
+  // ×3 → ×4 to match BLACKTOOTH/BRINESHOT pattern.
+  const _t2ShriekCapBonus = (typeof _t2Bonus === 'function') ? _t2Bonus('rock_hunter', 'hunterCapBonus') : null;
+  const _stackCap = 3 + (_t2ShriekCapBonus || 0);
+  const cappedStacks = Math.min(stacks, _stackCap);
   const echoDmg = Math.floor(baseDmg * cappedStacks * mult);
   if (stacks >= 4) flashText('ENCORE-OF-ENCORE!', '#FFB84A');
   dealDamage(echoDmg, stacks >= 4, 0);
 
   // Encore-of-Encore: 50% damage repeat after 200ms.
+  // 2026-04-27 — Block H.9c — VOLLEY MASTER (T2): repeat 50% → 75% on T2.
+  const _t2EchoBonus = (typeof _t2Bonus === 'function') ? _t2Bonus('rock_hunter', 'encoreEchoPctBonus') : null;
+  const _echoPct = 0.5 + (_t2EchoBonus || 0);
   await sleep(200);
-  dealDamage(Math.floor(echoDmg * 0.5), false, 0);
+  dealDamage(Math.floor(echoDmg * _echoPct), false, 0);
 
   // Consume stacks → THUNDERBEAT shield bump fires inside the helper.
   consumeEncoreStacks();
@@ -28594,7 +28626,10 @@ async function fireIronscale(counts) {
   const cap = MAX_SHIELD + 2 + (maxShieldBonus || 0);
   if (shieldCount < cap) shieldCount++;
   dealDamage(160, true);
-  await _spawnGroveAbsorbers(1);
+  // 2026-04-27 — Block H.9c — DEEP STONE (T2): IRONSCALE ascended → spawn 2
+  // earth absorbers per fire instead of 1.
+  const _t2IronscaleBonus = (typeof _t2Bonus === 'function') ? _t2Bonus('crocodile_tank', 'ultCellsBonus') : null;
+  await _spawnGroveAbsorbers(1 + (_t2IronscaleBonus || 0));
   vibrate([50, 30, 50]);
 }
 async function ultTwistIronscale(ctx) {
@@ -29810,9 +29845,12 @@ async function afterPlacement(piece) {
   if (newDead > 0) {
     if (shieldCount > 0) {
       // V2.0 Block 2.3: GOLEM AEGIS — once per battle, a shield that would break is saved
-      if (aegisActive && !aegisUsed) {
-        aegisUsed = true;
-        flashText('AEGIS', '#5DCA79');
+      // 2026-04-27 — Block H.9c — DEEP SHIELD (T2): AEGIS hero ascended → 2 saves per battle (vs 1 base).
+      const _t2AegisBonus = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('spark_tank', 'autoBlockCountBonus') : null;
+      const _aegisCap = 1 + (_t2AegisBonus || 0);
+      if (aegisActive && aegisUsed < _aegisCap) {
+        aegisUsed++;
+        flashText(_t2AegisBonus ? 'DEEP SHIELD ' + aegisUsed + '/' + _aegisCap : 'AEGIS', '#5DCA79');
         vibrate([80, 40, 80]);
         // shield NOT consumed, damage fully blocked
       } else if (maelenShieldNoDecay > 0) {
