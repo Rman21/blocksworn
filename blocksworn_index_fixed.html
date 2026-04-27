@@ -19187,9 +19187,23 @@ function tickChapter3Boss() {
       }
     }
     if (intensified > 0) {
-      const dmg = 100 * intensified;
-      try { hp = Math.max(0, hp - dmg); battleDamageTaken = (battleDamageTaken || 0) + dmg; } catch (e) {}
-      try { flashText('⚡ STORM INTENSIFIES · −' + dmg + ' HP', '#9CC8DE'); renderHP(); } catch (e) {}
+      // 2026-04-27 — HOTFIX: player HP is on the 3-HP scale (MAX_HP=3), not 1000+.
+      // Original 100-per-storm dmg was instant TPK on first intensify (3 placements).
+      // Now: shield-first (preserves shield system), else 1 HP total per tick (capped),
+      // never compounds across multiple intensified storms in same tick.
+      try {
+        if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+          shieldCount = Math.max(0, shieldCount - 1);
+          try { flashText('⚡ STORM INTENSIFIES · 🛡 absorbed', '#9CC8DE'); } catch (e2) {}
+        } else {
+          hp = Math.max(0, hp - 1);
+          battleDamageTaken = (battleDamageTaken || 0) + 1;
+          try { flashText('⚡ STORM INTENSIFIES · −1 HP', '#9CC8DE'); renderHP(); } catch (e2) {}
+          if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+            try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
+          }
+        }
+      } catch (e) {}
     }
     _ch3State.stormCells = survivors;
     // Spawn new storms this turn
@@ -22195,8 +22209,14 @@ function place(p, br, bc) {
   // -1 HP per piece placed. Capped at 0 — never lethal directly.
   try {
     if (typeof _ch3HasSeal === 'function' && _ch3HasSeal('placement_costs_hp')) {
-      hp = Math.max(0, hp - 1);
-      battleDamageTaken = (battleDamageTaken || 0) + 1;
+      // 2026-04-27 — HOTFIX: shield-first absorption so the seal isn't a guaranteed
+      // 3-placement TPK at MAX_HP=3 scale. Matches Critical Mass / Storm Intensify pattern.
+      if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+        shieldCount = Math.max(0, shieldCount - 1);
+      } else {
+        hp = Math.max(0, hp - 1);
+        battleDamageTaken = (battleDamageTaken || 0) + 1;
+      }
     }
   } catch (e) {}
   // V3.0 Phase 9 Vivid: haptic feedback on piece placement.
