@@ -8140,6 +8140,52 @@ body.tempo-slow-tint::after {
   font-family: inherit;
 }
 
+/* 2026-04-27 — Block T.4 — Weekly + Seasonal Gauntlet entry buttons.
+ * Distinct palettes so player visually differentiates the 3 modes:
+ *   Daily — gold (existing)
+ *   Weekly — purple (premium tone, prestige)
+ *   Seasonal — cyan/teal (rare/legendary tone) */
+.tower-weekly-btn {
+  margin-top: 6px;
+  padding: 11px;
+  background: linear-gradient(180deg, rgba(155, 89, 214, 0.30), rgba(50, 25, 70, 0.65));
+  color: #E0B8FF;
+  border: 1.5px solid rgba(192, 106, 223, 0.65);
+  border-radius: 8px;
+  font-weight: 800; font-size: 12px;
+  letter-spacing: 1.8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.15s, transform 0.12s;
+  box-shadow: 0 0 10px rgba(155, 89, 214, 0.25);
+}
+.tower-weekly-btn:hover  { filter: brightness(1.12); }
+.tower-weekly-btn:active { transform: scale(0.97); }
+.tower-weekly-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.tower-seasonal-btn {
+  margin-top: 6px;
+  padding: 11px;
+  background: linear-gradient(180deg, rgba(74, 219, 255, 0.25), rgba(15, 50, 70, 0.7));
+  color: #B0E8FF;
+  border: 1.5px solid rgba(74, 219, 255, 0.7);
+  border-radius: 8px;
+  font-weight: 800; font-size: 12px;
+  letter-spacing: 1.8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.15s, transform 0.12s;
+  box-shadow: 0 0 12px rgba(74, 219, 255, 0.30);
+}
+.tower-seasonal-btn:hover  { filter: brightness(1.12); }
+.tower-seasonal-btn:active { transform: scale(0.97); }
+.tower-seasonal-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* 2026-04-27 — Block T.5 — Tower upgrades button + modal */
 .tower-upgrades-btn {
   margin-top: 6px;
@@ -9588,6 +9634,10 @@ button.season-tier-claim:active {
     </div>
     <div class="tower-current" id="towerCurrent"></div>
     <button class="tower-enter-btn" id="towerEnterBtn" onclick="startTowerRun()">▲ ENTER TOWER</button>
+    <!-- 2026-04-27 — Block T.4 — Weekly + Seasonal entry. Hidden by default;
+         enabled via JS in renderTowerScreen when in the right time window. -->
+    <button class="tower-weekly-btn"  id="towerWeeklyBtn"  onclick="startWeeklyTower()" style="display:none;">⚔ WEEKLY TRIAL — 25 floors</button>
+    <button class="tower-seasonal-btn" id="towerSeasonalBtn" onclick="startSeasonalTower()" style="display:none;">⭐ SEASONAL ASCENSION — 50 floors</button>
     <button class="tower-shop-btn" onclick="openTowerShop()">🗼 TOWER SHOP</button>
     <button class="tower-upgrades-btn" onclick="openHeartModal()">♥ UPGRADES</button>
     <div class="tower-history">
@@ -14698,7 +14748,25 @@ let towerState = {
   buffActiveUntil: 0,        // unix ms timestamp when buff expires
   // ===== T.5 Tower Heart meta upgrades =====
   purchasedHeartUpgrades: [],  // array of upgrade ids permanently purchased
+  // ===== T.4 Weekly + Seasonal Gauntlets =====
+  weeklyRunStarted: false,
+  weeklyCurrentFloor: 0,
+  weeklyKey: null,            // ISO week key "YYYY-Www" of active weekly run
+  weeklyClearedKey: null,     // ISO week key when weekly was last fully cleared
+  seasonalRunStarted: false,
+  seasonalCurrentFloor: 0,
+  seasonalKey: null,          // "YYYY-MM" of active seasonal run
+  seasonalClearedKey: null,   // "YYYY-MM" when seasonal was last fully cleared
 };
+
+// 2026-04-27 — Block T.4 — Gauntlet mode constants. Daily uses 10 floors
+// (TOWER_DAILY_FLOORS from T.1). Weekly is 25, Seasonal is 50.
+const TOWER_WEEKLY_FLOORS   = 25;
+const TOWER_SEASONAL_FLOORS = 50;
+// Mode flag — set by startTowerRun / startWeeklyTower / startSeasonalTower
+// at run launch. Read by onTowerFloorClear to decide completion gate, by
+// getPactOfferings to pick tier, by reward dispatch to pick bundle.
+let _currentGauntletMode = 'daily';
 const TOWER_KEY = 'blocksworn_tower_state';
 const TOWER_MAX_ATTEMPTS_PER_DAY  = 5;
 const TOWER_DAILY_FLOORS          = 10;       // Daily Gauntlet length per spec §2.1
@@ -15050,7 +15118,81 @@ const PACTS = [
     power: '+20% damage to all heroes',
     cost:  'ULT charges cost +25%',
     apply: (s) => { s.damageMult *= 1.20; s.ultCostMult *= 1.25; } },
+  // ========== TIER 3 — STRONG (Weekly F11-15 / Seasonal F21-30) ==========
+  { id: 'inferno',   tier: 3, name: 'THE INFERNO PACT',
+    power: '+50% damage to all heroes',
+    cost:  'Bosses gain +35% HP',
+    apply: (s) => { s.damageMult *= 1.50; s.bossHpMult *= 1.35; } },
+  { id: 'titan',     tier: 3, name: 'THE TITAN PACT',
+    power: '+8 starting shields',
+    cost:  '−20% damage to all heroes',
+    apply: (s) => { s.shieldsBonus += 8; s.damageMult *= 0.80; } },
+  { id: 'lightning', tier: 3, name: 'THE LIGHTNING PACT',
+    power: 'ULT charges cost −40%',
+    cost:  'Combo multiplier capped at ×6',
+    apply: (s) => { s.ultCostMult *= 0.60; s.comboCap = Math.min(s.comboCap, 6); } },
+  { id: 'blackhole', tier: 3, name: 'THE BLACKHOLE PACT',
+    power: '+45% damage to all heroes',
+    cost:  'ULT charges cost +75%',
+    apply: (s) => { s.damageMult *= 1.45; s.ultCostMult *= 1.75; } },
+  // ========== TIER 4 — DANGEROUS (Weekly F16-20 / Seasonal F31-40) ==========
+  { id: 'doomguard', tier: 4, name: 'THE DOOMGUARD PACT',
+    power: '+60% damage to all heroes',
+    cost:  'Bosses gain +50% HP',
+    apply: (s) => { s.damageMult *= 1.60; s.bossHpMult *= 1.50; } },
+  { id: 'ramparts',  tier: 4, name: 'THE RAMPARTS PACT',
+    power: '+12 starting shields',
+    cost:  '−25% damage + Bosses +25% HP',
+    apply: (s) => { s.shieldsBonus += 12; s.damageMult *= 0.75; s.bossHpMult *= 1.25; } },
+  { id: 'tempest',   tier: 4, name: 'THE TEMPEST PACT',
+    power: 'ULT charges cost −50%',
+    cost:  'Bosses gain +40% HP',
+    apply: (s) => { s.ultCostMult *= 0.50; s.bossHpMult *= 1.40; } },
+  { id: 'sundering', tier: 4, name: 'THE SUNDERING PACT',
+    power: '+55% damage to all heroes',
+    cost:  '−4 starting shields, Bosses +20% HP',
+    apply: (s) => { s.damageMult *= 1.55; s.shieldsBonus -= 4; s.bossHpMult *= 1.20; } },
+  // ========== TIER 5 — MYTHIC (Weekly F21-25 / Seasonal F41-50) ==========
+  { id: 'oblivion',  tier: 5, name: 'THE OBLIVION PACT',
+    power: '+100% damage to all heroes',
+    cost:  'Bosses gain +75% HP',
+    apply: (s) => { s.damageMult *= 2.00; s.bossHpMult *= 1.75; } },
+  { id: 'phoenix',   tier: 5, name: 'THE PHOENIX PACT',
+    power: '+80% damage + ULT cost −30%',
+    cost:  'Bosses +60% HP, Combo cap ×8',
+    apply: (s) => { s.damageMult *= 1.80; s.ultCostMult *= 0.70; s.bossHpMult *= 1.60; s.comboCap = Math.min(s.comboCap, 8); } },
+  { id: 'godking',   tier: 5, name: 'THE GODKING PACT',
+    power: '+15 starting shields + +50% damage',
+    cost:  'Bosses +80% HP, ULT cost +60%',
+    apply: (s) => { s.shieldsBonus += 15; s.damageMult *= 1.50; s.bossHpMult *= 1.80; s.ultCostMult *= 1.60; } },
+  { id: 'apex',      tier: 5, name: 'THE APEX PACT',
+    power: '+125% damage to all heroes',
+    cost:  'Bosses +100% HP, ULT cost +50%',
+    apply: (s) => { s.damageMult *= 2.25; s.bossHpMult *= 2.00; s.ultCostMult *= 1.50; } },
 ];
+
+// 2026-04-27 — Block T.4 — Mode-aware floor → pact tier mapper. Daily caps
+// at T2 (matches existing behavior); Weekly spreads T1-T5 across 25 floors;
+// Seasonal spreads T1-T5 across 50 floors.
+function getPactTierForFloor(nextFloor, mode) {
+  mode = mode || _currentGauntletMode || 'daily';
+  if (mode === 'weekly') {
+    if (nextFloor <= 5)  return 1;
+    if (nextFloor <= 10) return 2;
+    if (nextFloor <= 15) return 3;
+    if (nextFloor <= 20) return 4;
+    return 5;
+  }
+  if (mode === 'seasonal') {
+    if (nextFloor <= 10) return 1;
+    if (nextFloor <= 20) return 2;
+    if (nextFloor <= 30) return 3;
+    if (nextFloor <= 40) return 4;
+    return 5;
+  }
+  // Daily (default): T1 F1-5, T2 F6-10
+  return (nextFloor <= TOWER_MID_BOSS_FLOOR) ? 1 : 2;
+}
 
 // Per-run pact state. Reset on every startTowerRun. Read by combat hooks.
 let pactRunState = {
@@ -15076,7 +15218,11 @@ function resetPactRunState() {
 // F1-5 → tier 1, F6-10 → tier 2. Excludes already-accepted pacts so a run
 // never offers the same pact twice.
 function getPactOfferings(nextFloor) {
-  const tier = (nextFloor <= TOWER_MID_BOSS_FLOOR) ? 1 : 2;
+  // 2026-04-27 — Block T.4: tier now mode-aware. Daily caps at T2; Weekly
+  // and Seasonal spread T1-T5 across their floor counts.
+  const tier = (typeof getPactTierForFloor === 'function')
+    ? getPactTierForFloor(nextFloor, _currentGauntletMode)
+    : ((nextFloor <= TOWER_MID_BOSS_FLOOR) ? 1 : 2);
   const taken = new Set(pactRunState.active);
   const pool = PACTS.filter(p => p.tier === tier && !taken.has(p.id));
   if (pool.length < 2) return pool.slice();  // not enough left → return whatever
@@ -15345,6 +15491,8 @@ function startTowerRun() {
   // Pacts accumulate ONLY for the current run; on retry/new-day, the slate
   // wipes clean (per spec §5.1 "Pacts persist for the entire run").
   resetPactRunState();
+  // 2026-04-27 — Block T.4: mark mode for floor-flow / pact tier / completion.
+  _currentGauntletMode = 'daily';
   saveTowerState();
   launchTowerFloor();
 }
@@ -15355,6 +15503,113 @@ function startTowerRun() {
 function getNextTowerRetryCost() {
   if (towerState.attemptsToday >= TOWER_MAX_ATTEMPTS_PER_DAY) return -1;
   return TOWER_RETRY_GOLD_COST[towerState.attemptsToday] || 0;
+}
+
+// 2026-04-27 — Block T.4 — Weekly + Seasonal Gauntlet entry points.
+// Both follow startTowerRun pattern but use distinct mode flag, distinct
+// state branch (weekly* / seasonal* fields), longer floor counts, and
+// no daily-attempt-cap consumption (each is its own once-per-period gate).
+function isWeeklyOpen() {
+  // Weekly Gauntlet runs Sunday 4 AM → Monday 4 AM. Use Sunday gate via Date.
+  const now = new Date();
+  return now.getDay() === 0;  // Sunday only
+}
+function isSeasonalOpen() {
+  // Seasonal runs last 3 days of any month (28-30/31).
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return now.getDate() >= (lastDay - 2);
+}
+function getCurrentWeeklyKey() {
+  // ISO week key (year-week). Reuses Phase 5.3 helper if available.
+  try { if (typeof getCurrentWeekStart === 'function') return getCurrentWeekStart(); } catch (e) {}
+  const d = new Date();
+  return `${d.getFullYear()}-W${Math.ceil(d.getDate() / 7)}`;
+}
+function getCurrentSeasonalKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function startWeeklyTower() {
+  if (!isTowerUnlocked()) { showToast('Defeat CRYPT LICH first'); return; }
+  if (typeof isFtueActive === 'function' && isFtueActive()) return;
+  if (!isWeeklyOpen()) { showToast('Weekly Trial opens Sunday 4 AM'); return; }
+  const wk = getCurrentWeeklyKey();
+  if (towerState.weeklyClearedKey === wk) {
+    showToast('Weekly Trial already completed this week');
+    return;
+  }
+  if (towerState.weeklyRunStarted && towerState.weeklyKey === wk) {
+    // Resume in-progress run
+    _currentGauntletMode = 'weekly';
+    launchWeeklyFloor();
+    return;
+  }
+  // Curse gate (same as daily — weekly is curse-affected per §3.4)
+  try {
+    if (Array.isArray(towerState.dailyCurses) && towerState.dailyCurses.length > 0
+        && Array.isArray(activeSquad)) {
+      const cursedInSquad = activeSquad.filter(id => isHeroCursedToday(id));
+      if (cursedInSquad.length > 0) {
+        const names = cursedInSquad.map(id => {
+          const h = HERO_ROSTER.find(x => x.id === id);
+          return h ? h.name : id;
+        }).join(', ');
+        showToast(`Cursed: ${names} — swap before Weekly`);
+        try { if (typeof goToSelect === 'function') setTimeout(goToSelect, 700); } catch (e) {}
+        return;
+      }
+    }
+  } catch (e) {}
+  // Fresh weekly run
+  towerState.weeklyRunStarted = true;
+  towerState.weeklyCurrentFloor = 1;
+  towerState.weeklyKey = wk;
+  resetPactRunState();
+  _currentGauntletMode = 'weekly';
+  saveTowerState();
+  launchWeeklyFloor();
+}
+function startSeasonalTower() {
+  if (!isTowerUnlocked()) { showToast('Defeat CRYPT LICH first'); return; }
+  if (typeof isFtueActive === 'function' && isFtueActive()) return;
+  if (!isSeasonalOpen()) { showToast('Seasonal Tower: last 3 days of month only'); return; }
+  const sk = getCurrentSeasonalKey();
+  if (towerState.seasonalClearedKey === sk) {
+    showToast('Seasonal Tower already completed this season');
+    return;
+  }
+  if (towerState.seasonalRunStarted && towerState.seasonalKey === sk) {
+    _currentGauntletMode = 'seasonal';
+    launchSeasonalFloor();
+    return;
+  }
+  // Seasonal does NOT respect daily curses (per §3.4 — pure prestige test).
+  towerState.seasonalRunStarted = true;
+  towerState.seasonalCurrentFloor = 1;
+  towerState.seasonalKey = sk;
+  resetPactRunState();
+  _currentGauntletMode = 'seasonal';
+  saveTowerState();
+  launchSeasonalFloor();
+}
+// Mode-aware floor launch helpers — wrap launchTowerFloor with the correct
+// floor-state field. These exist so onTowerFloorClear can dispatch back to
+// the right launcher when ContinuE is clicked.
+function launchWeeklyFloor() {
+  // Sync the active floor counter so launchTowerFloor reads it correctly.
+  towerState.currentFloor = towerState.weeklyCurrentFloor;
+  launchTowerFloor();
+}
+function launchSeasonalFloor() {
+  towerState.currentFloor = towerState.seasonalCurrentFloor;
+  launchTowerFloor();
+}
+// Mode-aware total floor count for completion detection.
+function getCurrentGauntletFloors() {
+  if (_currentGauntletMode === 'weekly')   return TOWER_WEEKLY_FLOORS;
+  if (_currentGauntletMode === 'seasonal') return TOWER_SEASONAL_FLOORS;
+  return TOWER_DAILY_FLOORS;
 }
 
 function continueTowerRun() {
@@ -15405,12 +15660,22 @@ function onTowerFloorClear() {
   try { vibrate([60, 40, 60, 40, 120]); } catch (e) {}
   // V3.0 Phase 7 Block 7.5: Season XP (+10 per floor, scaling)
   try { if (typeof addSeasonXP === 'function') addSeasonXP(10 * floor); } catch (e) {}
-  // 2026-04-27 — Block T.1 — Daily Gauntlet completion gate.
-  // Reaching F10 = full daily clear. Dispatch daily reward bundle, bump
-  // streak, mark run complete. Subsequent floors no longer auto-launch
-  // (Weekly/Seasonal gauntlets ship in later blocks).
-  if (floor >= TOWER_DAILY_FLOORS) {
-    onTowerDailyComplete(floor);
+  // 2026-04-27 — Block T.4 — Mode-aware completion gate. Reads
+  // _currentGauntletMode + getCurrentGauntletFloors() so weekly (25) and
+  // seasonal (50) clears route through their own complete handlers.
+  // Also mirrors floor counter into per-mode state field.
+  if (_currentGauntletMode === 'weekly') {
+    towerState.weeklyCurrentFloor = floor + 1;
+  } else if (_currentGauntletMode === 'seasonal') {
+    towerState.seasonalCurrentFloor = floor + 1;
+  }
+  saveTowerState();
+  const limit = (typeof getCurrentGauntletFloors === 'function')
+    ? getCurrentGauntletFloors() : TOWER_DAILY_FLOORS;
+  if (floor >= limit) {
+    if (_currentGauntletMode === 'weekly')        onTowerWeeklyComplete(floor);
+    else if (_currentGauntletMode === 'seasonal') onTowerSeasonalComplete(floor);
+    else                                          onTowerDailyComplete(floor);
     return;
   }
   // 2026-04-27 — Block T.2 — Pact picker on every cleared floor (F1-F9).
@@ -15421,6 +15686,81 @@ function onTowerFloorClear() {
 
 // 2026-04-27 — Block T.1 daily completion. Fires on F10 clear (or future
 // gauntlet length). Awards completion bundle, streak bump, ends run.
+// 2026-04-27 — Block T.4 — Weekly Gauntlet completion (spec §2.2).
+// Reward bundle: 500 gold + 25 Sigils + 5 fragments (= 1 full Heart) + badge.
+function onTowerWeeklyComplete(clearedFloor) {
+  const bonusGold = 500 + 10 * clearedFloor;
+  try { addGold(bonusGold); } catch (e) {}
+  towerState.sigilShards += 25;
+  towerState.towerHeartFragments += TOWER_FRAGMENTS_PER_HEART;  // = 1 full heart
+  while (towerState.towerHeartFragments >= TOWER_FRAGMENTS_PER_HEART) {
+    towerState.towerHeartFragments -= TOWER_FRAGMENTS_PER_HEART;
+    towerState.towerHearts += 1;
+  }
+  // Mark this week's clear
+  towerState.weeklyClearedKey = towerState.weeklyKey;
+  towerState.weeklyRunStarted = false;
+  towerState.weeklyCurrentFloor = 0;
+  // Update bests (weekly clears feed weeklyBest)
+  if (clearedFloor > (towerState.weeklyBest || 0)) towerState.weeklyBest = clearedFloor;
+  saveTowerState();
+  _currentGauntletMode = 'daily';
+  try {
+    flashText('🏆 WEEKLY CHAMPION', '#FFD53D');
+    setTimeout(() => flashText(
+      `+${bonusGold}💰 · +25◈ · +1♥ · BADGE`,
+      '#FFD53D'
+    ), 1100);
+    setTimeout(() => flashText(
+      'NEXT @ SUNDAY 4 AM',
+      '#FFD53D'
+    ), 2200);
+  } catch (e) {}
+  try { vibrate([100, 50, 100, 50, 200, 50, 100]); } catch (e) {}
+  // Buff picker on weekly clear too (not just daily) — bigger reward = more value.
+  setTimeout(() => {
+    try { if (typeof showBuffPicker === 'function') showBuffPicker(() => {
+      try { goToTower(); } catch (e) { try { goToMenu(); } catch (e2) {} }
+    });} catch (e) {
+      try { goToTower(); } catch (e2) { try { goToMenu(); } catch (e3) {} }
+    }
+  }, 3400);
+}
+
+// 2026-04-27 — Block T.4 — Seasonal Tower completion (spec §2.3).
+// Reward bundle: 1000 gold (top tier sim) + 50 Sigils + 10 Hearts.
+// Leaderboard tiers (Top 1 / Top 10 / etc.) deferred — single-player local
+// implementation gives "Participation" tier flat: 50 gold + 5 Hearts.
+// HOTFIX HOOK: when leaderboard system ships, branch on rank for higher tier.
+function onTowerSeasonalComplete(clearedFloor) {
+  const bonusGold = 1000 + 20 * clearedFloor;
+  try { addGold(bonusGold); } catch (e) {}
+  towerState.sigilShards += 50;
+  towerState.towerHearts += 10;
+  // Mark this season's clear
+  towerState.seasonalClearedKey = towerState.seasonalKey;
+  towerState.seasonalRunStarted = false;
+  towerState.seasonalCurrentFloor = 0;
+  if (clearedFloor > (towerState.allTimeBest || 0)) towerState.allTimeBest = clearedFloor;
+  saveTowerState();
+  _currentGauntletMode = 'daily';
+  try {
+    flashText('🏆 SEASONAL ASCENSION', '#FFD53D');
+    setTimeout(() => flashText(
+      `+${bonusGold}💰 · +50◈ · +10♥`,
+      '#FFD53D'
+    ), 1100);
+    setTimeout(() => flashText(
+      'BLOCKSWORN MASTER',
+      '#FFD53D'
+    ), 2200);
+  } catch (e) {}
+  try { vibrate([200, 80, 200, 80, 300, 80, 200, 80, 400]); } catch (e) {}
+  setTimeout(() => {
+    try { goToTower(); } catch (e) { try { goToMenu(); } catch (e2) {} }
+  }, 3800);
+}
+
 function onTowerDailyComplete(clearedFloor) {
   // Reward bundle per spec §2.1
   const bonusGold = TOWER_DAILY_BASE_GOLD + 10 * clearedFloor;  // +scaled bonus
@@ -15507,6 +15847,47 @@ function renderTowerScreen() {
   // 2026-04-27 — Block T.1: ensure daily reset before UI render so attempts
   // counter + streak reflect the current 4 AM-bounded day.
   checkTowerDailyReset();
+  // 2026-04-27 — Block T.4: gauntlet entry buttons toggle by date window.
+  try {
+    const wkBtn = document.getElementById('towerWeeklyBtn');
+    const ssBtn = document.getElementById('towerSeasonalBtn');
+    if (wkBtn) {
+      const wkOpen   = isWeeklyOpen();
+      const wkDoneKey = towerState.weeklyClearedKey;
+      const wkKey     = getCurrentWeeklyKey();
+      if (wkOpen && wkDoneKey !== wkKey) {
+        wkBtn.style.display = '';
+        wkBtn.textContent = (towerState.weeklyRunStarted && towerState.weeklyKey === wkKey)
+          ? `▶ CONTINUE WEEKLY — F${towerState.weeklyCurrentFloor}/${TOWER_WEEKLY_FLOORS}`
+          : '⚔ WEEKLY TRIAL — 25 floors';
+      } else if (wkOpen && wkDoneKey === wkKey) {
+        wkBtn.style.display = '';
+        wkBtn.textContent = '✓ WEEKLY TRIAL DONE';
+        wkBtn.disabled = true;
+      } else {
+        wkBtn.style.display = 'none';
+        wkBtn.disabled = false;
+      }
+    }
+    if (ssBtn) {
+      const ssOpen   = isSeasonalOpen();
+      const ssDoneKey = towerState.seasonalClearedKey;
+      const ssKey     = getCurrentSeasonalKey();
+      if (ssOpen && ssDoneKey !== ssKey) {
+        ssBtn.style.display = '';
+        ssBtn.textContent = (towerState.seasonalRunStarted && towerState.seasonalKey === ssKey)
+          ? `▶ CONTINUE SEASONAL — F${towerState.seasonalCurrentFloor}/${TOWER_SEASONAL_FLOORS}`
+          : '⭐ SEASONAL ASCENSION — 50 floors';
+      } else if (ssOpen && ssDoneKey === ssKey) {
+        ssBtn.style.display = '';
+        ssBtn.textContent = '✓ SEASONAL DONE';
+        ssBtn.disabled = true;
+      } else {
+        ssBtn.style.display = 'none';
+        ssBtn.disabled = false;
+      }
+    }
+  } catch (e) {}
   const at = document.getElementById('towerAllTime'); if (at) at.textContent = String(towerState.allTimeBest);
   const wk = document.getElementById('towerWeekly');  if (wk) wk.textContent = String(towerState.weeklyBest);
   const pt = document.getElementById('towerPoints');  if (pt) pt.textContent = String(towerState.towerPoints);
