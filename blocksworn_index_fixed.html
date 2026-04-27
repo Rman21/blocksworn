@@ -2075,6 +2075,146 @@
   display: block;
 }
 
+/* 2026-04-27 — Block H.4 — Captain Cinematic Mode (HERO_COMPENDIUM §1.2).
+   Triggered by .is-captain class on the modal + data-captain-race attribute.
+   Each captain race gets its own animated gradient bg. Pure cosmetic — never
+   affects gameplay; all captain mechanics already wired in §captainDual_*. */
+.a-hero-detail.is-captain .detail-portrait {
+  width: 90px !important;
+  height: 90px !important;
+  box-shadow: 0 0 18px rgba(255,213,61,0.55), inset 0 0 12px rgba(255,213,61,0.2);
+  border-color: var(--a-gold-300) !important;
+  position: relative;
+}
+.a-hero-detail.is-captain .detail-portrait::before {
+  content: '👑';
+  position: absolute;
+  top: -16px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 22px;
+  text-shadow: 0 0 8px rgba(255,213,61,0.95), 0 2px 4px rgba(0,0,0,0.7);
+  z-index: 5;
+  animation: captainCrownFloat 2.8s ease-in-out infinite;
+}
+@keyframes captainCrownFloat {
+  0%, 100% { transform: translateX(-50%) translateY(0px); }
+  50%      { transform: translateX(-50%) translateY(-3px); }
+}
+.a-hero-detail.is-captain .modal-box {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,213,61,0.08), transparent 60%),
+    var(--a-bg-radial, #14091F);
+  border-color: rgba(255,213,61,0.5);
+  animation: captainBgPulse 5s ease-in-out infinite;
+}
+@keyframes captainBgPulse {
+  0%, 100% { box-shadow: 0 0 30px rgba(255,213,61,0.18); }
+  50%      { box-shadow: 0 0 50px rgba(255,213,61,0.35); }
+}
+/* Per-race tinted bg accents for the 5 captains. */
+.a-hero-detail.is-captain[data-captain-race="pirate"]    .modal-box { background-image: radial-gradient(ellipse at 50% 0%, rgba(232,93,74,0.18), transparent 60%); }
+.a-hero-detail.is-captain[data-captain-race="rock"]      .modal-box { background-image: radial-gradient(ellipse at 50% 0%, rgba(192,106,223,0.18), transparent 60%); }
+.a-hero-detail.is-captain[data-captain-race="shark"]     .modal-box { background-image: radial-gradient(ellipse at 50% 0%, rgba(74,219,255,0.18), transparent 60%); }
+.a-hero-detail.is-captain[data-captain-race="crocodile"] .modal-box { background-image: radial-gradient(ellipse at 50% 0%, rgba(122,236,74,0.18), transparent 60%); }
+.a-hero-detail.is-captain[data-captain-race="spark"]     .modal-box { background-image: radial-gradient(ellipse at 50% 0%, rgba(255,225,74,0.18), transparent 60%); }
+
+/* Captain power box — race buff + element drop visualization. */
+.detail-captain-power {
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(0,0,0,0.30));
+  border: 1px solid var(--a-gold-500);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 8px 0 14px;
+  text-align: left;
+  position: relative;
+}
+.captain-crown {
+  position: absolute;
+  top: -10px; right: 10px;
+  font-size: 18px;
+  text-shadow: 0 0 6px rgba(255,213,61,0.9);
+  animation: captainCrownFloat 2.8s ease-in-out infinite;
+}
+.captain-title {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300);
+  margin-bottom: 8px;
+  text-shadow: 0 0 4px rgba(255,213,61,0.5);
+}
+.captain-buff-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.captain-buff-label {
+  font-size: 10px;
+  color: #9A98A4;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  min-width: 90px;
+}
+.captain-buff-tier {
+  font-size: 12px;
+  color: var(--a-gold-300);
+  font-weight: 700;
+}
+.captain-buff-hint {
+  font-size: 9px;
+  color: #6E6B7B;
+  font-style: italic;
+}
+.captain-pill {
+  margin-top: 8px;
+  padding: 5px 10px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--a-gold-500);
+  border-radius: 12px;
+  font-size: 11px;
+  display: inline-block;
+  letter-spacing: 0.4px;
+}
+
+/* Race lore box — only rendered for captains in cinematic mode. */
+.detail-race-lore {
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,213,61,0.2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 6px 0 14px;
+  text-align: left;
+}
+.race-lore-title {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  color: var(--a-gold-300);
+  margin-bottom: 4px;
+  letter-spacing: 1px;
+}
+.race-lore-philosophy {
+  font-style: italic;
+  font-size: 11px;
+  color: #C8C5D4;
+  margin-bottom: 8px;
+}
+.race-lore-bio {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #B8B5C4;
+  margin-bottom: 8px;
+}
+.race-lore-passive {
+  font-size: 10px;
+  color: #9A98A4;
+  margin-bottom: 2px;
+}
+.race-lore-passive b {
+  color: var(--a-gold-300);
+}
+
 /* LEVEL section */
 .a-hero-detail .detail-level-section {
   background: var(--a-bg-well);
@@ -31256,6 +31396,46 @@ const HERO_T2_ABILITIES = {
   spark_captain:     { name: 'DOMINION ASCENDANT',     desc: 'Captain race buff +50%. ULT heals +35% (vs 25%); +3 shields (vs 2).' },
 };
 
+// 2026-04-27 — Block H.4 — Race Lore (HERO_COMPENDIUM §2.1, §3.1, §4.1, §5.1, §6.1).
+// Embedded into Captain cinematic mode for the 5 captains. Verbatim spec.
+const RACE_LORE = {
+  pirate:    {
+    name: 'PIRATES — Fire Race',
+    philosophy: 'Burn fast. Burn bright. Burn first.',
+    lore: 'The Pirates were the first to burn — and the first to LIVE through the burning. They learned to harness ember-flame as both weapon and shield. They sail the ash seas, raiding what little remains. Where they go, fire follows.',
+    passive2: '+10% gold drop (2-of-race)',
+    passive3: '15% chance to double combo multiplier (3+-of-race)',
+  },
+  rock:      {
+    name: 'ROCK BAND — Dark Race',
+    philosophy: 'Build the rhythm. Strike on the chorus. Encore the final beat.',
+    lore: 'They were musicians once. Then the world ended, and silence was the loudest sound. They learned to USE silence — turn it into power. Each strike is a beat. Each cascade is a song. Each Encore is a defiance against the silence that ate the Old World.',
+    passive2: '+5% cascade chance (2-of-race)',
+    passive3: 'ENCORE — ULTs fire twice in a row (3+-of-race)',
+  },
+  shark:     {
+    name: 'SHARKS — Frost Race',
+    philosophy: 'Patience. Then the strike. Then the chain.',
+    lore: 'They came from the deep. When the burning came, the seas froze — but the Sharks already lived in cold water. They survived. They emerged. They learned that ice was just another shape of WATER, and water remembers. They strike like the ocean itself: patient, deep, inevitable.',
+    passive2: 'Swim through icebound cells (2-of-race)',
+    passive3: 'BLOODHUNT — +30% damage when boss < 30% HP (3+-of-race)',
+  },
+  crocodile: {
+    name: 'CROCODILES — Earth Race',
+    philosophy: 'Endure. Absorb. Then strike with everything they gave you.',
+    lore: 'They lived in the swamp before the burning. They were already armored. When the world burned, they let the fire WASH OVER THEM. They emerged scaled in stone, crowned in moss. They learned to absorb damage, store it, and return it. They are the patient ones — ten thousand years of patience packed into every strike.',
+    passive2: 'Death Roll — first hero death denied; revives at 1 HP (2-of-race)',
+    passive3: 'Iron Hide — squad gains +1 shield each turn (3+-of-race)',
+  },
+  spark:     {
+    name: 'SPARKS — Light Race',
+    philosophy: 'Build the light. Hold the line. Convert defense to destruction.',
+    lore: 'They were not born — they MANIFESTED. After the burning, light gathered itself into shape. Sparks emerged from the ashes as living flame, but holy and radiant. They believe they are protecting what little light is left in the world. They are warriors, but their war is to PRESERVE.',
+    passive2: 'Charge Regen — ULT charges +10% faster (2-of-race)',
+    passive3: 'Static Field — every 5 placements triggers AoE light burst (3+-of-race)',
+  },
+};
+
 // Block H.3 — voice line "play" handler (text-based since no audio assets).
 // Shows current bio's voice line as a flashText banner with hero-themed color.
 function onPlayHeroVoiceLine() {
@@ -31273,9 +31453,22 @@ function onPlayHeroVoiceLine() {
 }
 
 // Block H.3 — render LORE pane: tagline / bio / voice button / visual / tier strip.
+// 2026-04-27 — Block H.4 — Captain Cinematic mode adds: race lore + captain power
+//  visualization + auto-play voice line. Triggered via newRole === 'captain'.
 function renderHeroDetailLore(hero) {
   if (!hero) return;
   const bio = HERO_BIOS[hero.id];
+  const isCaptain = (hero.newRole === 'captain');
+  // Block H.4 — toggle .is-captain class on modal so CSS can swap to cinematic
+  // styling (bigger portrait + animated race-themed bg + crown overlay).
+  try {
+    const modal = document.getElementById('heroDetailModal');
+    if (modal) {
+      modal.classList.toggle('is-captain', isCaptain);
+      if (isCaptain && hero.race) modal.setAttribute('data-captain-race', hero.race);
+      else modal.removeAttribute('data-captain-race');
+    }
+  } catch (e) {}
   const taglineEl = document.getElementById('detailLoreTagline');
   const bioEl     = document.getElementById('detailLoreBio');
   const visualEl  = document.getElementById('detailLoreVisual');
@@ -31285,6 +31478,87 @@ function renderHeroDetailLore(hero) {
   if (bioEl)     bioEl.textContent     = (bio && bio.bio)     || 'No lore entry yet.';
   if (visualEl)  visualEl.textContent  = (bio && bio.visual)  || '';
   if (voiceBtn)  voiceBtn.style.display = (bio && bio.voice) ? '' : 'none';
+  // Block H.4 — Captain-only sections: power visualization + race lore.
+  // Container for these injected sections is created lazily so non-captains
+  // don't carry empty DOM. Lookup uses getElementById on stable IDs.
+  const section = document.getElementById('detailLoreSection');
+  if (section) {
+    let captainBox = document.getElementById('detailCaptainBox');
+    let raceBox    = document.getElementById('detailRaceLoreBox');
+    if (isCaptain) {
+      // Lazy-create captain power + race lore boxes.
+      if (!captainBox) {
+        captainBox = document.createElement('div');
+        captainBox.id = 'detailCaptainBox';
+        captainBox.className = 'detail-captain-power';
+        // Insert after tagline so it sits at the top of the pane.
+        const after = (taglineEl && taglineEl.parentNode === section) ? taglineEl : null;
+        if (after) section.insertBefore(captainBox, after.nextSibling);
+        else section.insertBefore(captainBox, section.firstChild);
+      }
+      if (!raceBox) {
+        raceBox = document.createElement('div');
+        raceBox.id = 'detailRaceLoreBox';
+        raceBox.className = 'detail-race-lore';
+        // Insert before tier progression so race lore reads after bio/visual.
+        if (stripEl && stripEl.parentNode === section) section.insertBefore(raceBox, stripEl);
+        else section.appendChild(raceBox);
+      }
+      // Fill captain power box.
+      const _RACE_PLURAL = { pirate: 'PIRATES', rock: 'ROCK BAND', shark: 'SHARKS', crocodile: 'CROCODILES', spark: 'SPARKS' };
+      const raceLabel = _RACE_PLURAL[hero.race] || (hero.race || '').toUpperCase();
+      const stih = (hero.stihiya || '').toUpperCase();
+      const stihColor = (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS[hero.stihiya]) || '#FFD53D';
+      captainBox.innerHTML =
+        `<div class="captain-crown">👑</div>` +
+        `<div class="captain-title">CAPTAIN POWER</div>` +
+        `<div class="captain-buff-row">` +
+        `  <span class="captain-buff-label">RACE BUFF</span>` +
+        `  <span class="captain-buff-tier">+5% / +15% / +30%</span>` +
+        `  <span class="captain-buff-hint">(1 / 2 / 3+ ${raceLabel} in squad)</span>` +
+        `</div>` +
+        `<div class="captain-buff-row">` +
+        `  <span class="captain-buff-label">ELEMENT DROP</span>` +
+        `  <span class="captain-buff-tier" style="color:${stihColor}">+25% ${stih}</span>` +
+        `  <span class="captain-buff-hint">(spawn weight bonus)</span>` +
+        `</div>` +
+        `<div class="captain-pill" style="border-color:${stihColor};color:${stihColor}">` +
+        `  👑 ${raceLabel}: +X% race_dmg · +25% ${stih.toLowerCase()}_drops` +
+        `</div>`;
+      // Fill race lore box.
+      const rl = RACE_LORE[hero.race];
+      if (rl) {
+        raceBox.innerHTML =
+          `<div class="race-lore-title">${rl.name}</div>` +
+          `<div class="race-lore-philosophy">"${rl.philosophy}"</div>` +
+          `<div class="race-lore-bio">${rl.lore}</div>` +
+          `<div class="race-lore-passive"><b>2-of-race:</b> ${rl.passive2}</div>` +
+          `<div class="race-lore-passive"><b>3+-of-race:</b> ${rl.passive3}</div>`;
+      } else {
+        raceBox.innerHTML = '';
+      }
+      // Auto-play voice line after 800ms — cinematic flourish per spec §1.2.
+      try {
+        clearTimeout(window._captainVoiceAutoPlayTimer);
+        window._captainVoiceAutoPlayTimer = setTimeout(() => {
+          // Only fire if the modal is still open AND this hero is still selected.
+          const modalEl = document.getElementById('heroDetailModal');
+          if (modalEl && modalEl.classList.contains('active') && detailHeroId === hero.id) {
+            try { onPlayHeroVoiceLine(); } catch (e) {}
+          }
+        }, 800);
+      } catch (e) {}
+    } else {
+      // Non-captain: hide captain-only boxes if previously created.
+      if (captainBox) captainBox.style.display = 'none';
+      if (raceBox)    raceBox.style.display    = 'none';
+    }
+    // Re-show captain boxes on captain re-open
+    if (isCaptain) {
+      if (captainBox) captainBox.style.display = '';
+      if (raceBox)    raceBox.style.display    = '';
+    }
+  }
   // Tier progression strip — 4 slots: T1 (current) / T2 / T3 / Mythic.
   // Each slot: label, icon, current/locked styling, optional cost preview.
   if (stripEl) {
@@ -31403,7 +31677,10 @@ function openHeroDetail(heroId) {
   // Show
   document.getElementById('heroDetailModal').classList.add('active');
   // V3.0 Phase 8 Vivid: default to STATS tab on open, sync equipment grid, wire swipe-close.
-  try { vHeroTab('stats'); }        catch(e){}
+  // 2026-04-27 — Block H.4 — Captain cinematic mode lands on LORE by default
+  // (per HERO_COMPENDIUM §1.2 — "Voice line auto-plays on entry"). Non-captains
+  // keep STATS as default.
+  try { vHeroTab(hero.newRole === 'captain' ? 'lore' : 'stats'); } catch (e) {}
   try { vWireHeroSheetSwipe(); }    catch(e){}
   try { if (typeof renderEquipmentSlots === 'function') renderEquipmentSlots(); } catch(e){}
   try { vUpdateHeroSheetActions(heroId); } catch(e){}
