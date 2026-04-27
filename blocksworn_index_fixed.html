@@ -2698,6 +2698,160 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   margin-top: 2px;
 }
 
+/* ===== PHASE D — Bundles + Limited Offers (anti-FOMO design) ===== */
+/* Limited Offer banner — gentle 3-7d countdown, never red urgency. */
+.shop-weekly-offer {
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  margin: 0 0 14px;
+  background: linear-gradient(135deg, rgba(255,213,61,0.18), rgba(187,96,255,0.16));
+  border: 2px solid #FFD53D;
+  border-radius: 14px;
+  color: #FFFFFF;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 0 18px rgba(255,213,61,0.20);
+  position: relative;
+  overflow: hidden;
+}
+.shop-weekly-offer:hover, .shop-weekly-offer:active { transform: scale(0.99); }
+.shop-weekly-offer.purchased {
+  background: rgba(168,165,184,0.10);
+  border-color: rgba(168,165,184,0.4);
+  box-shadow: none;
+  cursor: default;
+  filter: grayscale(0.4);
+}
+.shop-weekly-tag {
+  display: inline-block;
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255,213,61,0.20);
+  color: #FFD53D;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.shop-weekly-title {
+  font-family: var(--a-font-display);
+  font-size: 16px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin-bottom: 4px;
+}
+.shop-weekly-contents {
+  font-size: 11px;
+  color: #E4E1F0;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+.shop-weekly-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: #B8B5C4;
+  letter-spacing: 0.5px;
+}
+.shop-weekly-cost {
+  font-family: var(--a-font-num);
+  font-size: 16px;
+  font-weight: 800;
+  color: #FFD53D;
+}
+
+/* Bundle cards — 3 tiers (Squad / Rapid / Endgame Kit) */
+.shop-bundle {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  color: #FFFFFF;
+  transition: transform 0.15s;
+}
+.shop-bundle:hover, .shop-bundle:active { transform: scale(0.99); }
+.shop-bundle:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.4); }
+.shop-bundle-squad {
+  background: linear-gradient(180deg, rgba(93,202,121,0.16), rgba(0,0,0,0.30));
+  border: 2px solid #5DCA79;
+}
+.shop-bundle-rapid {
+  background: linear-gradient(180deg, rgba(255,170,0,0.16), rgba(0,0,0,0.30));
+  border: 2px solid #FFAA00;
+}
+.shop-bundle-endgame {
+  background: linear-gradient(135deg, rgba(187,96,255,0.20), rgba(255,213,61,0.18));
+  border: 2px solid #BB60FF;
+  box-shadow: 0 0 18px rgba(187,96,255,0.30);
+}
+.shop-bundle-title {
+  font-family: var(--a-font-display);
+  font-size: 13px;
+  letter-spacing: 1.3px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.shop-bundle-squad   .shop-bundle-title { color: #5DCA79; }
+.shop-bundle-rapid   .shop-bundle-title { color: #FFAA00; }
+.shop-bundle-endgame .shop-bundle-title { color: #BB60FF; font-size: 14px; }
+.shop-bundle-contents {
+  font-size: 10px;
+  color: #E4E1F0;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+.shop-bundle-cost {
+  font-family: var(--a-font-num);
+  font-size: 14px;
+  font-weight: 800;
+  color: #FFD53D;
+  text-align: right;
+}
+
+/* Race Launch Bundle row — 5 races as small cards */
+.shop-race-bundle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.shop-race-bundle-card {
+  padding: 10px 10px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(0,0,0,0.30));
+  border: 2px solid var(--rb-color, #FFD53D);
+  cursor: pointer;
+  text-align: left;
+  color: #FFFFFF;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.shop-race-bundle-card:hover, .shop-race-bundle-card:active { transform: scale(0.98); }
+.shop-race-bundle-card:disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.5); }
+.shop-race-bundle-card .name {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1px;
+  font-weight: 800;
+  color: var(--rb-color, #FFD53D);
+}
+.shop-race-bundle-card .desc { font-size: 9px; color: #B8B5C4; margin: 3px 0; }
+.shop-race-bundle-card .cost {
+  font-family: var(--a-font-num);
+  font-size: 11px;
+  font-weight: 800;
+  color: #FFD53D;
+  text-align: right;
+  margin-top: 4px;
+}
+
 /* Pack reveal — bonus loot strip below cards (T2/T3/gold/essence). */
 .pack-reveal-bonus {
   display: flex;
@@ -14259,9 +14413,77 @@ function renderShopPacks() {
         '</div>' +
       '</button>';
   }
+  // ----- Phase D — Weekly Limited Offer (top of shop, gentle countdown) -----
+  const wOffer = (typeof getCurrentWeeklyOffer === 'function') ? getCurrentWeeklyOffer() : null;
+  const wPurchased = (typeof _isWeeklyOfferPurchased === 'function') ? _isWeeklyOfferPurchased() : false;
+  let weeklyOfferHtml = '';
+  if (wOffer) {
+    const daysLeft = _daysLeftInWeek();
+    const contents = wOffer.race
+      ? (wOffer.cards + ' ' + _PACK_RACE_LABELS[wOffer.race] + ' cards · ' + wOffer.t2 + ' ⚡ T2 · ' + wOffer.gold + '💰')
+      : ('BP Premium · ' + wOffer.essence + ' essence · ' + wOffer.cards + ' cards');
+    if (wPurchased) {
+      weeklyOfferHtml =
+        '<div class="shop-weekly-offer purchased">' +
+          '<div class="shop-weekly-tag">✓ THIS WEEK\'S OFFER</div>' +
+          '<div class="shop-weekly-title">' + wOffer.label + '</div>' +
+          '<div class="shop-weekly-contents">' + contents + '</div>' +
+          '<div class="shop-weekly-footer"><span>Already owned · resets next week</span><span class="shop-weekly-cost">$' + wOffer.priceUSD.toFixed(2) + '</span></div>' +
+        '</div>';
+    } else {
+      weeklyOfferHtml =
+        '<button class="shop-weekly-offer" onclick="buyWeeklyOffer()">' +
+          '<div class="shop-weekly-tag">★ THIS WEEK</div>' +
+          '<div class="shop-weekly-title">' + wOffer.label + '</div>' +
+          '<div class="shop-weekly-contents">' + contents + '</div>' +
+          '<div class="shop-weekly-footer"><span>Available ' + daysLeft + ' more day' + (daysLeft === 1 ? '' : 's') + ' · no pressure</span><span class="shop-weekly-cost">$' + wOffer.priceUSD.toFixed(2) + ' / ' + wOffer.priceGems + '💎</span></div>' +
+        '</button>';
+    }
+  }
+
+  // ----- Phase D — Bundles (Squad / Rapid / Endgame Kit + Race Launch ×5) -----
+  const purchasedRaces = (typeof _getPurchasedRaceBundles === 'function') ? _getPurchasedRaceBundles() : [];
+  const endgameAvail = (typeof _isEndgameKitAvailableThisSeason === 'function') ? _isEndgameKitAvailableThisSeason() : true;
+  const squadBundleHtml =
+    '<button class="shop-bundle shop-bundle-squad" onclick="buySquadPowerPack()">' +
+      '<div class="shop-bundle-title">⚔ SQUAD POWER PACK</div>' +
+      '<div class="shop-bundle-contents">' + SQUAD_POWER_T2 + ' ⚡ T2 · ' + SQUAD_POWER_CARDS + ' cards · ' + (SQUAD_POWER_ESSENCE_PER * 5) + ' essence · ' + SQUAD_POWER_GOLD + '💰</div>' +
+      '<div class="shop-bundle-cost">$' + SQUAD_POWER_USD.toFixed(2) + ' / ' + SQUAD_POWER_GEMS + '💎</div>' +
+    '</button>';
+  const rapidBundleHtml =
+    '<button class="shop-bundle shop-bundle-rapid" onclick="buyRapidAscensionPack()">' +
+      '<div class="shop-bundle-title">⚡ RAPID ASCENSION PACK</div>' +
+      '<div class="shop-bundle-contents">' + RAPID_ASCENSION_T2 + ' ⚡ T2 · ' + RAPID_ASCENSION_T3 + ' 💠 T3 · ' + RAPID_ASCENSION_CARDS + ' cards · ' + (RAPID_ASCENSION_ESSENCE_PER * 5) + ' essence · ' + RAPID_ASCENSION_GOLD + '💰</div>' +
+      '<div class="shop-bundle-cost">$' + RAPID_ASCENSION_USD.toFixed(2) + ' / ' + RAPID_ASCENSION_GEMS + '💎</div>' +
+    '</button>';
+  const endgameBundleHtml =
+    '<button class="shop-bundle shop-bundle-endgame" ' + (endgameAvail ? '' : 'disabled') + ' onclick="buyEndgameKit()">' +
+      '<div class="shop-bundle-title">👑 ULTIMATE ASCENSION KIT' + (endgameAvail ? '' : ' (claimed)') + '</div>' +
+      '<div class="shop-bundle-contents">' + ENDGAME_KIT_T3 + ' 💠 T3 · ' + ENDGAME_KIT_T2 + ' ⚡ T2 · ' + ENDGAME_KIT_CARDS + ' cards · ' + ENDGAME_KIT_HEARTS + ' ♥ · BP premium · ARCHITECT badge</div>' +
+      '<div class="shop-bundle-cost">$' + ENDGAME_KIT_USD.toFixed(2) + ' / ' + ENDGAME_KIT_GEMS + '💎</div>' +
+    '</button>';
+  const raceBundleCardsHtml = ['pirate', 'rock', 'shark', 'crocodile', 'spark'].map(function (r) {
+    const owned = purchasedRaces.includes(r);
+    const color = _PACK_RACE_COLORS[r] || '#FFD53D';
+    const lbl = _PACK_RACE_LABELS[r];
+    if (owned) {
+      return '<button class="shop-race-bundle-card" disabled style="--rb-color:' + color + '">' +
+               '<div class="name">' + lbl + ' BUNDLE</div>' +
+               '<div class="desc">✓ OWNED</div>' +
+               '<div class="cost">—</div>' +
+             '</button>';
+    }
+    return '<button class="shop-race-bundle-card" style="--rb-color:' + color + '" onclick="buyRaceLaunchBundle(\'' + r + '\')">' +
+             '<div class="name">' + lbl + ' BUNDLE</div>' +
+             '<div class="desc">5 heroes · LV5 cap · 10✦ · 5 cards</div>' +
+             '<div class="cost">$' + RACE_BUNDLE_USD.toFixed(2) + '</div>' +
+           '</button>';
+  }).join('');
+
   host.innerHTML =
     firstPurchaseBannerHtml +
     subTileHtml +
+    weeklyOfferHtml +
     dropBoostHtml +
     '<div class="shop-pack-divider">💎 GEM PACKS · Premium currency</div>' +
     gemPacksHtml +
@@ -14269,6 +14491,12 @@ function renderShopPacks() {
     bigPackHtml +
     premiumPackHtml +
     ultimatePackHtml +
+    '<div class="shop-pack-divider">🎁 BUNDLES · Skip the grind</div>' +
+    squadBundleHtml +
+    rapidBundleHtml +
+    endgameBundleHtml +
+    '<div class="shop-pack-divider">🏴 RACE LAUNCH BUNDLES · 1× per race</div>' +
+    '<div class="shop-race-bundle-grid">' + raceBundleCardsHtml + '</div>' +
     '<div class="shop-pack-divider">📦 HERO CARD PACKS · Earnable with gold</div>' +
     pityHtml +
     '<button class="shop-pack-btn shop-pack-standard" ' + (stdAffordable ? '' : 'disabled') + ' onclick="buyStandardPack()">' +
@@ -20098,6 +20326,314 @@ function _checkSubscriptionRenewal() {
   saveSeasonPassSub();
   _grantSeasonPassSubBonus();
   try { flashText('★ SEASON PASS RENEWED', '#FFD53D'); } catch (e) {}
+}
+
+// ===== PHASE D — BUNDLES + LIMITED OFFERS (2026-04-28) =====
+// Per BLOCKSWORN_MONETIZATION.md §6 (Race Bundles), §7 (Endgame Kit),
+// §10 (Limited Offers), §15 (Anti-FOMO design — no urgency timers).
+// Mock-IAP only — Phase G replaces with real billing.
+
+const RACE_BUNDLE_PURCHASED_KEY    = 'blocksworn_race_bundles_purchased';
+const ENDGAME_KIT_KEY              = 'blocksworn_endgame_kit_last_season';
+const ARCHITECT_BADGE_KEY          = 'blocksworn_architect_badge';
+const WEEKLY_OFFER_PURCHASED_KEY   = 'blocksworn_weekly_offer_purchased';
+
+const RACE_BUNDLE_USD              = 19.99;
+const RACE_BUNDLE_GEMS             = 2000;
+const RACE_BUNDLE_CARDS_PER_HERO   = 1;     // 5 heroes × 1 = 5 cards total
+const RACE_BUNDLE_ESSENCE          = 10;
+const RACE_BUNDLE_CAPTAIN_LV       = 5;
+
+const ENDGAME_KIT_USD              = 49.99;
+const ENDGAME_KIT_GEMS             = 5000;
+const ENDGAME_KIT_T2               = 25;
+const ENDGAME_KIT_T3               = 5;
+const ENDGAME_KIT_CARDS            = 100;
+const ENDGAME_KIT_HEARTS           = 20;
+
+const RAPID_ASCENSION_USD          = 19.99;
+const RAPID_ASCENSION_GEMS         = 2000;
+const RAPID_ASCENSION_T2           = 5;
+const RAPID_ASCENSION_T3           = 1;
+const RAPID_ASCENSION_CARDS        = 50;
+const RAPID_ASCENSION_GOLD         = 1500;
+const RAPID_ASCENSION_ESSENCE_PER  = 40;    // ×5 stihiyas = 200 total
+
+const SQUAD_POWER_USD              = 9.99;
+const SQUAD_POWER_GEMS             = 1100;
+const SQUAD_POWER_T2               = 3;
+const SQUAD_POWER_CARDS            = 25;
+const SQUAD_POWER_GOLD             = 1000;
+const SQUAD_POWER_ESSENCE_PER      = 20;    // ×5 = 100 total
+
+const RACE_TO_STIHIYA = {
+  pirate: 'ember', rock: 'umbra', shark: 'tide',
+  crocodile: 'grove', spark: 'solar',
+};
+
+// Weekly offer rotation — 4 themes (spec §10.1)
+const WEEKLY_OFFERS = [
+  { id: 'pirates_power', priceUSD: 9.99, priceGems: 1100, race: 'pirate', cards: 50, t2: 5, gold: 1500, label: 'PIRATES POWER PACK', glow: '#E85D4A' },
+  { id: 'rock_power',    priceUSD: 9.99, priceGems: 1100, race: 'rock',   cards: 50, t2: 5, gold: 1500, label: 'ROCK BAND POWER PACK', glow: '#9B59D6' },
+  { id: 'shark_power',   priceUSD: 9.99, priceGems: 1100, race: 'shark',  cards: 50, t2: 5, gold: 1500, label: 'SHARK POWER PACK', glow: '#3B8BD4' },
+  { id: 'bp_boost',      priceUSD: 4.99, priceGems: 500,  cards: 5, premium: true, essence: 200, label: 'BATTLE PASS BOOST', glow: '#FFD53D' },
+];
+
+function _getISOWeek() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+}
+function getCurrentWeeklyOffer() {
+  return WEEKLY_OFFERS[_getISOWeek() % WEEKLY_OFFERS.length];
+}
+function _daysLeftInWeek() {
+  // Anti-FOMO: gentle countdown to Sunday end. No urgency, just info.
+  const now = new Date();
+  const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
+  return 8 - dayOfWeek;
+}
+function _isWeeklyOfferPurchased() {
+  try {
+    const raw = localStorage.getItem(WEEKLY_OFFER_PURCHASED_KEY);
+    if (!raw) return false;
+    const obj = JSON.parse(raw);
+    const week = _getISOWeek();
+    return obj && obj.week === week && obj.id === getCurrentWeeklyOffer().id;
+  } catch (e) { return false; }
+}
+function _markWeeklyOfferPurchased(id) {
+  try { localStorage.setItem(WEEKLY_OFFER_PURCHASED_KEY, JSON.stringify({ week: _getISOWeek(), id })); } catch (e) {}
+}
+
+function _getPurchasedRaceBundles() {
+  try {
+    const raw = localStorage.getItem(RACE_BUNDLE_PURCHASED_KEY);
+    if (raw) { const a = JSON.parse(raw); return Array.isArray(a) ? a : []; }
+  } catch (e) {}
+  return [];
+}
+function _markRaceBundlePurchased(race) {
+  const arr = _getPurchasedRaceBundles();
+  if (!arr.includes(race)) arr.push(race);
+  try { localStorage.setItem(RACE_BUNDLE_PURCHASED_KEY, JSON.stringify(arr)); } catch (e) {}
+}
+function _isEndgameKitAvailableThisSeason() {
+  try {
+    const lastSeason = parseInt(localStorage.getItem(ENDGAME_KIT_KEY) || '0', 10);
+    return lastSeason !== (seasonState.seasonId || 1);
+  } catch (e) { return true; }
+}
+
+// ----- D.1: Race Launch Bundle -----
+function buyRaceLaunchBundle(race) {
+  if (!_PACK_RACE_LABELS[race]) {
+    try { flashText('INVALID RACE', '#E85D4A'); } catch (e) {}
+    return false;
+  }
+  if (_getPurchasedRaceBundles().includes(race)) {
+    try { flashText('ALREADY OWNED', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  const label = _PACK_RACE_LABELS[race];
+  const stih = RACE_TO_STIHIYA[race] || 'ember';
+  const raceHeroes = HERO_ROSTER.filter(function (h) { return h.race === race; });
+  const cardsTotal = raceHeroes.length * RACE_BUNDLE_CARDS_PER_HERO;
+  const msg =
+    label + ' LAUNCH BUNDLE\n$' + RACE_BUNDLE_USD.toFixed(2) + ' / ' + RACE_BUNDLE_GEMS + '💎\n\n' +
+    '• All ' + raceHeroes.length + ' ' + label + ' heroes UNLOCKED\n' +
+    '• Captain pre-leveled to LV' + RACE_BUNDLE_CAPTAIN_LV + '\n' +
+    '• ' + cardsTotal + ' ' + label + ' hero cards\n' +
+    '• ' + RACE_BUNDLE_ESSENCE + ' ' + stih.toUpperCase() + ' essence\n\n' +
+    'Skip 5-8 days of progression.\n\n' +
+    '(Mock IAP — no real charge in dev build)';
+  if (!confirm(msg)) return false;
+  // Spend gems if affordable, else assume USD path (mock-confirm already accepted).
+  if ((gems || 0) >= RACE_BUNDLE_GEMS) {
+    if (!spendGems(RACE_BUNDLE_GEMS)) return false;
+  }
+  // Grant: unlock all heroes
+  for (const h of raceHeroes) { h.unlocked = true; }
+  try { saveUnlockedHeroesToStorage(); } catch (e) {}
+  // Captain → LV5
+  const captain = raceHeroes.find(function (h) { return h.newRole === 'captain'; });
+  if (captain && typeof heroLevels === 'object' && heroLevels) {
+    heroLevels[captain.id] = Math.max(heroLevels[captain.id] || 1, RACE_BUNDLE_CAPTAIN_LV);
+    try { saveHeroLevelsToStorage(); } catch (e) {}
+  }
+  // Hero cards (1 per hero)
+  for (const h of raceHeroes) {
+    try { addHeroFragments(h.id, RACE_BUNDLE_CARDS_PER_HERO); } catch (e) {}
+  }
+  // Essence
+  if (typeof essences === 'object' && essences) {
+    essences[stih] = (essences[stih] || 0) + RACE_BUNDLE_ESSENCE;
+    try { saveProgress(); } catch (e) {}
+  }
+  _markRaceBundlePurchased(race);
+  try { flashText('★ ' + label + ' BUNDLE', '#FFD53D'); } catch (e) {}
+  try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+  renderShopPacks();
+  return true;
+}
+
+// ----- D.2: Endgame Acceleration Kit (whale tier, 1× per season) -----
+function buyEndgameKit() {
+  if (!_isEndgameKitAvailableThisSeason()) {
+    try { flashText('ALREADY PURCHASED THIS SEASON', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  const msg =
+    'ULTIMATE ASCENSION KIT\n$' + ENDGAME_KIT_USD.toFixed(2) + ' / ' + ENDGAME_KIT_GEMS + '💎\n\n' +
+    'Once per season. Skip 6-12 months of grind.\n\n' +
+    '• ' + ENDGAME_KIT_T3 + ' Tier 3 Stones 💠\n' +
+    '• ' + ENDGAME_KIT_T2 + ' Tier 2 Stones ⚡\n' +
+    '• ' + ENDGAME_KIT_CARDS + ' Hero Cards (random, weighted to unowned)\n' +
+    '• ' + ENDGAME_KIT_HEARTS + ' Tower Hearts ♥\n' +
+    '• 30-day Battle Pass premium\n' +
+    '• Permanent ARCHITECT FUNDER profile effect\n\n' +
+    '(Mock IAP — no real charge in dev build)';
+  if (!confirm(msg)) return false;
+  if ((gems || 0) >= ENDGAME_KIT_GEMS) {
+    if (!spendGems(ENDGAME_KIT_GEMS)) return false;
+  }
+  _addTier2Stones(ENDGAME_KIT_T2);
+  _addTier3Stones(ENDGAME_KIT_T3);
+  dropRandomHeroCards(ENDGAME_KIT_CARDS, { silent: true });
+  if (towerState) {
+    towerState.towerHearts = (towerState.towerHearts || 0) + ENDGAME_KIT_HEARTS;
+    try { saveTowerState(); } catch (e) {}
+  }
+  if (!seasonState.premiumUnlocked) {
+    seasonState.premiumUnlocked = true;
+    try { saveSeasonState(); } catch (e) {}
+  }
+  try { localStorage.setItem(ARCHITECT_BADGE_KEY, 'true'); } catch (e) {}
+  try { localStorage.setItem(ENDGAME_KIT_KEY, String(seasonState.seasonId || 1)); } catch (e) {}
+  try { flashText('★★★ ULTIMATE KIT ★★★', '#BB60FF'); } catch (e) {}
+  try { vibrate([200, 100, 200, 100, 300]); } catch (e) {}
+  renderShopPacks();
+  return true;
+}
+
+// ----- D.3a: Rapid Ascension Pack -----
+function buyRapidAscensionPack() {
+  const msg =
+    'RAPID ASCENSION PACK\n$' + RAPID_ASCENSION_USD.toFixed(2) + ' / ' + RAPID_ASCENSION_GEMS + '💎\n\n' +
+    '• ' + RAPID_ASCENSION_T2 + ' Tier 2 Stones ⚡\n' +
+    '• ' + RAPID_ASCENSION_T3 + ' Tier 3 Stone 💠\n' +
+    '• ' + RAPID_ASCENSION_CARDS + ' Hero Cards\n' +
+    '• ' + (RAPID_ASCENSION_ESSENCE_PER * 5) + ' essence (mixed)\n' +
+    '• ' + RAPID_ASCENSION_GOLD + ' gold\n\n' +
+    'Skip 6-8 weeks of normal play.\n\n' +
+    '(Mock IAP — no real charge in dev build)';
+  if (!confirm(msg)) return false;
+  if ((gems || 0) >= RAPID_ASCENSION_GEMS) {
+    if (!spendGems(RAPID_ASCENSION_GEMS)) return false;
+  }
+  _addTier2Stones(RAPID_ASCENSION_T2);
+  _addTier3Stones(RAPID_ASCENSION_T3);
+  dropRandomHeroCards(RAPID_ASCENSION_CARDS, { silent: true });
+  for (const s of ['ember', 'tide', 'grove', 'solar', 'umbra']) {
+    if (essences) essences[s] = (essences[s] || 0) + RAPID_ASCENSION_ESSENCE_PER;
+  }
+  try { saveProgress(); } catch (e) {}
+  if (typeof gold !== 'undefined') {
+    gold += RAPID_ASCENSION_GOLD;
+    try { saveGoldToStorage(); } catch (e) {}
+  }
+  try { flashText('★ RAPID ASCENSION PACK', '#FFD53D'); } catch (e) {}
+  try { vibrate([100, 60, 100, 60, 150]); } catch (e) {}
+  renderShopPacks();
+  return true;
+}
+
+// ----- D.3b: Squad Power Pack -----
+function buySquadPowerPack() {
+  const msg =
+    'SQUAD POWER PACK\n$' + SQUAD_POWER_USD.toFixed(2) + ' / ' + SQUAD_POWER_GEMS + '💎\n\n' +
+    '• ' + SQUAD_POWER_T2 + ' Tier 2 Stones ⚡\n' +
+    '• ' + SQUAD_POWER_CARDS + ' Hero Cards\n' +
+    '• ' + (SQUAD_POWER_ESSENCE_PER * 5) + ' essence (mixed)\n' +
+    '• ' + SQUAD_POWER_GOLD + ' gold\n\n' +
+    'Skip 3-4 weeks of normal play.\n\n' +
+    '(Mock IAP — no real charge in dev build)';
+  if (!confirm(msg)) return false;
+  if ((gems || 0) >= SQUAD_POWER_GEMS) {
+    if (!spendGems(SQUAD_POWER_GEMS)) return false;
+  }
+  _addTier2Stones(SQUAD_POWER_T2);
+  dropRandomHeroCards(SQUAD_POWER_CARDS, { silent: true });
+  for (const s of ['ember', 'tide', 'grove', 'solar', 'umbra']) {
+    if (essences) essences[s] = (essences[s] || 0) + SQUAD_POWER_ESSENCE_PER;
+  }
+  try { saveProgress(); } catch (e) {}
+  if (typeof gold !== 'undefined') {
+    gold += SQUAD_POWER_GOLD;
+    try { saveGoldToStorage(); } catch (e) {}
+  }
+  try { flashText('★ SQUAD POWER PACK', '#FFD53D'); } catch (e) {}
+  try { vibrate([100, 60, 100, 60, 150]); } catch (e) {}
+  renderShopPacks();
+  return true;
+}
+
+// ----- D.4: Weekly Limited Offer (rotates each ISO week) -----
+function buyWeeklyOffer() {
+  const offer = getCurrentWeeklyOffer();
+  if (!offer) return false;
+  if (_isWeeklyOfferPurchased()) {
+    try { flashText('ALREADY OWNED THIS WEEK', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  let msg;
+  if (offer.race) {
+    msg = offer.label + '\n$' + offer.priceUSD.toFixed(2) + ' / ' + offer.priceGems + '💎\n\n' +
+          '• ' + offer.cards + ' ' + _PACK_RACE_LABELS[offer.race] + ' Hero Cards\n' +
+          '• ' + offer.t2 + ' Tier 2 Stones ⚡\n' +
+          '• ' + offer.gold + ' gold\n\n' +
+          'Available ' + _daysLeftInWeek() + ' more day' + (_daysLeftInWeek() === 1 ? '' : 's') + ' · no pressure\n' +
+          '(Mock IAP — no real charge in dev build)';
+  } else {
+    msg = offer.label + '\n$' + offer.priceUSD.toFixed(2) + ' / ' + offer.priceGems + '💎\n\n' +
+          '• Battle Pass Premium activated\n' +
+          '• ' + offer.essence + ' essence (mixed)\n' +
+          '• ' + offer.cards + ' Hero Cards\n\n' +
+          'Available ' + _daysLeftInWeek() + ' more day' + (_daysLeftInWeek() === 1 ? '' : 's') + ' · no pressure\n' +
+          '(Mock IAP — no real charge in dev build)';
+  }
+  if (!confirm(msg)) return false;
+  if ((gems || 0) >= offer.priceGems) {
+    if (!spendGems(offer.priceGems)) return false;
+  }
+  if (offer.race) {
+    dropRandomHeroCards(offer.cards, { silent: true, race: offer.race });
+    _addTier2Stones(offer.t2);
+    if (typeof gold !== 'undefined') {
+      gold += offer.gold;
+      try { saveGoldToStorage(); } catch (e) {}
+    }
+  } else {
+    if (!seasonState.premiumUnlocked) {
+      seasonState.premiumUnlocked = true;
+      try { saveSeasonState(); } catch (e) {}
+    }
+    dropRandomHeroCards(offer.cards, { silent: true });
+    if (offer.essence) {
+      const per = Math.floor(offer.essence / 5);
+      for (const s of ['ember', 'tide', 'grove', 'solar', 'umbra']) {
+        if (essences) essences[s] = (essences[s] || 0) + per;
+      }
+      try { saveProgress(); } catch (e) {}
+    }
+  }
+  _markWeeklyOfferPurchased(offer.id);
+  try { flashText('★ ' + offer.label, offer.glow || '#FFD53D'); } catch (e) {}
+  try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+  renderShopPacks();
+  return true;
 }
 
 // ========= Screen + rendering =========
