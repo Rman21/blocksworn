@@ -8,8 +8,8 @@ Per BLOCKSWORN_AUDIO_SOUND.md §3 + §15.
 
 | File | Context |
 |---|---|
-| `ebunny-pirate-adventure-361663.mp3` | menu (Chapter 1 default) |
-| `audiodollar-pirate-music-pirate-331490.mp3` | tower / season |
+| `menu.mp3` | menu (Chapter 1 default) |
+| `tower.mp3` | tower / season |
 | `win.mp3` | victory cinematic |
 | `lose.mp3` | defeat modal |
 
@@ -17,7 +17,7 @@ Per BLOCKSWORN_AUDIO_SOUND.md §3 + §15.
 
 | Chapter | Track |
 |---|---|
-| 1 — Ashen Dominion | `ebunny-pirate-adventure-361663.mp3` |
+| 1 — Ashen Dominion | `menu.mp3` |
 | 2 — Bloom of Madness | `chapter 2.mp3` |
 | 3 — Veil of Forgotten Gods | `cosmic.mp3` |
 | 4 — Court of the Fallen Heavens | `royal.mp3` |
@@ -27,7 +27,7 @@ Per BLOCKSWORN_AUDIO_SOUND.md §3 + §15.
 
 | Boss | Image key | Track |
 |---|---|---|
-| Pyredrake (dragon) | Boss_1 | `alex_besss-pirate-ship-battle-433529.mp3` |
+| Pyredrake (dragon) | Boss_1 | `boss fight.mp3` |
 | Abyssal Tyrant (kraken) | Boss_2 | `kraken boss.mp3` |
 | Grovewarden (treant) | Boss_3 | `trent boss.mp3` |
 | Solar Phoenix | Boss_4 | `phoenix boss.mp3` |
@@ -41,13 +41,13 @@ each track page before commercial release per spec §10.3).
 
 ```js
 const MUSIC_TRACKS = {
-  menu:    'assets/audio/music/ebunny-pirate-adventure-361663.mp3',
-  tower:   'assets/audio/music/audiodollar-pirate-music-pirate-331490.mp3',
+  menu:    'assets/audio/music/menu.mp3',
+  tower:   'assets/audio/music/tower.mp3',
   victory: 'assets/audio/music/win.mp3',
   defeat:  'assets/audio/music/lose.mp3',
   chapter: { 1: ..., 2: ..., 3: ..., 4: ..., 5: ... },
   boss:    { Boss_1: ..., Boss_2: ..., Boss_3: ..., Boss_4: ..., Boss_5: ... },
-  bossDefault: 'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',
+  bossDefault: 'assets/audio/music/boss fight.mp3',
 };
 ```
 
