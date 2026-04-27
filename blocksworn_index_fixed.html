@@ -3970,14 +3970,15 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
    `aspect-ratio: 3/4` and no width, so images balloon to natural size and one
    card ended up ~600×800 in Roman's smoke test, pushing the tray off-screen.
    Restore an Arena-scoped equivalent. */
+/* 2026-04-27 — V.1 Floating Hero Tiles supersedes the legacy 58px Arena-scoped
+   sizing. Card width now flexes inside .hero-slot (max 120px slot width).
+   aspect-ratio 3/4 from base .hero-card preserved. */
 .a-battle .deck .hero-card {
-  flex: 0 0 58px;
-  width: 58px;
-  aspect-ratio: 1;
-  border-radius: 12px;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
   overflow: hidden;
   position: relative;
-  border: 2px solid rgba(255,255,255,0.35);
 }
 .v-secondary > .back-btn,
 .v-secondary > .back-btn.v-btn-icon {
@@ -5993,7 +5994,35 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 
 /* ⚠️ LEGACY bits — .deck in .a-battle is restyled around L1975. */
 /* ===== DECK ===== */
-.deck { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; padding: 6px; background: #1A1B2E; border-radius: 10px; border: 1px solid #3D3F5E; }
+/* 2026-04-27 — V.1 "Floating Hero Tiles": deck container holds .hero-slot items
+   in a flex row. NO background panel — cards float on the game backdrop with
+   element-glow + drop-shadow providing visual presence. */
+.deck {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 6px 6px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+.hero-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 120px;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.hero-slot:active { transform: scale(0.96); }
+.hero-slot.ult-ready { animation: slotReadyBounce 1.6s ease-in-out infinite; }
+@keyframes slotReadyBounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
 /* HOTFIX B4 — Combo UI Polish: horizontal scroll instead of multi-row wrap. With race +
    formation + captain + 1-3 stihiya synergy + optional artifact pills the bar grew to
    3-4 rows on mobile, eating vertical space. Single-row scroll preserves info density
@@ -6039,14 +6068,21 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   pointer-events: none;
 }
 .narrator.visible { opacity: 1; }
+/* V.1 Floating Hero Tile — portrait frame only. Label + ULT bar are siblings
+   in the .hero-slot, not children. Larger size, thicker border, soft glow,
+   drop-shadow underneath for depth without a backing panel. */
 .hero-card {
   position: relative;
   aspect-ratio: 3 / 4;
-  border-radius: 6px;
+  width: 100%;
+  border-radius: 10px;
   overflow: hidden;
-  border: 2px solid var(--glow, #3D3F5E);
-  transition: transform 0.2s, box-shadow 0.4s, border-color 0.3s;
+  border: 3px solid var(--glow, #3D3F5E);
+  transition: transform 0.2s, box-shadow 0.4s, border-color 0.3s, filter 0.2s;
   background: #0F0F1F;
+  box-shadow:
+    0 0 16px var(--glow, rgba(61,63,94,0.4)),
+    0 6px 14px rgba(0, 0, 0, 0.55);
 }
 .hero-card.ember { --glow: #E85D4A; }
 .hero-card.tide  { --glow: #3B8BD4; }
@@ -6061,17 +6097,22 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   60%  { transform: scale(1.05); box-shadow: 0 0 12px var(--glow); }
   100% { transform: scale(1); box-shadow: none; }
 }
+/* V.1 Floating Hero Tile — name lives below the portrait card (sibling in slot),
+   not absolutely positioned inside. No black gradient overlay needed. */
 .hero-label {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  padding: 8px 2px 3px;
-  background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 60%, transparent 100%);
-  font-size: 8px;
-  font-weight: 700;
+  margin-top: 6px;
+  padding: 0 2px;
+  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+  font-size: 10px;
+  font-weight: 800;
   text-align: center;
-  color: #F5F3EC;
-  letter-spacing: 0.5px;
+  color: #FFD53D;
+  letter-spacing: 1px;
   line-height: 1.1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85), 0 0 8px var(--glow, rgba(255, 213, 61, 0.4));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .hero-badge {
   position: absolute;
@@ -6170,23 +6211,27 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 
 /* ULT progress bar on hero cards */
 .hero-card { position: relative; }
-.hero-card .ult-bar {
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  bottom: 18px;
-  height: 4px;
-  background: rgba(0,0,0,0.5);
-  border-radius: 2px;
+/* V.1 Floating Hero Tile — ULT bar lives below the name (slot sibling), not
+   absolute-positioned inside the card. Wider, more readable, full slot width. */
+.hero-slot .ult-bar {
+  margin-top: 4px;
+  height: 5px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 3px;
   overflow: hidden;
-  z-index: 2;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
   pointer-events: none;
 }
-.hero-card .ult-fill {
+.hero-slot .ult-fill {
   height: 100%;
   width: 0%;
   border-radius: 2px;
-  transition: width 0.4s ease-out;
+  transition: width 0.4s ease-out, filter 0.2s, box-shadow 0.2s;
+}
+.hero-slot.ult-ready .ult-fill {
+  box-shadow: 0 0 8px currentColor;
+  filter: brightness(1.55) saturate(1.2);
 }
 .hero-card.ult-ready { 
   cursor: pointer; 
@@ -6259,17 +6304,19 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 }
 
 /* ===== POLISH v1 · PHASE 1 · HERO CARD IDLE ===== */
-/* Idle breath + stagger через nth-child — 5 карточек дышат в расфазе */
-.deck .hero-card {
+/* Idle breath + stagger via nth-child. V.1 refactor: target .hero-slot now
+   that cards are wrapped in slot containers. Animation runs on the slot so
+   the card's own state animations (ult-ready, fired) stay independent. */
+.deck .hero-slot > .hero-card {
   animation: pIdleBreathe 2600ms var(--p-idle-ease) infinite;
   transform-origin: center bottom;
   will-change: transform;
 }
-.deck .hero-card:nth-child(1) { animation-delay: 0ms; }
-.deck .hero-card:nth-child(2) { animation-delay: 320ms; }
-.deck .hero-card:nth-child(3) { animation-delay: 640ms; }
-.deck .hero-card:nth-child(4) { animation-delay: 960ms; }
-.deck .hero-card:nth-child(5) { animation-delay: 1280ms; }
+.deck .hero-slot:nth-child(1) > .hero-card { animation-delay: 0ms; }
+.deck .hero-slot:nth-child(2) > .hero-card { animation-delay: 320ms; }
+.deck .hero-slot:nth-child(3) > .hero-card { animation-delay: 640ms; }
+.deck .hero-slot:nth-child(4) > .hero-card { animation-delay: 960ms; }
+.deck .hero-slot:nth-child(5) > .hero-card { animation-delay: 1280ms; }
 
 /* Когда карточка активно играет FX — останавливаем idle чтобы не мешать */
 .deck .hero-card.fired,
@@ -31386,8 +31433,15 @@ function renderDeck() {
   const el = document.getElementById('deck');
   el.innerHTML = '';
   for (const h of HERO_DECK) {
+    // 2026-04-27 — V.1 "Floating Hero Tiles": each hero rendered in a slot
+    // (flex column) with portrait card + name + ULT bar as siblings. Label
+    // and ULT bar live OUTSIDE the card so they sit below the portrait
+    // without competing with the element-glow border.
+    const slot = document.createElement('div');
+    slot.className = `hero-slot ${h.stihiya}`;
+    slot.dataset.id = h.id;
+    // Portrait card (frame-only — name + bar moved out as siblings)
     const card = document.createElement('div');
-    // POLISH v1 · PHASE 4 — rarity class derived from vHeroRarity (tier/awaken)
     let _rarity = 'common';
     try { _rarity = (typeof vHeroRarity === 'function' ? vHeroRarity(h) : (h.rarity || 'common')).toLowerCase(); } catch(e){}
     card.className = `hero-card ${h.stihiya} rarity-${_rarity}`;
@@ -31398,7 +31452,6 @@ function renderDeck() {
     card.appendChild(img);
     const roleBadge = document.createElement('div');
     roleBadge.className = 'hero-role-badge';
-    // V18.17: use role emblem image based on newRole (warrior/hunter/mage/tank/captain)
     const roleEmblemKey = `emblem_role_${h.newRole}`;
     if (h.newRole && ASSETS[roleEmblemKey]) {
       const rimg = document.createElement('img');
@@ -31417,29 +31470,30 @@ function renderDeck() {
       badge.textContent = `${progress}/${period}`;
       card.appendChild(badge);
     }
-    // ULT bar
+    // Charge progress (gated on per-role cost)
+    const charge = heroCharges[h.id] || 0;
+    const max = getUltCost(h.id);
+    if (charge >= max) {
+      card.classList.add('ult-ready');
+      card.style.setProperty('--glow', STIHIYA_COLORS[h.stihiya]);
+      slot.classList.add('ult-ready');
+    }
+    slot.appendChild(card);
+    // Hero name — under the portrait card (V.1 Floating layout)
+    const label = document.createElement('div');
+    label.className = 'hero-label';
+    label.textContent = h.name;
+    slot.appendChild(label);
+    // ULT bar — under the name, full-width of slot
     const ultBar = document.createElement('div');
     ultBar.className = 'ult-bar';
     const ultFill = document.createElement('div');
     ultFill.className = 'ult-fill';
-    // HOTFIX B3.3 — per-role cost (warrior/tank=80, mage/captain=100, hunter=120).
-    // Bar width scales to per-hero cost so 100% fill always means "ready" regardless of role.
-    const charge = heroCharges[h.id] || 0;
-    const max = getUltCost(h.id);
     ultFill.style.width = Math.min(100, (charge / max) * 100) + '%';
     ultFill.style.background = STIHIYA_COLORS[h.stihiya];
     ultFill.style.color = STIHIYA_COLORS[h.stihiya];
     ultBar.appendChild(ultFill);
-    card.appendChild(ultBar);
-    // Ready state — gated on per-hero charge >= per-role cost.
-    if (charge >= max) {
-      card.classList.add('ult-ready');
-      card.style.setProperty('--glow', STIHIYA_COLORS[h.stihiya]);
-    }
-    const label = document.createElement('div');
-    label.className = 'hero-label';
-    label.textContent = h.name;
-    card.appendChild(label);
+    slot.appendChild(ultBar);
     // POLISH v1 · PHASE 4 — status effects row (no-op until per-hero status model lands)
     // TODO(polish-v2): wire h._activeStatuses when buff/debuff tracking per hero is added.
     //   Shape: [{ kind: 'buff'|'debuff'|'shield', icon: '★', duration: 2 }, ...]
@@ -31468,9 +31522,9 @@ function renderDeck() {
       }
       card.appendChild(row);
     }
-    // Click handler — activate ULT if ready
-    card.addEventListener('click', () => onHeroCardClick(h));
-    el.appendChild(card);
+    // Click handler — activate ULT if ready (anywhere on the slot taps the hero)
+    slot.addEventListener('click', () => onHeroCardClick(h));
+    el.appendChild(slot);
   }
   // PHASE 5b BLOCK 3 — re-apply Hypnotist visual indicators after deck re-render
   // (suggested hero pulse + coiled hero dim). Idempotent: if no Hypnotist active,
