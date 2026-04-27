@@ -2504,6 +2504,97 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
 .shop-gold-convert .shop-pack-name { color: #BB60FF !important; }
 .shop-gold-convert .shop-pack-cost { color: #FFD53D; font-size: 12px; }
 
+/* ===== PHASE B — Pack Lineup CSS (Big/Premium/Ultimate + pity + drop boost) ===== */
+.shop-pack-big      { border-color: #5DCA79 !important; background: linear-gradient(180deg, rgba(93,202,121,0.14), rgba(0,0,0,0.4)) !important; }
+.shop-pack-big .shop-pack-name { color: #5DCA79 !important; }
+.shop-pack-premium  { border-color: #FFD53D !important; background: linear-gradient(180deg, rgba(255,213,61,0.16), rgba(0,0,0,0.4)) !important; }
+.shop-pack-premium .shop-pack-name { color: #FFD53D !important; }
+.shop-pack-ultimate { border-color: #BB60FF !important; background: linear-gradient(135deg, rgba(187,96,255,0.20), rgba(255,213,61,0.12)) !important; box-shadow: 0 0 16px rgba(187,96,255,0.30); }
+.shop-pack-ultimate .shop-pack-name { color: #BB60FF !important; font-size: 14px; }
+.shop-pack-dual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.shop-pack-dual .shop-pack-btn { margin-bottom: 0; }
+/* Pity progress bar — shown above PACK lineup so player tracks anti-RNG protection. */
+.shop-pity-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.08), rgba(0,0,0,0.30));
+  border: 1px solid rgba(255,213,61,0.35);
+  border-radius: 10px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #B8B5C4;
+}
+.shop-pity-bar .label { font-weight: 700; color: #FFD53D; }
+.shop-pity-bar .track {
+  flex: 1;
+  height: 8px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.shop-pity-bar .fill {
+  height: 100%;
+  background: linear-gradient(90deg, #FFD53D, #FFAA00);
+  transition: width 0.4s ease;
+}
+.shop-pity-bar .count {
+  font-weight: 800;
+  color: #FFFFFF;
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: right;
+}
+/* Premium drop rate banner — only visible while window active (Ultimate Pack 7d). */
+.shop-drop-boost {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+  background: linear-gradient(90deg, rgba(187,96,255,0.18), rgba(93,202,121,0.18));
+  border: 2px solid #BB60FF;
+  border-radius: 10px;
+  box-shadow: 0 0 14px rgba(187,96,255,0.30);
+}
+.shop-drop-boost .icon { font-size: 24px; }
+.shop-drop-boost .text { flex: 1; font-size: 10px; line-height: 1.4; color: #FFFFFF; }
+.shop-drop-boost .text strong { color: #BB60FF; letter-spacing: 1.5px; }
+/* Pack reveal — bonus loot strip below cards (T2/T3/gold/essence). */
+.pack-reveal-bonus {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 14px 0 6px;
+  padding: 0 12px;
+}
+.pack-reveal-bonus span {
+  display: inline-block;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.20), rgba(0,0,0,0.4));
+  border: 1px solid rgba(255,213,61,0.45);
+  border-radius: 10px;
+  font-family: var(--a-font-num);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: #FFD53D;
+  animation: bonusFadeIn 0.6s ease-out backwards;
+  animation-delay: 1.4s;
+}
+@keyframes bonusFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* Pack Reveal modal — chest opens, cards flip in (per spec §14.2 — 1.5s). */
 .pack-reveal-modal { display: none; }
 .pack-reveal-modal.active {
@@ -13323,12 +13414,19 @@ function dropRandomHeroCards(count, opts) {
   // Weight inversely proportional to current fragment count so heroes the player
   // owns less of are rarer to fill — encourages collection completion (Standard
   // Hero Pack rule, spec §11.2). Each card drops independently.
+  // Phase B (2026-04-28): Ultimate Pack activates 7-day "premium drop rate" — heroes
+  // below half the per-hero fragment cap get a +30% weight bonus. Stacks on top of
+  // base anti-RNG curve so under-collected heroes are even more likely during boost.
+  const dropBoostActive = (typeof _isPremiumDropActive === 'function') ? _isPremiumDropActive() : false;
+  const dropBoostMult   = (typeof PREMIUM_DROP_RATE_BOOST === 'number') ? PREMIUM_DROP_RATE_BOOST : 1.30;
   const dropped = {};
   for (let i = 0; i < count; i++) {
     const weights = pool.map(h => {
       const cur = (heroFragments && heroFragments[h.id]) || 0;
       // weight = max(1, HERO_FRAGMENT_CAP - cur); heroes near cap get weight=1.
-      return Math.max(1, HERO_FRAGMENT_CAP - cur);
+      let w = Math.max(1, HERO_FRAGMENT_CAP - cur);
+      if (dropBoostActive && cur < (HERO_FRAGMENT_CAP / 2)) w *= dropBoostMult;
+      return w;
     });
     const total = weights.reduce((a, b) => a + b, 0);
     if (total <= 0) break;
@@ -13488,6 +13586,8 @@ function buyStandardPack() {
   if (!_spendGoldForPack(PACK_STANDARD_COST, 'STANDARD')) return false;
   // dropRandomHeroCards uses weighted pool (heroes-owned-less rank higher).
   const dropped = dropRandomHeroCards(1, { silent: true });
+  // Phase B: increment pity counter; force-T2 at threshold (per spec §3.4).
+  try { if (typeof _incrementPackPity === 'function') _incrementPackPity(); } catch (e) {}
   showPackRevealModal({ kind: 'standard', dropped });
   return true;
 }
@@ -13499,6 +13599,7 @@ function buyRacePack(race) {
   }
   if (!_spendGoldForPack(PACK_RACE_COST, 'RACE_' + race)) return false;
   const dropped = dropRandomHeroCards(PACK_RACE_COUNT, { silent: true, race });
+  try { if (typeof _incrementPackPity === 'function') _incrementPackPity(); } catch (e) {}
   showPackRevealModal({ kind: 'race', race, dropped });
   return true;
 }
@@ -13517,31 +13618,52 @@ function showPackRevealModal(opts) {
     modal.onclick = function(e) { if (e.target === modal) closePackReveal(); };
     document.body.appendChild(modal);
   }
-  const isRace = opts.kind === 'race';
+  const isRace     = opts.kind === 'race';
+  const isBig      = opts.kind === 'big';
+  const isPremium  = opts.kind === 'premium';
+  const isUltimate = opts.kind === 'ultimate';
   const raceLabel = isRace ? (_PACK_RACE_LABELS[opts.race] || '') : '';
   const raceColor = isRace ? (_PACK_RACE_COLORS[opts.race] || '#FFD53D') : '#FFD53D';
+  const borderColor = isUltimate ? '#BB60FF' : isPremium ? '#FFD53D' : isBig ? '#5DCA79' : raceColor;
+  const titleStr =
+      isUltimate ? 'ULTIMATE PACK' :
+      isPremium  ? 'PREMIUM PACK'  :
+      isBig      ? 'BIG PACK'      :
+      isRace     ? (raceLabel + ' RACE PACK') :
+                   'STANDARD HERO PACK';
   const dropped = opts.dropped || [];
   const cardsHtml = dropped.map((d, i) => {
     const hero = HERO_ROSTER.find(h => h && h.id === d.heroId);
     if (!hero) return '';
     const stih = (hero.stihiya || '').toUpperCase();
     const stihColor = (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS[hero.stihiya]) || '#FFD53D';
-    return `<div class="pack-card" style="border-color:${stihColor};animation-delay:${0.6 + i * 0.3}s">
-      <div class="pack-card-portrait">
-        <img src="${(typeof ASSETS !== 'undefined' && ASSETS[hero.img]) || ''}" alt="${hero.name}"/>
-      </div>
-      <div class="pack-card-name">${hero.name}</div>
-      <div class="pack-card-meta">${stih} · ×${d.count}</div>
-    </div>`;
+    return '<div class="pack-card" style="border-color:' + stihColor + ';animation-delay:' + (0.6 + i * 0.3) + 's">' +
+      '<div class="pack-card-portrait">' +
+        '<img src="' + ((typeof ASSETS !== 'undefined' && ASSETS[hero.img]) || '') + '" alt="' + hero.name + '"/>' +
+      '</div>' +
+      '<div class="pack-card-name">' + hero.name + '</div>' +
+      '<div class="pack-card-meta">' + stih + ' · ×' + d.count + '</div>' +
+    '</div>';
   }).join('');
-  modal.innerHTML = `
-    <div class="modal-box pack-reveal-box" style="border-color:${raceColor}">
-      <button class="detail-close" onclick="closePackReveal()">×</button>
-      <div class="pack-reveal-title">${isRace ? raceLabel + ' RACE PACK' : 'STANDARD HERO PACK'}</div>
-      <div class="pack-chest" id="packChestIcon">📦</div>
-      <div class="pack-reveal-cards">${cardsHtml || '<div style="color:#9A98A4;font-size:11px">No cards dropped — pool exhausted.</div>'}</div>
-      <button class="btn pack-reveal-claim" onclick="closePackReveal()">CLAIM</button>
-    </div>`;
+  // Phase B: bonus-loot strip for Big/Premium/Ultimate packs (T2/T3/gold/essence/dropBoost).
+  const bonusItems = [];
+  if (opts.t2 > 0)            bonusItems.push('⚡ T2 STONE × ' + opts.t2);
+  if (opts.t3 > 0)            bonusItems.push('💠 T3 STONE × ' + opts.t3);
+  if (opts.gold > 0)          bonusItems.push('💰 ' + opts.gold + ' GOLD');
+  if (opts.essence > 0)       bonusItems.push('✦ ' + opts.essence + ' ' + (opts.stihiya || '').toUpperCase() + ' ESSENCE');
+  if (opts.dropBoostDays > 0) bonusItems.push('🎯 ' + opts.dropBoostDays + 'd PREMIUM DROP RATE');
+  const bonusHtml = bonusItems.length
+    ? '<div class="pack-reveal-bonus">' + bonusItems.map(b => '<span>' + b + '</span>').join('') + '</div>'
+    : '';
+  modal.innerHTML =
+    '<div class="modal-box pack-reveal-box" style="border-color:' + borderColor + '">' +
+      '<button class="detail-close" onclick="closePackReveal()">×</button>' +
+      '<div class="pack-reveal-title">' + titleStr + '</div>' +
+      '<div class="pack-chest" id="packChestIcon">📦</div>' +
+      '<div class="pack-reveal-cards">' + (cardsHtml || '<div style="color:#9A98A4;font-size:11px">No cards dropped — pool exhausted.</div>') + '</div>' +
+      bonusHtml +
+      '<button class="btn pack-reveal-claim" onclick="closePackReveal()">CLAIM</button>' +
+    '</div>';
   modal.classList.add('active');
   // Trigger chest open animation after a tick.
   setTimeout(() => {
@@ -13673,6 +13795,165 @@ function purchaseGemPack(packId) {
   renderShopPacks();
 }
 
+// ===== PHASE B — PACK LINEUP (Big/Premium/Ultimate + pity + premium drop) =====
+// 2026-04-28 — Per BLOCKSWORN_MONETIZATION.md §5.4-5.7 / §3.4.
+
+const PACK_BIG_GOLD_COST            = 5000;
+const PACK_BIG_GEMS_COST            = 500;
+const PACK_BIG_CARDS                = 10;
+const PACK_BIG_T2_STONES            = 1;
+
+const PACK_PREMIUM_GEMS_COST        = 500;
+const PACK_PREMIUM_CARDS            = 10;
+const PACK_PREMIUM_T2_STONES        = 1;
+const PACK_PREMIUM_T3_CHANCE        = 0.05;
+const PACK_PREMIUM_GOLD_BONUS       = 50;
+const PACK_PREMIUM_ESSENCE_BONUS    = 5;
+
+const PACK_ULTIMATE_GEMS_COST       = 1100;
+const PACK_ULTIMATE_CARDS           = 25;
+const PACK_ULTIMATE_T2_STONES       = 2;
+const PACK_ULTIMATE_T3_STONES       = 1;
+const PACK_ULTIMATE_GOLD_BONUS      = 100;
+const PACK_ULTIMATE_ESSENCE_BONUS   = 20;
+const PACK_ULTIMATE_DROP_BOOST_DAYS = 7;
+
+const PACK_PITY_KEY                 = 'blocksworn_pack_pity_counter';
+const PACK_PITY_THRESHOLD           = 30;  // standard/race packs without rare → guaranteed T2
+const PREMIUM_DROP_RATE_KEY         = 'blocksworn_premium_drop_until';
+const PREMIUM_DROP_RATE_BOOST       = 1.30;  // ×30% weight to less-owned heroes during 7d window
+
+function _addTier2Stones(n) {
+  if (!towerState || n <= 0) return;
+  towerState.tier2Stones = (towerState.tier2Stones || 0) + n;
+  try { saveTowerState(); } catch (e) {}
+}
+function _addTier3Stones(n) {
+  if (!towerState || n <= 0) return;
+  towerState.tier3Stones = (towerState.tier3Stones || 0) + n;
+  try { saveTowerState(); } catch (e) {}
+}
+function _getPackPityCounter() {
+  try { return parseInt(localStorage.getItem(PACK_PITY_KEY) || '0', 10) || 0; } catch (e) { return 0; }
+}
+function _setPackPityCounter(n) {
+  try { localStorage.setItem(PACK_PITY_KEY, String(Math.max(0, n))); } catch (e) {}
+}
+function _onRareDropResetPity() {
+  // Big/Premium/Ultimate purchases all guarantee a T2 (rare) so pity resets.
+  _setPackPityCounter(0);
+}
+function _incrementPackPity() {
+  // Standard / Race packs increment pity. At threshold, force-grant a T2 stone
+  // bonus AND reset (per spec §3.4 anti-RNG protection: "After 30 packs without
+  // rare card, guaranteed pity").
+  let n = _getPackPityCounter() + 1;
+  if (n >= PACK_PITY_THRESHOLD) {
+    _addTier2Stones(1);
+    n = 0;
+    setTimeout(function () { try { flashText('★ PITY BONUS · T2 STONE', '#FFD53D'); } catch (e) {} }, 1100);
+  }
+  _setPackPityCounter(n);
+}
+
+function _isPremiumDropActive() {
+  try {
+    const raw = localStorage.getItem(PREMIUM_DROP_RATE_KEY);
+    if (!raw) return false;
+    return parseInt(raw, 10) > Date.now();
+  } catch (e) { return false; }
+}
+function _premiumDropDaysRemaining() {
+  try {
+    const raw = localStorage.getItem(PREMIUM_DROP_RATE_KEY);
+    if (!raw) return 0;
+    const ms = parseInt(raw, 10) - Date.now();
+    return Math.max(0, Math.ceil(ms / 86400000));
+  } catch (e) { return 0; }
+}
+
+// ----- Big Pack (5000g OR 500💎 → 10 cards + 1 T2) -----
+function buyBigPackGold() {
+  if (!_spendGoldForPack(PACK_BIG_GOLD_COST, 'BIG_GOLD')) return false;
+  return _grantBigPackContents();
+}
+function buyBigPackGems() {
+  if (!spendGems(PACK_BIG_GEMS_COST)) {
+    try { flashText('Need ' + PACK_BIG_GEMS_COST + ' 💎', '#E85D4A'); } catch (e) {}
+    return false;
+  }
+  return _grantBigPackContents();
+}
+function _grantBigPackContents() {
+  const dropped = dropRandomHeroCards(PACK_BIG_CARDS, { silent: true });
+  _addTier2Stones(PACK_BIG_T2_STONES);
+  _onRareDropResetPity();
+  showPackRevealModal({ kind: 'big', dropped, t2: PACK_BIG_T2_STONES });
+  return true;
+}
+
+// ----- Premium Pack (500💎 → 10 cards + 1 T2 + 5% T3 + bonus gold/essence) -----
+function buyPremiumPack() {
+  if (!spendGems(PACK_PREMIUM_GEMS_COST)) {
+    try { flashText('Need ' + PACK_PREMIUM_GEMS_COST + ' 💎', '#E85D4A'); } catch (e) {}
+    return false;
+  }
+  const dropped = dropRandomHeroCards(PACK_PREMIUM_CARDS, { silent: true });
+  _addTier2Stones(PACK_PREMIUM_T2_STONES);
+  let t3 = 0;
+  if (Math.random() < PACK_PREMIUM_T3_CHANCE) {
+    _addTier3Stones(1);
+    t3 = 1;
+  }
+  if (typeof gold !== 'undefined') {
+    gold += PACK_PREMIUM_GOLD_BONUS;
+    try { saveGoldToStorage(); } catch (e) {}
+  }
+  const stihList = ['ember', 'tide', 'grove', 'solar', 'umbra'];
+  const randStih = stihList[Math.floor(Math.random() * stihList.length)];
+  if (typeof essences === 'object' && essences) {
+    essences[randStih] = (essences[randStih] || 0) + PACK_PREMIUM_ESSENCE_BONUS;
+    try { saveProgress(); } catch (e) {}
+  }
+  _onRareDropResetPity();
+  showPackRevealModal({ kind: 'premium', dropped,
+                        t2: PACK_PREMIUM_T2_STONES, t3,
+                        gold: PACK_PREMIUM_GOLD_BONUS,
+                        essence: PACK_PREMIUM_ESSENCE_BONUS, stihiya: randStih });
+  return true;
+}
+
+// ----- Ultimate Pack (1100💎 → 25 cards + 2 T2 + 1 T3 + 7d premium drop) -----
+function buyUltimatePack() {
+  if (!spendGems(PACK_ULTIMATE_GEMS_COST)) {
+    try { flashText('Need ' + PACK_ULTIMATE_GEMS_COST + ' 💎', '#E85D4A'); } catch (e) {}
+    return false;
+  }
+  const dropped = dropRandomHeroCards(PACK_ULTIMATE_CARDS, { silent: true });
+  _addTier2Stones(PACK_ULTIMATE_T2_STONES);
+  _addTier3Stones(PACK_ULTIMATE_T3_STONES);
+  if (typeof gold !== 'undefined') {
+    gold += PACK_ULTIMATE_GOLD_BONUS;
+    try { saveGoldToStorage(); } catch (e) {}
+  }
+  const stihList = ['ember', 'tide', 'grove', 'solar', 'umbra'];
+  const randStih = stihList[Math.floor(Math.random() * stihList.length)];
+  if (typeof essences === 'object' && essences) {
+    essences[randStih] = (essences[randStih] || 0) + PACK_ULTIMATE_ESSENCE_BONUS;
+    try { saveProgress(); } catch (e) {}
+  }
+  // Activate 7-day premium drop boost (anti-RNG +30% weight to unowned).
+  const until = Date.now() + (PACK_ULTIMATE_DROP_BOOST_DAYS * 86400000);
+  try { localStorage.setItem(PREMIUM_DROP_RATE_KEY, String(until)); } catch (e) {}
+  _onRareDropResetPity();
+  showPackRevealModal({ kind: 'ultimate', dropped,
+                        t2: PACK_ULTIMATE_T2_STONES, t3: PACK_ULTIMATE_T3_STONES,
+                        gold: PACK_ULTIMATE_GOLD_BONUS,
+                        essence: PACK_ULTIMATE_ESSENCE_BONUS, stihiya: randStih,
+                        dropBoostDays: PACK_ULTIMATE_DROP_BOOST_DAYS });
+  return true;
+}
+
 // Render the pack catalog into shopSectionOffers. Called from goToShop().
 function renderShopPacks() {
   const host = document.getElementById('shopSectionOffers');
@@ -13737,6 +14018,60 @@ function renderShopPacks() {
       '<span class="shop-pack-cost">' + GOLD_TO_GEMS_COST + ' 💰 → ' + GOLD_TO_GEMS_AMOUNT + ' 💎</span>' +
     '</button>';
 
+  // ----- Section 3b: Phase B — Big / Premium / Ultimate Packs + pity + drop boost -----
+  const gemsNow = (typeof gems === 'number') ? gems : 0;
+  const bigGoldAfford = goldNow >= PACK_BIG_GOLD_COST;
+  const bigGemsAfford = gemsNow >= PACK_BIG_GEMS_COST;
+  const premiumAfford = gemsNow >= PACK_PREMIUM_GEMS_COST;
+  const ultimateAfford = gemsNow >= PACK_ULTIMATE_GEMS_COST;
+  // Pity progress (anti-RNG: standard/race packs accumulate, T2 stone forced at 30).
+  const pityCount = _getPackPityCounter();
+  const pityPct = Math.min(100, Math.round((pityCount / PACK_PITY_THRESHOLD) * 100));
+  const pityHtml =
+    '<div class="shop-pity-bar" title="Anti-RNG: every 30 standard/race packs without rare → 1 free T2 stone">' +
+      '<span class="label">PITY</span>' +
+      '<span class="track"><span class="fill" style="width:' + pityPct + '%"></span></span>' +
+      '<span class="count">' + pityCount + ' / ' + PACK_PITY_THRESHOLD + '</span>' +
+    '</div>';
+  // Premium drop rate banner (active only after Ultimate Pack purchase, 7 days).
+  const dropActive = _isPremiumDropActive();
+  const dropDays = _premiumDropDaysRemaining();
+  const dropBoostHtml = dropActive ? (
+    '<div class="shop-drop-boost">' +
+      '<span class="icon">🎯</span>' +
+      '<span class="text"><strong>PREMIUM DROP RATE ACTIVE</strong><br>+30% weight to less-owned heroes · ' + dropDays + ' day' + (dropDays === 1 ? '' : 's') + ' remaining</span>' +
+    '</div>'
+  ) : '';
+  const bigPackHtml =
+    '<div class="shop-pack-dual">' +
+      '<button class="shop-pack-btn shop-pack-big" ' + (bigGoldAfford ? '' : 'disabled') + ' onclick="buyBigPackGold()">' +
+        '<span class="shop-pack-emoji">📦</span>' +
+        '<span class="shop-pack-name">BIG PACK</span>' +
+        '<span class="shop-pack-desc">10 cards + 1 ⚡ T2</span>' +
+        '<span class="shop-pack-cost">' + PACK_BIG_GOLD_COST.toLocaleString() + ' 💰</span>' +
+      '</button>' +
+      '<button class="shop-pack-btn shop-pack-big" ' + (bigGemsAfford ? '' : 'disabled') + ' onclick="buyBigPackGems()">' +
+        '<span class="shop-pack-emoji">📦</span>' +
+        '<span class="shop-pack-name">BIG PACK</span>' +
+        '<span class="shop-pack-desc">10 cards + 1 ⚡ T2</span>' +
+        '<span class="shop-pack-cost">' + PACK_BIG_GEMS_COST + ' 💎</span>' +
+      '</button>' +
+    '</div>';
+  const premiumPackHtml =
+    '<button class="shop-pack-btn shop-pack-premium" ' + (premiumAfford ? '' : 'disabled') + ' onclick="buyPremiumPack()">' +
+      '<span class="shop-pack-emoji">🎁</span>' +
+      '<span class="shop-pack-name">PREMIUM PACK</span>' +
+      '<span class="shop-pack-desc">10 cards · 1 ⚡ T2 · 5% chance 💠 T3 · +' + PACK_PREMIUM_GOLD_BONUS + '💰 · +' + PACK_PREMIUM_ESSENCE_BONUS + '✦</span>' +
+      '<span class="shop-pack-cost">' + PACK_PREMIUM_GEMS_COST + ' 💎</span>' +
+    '</button>';
+  const ultimatePackHtml =
+    '<button class="shop-pack-btn shop-pack-ultimate" ' + (ultimateAfford ? '' : 'disabled') + ' onclick="buyUltimatePack()">' +
+      '<span class="shop-pack-emoji">👑</span>' +
+      '<span class="shop-pack-name">ULTIMATE PACK</span>' +
+      '<span class="shop-pack-desc">25 cards · 2 ⚡ T2 · 1 💠 T3 · +' + PACK_ULTIMATE_GOLD_BONUS + '💰 · +' + PACK_ULTIMATE_ESSENCE_BONUS + '✦ · 7d 🎯 boost</span>' +
+      '<span class="shop-pack-cost">' + PACK_ULTIMATE_GEMS_COST + ' 💎</span>' +
+    '</button>';
+
   // ----- Section 4: Cosmetics (existing — unchanged) -----
   const cState = _ensureCosmeticState();
   const cosmeticHtml = ['frame', 'aura', 'bg'].map(function (slot) {
@@ -13765,9 +14100,15 @@ function renderShopPacks() {
 
   host.innerHTML =
     firstPurchaseBannerHtml +
+    dropBoostHtml +
     '<div class="shop-pack-divider">💎 GEM PACKS · Premium currency</div>' +
     gemPacksHtml +
+    '<div class="shop-pack-divider">⚡ BIG / PREMIUM / ULTIMATE</div>' +
+    bigPackHtml +
+    premiumPackHtml +
+    ultimatePackHtml +
     '<div class="shop-pack-divider">📦 HERO CARD PACKS · Earnable with gold</div>' +
+    pityHtml +
     '<button class="shop-pack-btn shop-pack-standard" ' + (stdAffordable ? '' : 'disabled') + ' onclick="buyStandardPack()">' +
       '<span class="shop-pack-emoji">📦</span>' +
       '<span class="shop-pack-name">STANDARD HERO PACK</span>' +
@@ -17179,6 +17520,7 @@ let towerState = {
   seenPactIds: [],            // unique pact ids seen across all runs (for Pact Master)
   // ===== Block 6.3 — Chapter 3 reward state =====
   tier2Stones: 0,             // count of Tier 2 Ascension Stones (Forgotten Pack §2.7)
+  tier3Stones: 0,             // count of Tier 3 Ascension Stones (Phase B pack drops, 2026-04-28)
   chapter3FinalRewardClaimed: false,   // idempotent gate for boss 15 reward bundle
   // ===== Block 6.4 — Tier 2 Ascension =====
   ascendedHeroes: [],         // array of hero ids permanently ascended to T2
