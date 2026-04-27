@@ -3680,6 +3680,123 @@
   padding: 16px;
 }
 .tower-floor-clear-modal.hidden { display: none; }
+
+/* ===== 2026-04-27 — Block T.2 — Pact picker modal ===== */
+.tower-pact-modal {
+  position: fixed; inset: 0;
+  z-index: 10003;
+  background: rgba(5, 3, 8, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center; justify-content: center;
+  padding: 16px;
+  animation: introFadeIn 0.3s ease-out;
+}
+.tower-pact-modal.hidden { display: none; }
+.tower-pact-modal .tpm-card-wrap {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tower-pact-modal .tpm-header {
+  text-align: center;
+}
+.tower-pact-modal .tpm-floor-label {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--a-gold-300, #FFD53D);
+  opacity: 0.7;
+}
+.tower-pact-modal .tpm-title {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  text-shadow: 0 0 14px rgba(255, 213, 61, 0.4);
+  margin-top: 4px;
+}
+.tower-pact-modal .tpm-pacts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tower-pact-modal .tpm-pact-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: linear-gradient(180deg, rgba(58, 42, 24, 0.7), rgba(20, 12, 6, 0.85));
+  border: 1.5px solid rgba(255, 184, 74, 0.55);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--a-text-primary, #E8E6DF);
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.tower-pact-modal .tpm-pact-card:hover {
+  border-color: var(--a-gold-300, #FFD53D);
+  box-shadow: 0 0 14px rgba(255, 213, 61, 0.35);
+  transform: translateY(-2px);
+}
+.tower-pact-modal .tpm-pact-card:active { transform: scale(0.97); }
+.tower-pact-modal .tpm-name {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300, #FFD53D);
+}
+.tower-pact-modal .tpm-effect {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.tower-pact-modal .tpm-effect .tpm-glyph {
+  font-weight: 800;
+  font-size: 13px;
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+}
+.tower-pact-modal .tpm-power .tpm-glyph { color: #5DCA79; }
+.tower-pact-modal .tpm-power      { color: #B8E5C0; }
+.tower-pact-modal .tpm-cost .tpm-glyph  { color: #E85D4A; }
+.tower-pact-modal .tpm-cost       { color: #E0B0A8; }
+.tower-pact-modal .tpm-accept {
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, #FFD53D, #FF8B3D);
+  color: #1A0F08;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  font-size: 10px;
+  text-align: center;
+  border-radius: 6px;
+}
+.tower-pact-modal .tpm-skip {
+  margin: 4px auto 0;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid rgba(168, 165, 184, 0.4);
+  border-radius: 8px;
+  color: var(--a-text-secondary, #A8A5B8);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+.tower-pact-modal .tpm-skip:hover {
+  border-color: var(--a-text-primary, #E8E6DF);
+  color: var(--a-text-primary, #E8E6DF);
+}
 .tower-floor-clear-modal .tfm-card {
   width: 100%; max-width: 380px;
   background: var(--a-bg-elevated);
@@ -9124,6 +9241,33 @@ button.season-tier-claim:active {
   </nav>
 </div>
 
+<!-- 2026-04-27 — Block T.2 Pact Picker. Shows 2 pact cards + SKIP between
+     each tower floor. Pacts persist for the run; selection mutates
+     pactRunState which combat hooks read. -->
+<div class="tower-pact-modal hidden" id="towerPactModal">
+  <div class="tpm-card-wrap">
+    <div class="tpm-header">
+      <div class="tpm-floor-label" id="tpmFloorLabel">FLOOR 2</div>
+      <div class="tpm-title">THE PACT BEGINS</div>
+    </div>
+    <div class="tpm-pacts">
+      <button class="tpm-pact-card" id="tpmCard1" onclick="onPactSelected(1)">
+        <div class="tpm-name" id="tpmName1">—</div>
+        <div class="tpm-effect tpm-power"><span class="tpm-glyph">+</span><span id="tpmPower1">—</span></div>
+        <div class="tpm-effect tpm-cost"><span class="tpm-glyph">−</span><span id="tpmCost1">—</span></div>
+        <div class="tpm-accept">ACCEPT</div>
+      </button>
+      <button class="tpm-pact-card" id="tpmCard2" onclick="onPactSelected(2)">
+        <div class="tpm-name" id="tpmName2">—</div>
+        <div class="tpm-effect tpm-power"><span class="tpm-glyph">+</span><span id="tpmPower2">—</span></div>
+        <div class="tpm-effect tpm-cost"><span class="tpm-glyph">−</span><span id="tpmCost2">—</span></div>
+        <div class="tpm-accept">ACCEPT</div>
+      </button>
+    </div>
+    <button class="tpm-skip" onclick="onPactSkip()">SKIP — neutral</button>
+  </div>
+</div>
+
 <!-- Tower floor-clear modal — custom DOM replacing native confirm() -->
 <div class="tower-floor-clear-modal hidden" id="towerFloorClearModal">
   <div class="tfm-card">
@@ -14143,6 +14287,125 @@ const TOWER_DAILY_HEART_FRAGMENTS = 1;
 let _isTowerBattle = false;
 let _towerPreFloor = null;
 
+// 2026-04-27 — Block T.2 — Pact System (BLOCKSWORN_TOWER_OF_ENDLESS.md §5).
+// Pacts are run-defining risk/reward modifiers. After each floor (F1-F9) the
+// player picks 1 of 2 pacts (or skips). Pacts persist for the entire run.
+// Tier gating: T1 (F1-5), T2 (F6-10). T3+ (F11+) ship in Block T.4 (Weekly).
+//
+// Each pact has:
+//   id     — stable string key
+//   tier   — 1..5 (only T1+T2 implemented in this block)
+//   name   — display label
+//   power  — positive effect (player-facing string)
+//   cost   — negative effect (player-facing string)
+//   apply(state) — mutates pactRunState; called once on selection
+//
+// Multipliers wired in this block (5):
+//   damageMult     — applied in dealDamage stack (_pactDamageMult)
+//   bossHpMult     — applied at launchTowerFloor on boss HP scale
+//   shieldsBonus   — applied at battle start (added to startShields)
+//   ultCostMult    — applied to per-hero ULT charge thresholds
+//   comboCap       — clamps the combo multiplier ceiling
+const PACTS = [
+  // ========== TIER 1 — MILD (F1-5) ==========
+  { id: 'spark',     tier: 1, name: 'THE SPARK PACT',
+    power: '+10% damage to all heroes',
+    cost:  'Bosses gain +5% HP',
+    apply: (s) => { s.damageMult *= 1.10; s.bossHpMult *= 1.05; } },
+  { id: 'shield',    tier: 1, name: 'THE SHIELD PACT',
+    power: '+2 starting shields',
+    cost:  'ULT charges cost +20%',
+    apply: (s) => { s.shieldsBonus += 2; s.ultCostMult *= 1.20; } },
+  { id: 'quick',     tier: 1, name: 'THE QUICK PACT',
+    power: 'ULT charges cost −15%',
+    cost:  'Combo multiplier capped at ×8',
+    apply: (s) => { s.ultCostMult *= 0.85; s.comboCap = Math.min(s.comboCap, 8); } },
+  { id: 'forge',     tier: 1, name: 'THE FORGE PACT',
+    power: '+15% damage to all heroes',
+    cost:  'Combo multiplier capped at ×8',
+    apply: (s) => { s.damageMult *= 1.15; s.comboCap = Math.min(s.comboCap, 8); } },
+  // ========== TIER 2 — MODERATE (F6-10) ==========
+  { id: 'storm',     tier: 2, name: 'THE STORM PACT',
+    power: '+30% damage to all heroes',
+    cost:  'ULT charges cost +50%',
+    apply: (s) => { s.damageMult *= 1.30; s.ultCostMult *= 1.50; } },
+  { id: 'glass',     tier: 2, name: 'THE GLASS PACT',
+    power: '+25% damage to all heroes',
+    cost:  'Bosses gain +15% HP',
+    apply: (s) => { s.damageMult *= 1.25; s.bossHpMult *= 1.15; } },
+  { id: 'fortress',  tier: 2, name: 'THE FORTRESS PACT',
+    power: '+5 starting shields',
+    cost:  '−15% damage to all heroes',
+    apply: (s) => { s.shieldsBonus += 5; s.damageMult *= 0.85; } },
+  { id: 'patience',  tier: 2, name: 'THE PATIENCE PACT',
+    power: '+3 starting shields',
+    cost:  'ULT charges cost +30%',
+    apply: (s) => { s.shieldsBonus += 3; s.ultCostMult *= 1.30; } },
+  { id: 'berserk',   tier: 2, name: 'THE BERSERK PACT',
+    power: '+40% damage to all heroes',
+    cost:  'Bosses gain +30% HP',
+    apply: (s) => { s.damageMult *= 1.40; s.bossHpMult *= 1.30; } },
+  { id: 'glacier',   tier: 2, name: 'THE GLACIER PACT',
+    power: 'ULT charges cost −25%',
+    cost:  'Bosses gain +20% HP',
+    apply: (s) => { s.ultCostMult *= 0.75; s.bossHpMult *= 1.20; } },
+  { id: 'razor',     tier: 2, name: 'THE RAZOR PACT',
+    power: '+35% damage to all heroes',
+    cost:  'Bosses gain +20% HP',
+    apply: (s) => { s.damageMult *= 1.35; s.bossHpMult *= 1.20; } },
+  { id: 'mirror',    tier: 2, name: 'THE MIRROR PACT',
+    power: '+20% damage to all heroes',
+    cost:  'ULT charges cost +25%',
+    apply: (s) => { s.damageMult *= 1.20; s.ultCostMult *= 1.25; } },
+];
+
+// Per-run pact state. Reset on every startTowerRun. Read by combat hooks.
+let pactRunState = {
+  active: [],          // array of accepted pact ids (for UI + persistence)
+  damageMult: 1.0,     // dealDamage multiplier (folds into _multStack)
+  bossHpMult: 1.0,     // boss HP scale on spawn
+  shieldsBonus: 0,     // additional starting shields per fight
+  ultCostMult: 1.0,    // ULT charge cost scale (>1 = harder, <1 = easier)
+  comboCap: 12,        // combo multiplier ceiling (default = engine default)
+};
+function resetPactRunState() {
+  pactRunState = {
+    active: [],
+    damageMult: 1.0,
+    bossHpMult: 1.0,
+    shieldsBonus: 0,
+    ultCostMult: 1.0,
+    comboCap: 12,
+  };
+}
+
+// Returns 2 random pacts of the appropriate tier for the player's NEXT floor.
+// F1-5 → tier 1, F6-10 → tier 2. Excludes already-accepted pacts so a run
+// never offers the same pact twice.
+function getPactOfferings(nextFloor) {
+  const tier = (nextFloor <= TOWER_MID_BOSS_FLOOR) ? 1 : 2;
+  const taken = new Set(pactRunState.active);
+  const pool = PACTS.filter(p => p.tier === tier && !taken.has(p.id));
+  if (pool.length < 2) return pool.slice();  // not enough left → return whatever
+  // Fisher-Yates shuffle, take 2
+  const out = pool.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out.slice(0, 2);
+}
+
+// Accept a pact: mutate pactRunState via apply(), record id, save.
+function acceptPact(pactId) {
+  const p = PACTS.find(x => x.id === pactId);
+  if (!p) return false;
+  if (pactRunState.active.includes(pactId)) return false;  // idempotent
+  try { p.apply(pactRunState); } catch (e) { console.warn('pact apply failed:', pactId, e); }
+  pactRunState.active.push(pactId);
+  return true;
+}
+
 function saveTowerState() {
   try { localStorage.setItem(TOWER_KEY, JSON.stringify(towerState)); } catch (e) { console.warn('saveTowerState:', e); }
 }
@@ -14313,8 +14576,12 @@ function getTowerFloorConfig(floor) {
   }
   // Deep-clone boss template with scaled HP + _isTowerBattle flag (prevents
   // startBossBattle from clobbering via BOSSES[idx] reassignment).
+  // 2026-04-27 — Block T.2: pact bossHpMult stacks multiplicatively on top
+  // of the floor's base hpMult. So BERSERK PACT (×1.30) on F5 (×1.4 base)
+  // = ×1.82 final HP scale.
+  const pactHpMult = (typeof pactRunState !== 'undefined') ? (pactRunState.bossHpMult || 1.0) : 1.0;
   const boss = Object.assign({}, bossTemplate, {
-    hp: Math.floor(bossTemplate.hp * hpMult),
+    hp: Math.floor(bossTemplate.hp * hpMult * pactHpMult),
     _isTowerBattle: true,
   });
   return { boss, modifiers, hpMult };
@@ -14348,6 +14615,10 @@ function startTowerRun() {
   towerState.attemptsToday++;
   towerState.currentFloor = 1;
   towerState.currentRunStarted = true;
+  // 2026-04-27 — Block T.2: reset pact run state at the start of every run.
+  // Pacts accumulate ONLY for the current run; on retry/new-day, the slate
+  // wipes clean (per spec §5.1 "Pacts persist for the entire run").
+  resetPactRunState();
   saveTowerState();
   launchTowerFloor();
 }
@@ -14409,8 +14680,10 @@ function onTowerFloorClear() {
     onTowerDailyComplete(floor);
     return;
   }
-  // Present continue/bank modal (mid-run, F1-F9)
-  setTimeout(() => showTowerFloorClearModal(floor), 1400);
+  // 2026-04-27 — Block T.2 — Pact picker on every cleared floor (F1-F9).
+  // Pact precedes the existing continue/bank modal; player picks a pact
+  // (or skips) → continue modal shows next-floor preview → confirm → launch.
+  setTimeout(() => showPactPicker(floor + 1, () => showTowerFloorClearModal(floor)), 1400);
 }
 
 // 2026-04-27 — Block T.1 daily completion. Fires on F10 clear (or future
@@ -14553,6 +14826,66 @@ function renderTowerScreen() {
 }
 
 // Continue/bank modal — custom DOM instead of confirm() for better mobile UX
+// 2026-04-27 — Block T.2 — Pact picker modal. Shows 2 random pacts of the
+// appropriate tier for the upcoming floor + a SKIP option. On selection,
+// applies the pact and chains to the existing floor-clear modal.
+let _pactPickerNextCallback = null;
+function showPactPicker(nextFloor, onDone) {
+  const offerings = getPactOfferings(nextFloor);
+  // No pacts available (e.g., player took every T1 pact in a single run) →
+  // skip the modal and chain straight to the next-floor modal.
+  if (!offerings || offerings.length === 0) {
+    if (typeof onDone === 'function') onDone();
+    return;
+  }
+  const modal = document.getElementById('towerPactModal');
+  if (!modal) {
+    // Modal DOM missing → fallback prompt
+    const txt = offerings.map((p, i) => `${i + 1}: ${p.name}\n  + ${p.power}\n  − ${p.cost}`).join('\n\n');
+    const ans = prompt(`PACT — FLOOR ${nextFloor}\n\n${txt}\n\nEnter 1, 2, or 0 to skip:`);
+    if (ans === '1' && offerings[0]) acceptPact(offerings[0].id);
+    if (ans === '2' && offerings[1]) acceptPact(offerings[1].id);
+    if (typeof onDone === 'function') onDone();
+    return;
+  }
+  _pactPickerNextCallback = onDone || null;
+  // Populate modal
+  const setTxt = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  setTxt('tpmFloorLabel', `FLOOR ${nextFloor}`);
+  for (let i = 0; i < 2; i++) {
+    const p = offerings[i];
+    const card = document.getElementById(`tpmCard${i + 1}`);
+    if (!card) continue;
+    if (!p) {
+      card.style.display = 'none';
+      continue;
+    }
+    card.style.display = '';
+    card.dataset.pactId = p.id;
+    setTxt(`tpmName${i + 1}`,  p.name);
+    setTxt(`tpmPower${i + 1}`, p.power);
+    setTxt(`tpmCost${i + 1}`,  p.cost);
+  }
+  modal.classList.add('active');
+  modal.classList.remove('hidden');
+}
+function onPactSelected(slot) {
+  const card = document.getElementById(`tpmCard${slot}`);
+  const pactId = card && card.dataset && card.dataset.pactId;
+  if (pactId) acceptPact(pactId);
+  closePactPicker();
+}
+function onPactSkip() { closePactPicker(); }
+function closePactPicker() {
+  const modal = document.getElementById('towerPactModal');
+  if (modal) { modal.classList.remove('active'); modal.classList.add('hidden'); }
+  const cb = _pactPickerNextCallback;
+  _pactPickerNextCallback = null;
+  if (typeof cb === 'function') {
+    setTimeout(cb, 250);
+  }
+}
+
 function showTowerFloorClearModal(clearedFloor) {
   if (!towerState.currentRunStarted) return; // safety: run already ended
   const nextCfg = getTowerFloorConfig(clearedFloor + 1);
@@ -15703,7 +16036,15 @@ function getUltCost(heroId) {
   if (!heroId) return HERO_ULT_COST_DEFAULT;
   const hero = (typeof HERO_DECK !== 'undefined') && HERO_DECK.find(h => h && h.id === heroId);
   if (!hero || !hero.newRole) return HERO_ULT_COST_DEFAULT;
-  return HERO_ULT_COST_BY_NEWROLE[hero.newRole] || HERO_ULT_COST_DEFAULT;
+  let baseCost = HERO_ULT_COST_BY_NEWROLE[hero.newRole] || HERO_ULT_COST_DEFAULT;
+  // 2026-04-27 — Block T.2 — Tower pact ULT cost multiplier. Outside Tower
+  // runs pactRunState.ultCostMult = 1.0 (no-op). QUICK PACT (×0.85) makes
+  // ULTs charge faster; STORM PACT (×1.50) makes them slower.
+  if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle
+      && typeof pactRunState !== 'undefined' && pactRunState.ultCostMult) {
+    baseCost = Math.max(20, Math.round(baseCost * pactRunState.ultCostMult));
+  }
+  return baseCost;
 }
 const HERO_CHARGE_PER_CELL_BY_COUNT = { 1: 20, 2: 14, 3: 10 }; // inverse-scaling fill rate per spec
 function _heroChargePerCell(matchingCount) {
@@ -19059,6 +19400,13 @@ function startBossBattle() {
   damageDealt = 0;
   placementCount = 0;
   shieldCount = currentStartShields;
+  // 2026-04-27 — Block T.2 — Tower pact starting-shields bonus. Adds on top
+  // of synergy-derived start, capped at MAX_SHIELD + maxShieldBonus + 2 to
+  // prevent runaway stacking. Outside Tower runs pactRunState.shieldsBonus = 0.
+  if (_isTowerBattle && typeof pactRunState !== 'undefined' && pactRunState.shieldsBonus > 0) {
+    const _shieldCap = (typeof MAX_SHIELD === 'number' ? MAX_SHIELD : 5) + 2 + (typeof maxShieldBonus === 'number' ? maxShieldBonus : 0);
+    shieldCount = Math.min(_shieldCap, shieldCount + pactRunState.shieldsBonus);
+  }
   ultCharges = { ...currentStartCharges };
   // V4.0 Phase 4 Task 4.1 — reset per-hero charges; seed every active deck member at 0.
   heroCharges = {};
@@ -20384,11 +20732,16 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
       }
     }
   } catch (e) {}
+  // 2026-04-27 — Block T.2 — Tower pact damage multiplier. Folded into the
+  // _multStack so all existing clamps (FIRE_MULT_CAP) still apply. Reads
+  // pactRunState.damageMult which defaults to 1.0 outside Tower runs.
+  const _pactDamageMult = (typeof pactRunState !== 'undefined' && _isTowerBattle)
+    ? (pactRunState.damageMult || 1.0) : 1.0;
   const _multStack = currentDmgMult * _passiveDmgContext * _ultDmgContext
                    * _warbandStrikeContext * _hunterMarkContext
                    * _grommarRallyContext * _packMarkContext * _helioRoarContext
                    * _captainDualContext * _signatureComboContext * _hypnoSuggestContext
-                   * _bloodhuntContext * _pirateDoubleContext;
+                   * _bloodhuntContext * _pirateDoubleContext * _pactDamageMult;
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
@@ -24626,7 +24979,14 @@ async function afterPlacement(piece) {
     if (count === 0) break;
 
     const inLines = stihiyasIn(rows, cols);
-    const mult = COMBO_MULT[Math.min(count, 4)] || 25;
+    let mult = COMBO_MULT[Math.min(count, 4)] || 25;
+    // 2026-04-27 — Block T.2 — Tower pact combo cap. QUICK/FORGE pacts cap
+    // the combo multiplier at ×8 (default ×12 at 4 lines). Outside Tower
+    // runs pactRunState.comboCap = 12 (engine default → no-op).
+    if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle
+        && typeof pactRunState !== 'undefined' && pactRunState.comboCap) {
+      mult = Math.min(mult, pactRunState.comboCap);
+    }
     const baseDmg = BASE_LINE_SCORE * count * mult;
 
     // Count stihiyas in cleared cells (dedup intersections) BEFORE clearing
