@@ -7930,6 +7930,35 @@ body.tempo-slow-tint::after {
   cursor: not-allowed;
   filter: grayscale(0.5);
 }
+/* 2026-04-27 — Block T.7 — Weekly Element Theme banner. Gold-tinted info
+ * palette (positive vibe, distinct from red-violet curse warning). */
+.tower-theme-banner {
+  margin: 0 auto 6px;
+  padding: 7px 12px;
+  background: linear-gradient(180deg, rgba(255, 213, 61, 0.15), rgba(58, 42, 24, 0.4));
+  border: 1px solid rgba(255, 213, 61, 0.45);
+  border-radius: 8px;
+  text-align: center;
+}
+.tower-theme-banner .ttb-label {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+.tower-theme-banner .ttb-effects {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+.tower-theme-banner .ttb-dom { color: #5DCA79; }
+.tower-theme-banner .ttb-sup { color: #E85D4A; }
+
 /* 2026-04-27 — Block T.3 — Daily curse banner. Red-violet warning palette
  * to feel ominous; sits at the top of the tower entry screen above status. */
 .tower-curse-banner {
@@ -14315,6 +14344,62 @@ const TOWER_DAILY_HEART_FRAGMENTS = 1;
 let _isTowerBattle = false;
 let _towerPreFloor = null;
 
+// 2026-04-27 — Block T.7 — Weekly Element Theme (spec §4). Each week one
+// element is DOMINANT (+50% damage from its heroes in Tower) and one is
+// SUPPRESSED (-50% from its heroes). Cycles every 6 weeks; predictable.
+// Affects Tower (Daily/Weekly/Seasonal) ONLY — Chapter unaffected.
+// Bosses NOT affected (player power shifts; boss difficulty constant).
+const TOWER_THEME_CYCLE = [
+  { dom: 'ember', sup: 'tide'  },
+  { dom: 'tide',  sup: 'ember' },
+  { dom: 'grove', sup: 'umbra' },
+  { dom: 'umbra', sup: 'grove' },
+  { dom: 'solar', sup: null    },  // null → random per week (weekStart-seeded)
+  { dom: null,    sup: 'solar' },  // null → random per week
+];
+function _weekIndexFromKey(weekKey) {
+  // Hash week key (ISO YYYY-Www) to deterministic small int for cycle index +
+  // null-slot resolution.
+  let h = 0;
+  for (let i = 0; i < weekKey.length; i++) h = (h * 31 + weekKey.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function getTowerWeeklyTheme() {
+  // Returns { dominant, suppressed } based on current week. Reads
+  // getCurrentWeekStart (Phase 5.3 helper). Defaults to first cycle slot
+  // if helper unavailable.
+  let weekKey = 'base';
+  try { if (typeof getCurrentWeekStart === 'function') weekKey = getCurrentWeekStart(); } catch (e) {}
+  const wIdx = _weekIndexFromKey(weekKey);
+  const slot = TOWER_THEME_CYCLE[wIdx % TOWER_THEME_CYCLE.length];
+  const elements = ['ember', 'tide', 'grove', 'umbra', 'solar'];
+  let dominant   = slot.dom;
+  let suppressed = slot.sup;
+  // Resolve null slots — pick random element (excluding the fixed counterpart)
+  // using the week hash as seed so it stays stable for 7 days.
+  if (!dominant) {
+    const pool = elements.filter(e => e !== suppressed);
+    dominant = pool[wIdx % pool.length];
+  } else if (!suppressed) {
+    const pool = elements.filter(e => e !== dominant);
+    suppressed = pool[(wIdx >> 3) % pool.length];
+  }
+  return { dominant, suppressed, weekKey };
+}
+// Tower-only multiplier returned for an arbitrary stihiya. Returns 1.0
+// when not in Tower battle, when the stihiya is neutral, or when the
+// theme system fails. ×1.5 for dominant, ×0.5 for suppressed.
+function getTowerThemeMult(stihiya) {
+  if (!_isTowerBattle) return 1.0;
+  if (!stihiya) return 1.0;
+  try {
+    const t = getTowerWeeklyTheme();
+    if (stihiya === t.dominant)   return 1.5;
+    if (stihiya === t.suppressed) return 0.5;
+  } catch (e) {}
+  return 1.0;
+}
+
 // 2026-04-27 — Block T.3 — Daily Curses (spec §3). Each 4 AM reset rolls
 // 2-4 random unlocked heroes as LOCKED-FROM-TOWER for the 24h cycle.
 // Captains immune (always ≥1 available). No race elimination (always
@@ -14890,6 +14975,24 @@ function renderTowerScreen() {
     <span class="t-pill">♥ ${towerState.towerHearts} (${towerState.towerHeartFragments}/${TOWER_FRAGMENTS_PER_HEART})</span>
     <span class="t-pill">◈ ${towerState.sigilShards}</span>
   </div>`;
+  // 2026-04-27 — Block T.7 — Weekly Element Theme banner. Sits above curse
+  // banner. Shows dominant + suppressed element with effect mults.
+  let themeBanner = '';
+  try {
+    const theme = getTowerWeeklyTheme();
+    if (theme && theme.dominant) {
+      const ELEM_ICON = { ember:'🔥', tide:'❄️', grove:'🌍', umbra:'🌑', solar:'☀️' };
+      const dom = (theme.dominant || '').toUpperCase();
+      const sup = (theme.suppressed || '').toUpperCase();
+      themeBanner = `<div class="tower-theme-banner">
+        <div class="ttb-label">⚡ THIS WEEK — ELEMENT THEME</div>
+        <div class="ttb-effects">
+          <span class="ttb-dom">${ELEM_ICON[theme.dominant] || ''} ${dom} +50%</span>
+          <span class="ttb-sup">${ELEM_ICON[theme.suppressed] || ''} ${sup} −50%</span>
+        </div>
+      </div>`;
+    }
+  } catch (e) {}
   // 2026-04-27 — Block T.3 — Daily curse banner. Shows above status when at
   // least 1 hero is cursed today. Lists curse names so player can plan squad
   // swap before entering Tower.
@@ -14911,13 +15014,13 @@ function renderTowerScreen() {
       btn.textContent = `▶ CONTINUE — FLOOR ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}`;
       btn.onclick = continueTowerRun;
       btn.disabled = false;
-      current.innerHTML = curseBanner + dailyStatus
+      current.innerHTML = themeBanner + curseBanner + dailyStatus
         + `<div class="tower-run-active">Run in progress · floor ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}</div>`;
     } else if (attemptsLeft <= 0) {
       btn.textContent = '🔒 DAILY CAP REACHED';
       btn.onclick = () => showToast('Reset at 4 AM');
       btn.disabled = true;
-      current.innerHTML = curseBanner + dailyStatus
+      current.innerHTML = themeBanner + curseBanner + dailyStatus
         + `<div class="tower-hint">Daily attempt cap reached. Come back at 4 AM for a fresh climb.</div>`;
     } else {
       const isFirstAttempt = (towerState.attemptsToday === 0);
@@ -14928,7 +15031,7 @@ function renderTowerScreen() {
       const hint = isFirstAttempt
         ? `10 floors · F5 mid-boss · F10 climax · earn 💰 ◈ ♥ on full clear`
         : `Retry attempt ${towerState.attemptsToday + 1}/${TOWER_MAX_ATTEMPTS_PER_DAY} · cost ${nextRetryCost} gold`;
-      current.innerHTML = curseBanner + dailyStatus + `<div class="tower-hint">${hint}</div>`;
+      current.innerHTML = themeBanner + curseBanner + dailyStatus + `<div class="tower-hint">${hint}</div>`;
     }
   }
   // Auto-roll curses on first render if missing (handles upgrade path where
@@ -20871,11 +20974,22 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
   // pactRunState.damageMult which defaults to 1.0 outside Tower runs.
   const _pactDamageMult = (typeof pactRunState !== 'undefined' && _isTowerBattle)
     ? (pactRunState.damageMult || 1.0) : 1.0;
+  // 2026-04-27 — Block T.7 — Weekly Element Theme. Tower-only ×1.5/×0.5
+  // multiplier on damage of dominant/suppressed-element heroes. No-op
+  // outside Tower battles or for neutral elements.
+  let _towerThemeMult = 1.0;
+  try {
+    if (_isTowerBattle && typeof _currentFiringHero !== 'undefined' && _currentFiringHero
+        && _currentFiringHero.stihiya && typeof getTowerThemeMult === 'function') {
+      _towerThemeMult = getTowerThemeMult(_currentFiringHero.stihiya);
+    }
+  } catch (e) {}
   const _multStack = currentDmgMult * _passiveDmgContext * _ultDmgContext
                    * _warbandStrikeContext * _hunterMarkContext
                    * _grommarRallyContext * _packMarkContext * _helioRoarContext
                    * _captainDualContext * _signatureComboContext * _hypnoSuggestContext
-                   * _bloodhuntContext * _pirateDoubleContext * _pactDamageMult;
+                   * _bloodhuntContext * _pirateDoubleContext * _pactDamageMult
+                   * _towerThemeMult;
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
