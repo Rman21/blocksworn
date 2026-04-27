@@ -2075,6 +2075,206 @@
   display: block;
 }
 
+/* 2026-04-27 — Block H.5 — Pack System UI (HERO_COMPENDIUM §11.2 + §14.2). */
+.shop-pack-header {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300);
+  text-align: center;
+  margin: 6px 0 14px;
+}
+.shop-pack-btn {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 4px 12px;
+  width: 100%;
+  padding: 14px 14px;
+  margin-bottom: 12px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(0,0,0,0.30));
+  border: 2px solid var(--a-gold-500);
+  border-radius: 12px;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s;
+  align-items: center;
+}
+.shop-pack-btn:not(:disabled):active { transform: scale(0.98); }
+.shop-pack-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+.shop-pack-emoji {
+  grid-row: span 2;
+  font-size: 36px;
+  text-align: center;
+  text-shadow: 0 0 8px rgba(255,213,61,0.6);
+}
+.shop-pack-name {
+  font-family: var(--a-font-display);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--a-gold-300);
+  text-align: left;
+}
+.shop-pack-desc {
+  font-size: 10px;
+  color: #B8B5C4;
+  text-align: left;
+  grid-column: 2;
+}
+.shop-pack-cost {
+  grid-row: span 2;
+  font-size: 14px;
+  color: var(--a-gold-300);
+  font-weight: 700;
+  text-align: right;
+}
+.shop-pack-divider {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #9A98A4;
+  text-align: center;
+  margin: 18px 0 10px;
+  border-top: 1px dashed rgba(255,213,61,0.3);
+  padding-top: 12px;
+}
+.shop-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.shop-pack-race {
+  grid-template-columns: 36px 1fr auto;
+  padding: 10px 10px;
+  margin-bottom: 0;
+}
+.shop-pack-race .shop-pack-emoji { font-size: 26px; }
+.shop-pack-race .shop-pack-name  { font-size: 11px; }
+.shop-pack-race .shop-pack-desc  { font-size: 9px; }
+.shop-pack-race .shop-pack-cost  { font-size: 11px; }
+.shop-pack-footer {
+  font-size: 10px;
+  color: #6E6B7B;
+  font-style: italic;
+  text-align: center;
+  margin-top: 16px;
+  padding: 0 12px;
+}
+
+/* Pack Reveal modal — chest opens, cards flip in (per spec §14.2 — 1.5s). */
+.pack-reveal-modal { display: none; }
+.pack-reveal-modal.active {
+  display: flex;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.78);
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  animation: fadeIn 0.25s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.pack-reveal-box {
+  position: relative;
+  background: linear-gradient(180deg, #1A1429, #0A0612);
+  border: 2px solid var(--a-gold-500);
+  border-radius: 14px;
+  padding: 24px 18px;
+  width: min(95vw, 380px);
+  max-height: 90vh;
+  overflow-y: auto;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(255,213,61,0.45);
+}
+.pack-reveal-title {
+  font-family: var(--a-font-display);
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--a-gold-300);
+  margin-bottom: 14px;
+  text-shadow: 0 0 6px rgba(255,213,61,0.7);
+}
+.pack-chest {
+  font-size: 64px;
+  text-align: center;
+  margin: 6px 0 12px;
+  display: inline-block;
+  filter: drop-shadow(0 0 12px rgba(255,213,61,0.7));
+  transition: transform 1.5s ease-out, filter 1.5s ease-out;
+}
+.pack-chest.opening {
+  transform: scale(1.4) rotate(8deg);
+  filter: drop-shadow(0 0 24px rgba(255,213,61,1)) brightness(1.4);
+  animation: packChestShake 0.6s ease-in-out;
+}
+@keyframes packChestShake {
+  0%, 100% { transform: scale(1.4) rotate(0); }
+  25%      { transform: scale(1.4) rotate(-6deg); }
+  75%      { transform: scale(1.4) rotate(6deg); }
+}
+.pack-reveal-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 14px 0;
+  min-height: 60px;
+}
+.pack-card {
+  width: 88px;
+  padding: 8px;
+  background: rgba(0,0,0,0.55);
+  border: 2px solid var(--a-gold-500);
+  border-radius: 8px;
+  text-align: center;
+  opacity: 0;
+  transform: rotateY(180deg) scale(0.6);
+  animation: packCardFlip 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes packCardFlip {
+  0%   { opacity: 0; transform: rotateY(180deg) scale(0.6); }
+  60%  { opacity: 1; transform: rotateY(0deg) scale(1.08); }
+  100% { opacity: 1; transform: rotateY(0deg) scale(1); }
+}
+.pack-card-portrait {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  margin: 0 auto 4px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.4);
+}
+.pack-card-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.pack-card-name {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  color: var(--a-gold-300);
+  letter-spacing: 0.5px;
+}
+.pack-card-meta {
+  font-size: 9px;
+  color: #9A98A4;
+  margin-top: 2px;
+}
+.pack-reveal-claim {
+  margin-top: 16px;
+  padding: 10px 24px;
+  background: linear-gradient(180deg, var(--a-gold-300), var(--a-gold-700));
+  border: none;
+  border-radius: 10px;
+  color: #1A0A05;
+  font-family: var(--a-font-display);
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  font-weight: 800;
+}
+.pack-reveal-claim:active { transform: scale(0.96); }
+
 /* 2026-04-27 — Block H.4 — Captain Cinematic Mode (HERO_COMPENDIUM §1.2).
    Triggered by .is-captain class on the modal + data-captain-race attribute.
    Each captain race gets its own animated gradient bg. Pure cosmetic — never
@@ -12722,13 +12922,17 @@ function addHeroFragments(heroId, count) {
 // Drop 1-N random hero cards weighted toward heroes the player owns LESS of.
 // Returns array of dropped {heroId, count}. Used by onBossDefeated, Tower
 // daily/weekly/seasonal completion, and chapter completion bonuses.
+// 2026-04-27 — Block H.5 — opts.race filters pool to specific race (Race Pack).
+//   opts.silent — skip summary banner (used by pack reveal modal which shows its own).
 function dropRandomHeroCards(count, opts) {
   count = Math.max(0, Math.floor(Number(count) || 0));
   if (count <= 0) return [];
   opts = opts || {};
   // Pool: all heroes EXCEPT placeholders (Phase 2 clockwork etc.). Already-unlocked
   // heroes ARE eligible — fragments now feed T2/T3/Mythic ascension stockpile per H.1.
-  const pool = HERO_ROSTER.filter(h => h && h.id && h.race !== 'clockwork' && h.fireText !== '[PHASE 2]');
+  let pool = HERO_ROSTER.filter(h => h && h.id && h.race !== 'clockwork' && h.fireText !== '[PHASE 2]');
+  // Block H.5 — race filter for Race Packs (1500g → 5 cards of selected race only).
+  if (opts.race) pool = pool.filter(h => h.race === opts.race);
   if (pool.length === 0) return [];
   // Weight inversely proportional to current fragment count so heroes the player
   // owns less of are rarer to fill — encourages collection completion (Standard
@@ -12765,6 +12969,146 @@ function dropRandomHeroCards(count, opts) {
     }, 600);
   }
   return result;
+}
+
+// 2026-04-27 — Block H.5 — Pack System (HERO_COMPENDIUM §11.2).
+// F2P-only: gold purchases, no premium currency required.
+const PACK_STANDARD_COST = 500;   // 1 random hero card (any race), weighted
+const PACK_RACE_COST     = 1500;  // 5 hero cards of selected race
+const PACK_RACE_COUNT    = 5;
+const _PACK_RACE_LABELS  = { pirate: 'PIRATE', rock: 'ROCK BAND', shark: 'SHARK', crocodile: 'CROCODILE', spark: 'SPARK' };
+const _PACK_RACE_COLORS  = { pirate: '#E85D4A', rock: '#A88AC8', shark: '#4ADBFF', crocodile: '#7AEC4A', spark: '#FFE14A' };
+
+// Spend goldAmount; return true on success, false if insufficient.
+// Used by pack purchases — ensures atomic deduction with save + UI refresh.
+function _spendGoldForPack(goldAmount, label) {
+  if ((gold || 0) < goldAmount) {
+    try { flashText('❌ NOT ENOUGH GOLD', '#E85D4A'); } catch (e) {}
+    return false;
+  }
+  gold -= goldAmount;
+  try { saveGoldToStorage(); } catch (e) {}
+  try { renderResourceBar(); } catch (e) {}
+  // Mirror balance into shop topbar chips if shop is open.
+  try {
+    const sg = document.getElementById('shopGoldCount');
+    if (sg) sg.textContent = String(gold);
+  } catch (e) {}
+  return true;
+}
+
+function buyStandardPack() {
+  if (!_spendGoldForPack(PACK_STANDARD_COST, 'STANDARD')) return false;
+  // dropRandomHeroCards uses weighted pool (heroes-owned-less rank higher).
+  const dropped = dropRandomHeroCards(1, { silent: true });
+  showPackRevealModal({ kind: 'standard', dropped });
+  return true;
+}
+
+function buyRacePack(race) {
+  if (!race || !_PACK_RACE_LABELS[race]) {
+    try { flashText('Invalid race', '#E85D4A'); } catch (e) {}
+    return false;
+  }
+  if (!_spendGoldForPack(PACK_RACE_COST, 'RACE_' + race)) return false;
+  const dropped = dropRandomHeroCards(PACK_RACE_COUNT, { silent: true, race });
+  showPackRevealModal({ kind: 'race', race, dropped });
+  return true;
+}
+
+// Pack reveal modal — chest icon → 1.5s open animation → card flip reveal.
+// Per HERO_COMPENDIUM §14.2 ("Wooden chest icon, opens with 1.5s animation,
+// shows random hero card flipping in"). Race packs get 3s reveal with 5 cards
+// flipping out one by one.
+function showPackRevealModal(opts) {
+  opts = opts || {};
+  let modal = document.getElementById('packRevealModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'packRevealModal';
+    modal.className = 'modal pack-reveal-modal';
+    modal.onclick = function(e) { if (e.target === modal) closePackReveal(); };
+    document.body.appendChild(modal);
+  }
+  const isRace = opts.kind === 'race';
+  const raceLabel = isRace ? (_PACK_RACE_LABELS[opts.race] || '') : '';
+  const raceColor = isRace ? (_PACK_RACE_COLORS[opts.race] || '#FFD53D') : '#FFD53D';
+  const dropped = opts.dropped || [];
+  const cardsHtml = dropped.map((d, i) => {
+    const hero = HERO_ROSTER.find(h => h && h.id === d.heroId);
+    if (!hero) return '';
+    const stih = (hero.stihiya || '').toUpperCase();
+    const stihColor = (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS[hero.stihiya]) || '#FFD53D';
+    return `<div class="pack-card" style="border-color:${stihColor};animation-delay:${0.6 + i * 0.3}s">
+      <div class="pack-card-portrait">
+        <img src="${(typeof ASSETS !== 'undefined' && ASSETS[hero.img]) || ''}" alt="${hero.name}"/>
+      </div>
+      <div class="pack-card-name">${hero.name}</div>
+      <div class="pack-card-meta">${stih} · ×${d.count}</div>
+    </div>`;
+  }).join('');
+  modal.innerHTML = `
+    <div class="modal-box pack-reveal-box" style="border-color:${raceColor}">
+      <button class="detail-close" onclick="closePackReveal()">×</button>
+      <div class="pack-reveal-title">${isRace ? raceLabel + ' RACE PACK' : 'STANDARD HERO PACK'}</div>
+      <div class="pack-chest" id="packChestIcon">📦</div>
+      <div class="pack-reveal-cards">${cardsHtml || '<div style="color:#9A98A4;font-size:11px">No cards dropped — pool exhausted.</div>'}</div>
+      <button class="btn pack-reveal-claim" onclick="closePackReveal()">CLAIM</button>
+    </div>`;
+  modal.classList.add('active');
+  // Trigger chest open animation after a tick.
+  setTimeout(() => {
+    try {
+      const chest = document.getElementById('packChestIcon');
+      if (chest) chest.classList.add('opening');
+    } catch (e) {}
+  }, 50);
+  try { vibrate([100, 60, 100, 60, 200]); } catch (e) {}
+}
+
+function closePackReveal() {
+  const modal = document.getElementById('packRevealModal');
+  if (modal) modal.classList.remove('active');
+  // Re-render shop to reflect post-purchase gold balance + roster card counts.
+  try {
+    if (typeof renderShopPacks === 'function') renderShopPacks();
+    if (typeof currentScreen !== 'undefined' && currentScreen === 'select' && typeof renderSelect === 'function') renderSelect();
+  } catch (e) {}
+}
+
+// Render the pack catalog into shopSectionOffers. Called from goToShop().
+function renderShopPacks() {
+  const host = document.getElementById('shopSectionOffers');
+  if (!host) return;
+  const goldNow = gold || 0;
+  const stdAffordable = goldNow >= PACK_STANDARD_COST;
+  const raceAffordable = goldNow >= PACK_RACE_COST;
+  const races = ['pirate', 'rock', 'shark', 'crocodile', 'spark'];
+  const raceCardsHtml = races.map(r => {
+    const label = _PACK_RACE_LABELS[r];
+    const color = _PACK_RACE_COLORS[r];
+    return `<button class="shop-pack-btn shop-pack-race" style="border-color:${color}"
+                    ${raceAffordable ? '' : 'disabled'}
+                    onclick="buyRacePack('${r}')">
+      <span class="shop-pack-emoji" style="color:${color}">📦</span>
+      <span class="shop-pack-name">${label} PACK</span>
+      <span class="shop-pack-desc">5 ${label} cards</span>
+      <span class="shop-pack-cost">${PACK_RACE_COST} 💰</span>
+    </button>`;
+  }).join('');
+  host.innerHTML = `
+    <div class="shop-pack-header">PACKS · F2P · No premium currency</div>
+    <button class="shop-pack-btn shop-pack-standard" ${stdAffordable ? '' : 'disabled'} onclick="buyStandardPack()">
+      <span class="shop-pack-emoji">📦</span>
+      <span class="shop-pack-name">STANDARD HERO PACK</span>
+      <span class="shop-pack-desc">1 random hero card · weighted to less-owned</span>
+      <span class="shop-pack-cost">${PACK_STANDARD_COST} 💰</span>
+    </button>
+    <div class="shop-pack-divider">RACE PACKS</div>
+    <div class="shop-pack-grid">${raceCardsHtml}</div>
+    <div class="shop-pack-footer">
+      All packs purchasable with gold. Hero cards stockpile toward Tier 2 / Tier 3 / Mythic ascension.
+    </div>`;
 }
 
 function craftHero(heroId) {
@@ -14214,8 +14558,9 @@ function goToShop() {
     const sgm = document.getElementById('shopGemCount'); if (sgm) sgm.textContent = String(gems);
   } catch (e) {}
   showScreen('shop');
-  // Task #1.7: tab switch + renderShopOffers / renderShopConvenience removed —
-  // shop is a single coming-soon surface with only the balance chips populated.
+  // 2026-04-27 — Block H.5 — populate shop with Pack catalog (HERO_COMPENDIUM §11.2).
+  // Replaces the "coming soon" placeholder. F2P-only — gold purchases.
+  try { renderShopPacks(); } catch (e) { console.warn('renderShopPacks failed:', e); }
 }
 
 // Load gems at parse time, alongside Phase 0 gold/energy
