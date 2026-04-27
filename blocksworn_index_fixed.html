@@ -15100,7 +15100,10 @@ const TOWER_CLIMAX_BOSS_FLOOR     = 10;       // F10 climax
 const TOWER_DAILY_RESET_HOUR      = 4;        // local 4 AM per spec §2.1
 const TOWER_FRAGMENTS_PER_HEART   = 5;        // 5 fragments = 1 full heart
 // Retry cost progression per §7.2 (gold cost for attempts 2-5; attempt 1 is free).
-const TOWER_RETRY_GOLD_COST = [0, 100, 500, 2000, 5000];
+// 2026-04-27 — Cost ladder: 250 (first daily) / 500 / 1000 / 2000 / 5000.
+// Reduced first-attempt cost from FREE → 250 per Roman request: gives
+// immediate currency commitment so daily Tower has stakes from turn 1.
+const TOWER_RETRY_GOLD_COST = [250, 500, 1000, 2000, 5000];
 // Daily completion rewards per §2.1
 const TOWER_DAILY_BASE_GOLD       = 100;
 const TOWER_DAILY_SIGILS          = 5;
@@ -15820,15 +15823,18 @@ function startTowerRun() {
     showToast('Daily attempt cap reached. Reset at 4 AM.');
     return;
   }
-  // First attempt of the day is free. Subsequent attempts cost gold per
-  // TOWER_RETRY_GOLD_COST progression. Player must confirm the gold spend.
-  if (towerState.attemptsToday > 0) {
+  // 2026-04-27 — Every Tower attempt costs gold (was FREE for first; now 250).
+  // Cost ladder per TOWER_RETRY_GOLD_COST: 250 / 500 / 1000 / 2000 / 5000.
+  {
     const cost = TOWER_RETRY_GOLD_COST[towerState.attemptsToday] || 5000;
     if ((typeof gold !== 'number') || gold < cost) {
       showToast(`Not enough gold (need ${cost})`);
       return;
     }
-    if (!confirm(`Retry costs ${cost} gold. Continue?`)) return;
+    const label = towerState.attemptsToday === 0
+      ? `Tower entry costs ${cost} gold. Continue?`
+      : `Retry costs ${cost} gold. Continue?`;
+    if (!confirm(label)) return;
     try { addGold(-cost); } catch (e) {}
   }
   towerState.attemptsToday++;
@@ -16384,12 +16390,14 @@ function renderTowerScreen() {
         + `<div class="tower-hint">Daily attempt cap reached. Come back at 4 AM for a fresh climb.</div>`;
     } else {
       const isFirstAttempt = (towerState.attemptsToday === 0);
-      const costLabel = isFirstAttempt ? 'FREE' : `${nextRetryCost}💰`;
+      // 2026-04-27 — first daily attempt no longer free (now 250 gold);
+      // label always shows cost.
+      const costLabel = `${nextRetryCost}💰`;
       btn.textContent = `▲ DAILY GAUNTLET — ${costLabel}`;
       btn.onclick = startTowerRun;
       btn.disabled = false;
       const hint = isFirstAttempt
-        ? `10 floors · F5 mid-boss · F10 climax · earn 💰 ◈ ♥ on full clear`
+        ? `10 floors · F5 mid-boss · F10 climax · ${nextRetryCost}💰 entry · earn 💰 ◈ ♥ on full clear`
         : `Retry attempt ${towerState.attemptsToday + 1}/${TOWER_MAX_ATTEMPTS_PER_DAY} · cost ${nextRetryCost} gold`;
       current.innerHTML = titleBanner + buffBanner + themeBanner + curseBanner + dailyStatus + `<div class="tower-hint">${hint}</div>`;
     }
