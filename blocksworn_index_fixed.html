@@ -27814,18 +27814,56 @@ async function ultPlaceholder() {
 // "Создаёт ember-charged клетки на линии фигуры. Источник цепочки").
 // Capped by EMBER_CHARGED_CAP. Returns count actually placed.
 async function _spawnEmberCharged(maxCount) {
-  if (!MOTIFS_ENABLED.ember) return 0;
+  // 2026-04-28 — Pirate ability visibility hardening (BUG #1 — "не появлялись клетки").
+  // Three-layer protection per user request:
+  //   A) Fizzle feedback — flashText explains why if nothing spawned (cap / no room).
+  //   B) Guaranteed-min fallback — when grid is full, displace ONE non-ember non-void
+  //      cell so the ability always has visible impact (player's main element is ember
+  //      anyway when this is called via pirate fire/ULT).
+  //   C) Console diagnostics — every call logs inputs + outcome so [BLOCKSWORN] tag
+  //      grep on devtools tells you exactly what happened.
+  console.log('[BLOCKSWORN][EMBER_SPAWN] called maxCount=' + maxCount + ' charged=' + chargedCells.size + '/' + EMBER_CHARGED_CAP);
+  if (!MOTIFS_ENABLED.ember) {
+    console.log('[BLOCKSWORN][EMBER_SPAWN] aborted: motif disabled');
+    return 0;
+  }
   if (!maxCount || maxCount <= 0) return 0;
+  // Layer A: cap check produces a visible fizzle so the player understands.
+  const slot = (typeof EMBER_CHARGED_CAP === 'number') ? Math.max(0, EMBER_CHARGED_CAP - chargedCells.size) : maxCount;
+  if (slot <= 0) {
+    console.log('[BLOCKSWORN][EMBER_SPAWN] aborted: charged cap full');
+    try { flashText('CHARGED CAP REACHED', '#888'); } catch(e){}
+    return 0;
+  }
   const empties = [];
   for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
     if (grid[r][c] === null) empties.push([r, c]);
   }
-  if (empties.length === 0) return 0;
-  empties.sort(() => Math.random() - 0.5);
-  const slot = (typeof EMBER_CHARGED_CAP === 'number') ? Math.max(0, EMBER_CHARGED_CAP - chargedCells.size) : maxCount;
-  const room = Math.min(maxCount, empties.length, slot);
-  if (room <= 0) return 0;
-  const picks = empties.slice(0, room);
+  let picks;
+  let displaced = 0;
+  if (empties.length > 0) {
+    empties.sort(() => Math.random() - 0.5);
+    const room = Math.min(maxCount, empties.length, slot);
+    picks = empties.slice(0, room);
+  } else {
+    // Layer B: grid full — displace one non-ember non-void cell so the ability
+    // always produces a visible result. Skipped if every cell is already ember
+    // (then there's literally nowhere to put new ember without overwriting same).
+    const displaceable = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      const v = grid[r][c];
+      if (v && v !== 'ember' && !v.startsWith('void_')) displaceable.push([r, c]);
+    }
+    if (displaceable.length === 0) {
+      console.log('[BLOCKSWORN][EMBER_SPAWN] aborted: grid full and no displaceable cells');
+      try { flashText('GRID FULL — NO ROOM', '#888'); } catch(e){}
+      return 0;
+    }
+    displaceable.sort(() => Math.random() - 0.5);
+    picks = [displaceable[0]];
+    displaced = 1;
+    console.log('[BLOCKSWORN][EMBER_SPAWN] fallback: displacing 1 cell at ' + picks[0][0] + ',' + picks[0][1]);
+  }
   const cellEls = document.querySelectorAll('.grid .cell');
   for (const [r, c] of picks) {
     grid[r][c] = 'ember';
@@ -27834,6 +27872,7 @@ async function _spawnEmberCharged(maxCount) {
   }
   renderChargedVisuals();
   render();
+  console.log('[BLOCKSWORN][EMBER_SPAWN] success spawned=' + picks.length + ' displaced=' + displaced);
   return picks.length;
 }
 
@@ -27848,8 +27887,16 @@ async function _spawnEmberCharged(maxCount) {
 // "Thorgar до сих пор атакует, а не просто создает клетки". Earlier hotfix
 // added FORGE spawn but kept legacy attack/cleave — those diluted the role.
 async function fireThorgar(counts) {
+  console.log('[BLOCKSWORN][THORGAR] fire (combo) — calling _spawnEmberCharged(3)');
   const created = await _spawnEmberCharged(3);
-  if (created > 0) flashText('CLEAVER FORGE ×' + created, '#FF8B3D');
+  // 2026-04-28 — BUG FIX #1 layer A: always show feedback (not just when created>0).
+  // _spawnEmberCharged already shows its own fizzle for cap-full / grid-full cases,
+  // but a hero-named confirmation makes it clear THIS hero just fired.
+  if (created > 0) {
+    flashText('CLEAVER FORGE ×' + created, '#FF8B3D');
+  } else {
+    flashText('CLEAVER FORGE — FIZZLE', '#888');
+  }
   vibrate([40, 20, 40]);
 }
 
@@ -27955,6 +28002,18 @@ async function fireEmberhand() {
     chargedCells.add(key);
     converted++;
   }
+  // 2026-04-28 — BUG FIX #1 layer B+C: guaranteed-min fallback for EMBERHAND.
+  // EMBERHAND was AMPLIFIER-only — if no charged ember existed yet, it had nothing
+  // to spread to and produced no visible board change (only invisible BLOOM%
+  // window). User report: "не поджигал клетки" — exactly this scenario.
+  // Fallback: when 0 cells got converted, seed 1 fresh charged ember via
+  // _spawnEmberCharged so the ability always has visible impact.
+  let fallbackSpawn = 0;
+  console.log('[BLOCKSWORN][EMBER_BLOOM] called chargedBefore=' + (chargedCells.size - converted) + ' converted=' + converted + ' toChargeCandidates=' + toCharge.size);
+  if (converted === 0 && chargedCells.size < EMBER_CHARGED_CAP) {
+    fallbackSpawn = await _spawnEmberCharged(1);
+    console.log('[BLOCKSWORN][EMBER_BLOOM] fallback _spawnEmberCharged returned ' + fallbackSpawn);
+  }
   // BLOOM amplifier window — unchanged from B0/2.2d. Stacks with the conversion.
   // 2026-04-27 — Block H.9b — VERDANT MASTERY (T2): window 3→5 + mult 1.5→1.75.
   emberhandBloomActive   = true;
@@ -27965,8 +28024,10 @@ async function fireEmberhand() {
   const _bloomPct = Math.round((emberhandBloomMult - 1) * 100);
   if (converted > 0) {
     flashText('EMBER BLOOM +' + _bloomPct + '% · SPREAD ×' + converted, '#FFB84A');
+  } else if (fallbackSpawn > 0) {
+    flashText('EMBER BLOOM +' + _bloomPct + '% · SEED ×1', '#FFB84A');
   } else {
-    flashText('EMBER BLOOM +' + _bloomPct + '%', '#FFB84A');
+    flashText('EMBER BLOOM +' + _bloomPct + '% · NO TARGETS', '#FFB84A');
   }
   vibrate([50, 30, 50]);
   renderChargedVisuals();
@@ -28067,9 +28128,14 @@ async function fireCrimson() {
 // FLEET bonus when 5-pirate race-pure synergy is active.
 // 2026-04-27 GRAMMAR HOTFIX: replaced burnRandomCells with _spawnEmberCharged.
 async function ultTwistThorgar(ctx) {
+  console.log('[BLOCKSWORN][THORGAR] ULT — calling _spawnEmberCharged(5)');
   // Base CREATE — 5 ember-charged cells (high end of plan §9 range).
   const baseSpawn = await _spawnEmberCharged(5);
-  if (baseSpawn > 0) flashText('EMBER FORGE ULT ×' + baseSpawn, '#FF8B3D');
+  if (baseSpawn > 0) {
+    flashText('EMBER FORGE ULT ×' + baseSpawn, '#FF8B3D');
+  } else {
+    flashText('EMBER FORGE — FIZZLE', '#888');
+  }
   // FLEET bonus — 5+ pirates or T2+ thorgarFleetSiegeAlways → bonus ember.
   const pirateCount = HERO_DECK.filter(h => h && h.race === 'pirate').length;
   const gate = thorgarFleetSiegeAlways || pirateCount >= 5;
@@ -28148,6 +28214,7 @@ async function ultTwistIronbelly(ctx) {
 // Persistent dual buff (race-scaling dmg + fixed +25% drop) lives in calcSynergyState.
 // V2.0 Stage 5 Block 5.2: reads crimsonChargedRate (T1 0.60)
 async function ultTwistCrimson(ctx) {
+  console.log('[BLOCKSWORN][CRIMSON] ULT — convertedCount=' + (ctx.convertedCount || 0));
   // Stage 1 — charge existing ember from converted set.
   if (ctx.convertedCount) {
     const cands = [];
@@ -28168,7 +28235,12 @@ async function ultTwistCrimson(ctx) {
   // Stage 2 — spawn ember FIELD (matrix §5 mandate). Independent of converted
   // cells: 4 brand-new charged ember cells in empties, capped by EMBER_CHARGED_CAP.
   const fielded = await _spawnEmberCharged(4);
-  if (fielded > 0) flashText('EMBER FIELD ×' + fielded, '#FFAA00');
+  if (fielded > 0) {
+    flashText('EMBER FIELD ×' + fielded, '#FFAA00');
+  } else {
+    flashText('EMBER FIELD — FIZZLE', '#888');
+  }
+  console.log('[BLOCKSWORN][CRIMSON] ULT field=' + fielded);
 }
 
 // ===== V2.0 STAGE 4 BLOCK 4.2 — TIDE HERO SIGNATURES =====
