@@ -1,22 +1,61 @@
 # Music Tracks
 
-Per BLOCKSWORN_AUDIO_SOUND.md §3 + §15 (Roman curation task).
+Per BLOCKSWORN_AUDIO_SOUND.md §3 + §15.
 
-## Required tracks (12)
+## Currently shipped (3 tracks · pirate-themed v1)
+
+| File | Context | Mapped to |
+|---|---|---|
+| `ebunny-pirate-adventure-361663.mp3` | atmospheric / ascending | menu, world map, chapter screen |
+| `alex_besss-pirate-ship-battle-433529.mp3` | battle intensity | boss fights, victory |
+| `audiodollar-pirate-music-pirate-331490.mp3` | general pirate ambient | tower mode |
+
+Total: ~13 MB. Source: Pixabay Music (verify CC0 / CC-BY licensing on
+each track page before commercial release per spec §10.3).
+
+## Routing (in `MUSIC_TRACKS` const, blocksworn_index_fixed.html)
+
+```js
+const MUSIC_TRACKS = {
+  menu:    'assets/audio/music/ebunny-pirate-adventure-361663.mp3',
+  chapter: 'assets/audio/music/ebunny-pirate-adventure-361663.mp3',
+  boss:    'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',
+  tower:   'assets/audio/music/audiodollar-pirate-music-pirate-331490.mp3',
+  victory: 'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',
+  defeat:  null,
+};
+```
+
+`playContextMusic(context)` is invoked on `showScreen` transitions
+(menu/select/shop/dailies/tower/season → 'menu' or 'tower') and at
+`startBossBattle` start ('boss').
+
+## Future tracks needed (per spec §3.1 — 12 tracks total)
 
 ```
-menu-main.mp3          — Atmospheric, slightly mysterious, 60-90s loop
-chapter-1.mp3          — Heroic, ascending (Ashen Dominion)
-chapter-2.mp3          — Mysterious, sinister (Bloom of Madness)
-boss-pyredrake.mp3     — Epic dragon battle
-boss-tyrant.mp3        — Deep ocean kraken
-boss-treant.mp3        — Tribal forest spirit
-boss-phoenix.mp3       — Heroic golden brass
-boss-lich.mp3          — Dark final boss climax
-tower-mode.mp3         — Atmospheric infinite climb
-victory.mp3            — Short triumphant (15-30s)
-defeat.mp3             — Short reflective (10-15s)
+menu-main.mp3          [✓ adventure track in use]
+chapter-1.mp3          [✓ adventure track in use]
+chapter-2.mp3          [ ] mysterious / sinister
+boss-pyredrake.mp3     [✓ battle track in use]
+boss-tyrant.mp3        [ ] deep ocean kraken
+boss-treant.mp3        [ ] tribal forest spirit
+boss-phoenix.mp3       [ ] heroic golden brass
+boss-lich.mp3          [ ] dark final boss climax
+tower-mode.mp3         [✓ pirate ambient in use]
+victory.mp3            [ ] short triumphant 15-30s
+defeat.mp3             [ ] short reflective 10-15s
 ```
+
+## License compliance
+
+All tracks should be CC0 or CC-BY (no SA, no ND, no NC). For CC-BY tracks,
+add credits to game's About / Settings → Credits screen per spec §10.4.
+
+## Format
+
+- MP3 192 kbps recommended (128 kbps min)
+- 1.5-3 MB per 90-second loop preferred
+- Total music budget: ~30 MB across all final tracks
 
 ## Sources (per spec §10.1)
 
@@ -25,14 +64,3 @@ defeat.mp3             — Short reflective (10-15s)
 3. **Bensound** — Free with attribution
 4. **Free Music Archive** — varied licenses
 5. **ccMixter** — Creative Commons
-
-## Format
-
-- MP3 192 kbps recommended (128 kbps min)
-- 1.5-3 MB per 90-second loop
-- ~20 MB total budget across all tracks
-
-## Status
-
-⏳ Awaiting Roman curation per §15. Audio code lazy-loads — missing files
-fail silently with `console.warn` (no broken UI).
