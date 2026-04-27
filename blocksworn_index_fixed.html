@@ -2852,6 +2852,199 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   margin-top: 4px;
 }
 
+/* ===== PHASE E — Convenience + Rewarded Ads ===== */
+/* 24h Mega Buff active banner — orange gradient, pulse */
+.shop-buff-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  background: linear-gradient(90deg, rgba(255,170,0,0.20), rgba(255,213,61,0.18));
+  border: 2px solid #FFAA00;
+  border-radius: 12px;
+  box-shadow: 0 0 14px rgba(255,170,0,0.30);
+  animation: buffPulse 2.4s ease-in-out infinite;
+}
+@keyframes buffPulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(255,170,0,0.30); }
+  50%      { box-shadow: 0 0 22px rgba(255,170,0,0.55); }
+}
+.shop-buff-banner .icon { font-size: 24px; }
+.shop-buff-banner .text { flex: 1; font-size: 10px; line-height: 1.4; color: #FFFFFF; letter-spacing: 0.3px; }
+.shop-buff-banner .text strong { color: #FFAA00; letter-spacing: 1.5px; font-size: 11px; }
+/* Convenience card (Mega Buff / Squad Boost / Daily Gift) */
+.shop-conv {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  color: #FFFFFF;
+  transition: transform 0.15s;
+}
+.shop-conv:hover, .shop-conv:active { transform: scale(0.99); }
+.shop-conv:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.4); }
+.shop-conv-buff   { background: linear-gradient(180deg, rgba(255,170,0,0.16), rgba(0,0,0,0.30)); border: 2px solid #FFAA00; }
+.shop-conv-squad  { background: linear-gradient(180deg, rgba(93,202,121,0.16), rgba(0,0,0,0.30)); border: 2px solid #5DCA79; }
+.shop-conv-daily  { background: linear-gradient(180deg, rgba(255,213,61,0.16), rgba(0,0,0,0.30)); border: 2px solid #FFD53D; }
+.shop-conv-title {
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.3px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.shop-conv-buff   .shop-conv-title { color: #FFAA00; }
+.shop-conv-squad  .shop-conv-title { color: #5DCA79; }
+.shop-conv-daily  .shop-conv-title { color: #FFD53D; }
+.shop-conv-contents {
+  font-size: 10px;
+  color: #E4E1F0;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+.shop-conv-cost {
+  font-family: var(--a-font-num);
+  font-size: 13px;
+  font-weight: 800;
+  color: #FFD53D;
+  text-align: right;
+}
+.shop-conv-cooldown {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #A8A5B8;
+  margin-top: 2px;
+}
+/* Ad Center — N watch-ad cards in a row */
+.shop-ad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.shop-ad-card {
+  padding: 10px 8px;
+  background: linear-gradient(180deg, rgba(63,169,255,0.14), rgba(0,0,0,0.30));
+  border: 2px solid #3FA9FF;
+  border-radius: 10px;
+  color: #FFFFFF;
+  cursor: pointer;
+  text-align: center;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.shop-ad-card:hover, .shop-ad-card:active { transform: scale(0.97); }
+.shop-ad-card:disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.5); }
+.shop-ad-card .icon { font-size: 22px; display: block; margin-bottom: 4px; }
+.shop-ad-card .label {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  color: #3FA9FF;
+  font-weight: 700;
+}
+.shop-ad-card .reward {
+  font-size: 10px;
+  color: #FFD53D;
+  margin-top: 4px;
+  font-weight: 700;
+}
+.shop-ad-counter {
+  font-size: 10px;
+  color: #A8A5B8;
+  text-align: center;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.shop-ad-counter strong { color: #3FA9FF; }
+/* Mock ad full-screen overlay */
+.mock-ad-overlay {
+  position: fixed; inset: 0;
+  z-index: 10010;
+  background: rgba(0,0,0,0.92);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.mock-ad-overlay.active { display: flex; }
+.mock-ad-content {
+  width: 100%;
+  max-width: 360px;
+  background: #12121E;
+  border: 1px solid #3FA9FF;
+  border-radius: 16px;
+  padding: 18px;
+  text-align: center;
+  position: relative;
+}
+.mock-ad-tag {
+  position: absolute;
+  top: 8px; left: 12px;
+  padding: 3px 8px;
+  background: rgba(255,255,255,0.10);
+  border-radius: 4px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #B8B5C4;
+  font-weight: 800;
+}
+.mock-ad-bg {
+  height: 200px;
+  margin: 16px 0;
+  background: linear-gradient(135deg, #1a1a2e, #2a2a3e);
+  border: 1px dashed rgba(255,255,255,0.10);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+}
+.mock-ad-emoji {
+  font-size: 90px;
+  filter: grayscale(0.3);
+  opacity: 0.7;
+}
+.mock-ad-msg {
+  font-size: 13px;
+  color: #B8B5C4;
+  letter-spacing: 0.4px;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.mock-ad-reward {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: rgba(255,213,61,0.20);
+  border-radius: 6px;
+  color: #FFD53D;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+.mock-ad-timer {
+  font-family: var(--a-font-num);
+  font-size: 28px;
+  font-weight: 900;
+  color: #3FA9FF;
+  margin-bottom: 10px;
+}
+.mock-ad-skip {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(180deg, #3FA9FF 0%, #1F7FCC 100%);
+  border: none;
+  border-radius: 10px;
+  color: #FFFFFF;
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.mock-ad-skip:disabled { background: rgba(255,255,255,0.06); color: #6E6B7B; cursor: not-allowed; }
+
 /* Pack reveal — bonus loot strip below cards (T2/T3/gold/essence). */
 .pack-reveal-bonus {
   display: flex;
@@ -13651,11 +13844,18 @@ function addHeroFragments(heroId, count) {
   // 2026-04-27 — Block H.1 — fragments now accumulate past unlock to feed
   // Tier 2 ascension (5 cards), Tier 3 (+10), Mythic (+25) per spec §8-10.
   // Old behavior: ignored if unlocked. New: cap at 99 (HERO_FRAGMENT_CAP).
-  const n = Math.floor(Number(count));
+  let n = Math.floor(Number(count));
   if (!Number.isFinite(n) || n <= 0) {
     console.warn('addHeroFragments: invalid count', count);
     return 0;
   }
+  // 2026-04-28 — Phase E — Mega Buff: +50% Hero Card drops (positive deltas only,
+  // ceiled so a single +1 at least becomes +2 during buff window).
+  try {
+    if (typeof _isMegaBuffActive === 'function' && _isMegaBuffActive()) {
+      n = Math.ceil(n * MEGA_BUFF_FRAG_MULT);
+    }
+  } catch (e) {}
   const current = heroFragments[heroId] || 0;
   const added = Math.min(n, HERO_FRAGMENT_CAP - current);
   if (added <= 0) {
@@ -14441,6 +14641,79 @@ function renderShopPacks() {
     }
   }
 
+  // ----- Phase E — Convenience + Ad Center -----
+  const buffActive    = (typeof _isMegaBuffActive === 'function') && _isMegaBuffActive();
+  const buffHrs       = (typeof _megaBuffHoursLeft === 'function') ? _megaBuffHoursLeft() : 0;
+  const squadAvail    = (typeof _squadBoostAvailable === 'function') ? _squadBoostAvailable() : true;
+  const squadCdHrs    = (typeof _squadBoostHoursLeft === 'function') ? _squadBoostHoursLeft() : 0;
+  const dailyClaimed  = (typeof _isDailyGiftPurchasedToday === 'function') ? _isDailyGiftPurchasedToday() : false;
+  const todayGift     = (typeof getTodayDailyGift === 'function') ? getTodayDailyGift() : null;
+  const adsLeft       = (typeof _adsRemaining === 'function') ? _adsRemaining() : 0;
+  const adsCap        = (typeof _adsCap === 'function') ? _adsCap() : 5;
+  const buffActiveBanner = buffActive
+    ? '<div class="shop-buff-banner"><span class="icon">⚡</span><span class="text"><strong>24h MEGA BUFF ACTIVE</strong><br>+25% gold · +50% Hero Cards · +25% essence · ' + buffHrs + 'h remaining</span></div>'
+    : '';
+  const megaBuffHtml = buffActive
+    ? '<button class="shop-conv shop-conv-buff" disabled>' +
+        '<div class="shop-conv-title">⚡ 24h MEGA BUFF</div>' +
+        '<div class="shop-conv-contents">+25% gold · +50% Hero Cards · +25% essence</div>' +
+        '<div class="shop-conv-cost">ACTIVE · ' + buffHrs + 'h LEFT</div>' +
+      '</button>'
+    : '<button class="shop-conv shop-conv-buff" onclick="buyMegaBuff()">' +
+        '<div class="shop-conv-title">⚡ 24h MEGA BUFF</div>' +
+        '<div class="shop-conv-contents">+25% gold · +50% Hero Cards · +25% essence · 24h</div>' +
+        '<div class="shop-conv-cost">$' + MEGA_BUFF_USD.toFixed(2) + ' / ' + MEGA_BUFF_GEMS + '💎</div>' +
+      '</button>';
+  const squadBoostHtml = squadAvail
+    ? '<button class="shop-conv shop-conv-squad" onclick="buySquadLevelBoost()">' +
+        '<div class="shop-conv-title">⚔ SQUAD LEVEL BOOST</div>' +
+        '<div class="shop-conv-contents">+' + SQUAD_BOOST_LEVELS + ' level to all active squad heroes · 1× per day</div>' +
+        '<div class="shop-conv-cost">$' + SQUAD_BOOST_USD.toFixed(2) + ' / ' + SQUAD_BOOST_GEMS + '💎</div>' +
+      '</button>'
+    : '<button class="shop-conv shop-conv-squad" disabled>' +
+        '<div class="shop-conv-title">⚔ SQUAD LEVEL BOOST</div>' +
+        '<div class="shop-conv-contents">On cooldown</div>' +
+        '<div class="shop-conv-cooldown">Available in ' + squadCdHrs + 'h</div>' +
+      '</button>';
+  let dailyGiftContents = '';
+  if (todayGift) {
+    const items = [];
+    if (todayGift.gold)    items.push(todayGift.gold + '💰');
+    if (todayGift.gems)    items.push(todayGift.gems + '💎');
+    if (todayGift.cards)   items.push(todayGift.cards + ' cards');
+    if (todayGift.essence) items.push(todayGift.essence + '✦');
+    if (todayGift.t2)      items.push(todayGift.t2 + '⚡');
+    dailyGiftContents = todayGift.label + ' · ' + items.join(' · ');
+  }
+  const dailyGiftHtml = dailyClaimed
+    ? '<button class="shop-conv shop-conv-daily" disabled>' +
+        '<div class="shop-conv-title">🎁 DAILY GIFT BUNDLE</div>' +
+        '<div class="shop-conv-contents">' + dailyGiftContents + '</div>' +
+        '<div class="shop-conv-cooldown">✓ CLAIMED · Resets at midnight</div>' +
+      '</button>'
+    : '<button class="shop-conv shop-conv-daily" onclick="buyDailyGift()">' +
+        '<div class="shop-conv-title">🎁 DAILY GIFT BUNDLE</div>' +
+        '<div class="shop-conv-contents">' + dailyGiftContents + '</div>' +
+        '<div class="shop-conv-cost">$' + DAILY_GIFT_USD.toFixed(2) + ' / ' + DAILY_GIFT_GEMS + '💎</div>' +
+      '</button>';
+  // Ad Center — 3 watch-ad cards (gold / hero card / essence)
+  const adDisabled = adsLeft <= 0;
+  const adCounterHtml =
+    '<div class="shop-ad-counter"><strong>' + adsLeft + '</strong> of <strong>' + adsCap + '</strong> ad' + (adsCap === 1 ? '' : 's') + ' available today' + (_isSeasonPassActive && _isSeasonPassActive() ? ' · subscriber bonus' : '') + '</div>';
+  const adCenterHtml =
+    adCounterHtml +
+    '<div class="shop-ad-grid">' +
+      '<button class="shop-ad-card" ' + (adDisabled ? 'disabled' : '') + ' onclick="watchRewardedAd(\'gold\')">' +
+        '<span class="icon">📺</span><span class="label">WATCH AD</span><span class="reward">+200 💰</span>' +
+      '</button>' +
+      '<button class="shop-ad-card" ' + (adDisabled ? 'disabled' : '') + ' onclick="watchRewardedAd(\'card\')">' +
+        '<span class="icon">📺</span><span class="label">WATCH AD</span><span class="reward">1 🃏 card</span>' +
+      '</button>' +
+      '<button class="shop-ad-card" ' + (adDisabled ? 'disabled' : '') + ' onclick="watchRewardedAd(\'essence\')">' +
+        '<span class="icon">📺</span><span class="label">WATCH AD</span><span class="reward">+5 ✦</span>' +
+      '</button>' +
+    '</div>';
+
   // ----- Phase D — Bundles (Squad / Rapid / Endgame Kit + Race Launch ×5) -----
   const purchasedRaces = (typeof _getPurchasedRaceBundles === 'function') ? _getPurchasedRaceBundles() : [];
   const endgameAvail = (typeof _isEndgameKitAvailableThisSeason === 'function') ? _isEndgameKitAvailableThisSeason() : true;
@@ -14482,6 +14755,7 @@ function renderShopPacks() {
 
   host.innerHTML =
     firstPurchaseBannerHtml +
+    buffActiveBanner +
     subTileHtml +
     weeklyOfferHtml +
     dropBoostHtml +
@@ -14497,6 +14771,12 @@ function renderShopPacks() {
     endgameBundleHtml +
     '<div class="shop-pack-divider">🏴 RACE LAUNCH BUNDLES · 1× per race</div>' +
     '<div class="shop-race-bundle-grid">' + raceBundleCardsHtml + '</div>' +
+    '<div class="shop-pack-divider">⏱ CONVENIENCE · 1-day bundles + boosts</div>' +
+    megaBuffHtml +
+    squadBoostHtml +
+    dailyGiftHtml +
+    '<div class="shop-pack-divider">📺 WATCH ADS · Free rewards (capped)</div>' +
+    adCenterHtml +
     '<div class="shop-pack-divider">📦 HERO CARD PACKS · Earnable with gold</div>' +
     pityHtml +
     '<button class="shop-pack-btn shop-pack-standard" ' + (stdAffordable ? '' : 'disabled') + ' onclick="buyStandardPack()">' +
@@ -14621,6 +14901,14 @@ function addGold(n) {
     if (v > 0 && typeof getBuffValue === 'function') {
       const goldMult = getBuffValue('goldMult', 1.0);
       if (goldMult > 1.0) v = Math.floor(v * goldMult);
+    }
+  } catch (e) {}
+  // 2026-04-28 — Phase E — 24h Mega Buff (shop convenience): +25% gold from
+  // all sources. Stacks multiplicatively with other buffs/passives. Only
+  // positive deltas multiplied (won't double-charge purchases that subtract).
+  try {
+    if (v > 0 && typeof _isMegaBuffActive === 'function' && _isMegaBuffActive()) {
+      v = Math.floor(v * MEGA_BUFF_GOLD_MULT);
     }
   } catch (e) {}
   // 2026-04-27 — Block T.5 — Tower Heart "+10/+25% gold" upgrade. Tower-only
@@ -16360,11 +16648,17 @@ function claimLoginStreakReward() {
   if (loginStreakState.claimedToday) return false;
   const reward = getTodayStreakReward();
   if (!reward) return false;
-  if (reward.gold) addGold(reward.gold);
-  if (reward.gems) addGems(reward.gems);
+  // 2026-04-28 — Phase C/E — Subscribers get 2× the daily login bundle
+  // (per BLOCKSWORN_MONETIZATION.md §4.5 "Premium-tier daily login pack").
+  // Active subscription multiplies gold/gems/essence; hero card stays 1
+  // (the bigger drop comes from Mega Buff or premium pack instead).
+  let mult = 1;
+  try { if (typeof _isSeasonPassActive === 'function' && _isSeasonPassActive()) mult = SEASON_PASS_SUB_DAILY_LOGIN_X; } catch (e) {}
+  if (reward.gold) addGold(Math.floor(reward.gold * mult));
+  if (reward.gems) addGems(Math.floor(reward.gems * mult));
   if (reward.essencesRandom) {
     const s = STIHIYAS[Math.floor(Math.random() * STIHIYAS.length)];
-    essences[s] = (essences[s] || 0) + reward.essencesRandom;
+    essences[s] = (essences[s] || 0) + Math.floor(reward.essencesRandom * mult);
     try { saveProgress(); } catch (e) {}
   }
   if (reward.t2ArtifactRandom) {
@@ -16375,6 +16669,9 @@ function claimLoginStreakReward() {
   // accumulates past unlock toward T2/T3/Mythic ascension stockpile.
   if (reward.heroCard) {
     try { dropRandomHeroCards(1); } catch (e) { console.warn('H.6 day-7 card drop failed:', e); }
+  }
+  if (mult > 1) {
+    setTimeout(function () { try { flashText('★ SUBSCRIBER ' + mult + '×', '#BB60FF'); } catch (e) {} }, 600);
   }
   loginStreakState.claimedToday = true;
   saveLoginStreak();
@@ -20634,6 +20931,290 @@ function buyWeeklyOffer() {
   try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
   renderShopPacks();
   return true;
+}
+
+// ===== PHASE E — CONVENIENCE + REWARDED ADS (2026-04-28) =====
+// Per BLOCKSWORN_MONETIZATION.md §8 (Convenience) + §9 (Rewarded ads only).
+// Mock-IAP only — Phase G replaces with real billing/ad-network. The mock-ad
+// modal is a 5s countdown with a fake "AD" overlay; no real ad network is
+// integrated yet (AdMob / Unity Ads slots in for it via Phase G integration).
+
+const MEGA_BUFF_KEY            = 'blocksworn_mega_buff_until';
+const MEGA_BUFF_USD            = 1.99;
+const MEGA_BUFF_GEMS           = 200;
+const MEGA_BUFF_DURATION_MS    = 24 * 60 * 60 * 1000;
+const MEGA_BUFF_GOLD_MULT      = 1.25;  // applied in addGold for positive deltas
+const MEGA_BUFF_FRAG_MULT      = 1.50;  // applied in addHeroFragments for positive count
+
+const SQUAD_BOOST_KEY          = 'blocksworn_squad_boost_last';
+const SQUAD_BOOST_USD          = 4.99;
+const SQUAD_BOOST_GEMS         = 500;
+const SQUAD_BOOST_COOLDOWN_MS  = 24 * 60 * 60 * 1000;
+const SQUAD_BOOST_LEVELS       = 1;
+
+const DAILY_GIFT_KEY           = 'blocksworn_daily_gift_purchased';
+const DAILY_GIFT_USD           = 2.99;
+const DAILY_GIFT_GEMS          = 300;
+
+const ADS_WATCHED_KEY          = 'blocksworn_ads_watched_today';
+const ADS_DAILY_CAP_FREE       = 5;
+const ADS_DAILY_CAP_SUB        = 8;
+const ADS_DURATION_MS          = 5000;  // mock ad runs 5s; real ad network plugs in here
+
+// Daily Gift Bundle — rotates by day-of-week (spec §8.4).
+const DAILY_GIFT_BUNDLES = [
+  // Sunday  — gold rush
+  { gold: 1500, gems: 30,  cards: 5, label: 'GOLD RUSH GIFT' },
+  // Monday  — starter
+  { gold: 500,  essence: 25, cards: 3, label: 'STARTER GIFT' },
+  // Tuesday — card-heavy
+  { cards: 10, essence: 50, label: 'CARD TUESDAY' },
+  // Wednesday — midweek momentum
+  { gold: 1000, gems: 40,  t2: 1, label: 'MIDWEEK MOMENTUM' },
+  // Thursday — elemental
+  { essence: 100, gold: 800, label: 'ELEMENTAL SURGE' },
+  // Friday  — fortune
+  { gold: 2000, gems: 50, label: 'FRIDAY FORTUNE' },
+  // Saturday — weekend banger
+  { gold: 2500, gems: 80, t2: 1, cards: 5, label: 'WEEKEND BANG' },
+];
+
+function _todayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// ----- 24h Mega Buff -----
+function _isMegaBuffActive() {
+  try {
+    const raw = localStorage.getItem(MEGA_BUFF_KEY);
+    if (!raw) return false;
+    return parseInt(raw, 10) > Date.now();
+  } catch (e) { return false; }
+}
+function _megaBuffHoursLeft() {
+  try {
+    const raw = localStorage.getItem(MEGA_BUFF_KEY);
+    if (!raw) return 0;
+    const ms = parseInt(raw, 10) - Date.now();
+    return Math.max(0, Math.ceil(ms / 3600000));
+  } catch (e) { return 0; }
+}
+function buyMegaBuff() {
+  if (_isMegaBuffActive()) {
+    try { flashText('ALREADY ACTIVE', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  const msg =
+    '24h MEGA BUFF\n$' + MEGA_BUFF_USD.toFixed(2) + ' / ' + MEGA_BUFF_GEMS + '💎\n\n' +
+    '• +25% gold from all sources\n' +
+    '• +50% Hero Card drops\n' +
+    '• +25% essence drops\n' +
+    '• Active for 24 hours\n\n' +
+    '(Mock IAP — no real charge in dev build)';
+  if (!confirm(msg)) return false;
+  if ((gems || 0) >= MEGA_BUFF_GEMS) {
+    if (!spendGems(MEGA_BUFF_GEMS)) return false;
+  }
+  const until = Date.now() + MEGA_BUFF_DURATION_MS;
+  try { localStorage.setItem(MEGA_BUFF_KEY, String(until)); } catch (e) {}
+  try { flashText('★ 24h MEGA BUFF ACTIVE', '#FFAA00'); } catch (e) {}
+  try { vibrate([120, 60, 120]); } catch (e) {}
+  renderShopPacks();
+  return true;
+}
+
+// ----- Squad Level Boost -----
+function _squadBoostAvailable() {
+  try {
+    const raw = localStorage.getItem(SQUAD_BOOST_KEY);
+    if (!raw) return true;
+    return (Date.now() - parseInt(raw, 10)) >= SQUAD_BOOST_COOLDOWN_MS;
+  } catch (e) { return true; }
+}
+function _squadBoostHoursLeft() {
+  try {
+    const raw = localStorage.getItem(SQUAD_BOOST_KEY);
+    if (!raw) return 0;
+    const ms = SQUAD_BOOST_COOLDOWN_MS - (Date.now() - parseInt(raw, 10));
+    return Math.max(0, Math.ceil(ms / 3600000));
+  } catch (e) { return 0; }
+}
+function buySquadLevelBoost() {
+  if (!_squadBoostAvailable()) {
+    try { flashText('ON COOLDOWN — ' + _squadBoostHoursLeft() + 'h LEFT', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  if (!Array.isArray(activeSquad) || activeSquad.length === 0) {
+    try { flashText('NO ACTIVE SQUAD', '#E85D4A'); } catch (e) {}
+    return false;
+  }
+  const msg =
+    'SQUAD LEVEL BOOST\n$' + SQUAD_BOOST_USD.toFixed(2) + ' / ' + SQUAD_BOOST_GEMS + '💎\n\n' +
+    '• +' + SQUAD_BOOST_LEVELS + ' level to all ' + activeSquad.length + ' active squad heroes\n' +
+    '• 1 boost per 24 hours\n\n' +
+    '(Mock IAP — no real charge in dev build)';
+  if (!confirm(msg)) return false;
+  if ((gems || 0) >= SQUAD_BOOST_GEMS) {
+    if (!spendGems(SQUAD_BOOST_GEMS)) return false;
+  }
+  if (typeof heroLevels !== 'object' || !heroLevels) {
+    try { flashText('LEVEL SYSTEM UNAVAILABLE', '#E85D4A'); } catch (e) {}
+    return false;
+  }
+  for (const id of activeSquad) {
+    heroLevels[id] = (heroLevels[id] || 1) + SQUAD_BOOST_LEVELS;
+  }
+  try { saveHeroLevelsToStorage(); } catch (e) {}
+  try { localStorage.setItem(SQUAD_BOOST_KEY, String(Date.now())); } catch (e) {}
+  try { flashText('★ SQUAD +' + SQUAD_BOOST_LEVELS + ' LEVEL', '#5DCA79'); } catch (e) {}
+  try { vibrate([100, 60, 100, 60, 150]); } catch (e) {}
+  renderShopPacks();
+  return true;
+}
+
+// ----- Daily Gift Bundle -----
+function getTodayDailyGift() {
+  return DAILY_GIFT_BUNDLES[new Date().getDay()];
+}
+function _isDailyGiftPurchasedToday() {
+  try { return localStorage.getItem(DAILY_GIFT_KEY) === _todayDateString(); } catch (e) { return false; }
+}
+function buyDailyGift() {
+  if (_isDailyGiftPurchasedToday()) {
+    try { flashText('ALREADY CLAIMED TODAY', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  const gift = getTodayDailyGift();
+  if (!gift) return false;
+  const parts = [];
+  if (gift.gold)    parts.push('• ' + gift.gold + ' gold');
+  if (gift.gems)    parts.push('• ' + gift.gems + ' 💎 gems');
+  if (gift.cards)   parts.push('• ' + gift.cards + ' Hero Cards');
+  if (gift.essence) parts.push('• ' + gift.essence + ' essence (mixed)');
+  if (gift.t2)      parts.push('• ' + gift.t2 + ' ⚡ T2 stone');
+  const msg =
+    gift.label + '\n$' + DAILY_GIFT_USD.toFixed(2) + ' / ' + DAILY_GIFT_GEMS + '💎\n\n' +
+    parts.join('\n') + '\n\n' +
+    'Rotates daily — different content tomorrow.\n\n' +
+    '(Mock IAP — no real charge in dev build)';
+  if (!confirm(msg)) return false;
+  if ((gems || 0) >= DAILY_GIFT_GEMS) {
+    if (!spendGems(DAILY_GIFT_GEMS)) return false;
+  }
+  // Grant
+  if (gift.gold)    addGold(gift.gold);
+  if (gift.gems)    addGems(gift.gems);
+  if (gift.cards)   dropRandomHeroCards(gift.cards, { silent: true });
+  if (gift.essence && typeof essences === 'object' && essences) {
+    const per = Math.floor(gift.essence / 5);
+    for (const s of ['ember', 'tide', 'grove', 'solar', 'umbra']) {
+      essences[s] = (essences[s] || 0) + per;
+    }
+    try { saveProgress(); } catch (e) {}
+  }
+  if (gift.t2)      _addTier2Stones(gift.t2);
+  try { localStorage.setItem(DAILY_GIFT_KEY, _todayDateString()); } catch (e) {}
+  try { flashText('★ ' + gift.label, '#FFD53D'); } catch (e) {}
+  try { vibrate([100, 60, 100]); } catch (e) {}
+  renderShopPacks();
+  return true;
+}
+
+// ----- Rewarded Ads (mock — 5s countdown + skip) -----
+function _adsWatchedToday() {
+  try {
+    const raw = localStorage.getItem(ADS_WATCHED_KEY);
+    if (!raw) return 0;
+    const obj = JSON.parse(raw);
+    if (obj.date !== _todayDateString()) return 0;
+    return obj.count || 0;
+  } catch (e) { return 0; }
+}
+function _incrementAdsWatched() {
+  const next = _adsWatchedToday() + 1;
+  try { localStorage.setItem(ADS_WATCHED_KEY, JSON.stringify({ date: _todayDateString(), count: next })); } catch (e) {}
+}
+function _adsCap() {
+  return _isSeasonPassActive() ? ADS_DAILY_CAP_SUB : ADS_DAILY_CAP_FREE;
+}
+function _adsRemaining() { return Math.max(0, _adsCap() - _adsWatchedToday()); }
+
+// Reward types: 'gold', 'card', 'essence' — plug in more later.
+const AD_REWARDS = {
+  gold:    { label: '+200 gold',         apply: function () { addGold(200); flashText('+200 💰', '#FFD53D'); } },
+  card:    { label: '1 Hero Card',       apply: function () { dropRandomHeroCards(1, { silent: false }); } },
+  essence: { label: '5 random essence',  apply: function () {
+    const stihs = ['ember','tide','grove','solar','umbra'];
+    const s = stihs[Math.floor(Math.random()*stihs.length)];
+    if (essences) { essences[s] = (essences[s] || 0) + 5; try { saveProgress(); } catch (e) {} }
+    flashText('+5 ' + s.toUpperCase() + ' ✦', '#5DCA79');
+  } },
+};
+
+function watchRewardedAd(rewardType) {
+  if (_adsWatchedToday() >= _adsCap()) {
+    try { flashText('AD CAP REACHED — RESETS TOMORROW', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  const r = AD_REWARDS[rewardType];
+  if (!r) { console.warn('watchRewardedAd: unknown type', rewardType); return false; }
+  _showMockAdOverlay(r.label, function () {
+    _incrementAdsWatched();
+    try { r.apply(); } catch (e) { console.warn('ad reward apply failed:', e); }
+    renderShopPacks();
+  });
+  return true;
+}
+
+function _showMockAdOverlay(rewardLabel, onComplete) {
+  // Mock ad: full-screen overlay, 5s countdown, "SKIP" button enabled after 3s.
+  // Real ad SDK (AdMob/Unity) replaces innerHTML with their native overlay.
+  let overlay = document.getElementById('mockAdOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'mockAdOverlay';
+    overlay.className = 'mock-ad-overlay';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML =
+    '<div class="mock-ad-content">' +
+      '<div class="mock-ad-tag">AD</div>' +
+      '<div class="mock-ad-bg"><div class="mock-ad-emoji">🎮</div></div>' +
+      '<div class="mock-ad-msg">Mock ad placeholder<br><span class="mock-ad-reward">Reward: ' + rewardLabel + '</span></div>' +
+      '<div class="mock-ad-timer" id="mockAdTimer">5</div>' +
+      '<button class="mock-ad-skip" id="mockAdSkip" disabled>SKIP</button>' +
+    '</div>';
+  overlay.classList.add('active');
+  let secs = Math.ceil(ADS_DURATION_MS / 1000);
+  const timerEl = document.getElementById('mockAdTimer');
+  const skipBtn = document.getElementById('mockAdSkip');
+  let done = false;
+  const finish = function () {
+    if (done) return;
+    done = true;
+    overlay.classList.remove('active');
+    setTimeout(function () { try { overlay.innerHTML = ''; } catch (e) {} }, 300);
+    if (typeof onComplete === 'function') onComplete();
+  };
+  const tick = setInterval(function () {
+    secs--;
+    if (timerEl) timerEl.textContent = String(Math.max(0, secs));
+    if (secs <= 2 && skipBtn) {
+      skipBtn.disabled = false;
+      skipBtn.textContent = 'CLAIM REWARD';
+    }
+    if (secs <= 0) {
+      clearInterval(tick);
+      finish();
+    }
+  }, 1000);
+  if (skipBtn) {
+    skipBtn.onclick = function () {
+      if (skipBtn.disabled) return;
+      clearInterval(tick);
+      finish();
+    };
+  }
 }
 
 // ========= Screen + rendering =========
