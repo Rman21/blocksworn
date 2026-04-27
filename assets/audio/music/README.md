@@ -2,17 +2,39 @@
 
 Per BLOCKSWORN_AUDIO_SOUND.md §3 + §15.
 
-## Currently shipped (5 tracks · pirate-themed v1)
+## Currently shipped (12 tracks — full per-chapter + per-boss coverage)
 
-| File | Context | Mapped to |
+### Top-level / single contexts
+
+| File | Context |
+|---|---|
+| `ebunny-pirate-adventure-361663.mp3` | menu (Chapter 1 default) |
+| `audiodollar-pirate-music-pirate-331490.mp3` | tower / season |
+| `win.mp3` | victory cinematic |
+| `lose.mp3` | defeat modal |
+
+### Per-chapter map (menu music swaps with currentChapter)
+
+| Chapter | Track |
+|---|---|
+| 1 — Ashen Dominion | `ebunny-pirate-adventure-361663.mp3` |
+| 2 — Bloom of Madness | `chapter 2.mp3` |
+| 3 — Veil of Forgotten Gods | `cosmic.mp3` |
+| 4 — Court of the Fallen Heavens | `royal.mp3` |
+| 5 — Cradle of First Flame | `cosmic.mp3` (placeholder) |
+
+### Per-boss map (boss fight music)
+
+| Boss | Image key | Track |
 |---|---|---|
-| `ebunny-pirate-adventure-361663.mp3` | atmospheric / ascending | menu, world map, chapter screen |
-| `alex_besss-pirate-ship-battle-433529.mp3` | battle intensity | boss fights |
-| `audiodollar-pirate-music-pirate-331490.mp3` | general pirate ambient | tower mode |
-| `win.mp3` | triumphant | post-victory cinematic |
-| `lose.mp3` | reflective | defeat modal |
+| Pyredrake (dragon) | Boss_1 | `alex_besss-pirate-ship-battle-433529.mp3` |
+| Abyssal Tyrant (kraken) | Boss_2 | `kraken boss.mp3` |
+| Grovewarden (treant) | Boss_3 | `trent boss.mp3` |
+| Solar Phoenix | Boss_4 | `phoenix boss.mp3` |
+| Crypt Lich | Boss_5 | `lich boss.mp3` |
+| Other bosses (Ch2/Ch3 etc.) | — | falls back to bossDefault (= pirate-ship-battle) |
 
-Total: ~18 MB. Source: Pixabay Music (verify CC0 / CC-BY licensing on
+Total: ~88 MB. Source: Pixabay Music (verify CC0 / CC-BY licensing on
 each track page before commercial release per spec §10.3).
 
 ## Routing (in `MUSIC_TRACKS` const, blocksworn_index_fixed.html)
@@ -20,33 +42,32 @@ each track page before commercial release per spec §10.3).
 ```js
 const MUSIC_TRACKS = {
   menu:    'assets/audio/music/ebunny-pirate-adventure-361663.mp3',
-  chapter: 'assets/audio/music/ebunny-pirate-adventure-361663.mp3',
-  boss:    'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',
   tower:   'assets/audio/music/audiodollar-pirate-music-pirate-331490.mp3',
   victory: 'assets/audio/music/win.mp3',
   defeat:  'assets/audio/music/lose.mp3',
+  chapter: { 1: ..., 2: ..., 3: ..., 4: ..., 5: ... },
+  boss:    { Boss_1: ..., Boss_2: ..., Boss_3: ..., Boss_4: ..., Boss_5: ... },
+  bossDefault: 'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',
 };
 ```
 
-`playContextMusic(context)` is invoked on `showScreen` transitions
-(menu/select/shop/dailies/tower/season → 'menu' or 'tower') and at
-`startBossBattle` start ('boss').
+Resolver `_resolveMusicUrl(context)` picks the right URL based on
+currentChapter / currentBoss state. Filenames with spaces are URL-encoded
+(`kraken boss.mp3` → `kraken%20boss.mp3`).
 
-## Future tracks needed (per spec §3.1 — 12 tracks total)
+`playContextMusic(context)` is invoked on:
+- `showScreen` transitions: menu/select/shop/dailies → 'menu' (chapter-aware);
+  tower/season → 'tower'
+- `startBossBattle` start → 'boss' (per-boss-aware)
+- `onBossDefeated` (1200ms after) → 'victory'
+- `showDefeatModal` (1200ms after) → 'defeat'
 
-```
-menu-main.mp3          [✓ adventure track in use]
-chapter-1.mp3          [✓ adventure track in use]
-chapter-2.mp3          [ ] mysterious / sinister
-boss-pyredrake.mp3     [✓ battle track in use]
-boss-tyrant.mp3        [ ] deep ocean kraken
-boss-treant.mp3        [ ] tribal forest spirit
-boss-phoenix.mp3       [ ] heroic golden brass
-boss-lich.mp3          [ ] dark final boss climax
-tower-mode.mp3         [✓ pirate ambient in use]
-victory.mp3            [✓ win.mp3]
-defeat.mp3             [✓ lose.mp3]
-```
+## Music budget warning
+
+Total ~88 MB exceeds spec §13.2 budget of 20-30 MB. HTML5 Audio streams
+files (no full-RAM load), so playback is fine. For final ship: consider
+re-encoding at 128 kbps to cut ~50% size, or trimming long tracks to
+60-90s loops per spec §3.1.
 
 ## License compliance
 
@@ -57,7 +78,7 @@ add credits to game's About / Settings → Credits screen per spec §10.4.
 
 - MP3 192 kbps recommended (128 kbps min)
 - 1.5-3 MB per 90-second loop preferred
-- Total music budget: ~30 MB across all final tracks
+- Current files range 1.6 MB - 28.8 MB
 
 ## Sources (per spec §10.1)
 

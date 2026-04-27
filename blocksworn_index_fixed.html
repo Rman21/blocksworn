@@ -20319,6 +20319,9 @@ function switchChapter(n) {
   selectedBossIdx = null; // V18.19: clear pick when switching chapter
   saveProgress();
   renderMenu();
+  // 2026-04-27 — Audio: per-chapter menu music. Refresh menu music when
+  // player switches chapters from the dropdown so each chapter has its theme.
+  try { if (typeof playContextMusic === 'function') playContextMusic('menu'); } catch (e) {}
 }
 
 function renderBossProgression() {
@@ -32208,35 +32211,93 @@ function playResumeGame() { _audioMakeOscillator('sine', 660, 0.3, 0.3); }
 function playNewDay()     { playHeroUnlock(); }
 
 // 2026-04-27 — Music tracks catalog (Roman curation per spec §15).
-// First 3 tracks shipped (pirate-themed):
-//   - ebunny-pirate-adventure         — atmospheric ascending → menu / map
-//   - alex_besss-pirate-ship-battle   — battle intensity      → boss fights
-//   - audiodollar-pirate-music-pirate — general pirate ambient → tower mode
-// Paths are relative to blocksworn_index_fixed.html. Missing tracks fail
-// silently in playMusic (console.warn only).
+// 12 tracks shipped — full per-chapter + per-boss coverage.
+// Paths are relative to blocksworn_index_fixed.html. URL-encoded for filenames
+// with spaces. Missing tracks fail silently in playMusic (console.warn only).
+//
+// _PATH() helper — encode filename so 'kraken boss.mp3' becomes 'kraken%20boss.mp3'.
+function _audioPath(filename) {
+  return 'assets/audio/music/' + encodeURIComponent(filename);
+}
 const MUSIC_TRACKS = {
-  menu:    'assets/audio/music/ebunny-pirate-adventure-361663.mp3',
-  chapter: 'assets/audio/music/ebunny-pirate-adventure-361663.mp3',  // share with menu until per-chapter tracks land
-  boss:    'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',
-  tower:   'assets/audio/music/audiodollar-pirate-music-pirate-331490.mp3',
-  victory: 'assets/audio/music/win.mp3',
-  defeat:  'assets/audio/music/lose.mp3',
+  // Top-level (single-track) contexts
+  menu:    _audioPath('ebunny-pirate-adventure-361663.mp3'),
+  tower:   _audioPath('audiodollar-pirate-music-pirate-331490.mp3'),
+  victory: _audioPath('win.mp3'),
+  defeat:  _audioPath('lose.mp3'),
+  // Per-chapter map (keyed by chapter number 1-5)
+  chapter: {
+    1: _audioPath('ebunny-pirate-adventure-361663.mp3'),  // Ashen Dominion (pirate-themed)
+    2: _audioPath('chapter 2.mp3'),                       // Bloom of Madness
+    3: _audioPath('cosmic.mp3'),                          // Veil of Forgotten Gods
+    4: _audioPath('royal.mp3'),                           // Court of the Fallen Heavens
+    5: _audioPath('cosmic.mp3'),                          // Cradle of First Flame (placeholder)
+  },
+  // Per-boss map (keyed by image key like 'Boss_1' = Pyredrake, etc.)
+  // Falls back to general boss track if not mapped.
+  boss: {
+    Boss_1: _audioPath('alex_besss-pirate-ship-battle-433529.mp3'), // Pyredrake (dragon)
+    Boss_2: _audioPath('kraken boss.mp3'),                          // Abyssal Tyrant
+    Boss_3: _audioPath('trent boss.mp3'),                           // Grovewarden
+    Boss_4: _audioPath('phoenix boss.mp3'),                         // Solar Phoenix
+    Boss_5: _audioPath('lich boss.mp3'),                            // Crypt Lich
+  },
+  bossDefault: _audioPath('alex_besss-pirate-ship-battle-433529.mp3'),
 };
 
-// Plays the music for a given context. Re-entrant — if same context's track
-// is already playing, no-op. Otherwise crossfades over 1.5s.
+// Resolves the actual URL for a context, considering current chapter / boss.
+function _resolveMusicUrl(context) {
+  // Boss context — pick by currentBoss.img if mapped, else use bossDefault
+  if (context === 'boss') {
+    try {
+      const imgKey = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.img) || null;
+      if (imgKey && MUSIC_TRACKS.boss[imgKey]) return MUSIC_TRACKS.boss[imgKey];
+    } catch (e) {}
+    return MUSIC_TRACKS.bossDefault;
+  }
+  // Chapter context — pick by currentChapter
+  if (context === 'chapter') {
+    try {
+      const ch = (typeof currentChapter !== 'undefined' && currentChapter) || 1;
+      return MUSIC_TRACKS.chapter[ch] || MUSIC_TRACKS.chapter[1];
+    } catch (e) {
+      return MUSIC_TRACKS.chapter[1];
+    }
+  }
+  // Menu context — pick chapter-specific menu music if currentChapter is set,
+  // otherwise default menu track.
+  if (context === 'menu') {
+    try {
+      const ch = (typeof currentChapter !== 'undefined' && currentChapter) || 1;
+      // Only use chapter-specific track if it's not the default chapter 1 track
+      // (chapter 1 IS the default menu track).
+      if (ch > 1 && MUSIC_TRACKS.chapter[ch]) return MUSIC_TRACKS.chapter[ch];
+    } catch (e) {}
+    return MUSIC_TRACKS.menu;
+  }
+  // tower / victory / defeat — single track
+  return MUSIC_TRACKS[context] || null;
+}
+
+// Plays the music for a given context. Re-entrant — same context+track =
+// no-op. Otherwise crossfades over 1.5s.
 let _audioCurrentMusicContext = null;
+let _audioCurrentMusicUrl = null;
 function playContextMusic(context) {
-  const url = MUSIC_TRACKS[context];
+  const url = _resolveMusicUrl(context);
   if (!url) {
     if (_audioCurrentMusicContext) {
       try { stopMusic(); } catch (e) {}
       _audioCurrentMusicContext = null;
+      _audioCurrentMusicUrl = null;
     }
     return;
   }
-  if (_audioCurrentMusicContext === context && currentMusicAudio) return;
+  // Re-entrant guard — skip if same URL already playing (handles chapter switches
+  // where context stays 'menu' but URL differs).
+  if (_audioCurrentMusicUrl === url && currentMusicAudio) return;
   _audioCurrentMusicContext = context;
+  _audioCurrentMusicUrl = url;
   try { playMusic(url, { crossfadeDuration: 1500, loop: true }); } catch (e) {}
 }
 
