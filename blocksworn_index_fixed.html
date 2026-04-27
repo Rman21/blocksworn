@@ -3681,6 +3681,101 @@
 }
 .tower-floor-clear-modal.hidden { display: none; }
 
+/* ===== 2026-04-27 — Block T.6 — 24h Buff picker modal ===== */
+.tower-buff-modal {
+  position: fixed; inset: 0;
+  z-index: 10003;
+  background: rgba(5, 3, 8, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center; justify-content: center;
+  padding: 16px;
+  animation: introFadeIn 0.3s ease-out;
+}
+.tower-buff-modal.hidden { display: none; }
+.tower-buff-modal .tbm-card-wrap {
+  width: 100%; max-width: 380px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.tower-buff-modal .tbm-header { text-align: center; }
+.tower-buff-modal .tbm-tag {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #5DCA79;
+  margin-bottom: 4px;
+}
+.tower-buff-modal .tbm-title {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  text-shadow: 0 0 14px rgba(255, 213, 61, 0.4);
+}
+.tower-buff-modal .tbm-sub {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--a-text-secondary, #A8A5B8);
+  margin-top: 3px;
+}
+.tower-buff-modal .tbm-buffs {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.tower-buff-modal .tbm-buff-card {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(58, 42, 24, 0.6), rgba(20, 12, 6, 0.85));
+  border: 1.5px solid rgba(255, 184, 74, 0.5);
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--a-text-primary, #E8E6DF);
+  text-align: left;
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.tower-buff-modal .tbm-buff-card:hover {
+  border-color: var(--a-gold-300, #FFD53D);
+  box-shadow: 0 0 12px rgba(255, 213, 61, 0.3);
+  transform: translateY(-2px);
+}
+.tower-buff-modal .tbm-buff-card:active { transform: scale(0.97); }
+.tower-buff-modal .tbm-buff-card.rare {
+  background: linear-gradient(180deg, rgba(155, 89, 214, 0.30), rgba(40, 18, 56, 0.7));
+  border-color: rgba(192, 106, 223, 0.7);
+}
+.tower-buff-modal .tbm-buff-card.rare:hover {
+  border-color: #C06ADF;
+  box-shadow: 0 0 16px rgba(192, 106, 223, 0.45);
+}
+.tower-buff-modal .tbm-name {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 14px;
+  letter-spacing: 1.4px;
+  color: var(--a-gold-300, #FFD53D);
+}
+.tower-buff-modal .tbm-buff-card.rare .tbm-name { color: #E0B8FF; }
+.tower-buff-modal .tbm-desc {
+  font-size: 10.5px;
+  letter-spacing: 0.4px;
+  color: var(--a-text-secondary, #A8A5B8);
+  line-height: 1.4;
+}
+.tower-buff-modal .tbm-select {
+  margin-top: 4px;
+  padding: 5px 8px;
+  background: linear-gradient(180deg, #FFD53D, #FF8B3D);
+  color: #1A0F08;
+  font-weight: 800;
+  font-size: 9.5px;
+  letter-spacing: 1.5px;
+  text-align: center;
+  border-radius: 5px;
+  align-self: flex-end;
+  width: 70px;
+}
+
 /* ===== 2026-04-27 — Block T.2 — Pact picker modal ===== */
 .tower-pact-modal {
   position: fixed; inset: 0;
@@ -7930,6 +8025,43 @@ body.tempo-slow-tint::after {
   cursor: not-allowed;
   filter: grayscale(0.5);
 }
+/* 2026-04-27 — Block T.6 — Active buff indicator banner. Green palette
+ * (positive ongoing effect); rare variant uses purple. */
+.tower-buff-banner {
+  margin: 0 auto 6px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(93, 202, 121, 0.18), rgba(20, 40, 25, 0.45));
+  border: 1px solid rgba(93, 202, 121, 0.50);
+  border-radius: 8px;
+  text-align: center;
+}
+.tower-buff-banner.rare {
+  background: linear-gradient(180deg, rgba(192, 106, 223, 0.22), rgba(40, 18, 56, 0.55));
+  border-color: rgba(192, 106, 223, 0.55);
+}
+.tower-buff-banner .tbb-label {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: #5DCA79;
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+.tower-buff-banner.rare .tbb-label { color: #C0A6DF; }
+.tower-buff-banner .tbb-name {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 2px;
+}
+.tower-buff-banner .tbb-desc {
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: var(--a-text-secondary, #A8A5B8);
+}
+
 /* 2026-04-27 — Block T.7 — Weekly Element Theme banner. Gold-tinted info
  * palette (positive vibe, distinct from red-violet curse warning). */
 .tower-theme-banner {
@@ -9292,6 +9424,35 @@ button.season-tier-claim:active {
     <div class="v-nav-item" data-nav="tower" onclick="goToTower()"><span class="icn">🗼</span>TOWER</div>
     <div class="v-nav-item" data-nav="shop" onclick="goToShop()"><span class="icn">💎</span>SHOP</div>
   </nav>
+</div>
+
+<!-- 2026-04-27 — Block T.6 24h Buff Picker. Fires after Daily Gauntlet
+     F10 clear. Player picks 1-of-3 buffs; selection persists 24h. -->
+<div class="tower-buff-modal hidden" id="towerBuffModal">
+  <div class="tbm-card-wrap">
+    <div class="tbm-header">
+      <div class="tbm-tag">DAILY TOWER COMPLETED ✓</div>
+      <div class="tbm-title">CHOOSE YOUR BUFF</div>
+      <div class="tbm-sub">Active for 24 hours</div>
+    </div>
+    <div class="tbm-buffs">
+      <button class="tbm-buff-card" id="tbmCard1" onclick="onBuffSelected(1)">
+        <div class="tbm-name" id="tbmName1">—</div>
+        <div class="tbm-desc" id="tbmDesc1">—</div>
+        <div class="tbm-select">SELECT</div>
+      </button>
+      <button class="tbm-buff-card" id="tbmCard2" onclick="onBuffSelected(2)">
+        <div class="tbm-name" id="tbmName2">—</div>
+        <div class="tbm-desc" id="tbmDesc2">—</div>
+        <div class="tbm-select">SELECT</div>
+      </button>
+      <button class="tbm-buff-card" id="tbmCard3" onclick="onBuffSelected(3)">
+        <div class="tbm-name" id="tbmName3">—</div>
+        <div class="tbm-desc" id="tbmDesc3">—</div>
+        <div class="tbm-select">SELECT</div>
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- 2026-04-27 — Block T.2 Pact Picker. Shows 2 pact cards + SKIP between
@@ -11461,6 +11622,13 @@ function addGold(n) {
           try { flashRacePassiveOnce('pirate2', 'PLUNDER +' + bonus + '💰', '#FFD53D'); } catch (e2) {}
         }
       }
+    }
+  } catch (e) {}
+  // 2026-04-27 — Block T.6 — 24h Buff: +25% gold from all sources.
+  try {
+    if (v > 0 && typeof getBuffValue === 'function') {
+      const goldMult = getBuffValue('goldMult', 1.0);
+      if (goldMult > 1.0) v = Math.floor(v * goldMult);
     }
   } catch (e) {}
   gold = Math.max(0, gold + v);
@@ -14327,6 +14495,9 @@ let towerState = {
   dailyCurses: [],           // hero ids LOCKED from Tower play this 24h cycle
   dailyCursesKey: null,      // dailyKey when current curses were rolled
   prevDailyCurses: [],       // yesterday's curses (anti-repeat per §3.2)
+  // ===== T.6 24h buff system =====
+  activeBuff: null,          // buff id (string) or null
+  buffActiveUntil: 0,        // unix ms timestamp when buff expires
 };
 const TOWER_KEY = 'blocksworn_tower_state';
 const TOWER_MAX_ATTEMPTS_PER_DAY  = 5;
@@ -14343,6 +14514,68 @@ const TOWER_DAILY_SIGILS          = 5;
 const TOWER_DAILY_HEART_FRAGMENTS = 1;
 let _isTowerBattle = false;
 let _towerPreFloor = null;
+
+// 2026-04-27 — Block T.6 — 24h Buff System (spec §9). Each daily completion
+// offers 1-of-3 random buffs. Selected buff active for 24h, applies across
+// Tower AND Chapter combat (per §9 — buffs are global retention hooks).
+//
+// 8 starter buffs (mix of combat / economy / tactical):
+const TOWER_BUFFS = [
+  // Combat
+  { id: 'dmg_15',    cat: 'attack', name: '+15% DAMAGE',        desc: 'all fights for 24h',        kind: 'damageMult',  value: 1.15 },
+  { id: 'combo_15',  cat: 'attack', name: '+25% COMBO CAP',     desc: 'combo ceiling ×12 → ×15',   kind: 'comboCap',    value: 15 },
+  { id: 'ult_fast',  cat: 'attack', name: 'ULTs CHARGE +20%',   desc: 'faster all squad ULTs',     kind: 'ultCostMult', value: 0.83 },
+  // Defense
+  { id: 'shield_t',  cat: 'defense', name: '+1 SHIELD/TURN',    desc: 'squad regen each player turn', kind: 'shieldRegen', value: 1 },
+  // Economy
+  { id: 'gold_25',   cat: 'economy', name: '+25% GOLD',         desc: 'from all sources for 24h',  kind: 'goldMult',    value: 1.25 },
+  { id: 'xp_10',     cat: 'economy', name: '+10% XP',           desc: 'all hero/season XP gain',   kind: 'xpMult',      value: 1.10 },
+  // Tactical
+  { id: 'retry_1',   cat: 'tactical', name: '+1 FREE RETRY',    desc: 'extra Tower attempt today', kind: 'retryBonus',  value: 1 },
+  // Rare (lower drop chance handled in offering pick)
+  { id: 'race_50',   cat: 'rare',    name: 'RACE-PURE +50% DMG', desc: 'all-same-race squad bonus', kind: 'racePureMult', value: 1.50 },
+];
+function _buffActiveNow() {
+  return towerState.activeBuff
+      && towerState.buffActiveUntil > Date.now();
+}
+function getActiveBuff() {
+  if (!_buffActiveNow()) return null;
+  return TOWER_BUFFS.find(b => b.id === towerState.activeBuff) || null;
+}
+// Returns multiplier from active buff for a given kind, or default if inactive
+// or kind doesn't match. Used by combat hooks.
+function getBuffValue(kind, defaultValue) {
+  const b = getActiveBuff();
+  if (!b || b.kind !== kind) return defaultValue;
+  return b.value;
+}
+// Generate 1-of-3 buff offering. 1 rare slot picked at low chance (10%);
+// other 2 slots from non-rare pool, no duplicates.
+function getBuffOfferings() {
+  const rare    = TOWER_BUFFS.filter(b => b.cat === 'rare');
+  const regular = TOWER_BUFFS.filter(b => b.cat !== 'rare');
+  const shuf = regular.slice();
+  for (let i = shuf.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuf[i], shuf[j]] = [shuf[j], shuf[i]];
+  }
+  const out = shuf.slice(0, 3);
+  // 10% chance to swap last slot for a rare buff
+  if (rare.length > 0 && Math.random() < 0.10) {
+    out[2] = rare[Math.floor(Math.random() * rare.length)];
+  }
+  return out;
+}
+function selectBuff(buffId) {
+  const b = TOWER_BUFFS.find(x => x.id === buffId);
+  if (!b) return false;
+  towerState.activeBuff = b.id;
+  // 24h from now
+  towerState.buffActiveUntil = Date.now() + 24 * 60 * 60 * 1000;
+  saveTowerState();
+  return true;
+}
 
 // 2026-04-27 — Block T.7 — Weekly Element Theme (spec §4). Each week one
 // element is DOMINANT (+50% damage from its heroes in Tower) and one is
@@ -14772,7 +15005,14 @@ function startTowerRun() {
   if (typeof isFtueActive === 'function' && isFtueActive()) return;
   checkTowerDailyReset();
   // Cap check: after 5 attempts the player must wait until tomorrow's reset.
-  if (towerState.attemptsToday >= TOWER_MAX_ATTEMPTS_PER_DAY) {
+  // 2026-04-27 — Block T.6: retry buff adds +1 to today's cap.
+  let attemptsCap = TOWER_MAX_ATTEMPTS_PER_DAY;
+  try {
+    if (typeof getBuffValue === 'function') {
+      attemptsCap += getBuffValue('retryBonus', 0);
+    }
+  } catch (e) {}
+  if (towerState.attemptsToday >= attemptsCap) {
     showToast('Daily attempt cap reached. Reset at 4 AM.');
     return;
   }
@@ -14916,8 +15156,15 @@ function onTowerDailyComplete(clearedFloor) {
     ), 2200);
   } catch (e) {}
   try { vibrate([100, 50, 100, 50, 200]); } catch (e) {}
-  // After banner sequence, return to tower screen.
-  setTimeout(() => { try { goToTower(); } catch (e) { try { goToMenu(); } catch (e2) {} } }, 3400);
+  // 2026-04-27 — Block T.6: after celebration banners, show 24h Buff picker.
+  // 1-of-3 buffs offered; selection persists for 24h.
+  setTimeout(() => {
+    try { if (typeof showBuffPicker === 'function') showBuffPicker(() => {
+      try { goToTower(); } catch (e) { try { goToMenu(); } catch (e2) {} }
+    });} catch (e) {
+      try { goToTower(); } catch (e2) { try { goToMenu(); } catch (e3) {} }
+    }
+  }, 3400);
 }
 
 function endTowerRun() {
@@ -14975,6 +15222,24 @@ function renderTowerScreen() {
     <span class="t-pill">♥ ${towerState.towerHearts} (${towerState.towerHeartFragments}/${TOWER_FRAGMENTS_PER_HEART})</span>
     <span class="t-pill">◈ ${towerState.sigilShards}</span>
   </div>`;
+  // 2026-04-27 — Block T.6 — Active buff indicator. Sits above the theme
+  // banner so player sees their active 24h buff on every Tower entry.
+  let buffBanner = '';
+  try {
+    const b = (typeof getActiveBuff === 'function') ? getActiveBuff() : null;
+    if (b) {
+      const remaining = Math.max(0, towerState.buffActiveUntil - Date.now());
+      const hrs = Math.floor(remaining / 3600000);
+      const min = Math.floor((remaining % 3600000) / 60000);
+      const lbl = hrs >= 1 ? `${hrs}h ${min}m` : `${min}m`;
+      const rareCls = (b.cat === 'rare') ? ' rare' : '';
+      buffBanner = `<div class="tower-buff-banner${rareCls}">
+        <div class="tbb-label">★ ACTIVE BUFF · ${lbl} left</div>
+        <div class="tbb-name">${b.name}</div>
+        <div class="tbb-desc">${b.desc}</div>
+      </div>`;
+    }
+  } catch (e) {}
   // 2026-04-27 — Block T.7 — Weekly Element Theme banner. Sits above curse
   // banner. Shows dominant + suppressed element with effect mults.
   let themeBanner = '';
@@ -15014,13 +15279,13 @@ function renderTowerScreen() {
       btn.textContent = `▶ CONTINUE — FLOOR ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}`;
       btn.onclick = continueTowerRun;
       btn.disabled = false;
-      current.innerHTML = themeBanner + curseBanner + dailyStatus
+      current.innerHTML = buffBanner + themeBanner + curseBanner + dailyStatus
         + `<div class="tower-run-active">Run in progress · floor ${towerState.currentFloor}/${TOWER_DAILY_FLOORS}</div>`;
     } else if (attemptsLeft <= 0) {
       btn.textContent = '🔒 DAILY CAP REACHED';
       btn.onclick = () => showToast('Reset at 4 AM');
       btn.disabled = true;
-      current.innerHTML = themeBanner + curseBanner + dailyStatus
+      current.innerHTML = buffBanner + themeBanner + curseBanner + dailyStatus
         + `<div class="tower-hint">Daily attempt cap reached. Come back at 4 AM for a fresh climb.</div>`;
     } else {
       const isFirstAttempt = (towerState.attemptsToday === 0);
@@ -15031,7 +15296,7 @@ function renderTowerScreen() {
       const hint = isFirstAttempt
         ? `10 floors · F5 mid-boss · F10 climax · earn 💰 ◈ ♥ on full clear`
         : `Retry attempt ${towerState.attemptsToday + 1}/${TOWER_MAX_ATTEMPTS_PER_DAY} · cost ${nextRetryCost} gold`;
-      current.innerHTML = themeBanner + curseBanner + dailyStatus + `<div class="tower-hint">${hint}</div>`;
+      current.innerHTML = buffBanner + themeBanner + curseBanner + dailyStatus + `<div class="tower-hint">${hint}</div>`;
     }
   }
   // Auto-roll curses on first render if missing (handles upgrade path where
@@ -15063,6 +15328,58 @@ function renderTowerScreen() {
 }
 
 // Continue/bank modal — custom DOM instead of confirm() for better mobile UX
+// 2026-04-27 — Block T.6 — 24h Buff picker. Fires after daily complete.
+// Shows 3 random buffs; player picks 1; selected buff persists 24h.
+let _buffPickerNextCallback = null;
+function showBuffPicker(onDone) {
+  const offerings = (typeof getBuffOfferings === 'function') ? getBuffOfferings() : [];
+  if (!offerings || offerings.length === 0) {
+    if (typeof onDone === 'function') onDone();
+    return;
+  }
+  const modal = document.getElementById('towerBuffModal');
+  if (!modal) {
+    // Fallback prompt
+    const txt = offerings.map((b, i) => `${i + 1}: ${b.name}\n  ${b.desc}`).join('\n\n');
+    const ans = prompt(`CHOOSE YOUR 24H BUFF\n\n${txt}\n\nEnter 1, 2, or 3:`);
+    const idx = parseInt(ans, 10) - 1;
+    if (idx >= 0 && idx < offerings.length) selectBuff(offerings[idx].id);
+    if (typeof onDone === 'function') onDone();
+    return;
+  }
+  _buffPickerNextCallback = onDone || null;
+  const setTxt = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  for (let i = 0; i < 3; i++) {
+    const b = offerings[i];
+    const card = document.getElementById(`tbmCard${i + 1}`);
+    if (!card) continue;
+    if (!b) {
+      card.style.display = 'none';
+      continue;
+    }
+    card.style.display = '';
+    card.dataset.buffId = b.id;
+    card.classList.toggle('rare', b.cat === 'rare');
+    setTxt(`tbmName${i + 1}`, b.name);
+    setTxt(`tbmDesc${i + 1}`, b.desc);
+  }
+  modal.classList.add('active');
+  modal.classList.remove('hidden');
+}
+function onBuffSelected(slot) {
+  const card = document.getElementById(`tbmCard${slot}`);
+  const buffId = card && card.dataset && card.dataset.buffId;
+  if (buffId) selectBuff(buffId);
+  closeBuffPicker();
+}
+function closeBuffPicker() {
+  const modal = document.getElementById('towerBuffModal');
+  if (modal) { modal.classList.remove('active'); modal.classList.add('hidden'); }
+  const cb = _buffPickerNextCallback;
+  _buffPickerNextCallback = null;
+  if (typeof cb === 'function') setTimeout(cb, 250);
+}
+
 // 2026-04-27 — Block T.2 — Pact picker modal. Shows 2 random pacts of the
 // appropriate tier for the upcoming floor + a SKIP option. On selection,
 // applies the pact and chains to the existing floor-clear modal.
@@ -16281,6 +16598,13 @@ function getUltCost(heroId) {
       && typeof pactRunState !== 'undefined' && pactRunState.ultCostMult) {
     baseCost = Math.max(20, Math.round(baseCost * pactRunState.ultCostMult));
   }
+  // 2026-04-27 — Block T.6 — 24h Buff: ULTs charge +20% faster (any combat).
+  try {
+    if (typeof getBuffValue === 'function') {
+      const buffUltMult = getBuffValue('ultCostMult', 1.0);
+      if (buffUltMult !== 1.0) baseCost = Math.max(20, Math.round(baseCost * buffUltMult));
+    }
+  } catch (e) {}
   return baseCost;
 }
 const HERO_CHARGE_PER_CELL_BY_COUNT = { 1: 20, 2: 14, 3: 10 }; // inverse-scaling fill rate per spec
@@ -20984,12 +21308,26 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
       _towerThemeMult = getTowerThemeMult(_currentFiringHero.stihiya);
     }
   } catch (e) {}
+  // 2026-04-27 — Block T.6 — 24h Buff System damage mult + race-pure bonus.
+  // Active outside Tower too (per spec §9 — buffs are global retention hooks).
+  let _buffDamageMult = 1.0;
+  try {
+    if (typeof getBuffValue === 'function') {
+      _buffDamageMult = getBuffValue('damageMult', 1.0);
+      // Race-pure buff stacks if all squad heroes share a race
+      const racePureMult = getBuffValue('racePureMult', 1.0);
+      if (racePureMult > 1.0 && Array.isArray(HERO_DECK) && HERO_DECK.length > 0) {
+        const races = new Set(HERO_DECK.filter(h => h && h.race).map(h => h.race));
+        if (races.size === 1) _buffDamageMult *= racePureMult;
+      }
+    }
+  } catch (e) {}
   const _multStack = currentDmgMult * _passiveDmgContext * _ultDmgContext
                    * _warbandStrikeContext * _hunterMarkContext
                    * _grommarRallyContext * _packMarkContext * _helioRoarContext
                    * _captainDualContext * _signatureComboContext * _hypnoSuggestContext
                    * _bloodhuntContext * _pirateDoubleContext * _pactDamageMult
-                   * _towerThemeMult;
+                   * _towerThemeMult * _buffDamageMult;
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
@@ -25235,6 +25573,15 @@ async function afterPlacement(piece) {
         && typeof pactRunState !== 'undefined' && pactRunState.comboCap) {
       mult = Math.min(mult, pactRunState.comboCap);
     }
+    // 2026-04-27 — Block T.6 — 24h Buff: +25% combo cap (×12 → ×15). RAISES
+    // the cap, doesn't lower. Stacks after pact cap so a buff cap > pact cap
+    // becomes effective ceiling.
+    try {
+      if (typeof getBuffValue === 'function') {
+        const buffCap = getBuffValue('comboCap', 0);
+        if (buffCap > 0) mult = Math.min(buffCap, COMBO_MULT[Math.min(count, 4)] || 25);
+      }
+    } catch (e) {}
     const baseDmg = BASE_LINE_SCORE * count * mult;
 
     // Count stihiyas in cleared cells (dedup intersections) BEFORE clearing
