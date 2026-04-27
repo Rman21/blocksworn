@@ -3045,6 +3045,100 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
 }
 .mock-ad-skip:disabled { background: rgba(255,255,255,0.06); color: #6E6B7B; cursor: not-allowed; }
 
+/* ===== PHASE F — First-Time UX + Pop-ups (anti-FOMO) ===== */
+/* Shop lock — hide every shop nav entry for days 1-6. */
+body.shop-locked [data-nav="shop"],
+body.shop-locked [onclick*="goToShop"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+/* Anti-FOMO modal — gentle slide-in, single CTA, prominent DISMISS. */
+.anti-fomo-overlay {
+  position: fixed; inset: 0;
+  z-index: 10005;
+  background: rgba(0,0,0,0.76);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.anti-fomo-overlay.active { display: flex; animation: afoFadeIn 0.3s ease-out; }
+@keyframes afoFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.anti-fomo-card {
+  width: 100%;
+  max-width: 360px;
+  background: linear-gradient(180deg, #1A1A2E, #12121E);
+  border: 2px solid var(--a-gold-500);
+  border-radius: 16px;
+  padding: 22px 20px;
+  text-align: center;
+  animation: afoSlideUp 0.4s ease-out;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.6);
+}
+@keyframes afoSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anti-fomo-title {
+  font-family: var(--a-font-display);
+  font-size: 16px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.anti-fomo-body {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #E4E1F0;
+  margin-bottom: 20px;
+  letter-spacing: 0.3px;
+}
+.anti-fomo-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.anti-fomo-cta {
+  flex: 1;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, var(--a-gold-300) 0%, var(--a-gold-700) 100%);
+  border: none;
+  border-radius: 10px;
+  color: #12121E;
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.2s;
+}
+.anti-fomo-cta:hover, .anti-fomo-cta:active {
+  transform: scale(0.99);
+  box-shadow: 0 0 16px rgba(255,213,61,0.4);
+}
+.anti-fomo-dismiss {
+  flex: 1;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.20);
+  border-radius: 10px;
+  color: #B8B5C4;
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.anti-fomo-dismiss:hover, .anti-fomo-dismiss:active {
+  background: rgba(255,255,255,0.10);
+  color: #FFFFFF;
+}
+
 /* Pack reveal — bonus loot strip below cards (T2/T3/gold/essence). */
 .pack-reveal-bonus {
   display: flex;
@@ -16243,6 +16337,17 @@ function goToShop() {
     try { flashText('FINISH THE TUTORIAL FIRST', '#8A88A0'); } catch(e){}
     return;
   }
+  // Phase F (2026-04-28): shop locked for first 7 days per spec §11.1.
+  // Trust-first: pure gameplay days 1-6, shop reveals on day 7. Players
+  // who try to deep-link / URL-hack into shop early get a friendly
+  // bounce-back instead of breaking the trust curve.
+  try {
+    if (typeof _isShopLocked === 'function' && _isShopLocked()) {
+      const days = SHOP_LOCK_DAYS - _daysSinceFirstLaunch();
+      try { flashText('SHOP UNLOCKS IN ' + days + 'd', '#A8A5B8'); } catch (e) {}
+      return;
+    }
+  } catch (e) {}
   // Refresh balances in shop header
   try {
     const sg = document.getElementById('shopGoldCount'); if (sg) sg.textContent = String(gold);
@@ -21216,6 +21321,235 @@ function _showMockAdOverlay(rewardLabel, onComplete) {
     };
   }
 }
+
+// ===== PHASE F — FIRST-TIME UX + POP-UPS (anti-FOMO) =====
+// 2026-04-28 — Per BLOCKSWORN_MONETIZATION.md §11 (pop-up strategy) + §15 (anti-FOMO).
+// Day 1-6: NO shop button visible — pure gameplay, build trust.
+// Day 7:    one-time "Shop unlocked" pop-up.
+// Day 8+:   1×/day morning pop-up with smart content (limited offer expiring,
+//           daily gift available, pity near threshold, etc.). Always 1 CTA + DISMISS.
+
+const FIRST_LAUNCH_KEY          = 'blocksworn_first_launch_date';
+const LAST_DAILY_POPUP_KEY      = 'blocksworn_last_daily_popup';
+const SHOP_REVEALED_KEY         = 'blocksworn_shop_revealed';
+const RENEWAL_WARNING_KEY       = 'blocksworn_renewal_warning_for';
+const SEASON_END_WARNING_KEY    = 'blocksworn_season_end_warning_for';
+const SHOP_LOCK_DAYS            = 7;
+const SUBSCRIPTION_WARNING_DAYS = 3;
+const SEASON_END_WARNING_DAYS   = 1;
+
+function _ensureFirstLaunchDate() {
+  try {
+    if (!localStorage.getItem(FIRST_LAUNCH_KEY)) {
+      localStorage.setItem(FIRST_LAUNCH_KEY, _todayDateString());
+    }
+  } catch (e) {}
+}
+function _daysSinceFirstLaunch() {
+  try {
+    const raw = localStorage.getItem(FIRST_LAUNCH_KEY);
+    if (!raw) return 0;
+    const start = new Date(raw + 'T00:00:00');
+    const ms = Date.now() - start.getTime();
+    return Math.max(0, Math.floor(ms / 86400000));
+  } catch (e) { return 999; }
+}
+function _isShopLocked() {
+  return _daysSinceFirstLaunch() < SHOP_LOCK_DAYS;
+}
+function _applyShopLockState() {
+  try {
+    if (_isShopLocked()) document.body.classList.add('shop-locked');
+    else document.body.classList.remove('shop-locked');
+  } catch (e) {}
+}
+
+// ----- Anti-FOMO modal (single CTA + prominent DISMISS) -----
+function _showAntiFomoPopup(opts) {
+  // opts: { title, body, ctaLabel?, ctaAction?, kind?, glow? }
+  let overlay = document.getElementById('antiFomoOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'antiFomoOverlay';
+    overlay.className = 'anti-fomo-overlay';
+    document.body.appendChild(overlay);
+  }
+  const glow = opts.glow || '#FFD53D';
+  const ctaHtml = opts.ctaLabel
+    ? '<button class="anti-fomo-cta" data-action="cta">' + opts.ctaLabel + '</button>'
+    : '';
+  overlay.innerHTML =
+    '<div class="anti-fomo-card" style="border-color:' + glow + '">' +
+      '<div class="anti-fomo-title" style="color:' + glow + '">' + opts.title + '</div>' +
+      '<div class="anti-fomo-body">' + opts.body + '</div>' +
+      '<div class="anti-fomo-actions">' +
+        ctaHtml +
+        '<button class="anti-fomo-dismiss" data-action="dismiss">DISMISS</button>' +
+      '</div>' +
+    '</div>';
+  overlay.classList.add('active');
+  const close = function () {
+    overlay.classList.remove('active');
+    setTimeout(function () { try { overlay.innerHTML = ''; } catch (e) {} }, 250);
+  };
+  overlay.onclick = function (e) {
+    if (e.target === overlay) close();
+    const action = e.target && e.target.getAttribute && e.target.getAttribute('data-action');
+    if (action === 'cta') {
+      close();
+      if (typeof opts.ctaAction === 'function') {
+        try { opts.ctaAction(); } catch (e2) { console.warn('CTA action failed:', e2); }
+      }
+    } else if (action === 'dismiss') {
+      close();
+    }
+  };
+}
+
+// ----- Daily pop-up scheduler -----
+function _shouldShowDailyPopup() {
+  // No pop-ups during shop-locked window (day 1-6).
+  if (_isShopLocked()) return false;
+  // Don't double-fire on the same calendar day.
+  try { return localStorage.getItem(LAST_DAILY_POPUP_KEY) !== _todayDateString(); }
+  catch (e) { return false; }
+}
+function _markDailyPopupShown() {
+  try { localStorage.setItem(LAST_DAILY_POPUP_KEY, _todayDateString()); } catch (e) {}
+}
+
+function _pickDailyPopupContent() {
+  // Priority order (each returns a content object or null).
+  // 1. Day 7 first-shop reveal (one-time)
+  if (_daysSinceFirstLaunch() === SHOP_LOCK_DAYS) {
+    try {
+      if (localStorage.getItem(SHOP_REVEALED_KEY) !== 'true') {
+        return {
+          title: '🛒 SHOP UNLOCKED',
+          body: 'Welcome to the Blocksworn Shop. Optional rewards for additional support — never required to progress. All heroes earnable through play.',
+          ctaLabel: 'VISIT SHOP',
+          ctaAction: function () {
+            try { localStorage.setItem(SHOP_REVEALED_KEY, 'true'); } catch (e) {}
+            try { goToShop(); } catch (e) {}
+          },
+          glow: '#FFD53D',
+          kind: 'shop_reveal',
+        };
+      }
+    } catch (e) {}
+  }
+  // 2. Subscription renewal warning (3 days before expiry)
+  try {
+    if (_isSeasonPassActive() && seasonPassSub.autoRenew && seasonPassSub.expiresAt) {
+      const days = _seasonPassDaysRemaining();
+      if (days <= SUBSCRIPTION_WARNING_DAYS && days > 0) {
+        const last = localStorage.getItem(RENEWAL_WARNING_KEY);
+        if (last !== seasonPassSub.expiresAt) {
+          return {
+            title: '🔁 SUBSCRIPTION RENEWS',
+            body: 'Your Season Pass renews in ' + days + ' day' + (days === 1 ? '' : 's') + '. Continue?<br><br>You can cancel anytime in the Season screen — no friction.',
+            ctaLabel: 'OPEN SEASON',
+            ctaAction: function () {
+              try { localStorage.setItem(RENEWAL_WARNING_KEY, seasonPassSub.expiresAt); } catch (e) {}
+              try { goToSeason(); } catch (e) {}
+            },
+            glow: '#BB60FF',
+            kind: 'renewal_warning',
+          };
+        }
+      }
+    }
+  } catch (e) {}
+  // 3. Season ending warning (1 day before rotation)
+  try {
+    const start = seasonState.seasonStart ? new Date(seasonState.seasonStart) : null;
+    if (start && SEASON_LENGTH_DAYS) {
+      const elapsedDays = (Date.now() - start.getTime()) / 86400000;
+      const daysLeft = Math.ceil(SEASON_LENGTH_DAYS - elapsedDays);
+      if (daysLeft <= SEASON_END_WARNING_DAYS && daysLeft > 0) {
+        const stamp = start.toISOString();
+        const last = localStorage.getItem(SEASON_END_WARNING_KEY);
+        if (last !== stamp) {
+          return {
+            title: '✦ SEASON ENDING',
+            body: 'Battle Pass season ending in ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + '. Unclaimed tier rewards expire at season end — claim what you\'ve earned.',
+            ctaLabel: 'OPEN SEASON',
+            ctaAction: function () {
+              try { localStorage.setItem(SEASON_END_WARNING_KEY, stamp); } catch (e) {}
+              try { goToSeason(); } catch (e) {}
+            },
+            glow: '#FFD53D',
+            kind: 'season_ending',
+          };
+        }
+      }
+    }
+  } catch (e) {}
+  // 4. Limited offer expiring (≤ 1 day left + not yet purchased)
+  try {
+    if (typeof getCurrentWeeklyOffer === 'function') {
+      const offer = getCurrentWeeklyOffer();
+      const daysLeft = (typeof _daysLeftInWeek === 'function') ? _daysLeftInWeek() : 7;
+      if (offer && daysLeft <= 1 && !_isWeeklyOfferPurchased()) {
+        return {
+          title: '★ ' + offer.label,
+          body: 'This week\'s limited offer rotates tomorrow. Available ' + daysLeft + ' more day' + (daysLeft === 1 ? '' : 's') + ' if you\'re interested — no pressure.',
+          ctaLabel: 'VIEW OFFER',
+          ctaAction: function () { try { goToShop(); } catch (e) {} },
+          glow: offer.glow || '#FFD53D',
+          kind: 'limited_offer',
+        };
+      }
+    }
+  } catch (e) {}
+  // 5. Daily Gift Bundle available (not yet claimed today)
+  try {
+    if (typeof _isDailyGiftPurchasedToday === 'function' && !_isDailyGiftPurchasedToday()) {
+      const gift = (typeof getTodayDailyGift === 'function') ? getTodayDailyGift() : null;
+      if (gift) {
+        return {
+          title: '🎁 ' + gift.label,
+          body: 'Today\'s gift bundle is available in the Shop. Different content tomorrow.',
+          ctaLabel: 'VIEW GIFT',
+          ctaAction: function () { try { goToShop(); } catch (e) {} },
+          glow: '#FFD53D',
+          kind: 'daily_gift',
+        };
+      }
+    }
+  } catch (e) {}
+  // 6. Pity counter near threshold (≥ 25 of 30)
+  try {
+    if (typeof _getPackPityCounter === 'function') {
+      const pity = _getPackPityCounter();
+      if (pity >= 25 && pity < PACK_PITY_THRESHOLD) {
+        return {
+          title: '⚡ PITY DROP CLOSE',
+          body: 'Just ' + (PACK_PITY_THRESHOLD - pity) + ' standard packs from a guaranteed T2 stone bonus.',
+          ctaLabel: 'OPEN SHOP',
+          ctaAction: function () { try { goToShop(); } catch (e) {} },
+          glow: '#FFAA00',
+          kind: 'pity_close',
+        };
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+function _maybeShowDailyPopup() {
+  if (!_shouldShowDailyPopup()) return;
+  const content = _pickDailyPopupContent();
+  if (!content) return;
+  // Gentle slide-in with a small delay so menu render finishes first.
+  setTimeout(function () {
+    _showAntiFomoPopup(content);
+    _markDailyPopupShown();
+  }, 600);
+}
+
+// Bootstrap — record first-launch date on first ever visit.
+_ensureFirstLaunchDate();
 
 // ========= Screen + rendering =========
 // DEBT-010 (Task #1.7): Season entry removed from drawer; function retained for Phase 7+
@@ -34162,6 +34496,16 @@ function goToMenu() {
     if (typeof checkTowerWeeklyReset === 'function') checkTowerWeeklyReset();
     if (typeof updateTowerButtonVisibility === 'function') updateTowerButtonVisibility();
   } catch (e) { console.warn('Phase 5/6/7 menu refresh failed:', e); }
+  // Phase F (2026-04-28): apply shop lock state + run daily pop-up scheduler.
+  // Both are FTUE-gated via isFtueActive — pop-ups never fire during tutorial
+  // and shop nav stays hidden for first 7 days regardless of FTUE status.
+  try { if (typeof _applyShopLockState === 'function') _applyShopLockState(); } catch (e) {}
+  try {
+    if (typeof _maybeShowDailyPopup === 'function' &&
+        (typeof isFtueActive !== 'function' || !isFtueActive())) {
+      _maybeShowDailyPopup();
+    }
+  } catch (e) { console.warn('Phase F daily pop-up failed:', e); }
   showScreen('menu');
 }
 
