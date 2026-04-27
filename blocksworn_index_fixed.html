@@ -20391,6 +20391,8 @@ function addChargeToHero(heroId, amount) {
     if (hero) {
       try { flashText(`${hero.name} · ULT READY`, STIHIYA_COLORS[hero.stihiya] || '#ffd53d'); } catch(e){}
       try { vibrate(60); } catch(e){}
+      // 2026-04-27 — Audio A.2.4: rising chime on ULT-ready transition (per spec §4.1).
+      try { if (typeof playULTReady === 'function') playULTReady(); } catch(e){}
     }
     // PHASE 4 BLOCK 1 — chronograph ULT beat. First hero crossing the per-role
     // cost threshold during FTUE → coachmark on that specific hero card so the
@@ -23910,12 +23912,23 @@ function startBossBattle() {
   grid = Array.from({length: SIZE}, () => Array(SIZE).fill(null));
   // Compute synergies from current HERO_DECK composition
   computeSynergies();
+  // 2026-04-27 — Audio A.2.5: captainBuff SFX if captain dual is active this battle.
+  try {
+    if (typeof captainDual_active !== 'undefined' && captainDual_active
+        && typeof playCaptainBuff === 'function') {
+      // Delay 400ms so the SFX lands after the initial battle render breath.
+      setTimeout(() => { try { playCaptainBuff(); } catch (e) {} }, 400);
+    }
+  } catch (e) {}
   hp = currentMaxHP;
   // MODIFIER: Fragile — override starting HP to 2 (overrides synergy bonus entirely)
   if (activeModifiers.has('fragile')) hp = Math.min(hp, MODIFIERS.fragile.hpOverride);
   damageDealt = 0;
   placementCount = 0;
   shieldCount = currentStartShields;
+  // 2026-04-27 — Audio A.2.8: reset shield-tracker to current start count so
+  // the first renderHP() of the battle doesn't fire a phantom shield SFX.
+  try { _audioPrevShieldCount = currentStartShields; } catch (e) {}
   // 2026-04-27 — Anti-Deadlock: reset Hunter turn counters + emergency flags
   // + Rainbow tier state on battle start (spec §7.3 cooldown rule).
   try { resetAntiDeadlockState(); } catch (e) {}
@@ -24135,6 +24148,10 @@ function place(p, br, bc) {
   } catch (e) {}
   // V3.0 Phase 9 Vivid: haptic feedback on piece placement.
   try { vHaptic('place'); } catch(e){}
+  // 2026-04-27 — Audio A.2.1: cell placement SFX (per spec §4.1).
+  // Element-themed tap (50ms decay). Uses piece.stihiya — the element color
+  // of the placed cells, matching the visual theme.
+  try { if (typeof playCellPlacement === 'function') playCellPlacement(p.stihiya); } catch(e){}
   // V3.0 Phase 5 Block 5.1: mission tracking
   try { if (typeof trackMissionEvent === 'function') trackMissionEvent('block_placed'); } catch (e) {}
 }
@@ -25596,6 +25613,11 @@ async function onBossDefeated() {
   }
   // POLISH v1 · PHASE 5 — fire 5-beat cinematic only on final death (after revive checks)
   try { vPlayBossDieFx(); } catch(e){}
+  // 2026-04-27 — Audio A.2.7: victory chime + heroUnlock layered (per spec §4.1 boss death).
+  // Music ducked to 0 for 3s for full payoff (spec §12.2 example).
+  try { if (typeof playVictory === 'function') playVictory(); } catch(e){}
+  try { if (typeof duckMusic === 'function') duckMusic(0.0, 3000); } catch(e){}
+  setTimeout(() => { try { if (typeof playHeroUnlock === 'function') playHeroUnlock(); } catch(e){} }, 700);
   gameEnded = true;
   // V2.0 Stage 5 Block 5.1: award post-battle XP + tier-ups on WIN (participation + ULT fires + kill-shot)
   try { awardPostBattleXP(true); } catch (e) { console.warn('awardPostBattleXP (win) failed:', e); }
@@ -26048,6 +26070,9 @@ function showVictoryModal() {
 
 function showDefeatModal() {
   gameEnded = true;
+  // 2026-04-27 — Audio A.2.7: defeat tone (per spec §4.1).
+  try { if (typeof playDefeat === 'function') playDefeat(); } catch(e){}
+  try { if (typeof stopMusic === 'function') stopMusic(); } catch(e){}
   // V2.0 Stage 5 Block 5.1: award participation XP on LOSS (no ULT/kill-shot bonuses per cap logic)
   try { awardPostBattleXP(false); } catch (e) { console.warn('awardPostBattleXP (loss) failed:', e); }
   // Task #1.7: Floor 3 loss tracking for stihiya_focus paid-pack trigger removed
@@ -26274,6 +26299,15 @@ function maybeBossAttack() {
 }
 
 async function bossAttack() {
+  // 2026-04-27 — Audio A.2.6: boss attack lands → bossDamage SFX (per spec §4.1).
+  // Intensity scales with current HP — heavier hits when low HP (visceral cue).
+  try {
+    if (typeof playBossDamage === 'function' && typeof hp !== 'undefined' && typeof currentMaxHP !== 'undefined') {
+      const hpPct = currentMaxHP > 0 ? (hp / currentMaxHP) : 1;
+      const intensity = hpPct < 0.33 ? 'heavy' : (hpPct < 0.66 ? 'medium' : 'light');
+      playBossDamage(intensity);
+    }
+  } catch(e){}
   // V2.0 Stage 5 Block 5.2: THARA T2 tharaRageAutoArm — rage auto-arms on any boss attack
   if (tharaRageAutoArm) {
     tharaRageArmed = true;
@@ -30037,6 +30071,15 @@ async function afterPlacement(piece) {
     const count = rows.length + cols.length;
     if (count === 0) break;
 
+    // 2026-04-27 — Audio A.2.2: cellClear + comboCascade SFX (per spec §4.1).
+    // Whoosh on any line clear; pitch-rising tone for multi-line combos (×2+).
+    try { if (typeof playCellClear === 'function') playCellClear(); } catch(e){}
+    try {
+      if (count >= 2 && typeof playComboCascade === 'function') {
+        playComboCascade(count);
+      }
+    } catch(e){}
+
     const inLines = stihiyasIn(rows, cols);
     let mult = COMBO_MULT[Math.min(count, 4)] || 25;
     // 2026-04-27 — Block T.2 — Tower pact combo cap. QUICK/FORGE pacts cap
@@ -31195,6 +31238,9 @@ async function onHeroCardClick(hero) {
   }
   // Fire ultimate — consume per-hero charge.
   consumeUltCharge(hero.id);
+  // 2026-04-27 — Audio A.2.4: ULT trigger SFX + duck music for the climax.
+  try { if (typeof playULTTrigger === 'function') playULTTrigger(); } catch(e){}
+  try { if (typeof duckMusic === 'function') duckMusic(0.3, 2000); } catch(e){}
   const card = document.querySelector(`.hero-card[data-id="${hero.id}"]`);
   if (card) {
     card.classList.remove('ult-ready');
@@ -31304,6 +31350,8 @@ function darken(hex) {
   return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
 }
 
+// 2026-04-27 — Audio A.2.8: shield-transition tracker (gain → bell, break → shatter).
+let _audioPrevShieldCount = 0;
 function renderHP() {
   const el = document.getElementById('hp');
   el.innerHTML = '';
@@ -31324,6 +31372,16 @@ function renderHP() {
   try {
     const numEl = document.getElementById('playerHpNum');
     if (numEl) numEl.textContent = hp + ' / ' + currentMaxHP;
+  } catch (e) {}
+  // 2026-04-27 — Audio A.2.8: shield gain/break SFX on transition.
+  try {
+    const cur = shieldCount || 0;
+    if (cur > _audioPrevShieldCount) {
+      if (typeof playShieldGain === 'function') playShieldGain();
+    } else if (cur < _audioPrevShieldCount) {
+      if (typeof playShieldBreak === 'function') playShieldBreak();
+    }
+    _audioPrevShieldCount = cur;
   } catch (e) {}
 }
 
@@ -31388,6 +31446,24 @@ function flashText(text, color) {
   const _isCap = /!|ULT|×([4-9]|\d{2,})/.test(text);
   el.classList.toggle('big', _isCap);
   el.classList.remove('active'); void el.offsetWidth; el.classList.add('active');
+  // 2026-04-27 — Audio A.2.3: detect banner-sting types from text + auto-play SFX.
+  // Per spec §4.1: combo banners (INFERNO/SHATTER/ENCORE/REVENGE) + others fire
+  // a chord sting. Music ducks 50% for 800ms during stings (spec §12.2).
+  try {
+    if (typeof playBannerSting === 'function') {
+      const t = (text || '').toUpperCase();
+      let stingType = null;
+      if      (/INFERNO/.test(t))    stingType = 'inferno';
+      else if (/SHATTER/.test(t))    stingType = 'shatter';
+      else if (/ENCORE/.test(t))     stingType = 'encore';
+      else if (/REVENGE|VENGEANCE/.test(t)) stingType = 'revenge';
+      else if (/RADIAN|AURORA|HALO|SOLAR LANCE|SHIELDS-TO-DAMAGE/.test(t)) stingType = 'radiance';
+      if (stingType) {
+        playBannerSting(stingType);
+        if (typeof duckMusic === 'function') duckMusic(0.5, 800);
+      }
+    }
+  } catch(e){}
 }
 
 // Hero ability trigger banner per UI Spec Part 5.3
