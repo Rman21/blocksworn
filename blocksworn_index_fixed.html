@@ -5600,6 +5600,142 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   50%      { box-shadow: 0 4px 22px rgba(255,184,74,0.9), 0 0 32px rgba(255,213,61,0.8); }
 }
 
+/* 2026-04-27 — Audio A.3 settings UI (per BLOCKSWORN_AUDIO_SOUND.md §11.1). */
+.info-audio-section {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,213,61,0.2);
+  border-radius: 10px;
+}
+.info-audio-section-header {
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 10px;
+  text-shadow: 0 0 4px rgba(255,213,61,0.4);
+}
+.info-audio-row { margin-bottom: 12px; }
+.info-audio-row:last-child { margin-bottom: 0; }
+.info-audio-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.info-audio-row-label {
+  font-size: 11px;
+  color: #B8B5C4;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+.info-audio-row-value {
+  font-size: 11px;
+  color: var(--a-gold-300, #FFD53D);
+  font-weight: 800;
+}
+.info-audio-slider {
+  width: 100%;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255,213,61,0.15);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.info-audio-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--slider-fill, #FFD53D);
+  border: 2px solid #1A1429;
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--slider-fill, #FFD53D);
+}
+.info-audio-slider::-moz-range-thumb {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--slider-fill, #FFD53D);
+  border: 2px solid #1A1429;
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--slider-fill, #FFD53D);
+}
+.info-audio-mute-btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, rgba(232,93,74,0.18), rgba(0,0,0,0.4));
+  border: 1.5px solid #E85D4A;
+  border-radius: 8px;
+  color: #FF8B6F;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 12px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.info-audio-mute-btn:active { transform: scale(0.97); }
+.info-audio-radio {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  cursor: pointer;
+  font-size: 11px;
+  color: #B8B5C4;
+  gap: 10px;
+}
+.info-audio-radio input { margin: 0; }
+.info-audio-radio-name {
+  font-family: var(--a-font-display, sans-serif);
+  font-weight: 800;
+  color: var(--a-gold-300, #FFD53D);
+  min-width: 70px;
+}
+.info-audio-radio-hint {
+  font-size: 10px;
+  color: #9A98A4;
+  font-style: italic;
+}
+.info-audio-checkbox {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 11px;
+  color: #B8B5C4;
+  gap: 10px;
+}
+.info-audio-checkbox input { margin: 0; }
+.info-audio-test-btn,
+.info-audio-restore-btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s;
+}
+.info-audio-test-btn {
+  background: linear-gradient(180deg, rgba(93,202,121,0.18), rgba(0,0,0,0.4));
+  border: 1.5px solid #5DCA79;
+  color: #5DCA79;
+}
+.info-audio-restore-btn {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,213,61,0.4);
+  color: var(--a-gold-300, #FFD53D);
+}
+.info-audio-test-btn:active,
+.info-audio-restore-btn:active { transform: scale(0.97); }
+
 /* Prevent body double-scroll on Arena screens (html already overflow:hidden) */
 .a-hub, .a-loadout, .a-shop { overflow-x: hidden; }
 
@@ -11306,6 +11442,8 @@ button.season-tier-claim:active {
       <button class="info-tab"        data-info-tab="heroes"  onclick="infoTab('heroes')">HEROES</button>
       <button class="info-tab"        data-info-tab="lore"    onclick="infoTab('lore')">LORE</button>
       <button class="info-tab"        data-info-tab="stats"   onclick="infoTab('stats')">STATS</button>
+      <!-- 2026-04-27 — Audio A.3: AUDIO tab per BLOCKSWORN_AUDIO_SOUND.md §11.1. -->
+      <button class="info-tab"        data-info-tab="audio"   onclick="infoTab('audio')">AUDIO</button>
       <button class="info-tab"        data-info-tab="help"    onclick="infoTab('help')">HELP</button>
     </div>
     <div class="info-modal-body" id="infoModalBody">
@@ -26475,7 +26613,7 @@ function infoTab(tab) {
   });
   // Update title
   const title = document.getElementById('infoModalTitle');
-  const titles = { profile: 'PROFILE', heroes: 'HEROES', lore: 'LORE', stats: 'STATS', help: 'HELP' };
+  const titles = { profile: 'PROFILE', heroes: 'HEROES', lore: 'LORE', stats: 'STATS', audio: 'AUDIO', help: 'HELP' };
   if (title) title.textContent = titles[tab] || 'INFO';
   // Dispatch to renderer
   renderInfoModal();
@@ -26495,11 +26633,138 @@ function renderInfoModal() {
     else if (tab === 'heroes')  renderInfoTabHeroes(body);
     else if (tab === 'lore')    renderInfoTabLore(body);
     else if (tab === 'stats')   renderInfoTabStats(body);
+    else if (tab === 'audio')   renderInfoTabAudio(body);
     else                        renderInfoTabHelp(body);
   } catch (e) {
     console.warn('renderInfoModal dispatch failed:', e);
     renderInfoTabHelp(body);
   }
+}
+
+// 2026-04-27 — Audio A.3: AUDIO settings tab (per BLOCKSWORN_AUDIO_SOUND.md §11.1).
+// Master / Music / SFX volume sliders + audio quality + mute-when-unfocused +
+// haptic toggle + "Restore defaults" + quick mute. All changes persist via
+// saveAudioSettings(); + applyAudioSettings() to update gain nodes live.
+function renderInfoTabAudio(body) {
+  if (!body) return;
+  if (!audioContext) initAudioSystem();
+  const s = audioSettings;
+  const slider = (id, label, val, color) => `
+    <div class="info-audio-row">
+      <div class="info-audio-row-head">
+        <span class="info-audio-row-label">${label}</span>
+        <span class="info-audio-row-value" id="${id}_pct">${Math.round((val || 0) * 100)}%</span>
+      </div>
+      <input type="range" id="${id}" class="info-audio-slider"
+             min="0" max="100" step="1" value="${Math.round((val || 0) * 100)}"
+             style="--slider-fill:${color || '#FFD53D'}">
+    </div>`;
+  const qualityRadio = (val, label, hint) => `
+    <label class="info-audio-radio">
+      <input type="radio" name="audioQuality" value="${val}" ${s.audioQuality === val ? 'checked' : ''}>
+      <span class="info-audio-radio-name">${label}</span>
+      <span class="info-audio-radio-hint">${hint}</span>
+    </label>`;
+  const checkbox = (id, label, checked) => `
+    <label class="info-audio-checkbox">
+      <input type="checkbox" id="${id}" ${checked ? 'checked' : ''}>
+      <span>${label}</span>
+    </label>`;
+  body.innerHTML = `
+    <div class="info-audio-section">
+      <div class="info-audio-section-header">VOLUME</div>
+      ${slider('audioMasterVol', 'MASTER VOLUME', s.masterVolume, '#FFD53D')}
+      ${slider('audioMusicVol',  'MUSIC',         s.musicVolume,  '#A88AC8')}
+      ${slider('audioSfxVol',    'SFX',           s.sfxVolume,    '#5DCA79')}
+      ${slider('audioTutorialVol','TUTORIAL TIPS', s.tutorialVolume, '#4ADBFF')}
+      <button class="info-audio-mute-btn" id="audioMuteBtn">${s.muted ? '🔇 UNMUTE ALL' : '🔊 MUTE ALL'}</button>
+    </div>
+    <div class="info-audio-section">
+      <div class="info-audio-section-header">AUDIO QUALITY</div>
+      ${qualityRadio('high',   'HIGH',   'Better quality, more battery')}
+      ${qualityRadio('medium', 'MEDIUM', 'Balanced (default)')}
+      ${qualityRadio('low',    'LOW',    'Battery-saving, simpler sound')}
+    </div>
+    <div class="info-audio-section">
+      <div class="info-audio-section-header">PREFERENCES</div>
+      ${checkbox('audioMuteUnfocused', 'Mute when app not focused', s.muteWhenUnfocused)}
+      ${checkbox('audioHaptic',        'Haptic feedback',           s.hapticFeedback)}
+    </div>
+    <button class="info-audio-test-btn" id="audioTestBtn">▶ PLAY TEST CHIME</button>
+    <button class="info-audio-restore-btn" id="audioRestoreBtn">↺ RESTORE DEFAULTS</button>
+  `;
+  // Wire change handlers
+  const wire = (id, key, divisor) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      const v = parseInt(el.value, 10) / (divisor || 100);
+      audioSettings[key] = v;
+      applyAudioSettings();
+      saveAudioSettings();
+      const pctEl = document.getElementById(id + '_pct');
+      if (pctEl) pctEl.textContent = Math.round(v * 100) + '%';
+      // Update mute btn label if master crossed 0
+      if (id === 'audioMasterVol') {
+        // unmute on slider drag (intent reveal)
+        if (audioSettings.muted && v > 0) {
+          audioSettings.muted = false;
+          applyAudioSettings(); saveAudioSettings();
+          const mb = document.getElementById('audioMuteBtn');
+          if (mb) mb.textContent = '🔊 MUTE ALL';
+        }
+      }
+    });
+  };
+  wire('audioMasterVol',   'masterVolume',   100);
+  wire('audioMusicVol',    'musicVolume',    100);
+  wire('audioSfxVol',      'sfxVolume',      100);
+  wire('audioTutorialVol', 'tutorialVolume', 100);
+  // Mute toggle
+  const muteBtn = document.getElementById('audioMuteBtn');
+  if (muteBtn) muteBtn.addEventListener('click', () => {
+    audioSettings.muted = !audioSettings.muted;
+    applyAudioSettings();
+    saveAudioSettings();
+    muteBtn.textContent = audioSettings.muted ? '🔇 UNMUTE ALL' : '🔊 MUTE ALL';
+  });
+  // Quality radios
+  document.querySelectorAll('input[name="audioQuality"]').forEach(r =>
+    r.addEventListener('change', () => {
+      audioSettings.audioQuality = r.value;
+      saveAudioSettings();
+    }));
+  // Checkboxes
+  const muUn = document.getElementById('audioMuteUnfocused');
+  if (muUn) muUn.addEventListener('change', () => {
+    audioSettings.muteWhenUnfocused = muUn.checked;
+    saveAudioSettings();
+  });
+  const hap = document.getElementById('audioHaptic');
+  if (hap) hap.addEventListener('change', () => {
+    audioSettings.hapticFeedback = hap.checked;
+    saveAudioSettings();
+  });
+  // Test chime — plays a small banner sting so player can verify audio
+  const testBtn = document.getElementById('audioTestBtn');
+  if (testBtn) testBtn.addEventListener('click', () => {
+    try { playBannerSting('inferno'); } catch (e) {}
+  });
+  // Restore defaults
+  const restoreBtn = document.getElementById('audioRestoreBtn');
+  if (restoreBtn) restoreBtn.addEventListener('click', () => {
+    audioSettings.masterVolume     = 0.75;
+    audioSettings.musicVolume      = 0.60;
+    audioSettings.sfxVolume        = 1.0;
+    audioSettings.tutorialVolume   = 0.90;
+    audioSettings.audioQuality     = 'medium';
+    audioSettings.muteWhenUnfocused = true;
+    audioSettings.hapticFeedback    = true;
+    audioSettings.muted             = false;
+    applyAudioSettings();
+    saveAudioSettings();
+    renderInfoTabAudio(body);  // re-render with restored values
+  });
 }
 
 // Block H.7 — PROFILE tab (HERO_COMPENDIUM §13.1).
