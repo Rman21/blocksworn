@@ -15788,6 +15788,26 @@ function startTowerRun() {
   if (!isTowerUnlocked()) { showToast('Defeat CRYPT LICH first'); return; }
   if (typeof isFtueActive === 'function' && isFtueActive()) return;
   checkTowerDailyReset();
+  // 2026-04-27 HOTFIX — Curse gate moved BEFORE all other gates so cursed
+  // heroes block launch FIRST, no attempt consumed under any path. Also
+  // explicit "no attempt spent" messaging so Roman never wonders again.
+  // (Previous order had this AFTER cap check — order swap removes any path
+  // where curse + edge cases could leak an increment.)
+  try {
+    if (Array.isArray(towerState.dailyCurses) && towerState.dailyCurses.length > 0
+        && Array.isArray(activeSquad)) {
+      const cursedInSquad = activeSquad.filter(id => isHeroCursedToday(id));
+      if (cursedInSquad.length > 0) {
+        const names = cursedInSquad.map(id => {
+          const h = HERO_ROSTER.find(x => x.id === id);
+          return h ? h.name : id;
+        }).join(', ');
+        showToast(`Cursed: ${names} — swap out (no attempt spent)`);
+        try { if (typeof goToSelect === 'function') setTimeout(goToSelect, 700); } catch (e) {}
+        return;
+      }
+    }
+  } catch (e) {}
   // Cap check: after 5 attempts the player must wait until tomorrow's reset.
   // 2026-04-27 — Block T.6: retry buff adds +1 to today's cap.
   let attemptsCap = TOWER_MAX_ATTEMPTS_PER_DAY;
@@ -15800,24 +15820,6 @@ function startTowerRun() {
     showToast('Daily attempt cap reached. Reset at 4 AM.');
     return;
   }
-  // 2026-04-27 — Block T.3: gate cursed heroes from Tower squad. If active
-  // squad has any cursed members, block start with explanatory toast +
-  // route player to Hero select to swap them out.
-  try {
-    if (Array.isArray(towerState.dailyCurses) && towerState.dailyCurses.length > 0
-        && Array.isArray(activeSquad)) {
-      const cursedInSquad = activeSquad.filter(id => isHeroCursedToday(id));
-      if (cursedInSquad.length > 0) {
-        const names = cursedInSquad.map(id => {
-          const h = HERO_ROSTER.find(x => x.id === id);
-          return h ? h.name : id;
-        }).join(', ');
-        showToast(`Cursed: ${names} — swap out before Tower`);
-        try { if (typeof goToSelect === 'function') setTimeout(goToSelect, 700); } catch (e) {}
-        return;
-      }
-    }
-  } catch (e) {}
   // First attempt of the day is free. Subsequent attempts cost gold per
   // TOWER_RETRY_GOLD_COST progression. Player must confirm the gold spend.
   if (towerState.attemptsToday > 0) {
@@ -15961,7 +15963,46 @@ function continueTowerRun() {
   // In current implementation continue is unreachable mid-session (floor-clear
   // modal triggers next floor directly). Kept for future "bank-and-resume" UX.
   if (!towerState.currentRunStarted) return;
+  // 2026-04-27 HOTFIX — same curse gate as startTowerRun, in case curses
+  // rolled (4 AM) while a run was paused / state was stale.
+  try {
+    if (Array.isArray(towerState.dailyCurses) && towerState.dailyCurses.length > 0
+        && Array.isArray(activeSquad)) {
+      const cursedInSquad = activeSquad.filter(id => isHeroCursedToday(id));
+      if (cursedInSquad.length > 0) {
+        const names = cursedInSquad.map(id => {
+          const h = HERO_ROSTER.find(x => x.id === id);
+          return h ? h.name : id;
+        }).join(', ');
+        showToast(`Cursed: ${names} — swap before continuing`);
+        try { if (typeof goToSelect === 'function') setTimeout(goToSelect, 700); } catch (e) {}
+        return;
+      }
+    }
+  } catch (e) {}
   launchTowerFloor();
+}
+
+// 2026-04-27 HOTFIX — Recovery hatch for stale attempt counter. If the
+// player's state has attemptsToday > 0 but currentRunStarted=false AND
+// currentFloor=0 AND no clear logged today, that's a "ghost attempt" from
+// an aborted launch (e.g. pre-fix curse gate edge case). Refund it once
+// per day (gated by _staleStateRefundedKey) on tower screen render.
+function _maybeRefundStaleTowerAttempt() {
+  try {
+    const todayKey = (typeof getTowerDailyKey === 'function') ? getTowerDailyKey() : null;
+    if (!todayKey) return;
+    if (towerState._staleStateRefundedKey === todayKey) return;
+    if (towerState.currentRunStarted) return;
+    if (towerState.currentFloor > 0) return;
+    if (towerState.lastDailyClearKey === todayKey) return;
+    if (towerState.attemptsToday <= 0) return;
+    // Conditions match a ghost attempt — refund 1 attempt.
+    towerState.attemptsToday = Math.max(0, towerState.attemptsToday - 1);
+    towerState._staleStateRefundedKey = todayKey;
+    saveTowerState();
+    try { showToast('Ghost attempt refunded'); } catch (e) {}
+  } catch (e) {}
 }
 
 function launchTowerFloor() {
@@ -16205,6 +16246,8 @@ function renderTowerScreen() {
   // 2026-04-27 — Block T.1: ensure daily reset before UI render so attempts
   // counter + streak reflect the current 4 AM-bounded day.
   checkTowerDailyReset();
+  // 2026-04-27 HOTFIX — refund stale attempts (ghost-launch recovery).
+  try { if (typeof _maybeRefundStaleTowerAttempt === 'function') _maybeRefundStaleTowerAttempt(); } catch (e) {}
   // 2026-04-27 — Block T.4: gauntlet entry buttons toggle by date window.
   try {
     const wkBtn = document.getElementById('towerWeeklyBtn');
