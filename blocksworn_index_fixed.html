@@ -2438,6 +2438,72 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   padding: 0 12px;
 }
 
+/* ===== PHASE A — Monetization Shop (gem packs + first purchase + convert) ===== */
+/* 2026-04-28 — Per BLOCKSWORN_MONETIZATION.md §3.2/§10.3/§8.5. */
+.shop-gem-pack {
+  background: linear-gradient(180deg, rgba(140,59,255,0.18), rgba(0,0,0,0.4)) !important;
+}
+.shop-gem-pack .shop-pack-name { color: #BB60FF !important; }
+.shop-gem-pack .shop-pack-cost { color: #FFFFFF; font-size: 16px; font-weight: 800; }
+.shop-gem-pack .shop-pack-emoji { text-shadow: 0 0 10px rgba(187,96,255,0.7); }
+.shop-gem-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #000;
+  font-weight: 800;
+  vertical-align: middle;
+}
+.shop-gem-firstbonus {
+  margin-top: 4px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: #FFD53D;
+  font-weight: 700;
+}
+/* First-Purchase Bonus banner — gold-violet gradient, gentle pulse. */
+.shop-first-purchase-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 6px 0 14px;
+  background: linear-gradient(90deg, rgba(255,213,61,0.18), rgba(140,59,255,0.18));
+  border: 2px solid #FFD53D;
+  border-radius: 12px;
+  box-shadow: 0 0 16px rgba(255,213,61,0.25);
+  animation: fpBannerPulse 2.4s ease-in-out infinite;
+}
+@keyframes fpBannerPulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(255,213,61,0.25); }
+  50%      { box-shadow: 0 0 24px rgba(255,213,61,0.45); }
+}
+.shop-fp-icon { font-size: 36px; flex: 0 0 auto; filter: drop-shadow(0 0 6px rgba(255,213,61,0.6)); }
+.shop-fp-text { flex: 1; }
+.shop-fp-title {
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #FFD53D;
+  font-weight: 800;
+}
+.shop-fp-sub {
+  font-size: 10px;
+  color: #FFFFFF;
+  margin-top: 2px;
+  letter-spacing: 0.5px;
+}
+/* Gold→Gems convert button — bridges the two currency colors. */
+.shop-gold-convert {
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(140,59,255,0.10)) !important;
+  border-color: rgba(187,96,255,0.6) !important;
+}
+.shop-gold-convert .shop-pack-name { color: #BB60FF !important; }
+.shop-gold-convert .shop-pack-cost { color: #FFD53D; font-size: 12px; }
+
 /* Pack Reveal modal — chest opens, cards flip in (per spec §14.2 — 1.5s). */
 .pack-reveal-modal { display: none; }
 .pack-reveal-modal.active {
@@ -13497,73 +13563,225 @@ function closePackReveal() {
   } catch (e) {}
 }
 
+// ===== PHASE A — MONETIZATION (Shop Foundation, 2026-04-28) =====
+// Per BLOCKSWORN_MONETIZATION.md. Mock-IAP only — BUY buttons grant gems
+// instantly without real payment. Real Apple/Google/Stripe IAP gets wired
+// in Phase G when the platform target is decided. All UI/state/persistence
+// are real, only the payment side is stubbed.
+
+// Spec §3.2 — gem package pricing matrix (USD → gems with bonus).
+const GEM_PACKS = [
+  { id: 'gems_99',    price:  0.99, baseGems:   100, bonusGems:    0, badge: null,            glow: '#7DC3FF' },
+  { id: 'gems_499',   price:  4.99, baseGems:   500, bonusGems:    0, badge: null,            glow: '#7DC3FF' },
+  { id: 'gems_999',   price:  9.99, baseGems:  1000, bonusGems:  100, badge: '+10%',          glow: '#5DCA79' },
+  { id: 'gems_1999',  price: 19.99, baseGems:  2000, bonusGems:  300, badge: '+15%',          glow: '#FFD53D' },
+  { id: 'gems_4999',  price: 49.99, baseGems:  5000, bonusGems: 1000, badge: '+20% MEGA',     glow: '#FFAA00' },
+  { id: 'gems_9999',  price: 99.99, baseGems: 10000, bonusGems: 3000, badge: '+30% WHALE',    glow: '#BB60FF' },
+];
+
+const FIRST_PURCHASE_KEY      = 'blocksworn_first_purchase_done';
+const FOUNDER_BADGE_KEY       = 'blocksworn_founder_badge';
+const GOLD_TO_GEMS_LAST_KEY   = 'blocksworn_gold_to_gems_last';
+const GOLD_TO_GEMS_COST       = 5000;
+const GOLD_TO_GEMS_AMOUNT     = 100;
+const GOLD_TO_GEMS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+function _isFirstPurchaseDone() {
+  try { return localStorage.getItem(FIRST_PURCHASE_KEY) === 'true'; } catch (e) { return false; }
+}
+function _markFirstPurchaseDone() {
+  try {
+    localStorage.setItem(FIRST_PURCHASE_KEY, 'true');
+    localStorage.setItem(FOUNDER_BADGE_KEY, 'true');
+  } catch (e) {}
+}
+function _hasFounderBadge() {
+  try { return localStorage.getItem(FOUNDER_BADGE_KEY) === 'true'; } catch (e) { return false; }
+}
+
+// Gold→Gems conversion gate — once per 24h.
+function _goldToGemsAvailable() {
+  try {
+    const raw = localStorage.getItem(GOLD_TO_GEMS_LAST_KEY);
+    if (!raw) return true;
+    const last = parseInt(raw, 10);
+    if (!Number.isFinite(last)) return true;
+    return (Date.now() - last) >= GOLD_TO_GEMS_COOLDOWN_MS;
+  } catch (e) { return true; }
+}
+function _goldToGemsCooldownText() {
+  try {
+    const raw = localStorage.getItem(GOLD_TO_GEMS_LAST_KEY);
+    if (!raw) return null;
+    const last = parseInt(raw, 10);
+    if (!Number.isFinite(last)) return null;
+    const remaining = GOLD_TO_GEMS_COOLDOWN_MS - (Date.now() - last);
+    if (remaining <= 0) return null;
+    const hours = Math.floor(remaining / 3600000);
+    const minutes = Math.floor((remaining % 3600000) / 60000);
+    return hours + 'h ' + minutes + 'm';
+  } catch (e) { return null; }
+}
+
+function convertGoldToGems() {
+  if (!_goldToGemsAvailable()) {
+    const txt = _goldToGemsCooldownText();
+    showToast('Already used today. Available in ' + (txt || '~24h'));
+    return;
+  }
+  if ((gold || 0) < GOLD_TO_GEMS_COST) {
+    showToast('Need ' + GOLD_TO_GEMS_COST + ' gold');
+    return;
+  }
+  if (!confirm('Convert ' + GOLD_TO_GEMS_COST + ' 💰 gold → ' + GOLD_TO_GEMS_AMOUNT + ' 💎 gems?')) return;
+  // No spendGold() helper exists — every site does inline gold -= X + saveGoldToStorage().
+  gold = Math.max(0, gold - GOLD_TO_GEMS_COST);
+  try { saveGoldToStorage(); } catch (e) {}
+  addGems(GOLD_TO_GEMS_AMOUNT);
+  try { localStorage.setItem(GOLD_TO_GEMS_LAST_KEY, String(Date.now())); } catch (e) {}
+  flashText('+' + GOLD_TO_GEMS_AMOUNT + ' 💎', '#BB60FF');
+  try { vibrate([40, 30, 40]); } catch (e) {}
+  renderShopPacks();
+}
+
+// Mock-IAP entry point — Phase G replaces this body with real StoreKit /
+// Stripe Checkout. Spec §3.2 + §10.3 (First-Purchase Bonus +50%).
+function purchaseGemPack(packId) {
+  const pack = GEM_PACKS.find(p => p.id === packId);
+  if (!pack) { console.warn('purchaseGemPack: unknown pack', packId); return; }
+  const isFirst = !_isFirstPurchaseDone();
+  const baseTotal = pack.baseGems + pack.bonusGems;
+  const totalGems = isFirst ? Math.floor(baseTotal * 1.5) : baseTotal;
+  const promoLine = isFirst ? '\n+50% First Purchase Bonus → ' + totalGems + ' 💎' : '';
+  const msg = 'Buy $' + pack.price.toFixed(2) + ' → +' + baseTotal + ' 💎' + promoLine
+            + '\n\n(Mock IAP — no real charge in dev build)';
+  if (!confirm(msg)) return;
+  // Mock IAP success — grant gems.
+  addGems(totalGems);
+  flashText('+' + totalGems + ' 💎 GEMS', pack.glow);
+  try { vibrate([60, 40, 60, 40, 100]); } catch (e) {}
+  if (isFirst) {
+    _markFirstPurchaseDone();
+    // Spec §10.3 First-Purchase Bonus also: 1 random Hero Card.
+    try {
+      if (typeof dropRandomHeroCards === 'function') {
+        dropRandomHeroCards(1, { silent: true });
+      }
+    } catch (e) { console.warn('First-purchase hero card grant failed:', e); }
+    setTimeout(function () { try { flashText('★ FOUNDER BADGE EARNED', '#FFD53D'); } catch (e) {} }, 800);
+  }
+  renderShopPacks();
+}
+
 // Render the pack catalog into shopSectionOffers. Called from goToShop().
 function renderShopPacks() {
   const host = document.getElementById('shopSectionOffers');
   if (!host) return;
   const goldNow = gold || 0;
-  const stdAffordable = goldNow >= PACK_STANDARD_COST;
+  const stdAffordable  = goldNow >= PACK_STANDARD_COST;
   const raceAffordable = goldNow >= PACK_RACE_COST;
   const races = ['pirate', 'rock', 'shark', 'crocodile', 'spark'];
-  const raceCardsHtml = races.map(r => {
+
+  // ----- Section 1: Gem Packs (mock-IAP) + First-Purchase banner -----
+  const isFirst = !_isFirstPurchaseDone();
+  const firstPurchaseBannerHtml = isFirst ? (
+    '<div class="shop-first-purchase-banner">' +
+    '  <div class="shop-fp-icon">🎁</div>' +
+    '  <div class="shop-fp-text">' +
+    '    <div class="shop-fp-title">FIRST PURCHASE BONUS</div>' +
+    '    <div class="shop-fp-sub">+50% gems · 1 random Hero Card · Founder Badge</div>' +
+    '  </div>' +
+    '</div>'
+  ) : '';
+  const gemPacksHtml = GEM_PACKS.map(function (p) {
+    const total = p.baseGems + p.bonusGems;
+    const finalGems = isFirst ? Math.floor(total * 1.5) : total;
+    const badgeHtml = p.badge ? '<span class="shop-gem-badge" style="background:' + p.glow + '">' + p.badge + '</span>' : '';
+    const firstBonusHtml = isFirst ? '<div class="shop-gem-firstbonus">+50% FIRST → ' + finalGems.toLocaleString() + ' 💎</div>' : '';
+    const descLine = p.bonusGems > 0
+      ? (p.baseGems.toLocaleString() + ' base · +' + p.bonusGems.toLocaleString() + ' bonus')
+      : 'Base pack';
+    return '<button class="shop-pack-btn shop-gem-pack" style="border-color:' + p.glow + '" onclick="purchaseGemPack(\'' + p.id + '\')">' +
+      '<span class="shop-pack-emoji" style="color:' + p.glow + '">💎</span>' +
+      '<span class="shop-pack-name">+' + total.toLocaleString() + ' GEMS' + badgeHtml + '</span>' +
+      '<span class="shop-pack-desc">' + descLine + firstBonusHtml + '</span>' +
+      '<span class="shop-pack-cost">$' + p.price.toFixed(2) + '</span>' +
+      '</button>';
+  }).join('');
+
+  // ----- Section 2: Race packs (existing F2P) -----
+  const raceCardsHtml = races.map(function (r) {
     const label = _PACK_RACE_LABELS[r];
     const color = _PACK_RACE_COLORS[r];
-    return `<button class="shop-pack-btn shop-pack-race" style="border-color:${color}"
-                    ${raceAffordable ? '' : 'disabled'}
-                    onclick="buyRacePack('${r}')">
-      <span class="shop-pack-emoji" style="color:${color}">📦</span>
-      <span class="shop-pack-name">${label} PACK</span>
-      <span class="shop-pack-desc">5 ${label} cards</span>
-      <span class="shop-pack-cost">${PACK_RACE_COST} 💰</span>
-    </button>`;
+    return '<button class="shop-pack-btn shop-pack-race" style="border-color:' + color + '" ' +
+                    (raceAffordable ? '' : 'disabled') +
+                    ' onclick="buyRacePack(\'' + r + '\')">' +
+      '<span class="shop-pack-emoji" style="color:' + color + '">📦</span>' +
+      '<span class="shop-pack-name">' + label + ' PACK</span>' +
+      '<span class="shop-pack-desc">5 ' + label + ' cards</span>' +
+      '<span class="shop-pack-cost">' + PACK_RACE_COST + ' 💰</span>' +
+      '</button>';
   }).join('');
-  // 2026-04-27 — Block H.10 — Cosmetic catalog rendered below pack catalog.
-  // Three slots: frame / aura / bg. Owned items show "EQUIP" / "EQUIPPED";
-  // unowned show price + "BUY" if affordable, else greyed out.
+
+  // ----- Section 3: Gold→Gems daily conversion (spec §8.5) -----
+  const g2gAvail = _goldToGemsAvailable();
+  const g2gAfford = goldNow >= GOLD_TO_GEMS_COST;
+  const cooldownTxt = _goldToGemsCooldownText();
+  const goldToGemsHtml =
+    '<button class="shop-pack-btn shop-gold-convert" ' +
+            ((g2gAvail && g2gAfford) ? '' : 'disabled') +
+            ' onclick="convertGoldToGems()">' +
+      '<span class="shop-pack-emoji">🔁</span>' +
+      '<span class="shop-pack-name">GOLD → GEMS</span>' +
+      '<span class="shop-pack-desc">' + (cooldownTxt ? 'Available in ' + cooldownTxt : 'Once per day') + '</span>' +
+      '<span class="shop-pack-cost">' + GOLD_TO_GEMS_COST + ' 💰 → ' + GOLD_TO_GEMS_AMOUNT + ' 💎</span>' +
+    '</button>';
+
+  // ----- Section 4: Cosmetics (existing — unchanged) -----
   const cState = _ensureCosmeticState();
-  const cosmeticHtml = ['frame', 'aura', 'bg'].map(slot => {
+  const cosmeticHtml = ['frame', 'aura', 'bg'].map(function (slot) {
     const slotLabel = { frame: 'PORTRAIT FRAMES', aura: 'HERO AURAS', bg: 'PROFILE BACKGROUNDS' }[slot];
-    const items = COSMETICS_CATALOG.filter(c => c.slot === slot);
-    const itemsHtml = items.map(item => {
-      const owned   = cState.owned.includes(item.id);
+    const items = COSMETICS_CATALOG.filter(function (c) { return c.slot === slot; });
+    const itemsHtml = items.map(function (item) {
+      const owned    = cState.owned.includes(item.id);
       const equipped = (cState[item.slot] === item.id);
-      const afford  = (goldNow >= item.cost);
-      const stateLabel = equipped ? 'EQUIPPED ★' : (owned ? 'EQUIP' : `${item.cost} 💰`);
+      const afford   = (goldNow >= item.cost);
+      const stateLabel = equipped ? 'EQUIPPED ★' : (owned ? 'EQUIP' : (item.cost + ' 💰'));
       const stateColor = equipped ? '#5DCA79' : (owned ? '#FFD53D' : (afford ? '#FFD53D' : '#9A98A4'));
-      const onclick   = equipped ? `unequipCosmetic('${slot}')`
-                       : owned   ? `equipCosmetic('${item.id}')`
-                       : afford  ? `buyCosmetic('${item.id}')`
+      const onclick    = equipped ? ('unequipCosmetic(\'' + slot + '\')')
+                       : owned    ? ('equipCosmetic(\'' + item.id + '\')')
+                       : afford   ? ('buyCosmetic(\'' + item.id + '\')')
                        : '';
-      return `<button class="shop-cosmetic-btn ${equipped ? 'equipped' : ''}"
-                      ${owned || afford ? '' : 'disabled'}
-                      style="border-color:${stateColor}"
-                      onclick="${onclick}">
-        <span class="cosmetic-name">${item.name}</span>
-        <span class="cosmetic-desc">${item.desc}</span>
-        <span class="cosmetic-state" style="color:${stateColor}">${stateLabel}</span>
-      </button>`;
+      return '<button class="shop-cosmetic-btn ' + (equipped ? 'equipped' : '') + '" ' +
+                      (owned || afford ? '' : 'disabled') +
+                      ' style="border-color:' + stateColor + '" onclick="' + onclick + '">' +
+        '<span class="cosmetic-name">' + item.name + '</span>' +
+        '<span class="cosmetic-desc">' + item.desc + '</span>' +
+        '<span class="cosmetic-state" style="color:' + stateColor + '">' + stateLabel + '</span>' +
+        '</button>';
     }).join('');
-    return `<div class="shop-pack-divider">${slotLabel}</div>${itemsHtml}`;
+    return '<div class="shop-pack-divider">' + slotLabel + '</div>' + itemsHtml;
   }).join('');
-  host.innerHTML = `
-    <div class="shop-pack-header">PACKS · F2P · No premium currency</div>
-    <button class="shop-pack-btn shop-pack-standard" ${stdAffordable ? '' : 'disabled'} onclick="buyStandardPack()">
-      <span class="shop-pack-emoji">📦</span>
-      <span class="shop-pack-name">STANDARD HERO PACK</span>
-      <span class="shop-pack-desc">1 random hero card · weighted to less-owned</span>
-      <span class="shop-pack-cost">${PACK_STANDARD_COST} 💰</span>
-    </button>
-    <div class="shop-pack-divider">RACE PACKS</div>
-    <div class="shop-pack-grid">${raceCardsHtml}</div>
-    <div class="shop-pack-footer">
-      All packs purchasable with gold. Hero cards stockpile toward Tier 2 / Tier 3 / Mythic ascension.
-    </div>
-    <div class="shop-cosmetics-header">COSMETICS · Pure visual · No gameplay impact</div>
-    ${cosmeticHtml}
-    <div class="shop-pack-footer">
-      Cosmetics never affect combat — they live alongside the "Voice of the Forgotten" frame
-      from Chapter 3 finale. Pure prestige.
-    </div>`;
+
+  host.innerHTML =
+    firstPurchaseBannerHtml +
+    '<div class="shop-pack-divider">💎 GEM PACKS · Premium currency</div>' +
+    gemPacksHtml +
+    '<div class="shop-pack-divider">📦 HERO CARD PACKS · Earnable with gold</div>' +
+    '<button class="shop-pack-btn shop-pack-standard" ' + (stdAffordable ? '' : 'disabled') + ' onclick="buyStandardPack()">' +
+      '<span class="shop-pack-emoji">📦</span>' +
+      '<span class="shop-pack-name">STANDARD HERO PACK</span>' +
+      '<span class="shop-pack-desc">1 random hero card · weighted to less-owned</span>' +
+      '<span class="shop-pack-cost">' + PACK_STANDARD_COST + ' 💰</span>' +
+    '</button>' +
+    '<div class="shop-pack-divider">RACE PACKS</div>' +
+    '<div class="shop-pack-grid">' + raceCardsHtml + '</div>' +
+    '<div class="shop-pack-divider">🔁 CONVERT</div>' +
+    goldToGemsHtml +
+    '<div class="shop-pack-footer">Hero cards stockpile toward Tier 2 / Tier 3 / Mythic ascension. All cards earnable through play.</div>' +
+    '<div class="shop-cosmetics-header">COSMETICS · Pure visual · No gameplay impact</div>' +
+    cosmeticHtml +
+    '<div class="shop-pack-footer">Cosmetics never affect combat — they live alongside the "Voice of the Forgotten" frame from Chapter 3 finale. Pure prestige.</div>';
 }
 
 function craftHero(heroId) {
