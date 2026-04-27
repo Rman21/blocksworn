@@ -10706,8 +10706,8 @@ function applyBossEmblems() {
   // dedicated emblem over the chapter emblem. Tower boss objects carry an
   // `emblem` field (e.g. 'tower_emblem_1') resolved via ASSETS lookup.
   let bossEmblemUrl = ASSETS[`boss_emblem_${globalBossNum}`];
-  if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle
-      && currentBoss.emblem && ASSETS[currentBoss.emblem]) {
+  const isTowerBattleNow = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle);
+  if (isTowerBattleNow && currentBoss.emblem && ASSETS[currentBoss.emblem]) {
     bossEmblemUrl = ASSETS[currentBoss.emblem];
   }
   const bossStihiya   = (currentBoss && currentBoss.stihiya) || null;
@@ -10716,10 +10716,20 @@ function applyBossEmblems() {
     if (emblemUrl) {
       host.style.setProperty(`--emblem-${stihiya}`, `url("${emblemUrl}")`);
     }
-    // Void-cell emblem: boss-specific OVERRIDES element-default for the boss's stihiya
+    // Void-cell emblem rules:
+    //   Chapter battle: boss emblem overrides default ONLY for the boss's
+    //                   own stihiya (other stihiyas keep generic element
+    //                   emblem so squad-spawned voids still look elemental).
+    //   Tower battle:   boss emblem overrides default for ALL 5 stihiyas.
+    //                   Per Roman 2026-04-27 — every Tower boss gets its
+    //                   emblem branded onto every void cell in the fight,
+    //                   so identity is undeniable regardless of which
+    //                   element the boss happens to spawn.
     let voidEmblemUrl = ASSETS[`void_emblem_${stihiya}`];
-    if (stihiya === bossStihiya && bossEmblemUrl) {
-      voidEmblemUrl = bossEmblemUrl;
+    if (isTowerBattleNow && bossEmblemUrl) {
+      voidEmblemUrl = bossEmblemUrl;  // tower → all stihiyas use boss emblem
+    } else if (stihiya === bossStihiya && bossEmblemUrl) {
+      voidEmblemUrl = bossEmblemUrl;  // chapter → only boss's stihiya
     }
     if (voidEmblemUrl) {
       host.style.setProperty(`--void-emblem-${stihiya}`, `url("${voidEmblemUrl}")`);
