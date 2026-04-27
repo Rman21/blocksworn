@@ -26293,10 +26293,15 @@ function showVictoryModal() {
          </div>
        </div>`
     : '';
+  // 2026-04-28 — De-dupe REWARD: previously this inline "REWARD: +N STIHIYA
+  // ESSENCE" span rendered here AND `vDecorateVictoryModal()` injected a
+  // styled v-reward-card right below — same data shown twice (see screenshot).
+  // Drop the inline span; the Vivid card now carries the reward visually.
+  // Variables `rewardEmblem`, `rewardIcon`, `multText` are still computed above
+  // so existing call sites / future hooks won't break, but they're unused here.
   document.getElementById('modalStats').innerHTML =
-    `Damage: <b>${damageDealt.toLocaleString('ru-RU')}</b> · Time: <b>${mins}:${String(secs).padStart(2,'0')}</b><br>` +
-    `Placements: <b>${placementCount}</b> · Hero triggers: <b>${heroFireCount}</b><br>` +
-    `<span style="color:#FFD53D;font-weight:700;letter-spacing:1px">REWARD: +${_lastReward.amount}${rewardIcon}${currentBoss.stihiya.toUpperCase()} ESSENCE${multText}</span>` +
+    `Damage: <b>${damageDealt.toLocaleString('en-US')}</b> · Time: <b>${mins}:${String(secs).padStart(2,'0')}</b><br>` +
+    `Placements: <b>${placementCount}</b> · Hero triggers: <b>${heroFireCount}</b>` +
     artDropBanner +
     unlockBanner;
   const nextBox = document.getElementById('modalNextBoss');
