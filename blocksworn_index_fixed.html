@@ -569,8 +569,10 @@
   font-size: 0;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
 }
-.a-chip-ic.gold { background-image: var(--icon-gold, none); }
-.a-chip-ic.gem  { background-image: var(--icon-crystal, none); }
+.a-chip-ic.gold { background-image: var(--icon-gold, url('assets/icons/coin.png')); }
+.a-chip-ic.gem  { background-image: var(--icon-crystal, url('assets/icons/cristal.png')); }
+/* Empty span fallback — render emblem icon when no text content */
+.a-chip-ic.gold:empty, .a-chip-ic.gem:empty { width: 18px; height: 18px; }
 .a-chip-plus {
   margin-left: 2px; font-weight: 900;
   width: 14px; height: 14px;
@@ -3044,6 +3046,25 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   cursor: pointer;
 }
 .mock-ad-skip:disabled { background: rgba(255,255,255,0.06); color: #6E6B7B; cursor: not-allowed; }
+
+/* ===== Asset integration — coin.png + cristal.png inline icons ===== */
+/* Tiny inline icons for shop card costs / hud / banner labels.
+   Used as `<img class="ico-coin">` to replace 💰/💎 emoji where price
+   text needs a real-art treatment. Source: 128px PNGs in assets/icons/. */
+.ico-coin, .ico-cristal {
+  display: inline-block;
+  width: 14px; height: 14px;
+  vertical-align: -3px;
+  margin: 0 2px;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
+.ico-coin    { background-image: url('assets/icons/coin.png'); }
+.ico-cristal { background-image: url('assets/icons/cristal.png'); }
+.ico-coin.lg, .ico-cristal.lg { width: 24px; height: 24px; vertical-align: -6px; }
+.ico-coin.xl, .ico-cristal.xl { width: 40px; height: 40px; vertical-align: -10px; }
 
 /* ===== PHASE F — First-Time UX + Pop-ups (anti-FOMO) ===== */
 /* Shop lock — hide every shop nav entry for days 1-6. */
@@ -15000,9 +15021,19 @@ function addGold(n) {
   // 2026-04-28 — Phase E — 24h Mega Buff (shop convenience): +25% gold from
   // all sources. Stacks multiplicatively with other buffs/passives. Only
   // positive deltas multiplied (won't double-charge purchases that subtract).
+  // Phase F deferred close (2026-04-28b): Tower battles ALSO get +15% on
+  // top of the +25% gold mult while buff is active (per spec §8.2 "+15%
+  // Tower rewards"). Additive within same source so the stack reads
+  // 1.25 (gold) × 1.15 (Tower) = 1.4375× during Tower fights, 1.25 elsewhere.
   try {
     if (v > 0 && typeof _isMegaBuffActive === 'function' && _isMegaBuffActive()) {
       v = Math.floor(v * MEGA_BUFF_GOLD_MULT);
+      // Tower-only stack
+      try {
+        if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle) {
+          v = Math.floor(v * 1.15);
+        }
+      } catch (e2) {}
     }
   } catch (e) {}
   // 2026-04-27 — Block T.5 — Tower Heart "+10/+25% gold" upgrade. Tower-only
@@ -16763,7 +16794,11 @@ function claimLoginStreakReward() {
   if (reward.gems) addGems(Math.floor(reward.gems * mult));
   if (reward.essencesRandom) {
     const s = STIHIYAS[Math.floor(Math.random() * STIHIYAS.length)];
-    essences[s] = (essences[s] || 0) + Math.floor(reward.essencesRandom * mult);
+    // Phase E hook close (2026-04-28b): Mega Buff +25% essence stacks
+    // multiplicatively on top of subscriber 2× login multiplier.
+    let essMult = mult;
+    try { if (typeof _isMegaBuffActive === 'function' && _isMegaBuffActive()) essMult *= 1.25; } catch (e) {}
+    essences[s] = (essences[s] || 0) + Math.floor(reward.essencesRandom * essMult);
     try { saveProgress(); } catch (e) {}
   }
   if (reward.t2ArtifactRandom) {
@@ -20510,7 +20545,11 @@ function _applySeasonReward(reward) {
   if (reward.essenceRandom) {
     const stihiyas = ['ember', 'tide', 'grove', 'solar', 'umbra'];
     const s = stihiyas[Math.floor(Math.random() * stihiyas.length)];
-    essences[s] = (essences[s] || 0) + reward.essenceRandom;
+    // Phase E hook close (2026-04-28b): Mega Buff +25% essence applied to
+    // season tier reward grants too.
+    let amt = reward.essenceRandom;
+    try { if (typeof _isMegaBuffActive === 'function' && _isMegaBuffActive()) amt = Math.floor(amt * 1.25); } catch (e) {}
+    essences[s] = (essences[s] || 0) + amt;
     try { saveProgress(); } catch (e) {}
   }
   // label is a cosmetic stub — just log for now
@@ -21548,8 +21587,131 @@ function _maybeShowDailyPopup() {
   }, 600);
 }
 
+// ----- Chapter-complete celebration popup (Phase F deferred close) -----
+const CHAPTER_CELEBRATED_KEY = 'blocksworn_chapter_celebrated_max';
+function _maybeShowChapterCompletePopup() {
+  if (_isShopLocked()) return;  // no shop popups during trust window
+  try {
+    const lastCelebrated = parseInt(localStorage.getItem(CHAPTER_CELEBRATED_KEY) || '0', 10);
+    if (typeof CHAPTERS !== 'object' || !Array.isArray(CHAPTERS)) return;
+    if (typeof chapterProgress !== 'object' || !chapterProgress) return;
+    let highest = 0;
+    for (const ch of CHAPTERS) {
+      const required = ch.bossCount || 5;
+      if ((chapterProgress[ch.id] || 0) >= required) highest = Math.max(highest, ch.id);
+    }
+    if (highest > lastCelebrated) {
+      const ch = CHAPTERS.find(function (c) { return c.id === highest; });
+      if (!ch) return;
+      // Mark immediately to prevent double-fire if popup is dismissed before
+      // localStorage is read again.
+      try { localStorage.setItem(CHAPTER_CELEBRATED_KEY, String(highest)); } catch (e) {}
+      setTimeout(function () {
+        _showAntiFomoPopup({
+          title: '✦ CHAPTER ' + ch.id + ' CLEARED',
+          body: 'You defeated the entire ' + (ch.name || 'chapter') + '. New offers and bundles are available — earned, not pressured.',
+          ctaLabel: 'OPEN SHOP',
+          ctaAction: function () { try { goToShop(); } catch (e) {} },
+          glow: '#FFD53D',
+          kind: 'chapter_complete',
+        });
+      }, 800);
+    }
+  } catch (e) { console.warn('chapter-complete popup failed:', e); }
+}
+
 // Bootstrap — record first-launch date on first ever visit.
 _ensureFirstLaunchDate();
+
+// ===== IAP PROVIDER PATTERN (Phase G scaffold, 2026-04-28) =====
+// Single switch-point for swapping mock-IAP → Stripe / Apple / Google in Phase G.
+// Existing buy* functions still call mock paths inline (confirm + addGems);
+// migration to IAPProvider.purchase() can happen incrementally per function
+// without touching UI / state / spec — providers are pluggable behind one API.
+//
+// Phase G workflow:
+//   1. Set up Stripe/Apple/Google account
+//   2. Implement TODO bodies in IAP_PROVIDERS.{stripe,apple,google}
+//   3. Flip IAPProvider.ACTIVE
+//   4. Migrate buy* functions one at a time (e.g. purchaseGemPack first)
+//
+// All providers return Promise<bool> — true if charge succeeded, false if
+// user canceled or payment failed. UI handles re-render in either case.
+
+const IAPProvider = {
+  ACTIVE: 'mock',  // Phase G: 'stripe' / 'apple' / 'google'
+
+  /**
+   * Universal purchase entry. Item shape:
+   *   { id, priceUSD, priceGems?, title, body }
+   * - id        SKU/product-id (must match StoreKit / Stripe / Play Console)
+   * - priceUSD  USD float (e.g. 4.99)
+   * - priceGems optional gem-equivalent (player can pay in either)
+   * - title     "Premium Pack" — shown in confirm dialog header
+   * - body      multi-line summary — "10 cards, 1 T2 stone, ..."
+   * @returns Promise<boolean>
+   */
+  async purchase(item) {
+    const provider = IAP_PROVIDERS[this.ACTIVE];
+    if (!provider) throw new Error('IAP provider not configured: ' + this.ACTIVE);
+    return await provider.purchase(item);
+  },
+};
+
+const IAP_PROVIDERS = {
+  // ---- Mock (dev/portfolio): confirm() + immediate gem-grant simulation ----
+  mock: {
+    async purchase(item) {
+      const priceLine = '$' + item.priceUSD.toFixed(2)
+        + (item.priceGems ? ' / ' + item.priceGems + '💎' : '');
+      const msg = item.title + '\n' + priceLine + '\n\n'
+        + item.body + '\n\n(Mock IAP — no real charge in dev build)';
+      if (!confirm(msg)) return false;
+      // Player has enough gems → debit gems. Otherwise treat as mock-USD.
+      if (item.priceGems && (gems || 0) >= item.priceGems) {
+        return spendGems(item.priceGems);
+      }
+      return true;
+    },
+  },
+  // ---- Stripe Checkout (web release) — Phase G fills in body ----
+  stripe: {
+    async purchase(item) {
+      // TODO Phase G:
+      //   const res = await fetch('/api/stripe/checkout', {
+      //     method: 'POST',
+      //     headers: { 'Content-Type': 'application/json' },
+      //     body: JSON.stringify({ sku: item.id, priceUSD: item.priceUSD })
+      //   });
+      //   const { sessionId, url } = await res.json();
+      //   window.location.href = url;  // Stripe-hosted checkout
+      //   // Webhook + return URL update server-side state, client polls.
+      console.warn('[IAP] Stripe not wired yet — using mock fallback');
+      return await IAP_PROVIDERS.mock.purchase(item);
+    },
+  },
+  // ---- Apple StoreKit (iOS via Cordova/Capacitor wrapper) ----
+  apple: {
+    async purchase(item) {
+      // TODO Phase G (cordova-plugin-purchase or @revenuecat/purchases-capacitor):
+      //   const product = await store.products(item.id);
+      //   const offer = product.getOffer();
+      //   const order = await offer.order();
+      //   return order.state === 'purchased';
+      console.warn('[IAP] Apple StoreKit not wired yet — using mock fallback');
+      return await IAP_PROVIDERS.mock.purchase(item);
+    },
+  },
+  // ---- Google Play Billing (Android native) ----
+  google: {
+    async purchase(item) {
+      // TODO Phase G: same plugin handles both Apple/Google.
+      //   Plugin auto-routes to BillingClient on Android, StoreKit on iOS.
+      console.warn('[IAP] Google Play not wired yet — using mock fallback');
+      return await IAP_PROVIDERS.mock.purchase(item);
+    },
+  },
+};
 
 // ========= Screen + rendering =========
 // DEBT-010 (Task #1.7): Season entry removed from drawer; function retained for Phase 7+
@@ -34501,11 +34663,14 @@ function goToMenu() {
   // and shop nav stays hidden for first 7 days regardless of FTUE status.
   try { if (typeof _applyShopLockState === 'function') _applyShopLockState(); } catch (e) {}
   try {
-    if (typeof _maybeShowDailyPopup === 'function' &&
-        (typeof isFtueActive !== 'function' || !isFtueActive())) {
-      _maybeShowDailyPopup();
+    if (typeof isFtueActive !== 'function' || !isFtueActive()) {
+      // Chapter-complete celebration takes priority — fires once per new
+      // chapter cleared, can co-exist with daily pop-up since they're
+      // logically distinct events.
+      if (typeof _maybeShowChapterCompletePopup === 'function') _maybeShowChapterCompletePopup();
+      if (typeof _maybeShowDailyPopup === 'function') _maybeShowDailyPopup();
     }
-  } catch (e) { console.warn('Phase F daily pop-up failed:', e); }
+  } catch (e) { console.warn('Phase F pop-ups failed:', e); }
   showScreen('menu');
 }
 
