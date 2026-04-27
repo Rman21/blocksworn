@@ -15091,28 +15091,41 @@ const TOWER_BOSSES = [
   { id: 'uroboros',  name: 'UROBOROS',     title: 'Crown of Cycles',     hp: 30000, attackInterval: 5, img: 'tower_boss_uroboros',  emblem: 'tower_emblem_uroboros',  color: '#FFD53D', stihiya: 'solar', archetype: 'phoenix'   },
 ];
 
-// Mode-aware floor → boss mapping per spec §2.1-2.3.
-//   Daily 10:    F5 mid-boss, F10 climax → 2 bosses from idx 0-4
-//   Weekly 25:   F5/10/15/20/25 → 5 bosses idx 0-4
-//   Seasonal 50: F10/20/30/40/50 → bosses 0,2,4,6 + Uroboros at F50
-function isTowerBossFloor(floor, mode) {
-  mode = mode || _currentGauntletMode || 'daily';
-  if (mode === 'daily')    return floor === TOWER_MID_BOSS_FLOOR || floor === TOWER_DAILY_FLOORS;
-  if (mode === 'weekly')   return floor % 5 === 0;
-  if (mode === 'seasonal') return floor % 10 === 0;
-  return false;
-}
+// 2026-04-27 HOTFIX — every Tower floor uses a Tower boss (was: only
+// "milestone" floors used Tower bosses, others fell back to random Chapter
+// bosses as filler). Roman saw Grovewarden on Daily F1, broke immersion.
+// Now isTowerBossFloor ALWAYS true; getTowerBossForFloor cycles through
+// the 10-boss roster with milestone floors pinned to the canonical
+// boss for that mode.
+function isTowerBossFloor(/* floor, mode */) { return true; }
 function getTowerBossForFloor(floor, mode) {
   mode = mode || _currentGauntletMode || 'daily';
+  // Seasonal F50 → Uroboros (mythic gate, last entry in TOWER_BOSSES).
   if (mode === 'seasonal' && floor >= TOWER_SEASONAL_FLOORS) {
     return TOWER_BOSSES.find(b => b.id === 'uroboros');
   }
-  let idx = 0;
-  if (mode === 'daily')         idx = (floor === TOWER_MID_BOSS_FLOOR) ? 0 : 4;
-  else if (mode === 'weekly')   idx = Math.floor(floor / 5) - 1;
-  else if (mode === 'seasonal') idx = (Math.floor(floor / 10) - 1) * 2;
-  if (idx < 0) idx = 0;
-  if (idx > TOWER_BOSSES.length - 2) idx = TOWER_BOSSES.length - 2;  // skip Uroboros (last)
+  const totalRegular = TOWER_BOSSES.length - 1;  // 10 (excludes Uroboros)
+  let idx;
+  if (mode === 'daily') {
+    // Pinned: F5 → T1 Ashguard (idx 0), F10 → T5 Radiant Tyrant (idx 4).
+    // Other floors cycle through 10 bosses by floor index.
+    if (floor === TOWER_DAILY_FLOORS)   idx = 4;       // F10 climax
+    else if (floor === TOWER_MID_BOSS_FLOOR) idx = 0;  // F5 mid-boss
+    else                                 idx = (floor - 1) % totalRegular;
+  } else if (mode === 'weekly') {
+    // Pinned: F5/10/15/20/25 → idx 0,1,2,3,4. Other floors cycle.
+    if (floor % 5 === 0)    idx = (floor / 5) - 1;
+    else                    idx = (floor - 1) % totalRegular;
+  } else if (mode === 'seasonal') {
+    // Pinned: F10/20/30/40 → idx 0,2,4,6 (F50 already routed to Uroboros).
+    if (floor % 10 === 0)   idx = (Math.floor(floor / 10) - 1) * 2;
+    else                    idx = (floor - 1) % totalRegular;
+  } else {
+    idx = (floor - 1) % totalRegular;
+  }
+  // Clamp to regular pool (never pick Uroboros except via seasonal-F50 path).
+  if (idx < 0)                  idx = 0;
+  if (idx > totalRegular - 1)   idx = totalRegular - 1;
   return TOWER_BOSSES[idx];
 }
 const TOWER_KEY = 'blocksworn_tower_state';
