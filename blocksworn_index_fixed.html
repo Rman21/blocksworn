@@ -1889,40 +1889,27 @@
 }
 
 /* Portrait + pedestal */
+/* 2026-04-27 — Spec §1.1 portrait — clean rectangle 280×373 ratio, race-themed glow.
+   Replaces previous egg/teardrop pedestal composition. No clipping; full image visible. */
 .a-hero-detail .detail-portrait {
-  order: 2;
   position: relative;
-  width: 180px;
-  aspect-ratio: 1 / 1.05;
-  margin: 6px auto 0;
-  overflow: visible;
+  width: 200px;
+  aspect-ratio: 280 / 373;  /* spec: 280×373 */
+  margin: 14px auto 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 2px solid var(--detail-glow, var(--a-gold-500));
+  box-shadow:
+    0 0 24px var(--detail-glow, rgba(255,184,74,0.45)),
+    0 6px 20px rgba(0,0,0,0.6);
+  background: linear-gradient(180deg, rgba(0,0,0,0.2), rgba(0,0,0,0.5));
 }
 .a-hero-detail .detail-portrait img {
-  position: relative;
-  z-index: 2;
   width: 100%;
-  height: 86%;
+  height: 100%;
   object-fit: cover;
   object-position: center top;
-  border-radius: 50% 50% 40% 40%;
-  filter: drop-shadow(0 6px 20px rgba(0,0,0,0.7)) drop-shadow(0 0 18px rgba(255,184,74,0.3));
-}
-.a-hero-detail .detail-portrait::after {
-  /* Pedestal */
-  content: '';
-  position: absolute;
-  left: 50%; bottom: 0;
-  transform: translateX(-50%);
-  width: 110%;
-  aspect-ratio: 1 / 0.32;
-  border-radius: 50%;
-  background: radial-gradient(ellipse at center top,
-    var(--a-gold-700) 0%, var(--a-gold-900) 50%, var(--a-bg-deepest) 90%);
-  box-shadow:
-    inset 0 2px 4px rgba(255,184,74,0.2),
-    inset 0 -4px 8px rgba(0,0,0,0.6),
-    0 4px 16px rgba(0,0,0,0.5);
-  z-index: 1;
+  display: block;
 }
 
 /* Hero tabs */
@@ -2013,6 +2000,126 @@
 }
 .detail-lore-voice-btn:active { transform: scale(0.97); }
 .detail-lore-voice-btn:hover { background: rgba(255,213,61,0.25); }
+/* 2026-04-27 — Spec §1.1 single-scroll layout — section headers + spacing. */
+.a-hero-detail--spec .detail-name {
+  text-align: center;
+  font-family: var(--a-font-display);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8), 0 0 12px rgba(255,184,74,0.4);
+  margin: 4px 0 4px;
+}
+.a-hero-detail--spec .detail-meta {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #C8C5D4;
+  margin-bottom: 6px;
+}
+.a-hero-detail--spec .detail-tier-badge,
+.a-hero-detail--spec .detail-t2-badge {
+  display: inline-block;
+  margin: 0 auto 6px;
+  text-align: center;
+}
+.detail-section {
+  margin: 14px 0;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255,213,61,0.18);
+}
+.detail-section:first-of-type { border-top: none; padding-top: 4px; }
+.detail-section-header {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--a-gold-300);
+  text-align: center;
+  margin-bottom: 10px;
+  text-shadow: 0 0 4px rgba(255,213,61,0.4);
+}
+.detail-section-header::before { content: '──── '; color: rgba(255,213,61,0.4); }
+.detail-section-header::after  { content: ' ────'; color: rgba(255,213,61,0.4); }
+
+/* STATS bars (HP / DMG / Charge per spec §1.1) */
+.detail-stats-bars {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.detail-stat-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.detail-stat-row .label {
+  color: #9A98A4;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+.detail-stat-row .bar {
+  height: 12px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255,213,61,0.18);
+}
+.detail-stat-row .bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--a-gold-700), var(--a-gold-300));
+  transition: width 0.3s;
+}
+.detail-stat-row .value {
+  color: var(--a-gold-300);
+  font-weight: 700;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Inline level section (no big card around it; just bar + cost text) */
+.detail-level-section--inline {
+  background: transparent !important;
+  border: none !important;
+  padding: 4px 0 0 !important;
+  margin: 0 !important;
+}
+.detail-level-section--inline .detail-level-hint { display: none; }
+
+/* TIER PROGRESSION text block (per spec §1.1) */
+.detail-tier-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #D6D3DE;
+  background: rgba(0,0,0,0.25);
+  border-left: 3px solid var(--a-gold-500);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.detail-tier-text-line {
+  margin-bottom: 4px;
+}
+.detail-tier-text-line:last-child { margin-bottom: 0; }
+.detail-tier-text-line .tt-label {
+  color: var(--a-gold-300);
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+/* ASCEND TO T2 separate row (cost chips below action row) */
+.detail-ascend-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+}
+.detail-upgrade-btn {
+  flex: 1;
+}
+
 .detail-tier-progression {
   display: flex;
   justify-content: space-between;
@@ -11186,74 +11293,86 @@ button.season-tier-claim:active {
   </div>
 </div>
 
-<!-- ============ HERO DETAIL MODAL ============ -->
-<div class="modal v-hero-sheet a-hero-detail" id="heroDetailModal" data-tab="stats" onclick="if(event.target===this) closeHeroDetail()">
+<!-- ============ HERO DETAIL MODAL — HERO_COMPENDIUM §1.1 single-scroll layout ============ -->
+<div class="modal v-hero-sheet a-hero-detail a-hero-detail--spec" id="heroDetailModal" onclick="if(event.target===this) closeHeroDetail()">
   <div class="modal-box hero-detail-box v-hero-sheet-box">
     <div class="v-hero-sheet-handle" id="vHeroSheetHandle"></div>
     <button class="detail-close v-hero-sheet-close" onclick="closeHeroDetail()" aria-label="Close">×</button>
-    <div class="detail-header v-hero-sheet-header">
-      <div class="detail-portrait v-hero-sheet-portrait"><img id="detailImg" alt=""/></div>
-      <div class="detail-info">
-        <div class="detail-name" id="detailName">—</div>
-        <div class="detail-meta" id="detailMeta">—</div>
-        <div class="detail-tier-badge" id="detailTierBadge"></div>
-        <!-- 2026-04-27 — Block 6.4 — Tier 2 Ascension badge (visible on
-             ascended heroes). Hidden by default; shown via JS in
-             openHeroDetail when isHeroAscended(heroId). -->
-        <div class="detail-t2-badge" id="detailT2Badge" style="display:none;">⚡ T2 ASCENDED</div>
-      </div>
-    </div>
-    <div class="v-hero-tabs">
-      <button class="v-hero-tab active" data-tab="stats"  onclick="vHeroTab('stats')">STATS</button>
-      <button class="v-hero-tab"        data-tab="ult"    onclick="vHeroTab('ult')">ULT</button>
-      <!-- 2026-04-27 — Block H.3 — LORE tab (HERO_COMPENDIUM §1.1):
-           bio + visual descriptor + voice line + tier progression strip. -->
-      <button class="v-hero-tab"        data-tab="lore"   onclick="vHeroTab('lore')">LORE</button>
-    </div>
-    <div class="v-hero-tab-body">
-      <div class="v-hero-tab-pane" data-tab="stats">
-        <!-- V3.0 Phase 4 Block 4.2: LEVEL section (legacy IDs preserved) -->
-        <div class="detail-level-section" id="detailLevelSection">
-          <div class="detail-level-header">
-            <span class="detail-level-label">LEVEL</span>
-            <span class="detail-level-value" id="detailLevelValue">—</span>
-          </div>
-          <div class="detail-level-bar">
-            <div class="detail-level-bar-fill" id="detailLevelBarFill"></div>
-          </div>
-          <div class="detail-level-stats" id="detailLevelStats"></div>
-          <button class="detail-levelup-btn" id="detailLevelUpBtn" onclick="onLevelUpBtnClick()">
-            <span id="detailLevelUpLabel">LEVEL UP</span>
-            <span class="detail-levelup-cost" id="detailLevelUpCost">—</span>
-          </button>
-          <div class="detail-level-hint">Levels stack additively with tier bonuses.</div>
+
+    <!-- BIG PORTRAIT (race-themed BG) -->
+    <div class="detail-portrait v-hero-sheet-portrait"><img id="detailImg" alt=""/></div>
+
+    <!-- Name -->
+    <div class="detail-name" id="detailName">—</div>
+    <!-- Meta line: role · element · race · tier (single row, plain text) -->
+    <div class="detail-meta" id="detailMeta">—</div>
+    <div class="detail-tier-badge" id="detailTierBadge"></div>
+    <div class="detail-t2-badge" id="detailT2Badge" style="display:none;">⚡ T2 ASCENDED</div>
+
+    <!-- ──── STATS ──── -->
+    <div class="detail-section">
+      <div class="detail-section-header">STATS</div>
+      <div class="detail-stats-bars" id="detailStatsBars"></div>
+      <!-- LEVEL (gold cost) — kept from existing infra -->
+      <div class="detail-level-section detail-level-section--inline" id="detailLevelSection">
+        <div class="detail-level-header">
+          <span class="detail-level-label">LEVEL</span>
+          <span class="detail-level-value" id="detailLevelValue">—</span>
         </div>
-        <div class="detail-tiers-header">UPGRADES</div>
-        <div class="detail-tiers" id="detailTiers"></div>
-      </div>
-      <div class="v-hero-tab-pane" data-tab="ult">
-        <div class="detail-abilities" id="detailAbilities"></div>
-      </div>
-      <!-- 2026-04-27 — Block H.3 — LORE pane (HERO_COMPENDIUM §1.1).
-           Spec sections: tagline + bio + voice line + tier progression.
-           Captain mode (§1.2) lazy-injects: race lore + captain power. -->
-      <div class="v-hero-tab-pane" data-tab="lore">
-        <div class="detail-lore-section" id="detailLoreSection">
-          <div class="detail-lore-tagline" id="detailLoreTagline"></div>
-          <div class="detail-lore-bio" id="detailLoreBio"></div>
-          <button class="detail-lore-voice-btn" id="detailLoreVoiceBtn" onclick="onPlayHeroVoiceLine()">▶ VOICE LINE</button>
-          <div class="detail-tier-progression" id="detailTierProgression"></div>
+        <div class="detail-level-bar">
+          <div class="detail-level-bar-fill" id="detailLevelBarFill"></div>
         </div>
+        <div class="detail-level-stats" id="detailLevelStats"></div>
       </div>
     </div>
+
+    <!-- ──── LORE ──── -->
+    <div class="detail-section">
+      <div class="detail-section-header">LORE</div>
+      <div class="detail-lore-tagline" id="detailLoreTagline"></div>
+      <div class="detail-lore-bio" id="detailLoreBio"></div>
+    </div>
+
+    <!-- ──── ABILITIES ──── -->
+    <div class="detail-section">
+      <div class="detail-section-header">ABILITIES</div>
+      <div class="detail-abilities" id="detailAbilities"></div>
+    </div>
+
+    <!-- ──── TIER PROGRESSION ──── -->
+    <div class="detail-section">
+      <div class="detail-section-header">TIER PROGRESSION</div>
+      <div class="detail-tier-text" id="detailTierProgressionText"></div>
+    </div>
+
+    <!-- Captain Cinematic extras (race lore + power) — lazy-injected by renderHeroDetailLore -->
+    <div id="detailCaptainExtrasMount"></div>
+
+    <!-- ──── VOICE ──── -->
+    <div class="detail-section">
+      <div class="detail-section-header">VOICE</div>
+      <button class="detail-lore-voice-btn" id="detailLoreVoiceBtn" onclick="onPlayHeroVoiceLine()">▶ PLAY VOICE LINE</button>
+    </div>
+
+    <!-- ──── GALLERY ──── -->
+    <div class="detail-section">
+      <div class="detail-section-header">GALLERY</div>
+      <div class="detail-tier-progression" id="detailTierProgression"></div>
+    </div>
+
+    <!-- Action buttons: [UPGRADE] [EQUIP TO SQUAD] -->
     <div class="detail-actions v-hero-sheet-actions">
-      <button class="btn" id="detailSquadBtn" onclick="toggleSquadFromDetail()">ADD TO SQUAD</button>
-      <!-- 2026-04-27 — Block 6.4 — Tier 2 Ascension button. Hidden by default;
-           shown when canAscendHero(hero.id) is true (player has T2 stones +
-           hero not yet ascended). Cosmic-purple palette to distinguish
-           from squad action. -->
-      <button class="btn btn-ascend" id="detailAscendBtn" onclick="onTryAscend()" style="display:none;">⚡ ASCEND (1 STONE)</button>
+      <button class="btn detail-upgrade-btn" id="detailLevelUpBtn" onclick="onLevelUpBtnClick()">
+        <span id="detailLevelUpLabel">UPGRADE</span>
+        <span class="detail-levelup-cost" id="detailLevelUpCost">—</span>
+      </button>
+      <button class="btn" id="detailSquadBtn" onclick="toggleSquadFromDetail()">EQUIP TO SQUAD</button>
     </div>
+    <!-- ASCEND TO T2 — separate row when applicable (cards + stone + gold + essence) -->
+    <button class="btn btn-ascend detail-ascend-btn" id="detailAscendBtn" onclick="onTryAscend()" style="display:none;">⚡ ASCEND TO T2</button>
+
+    <!-- Legacy 4-tier XP UPGRADES (engine system) — hidden per spec §1.1, state preserved in code -->
+    <div class="detail-tiers" id="detailTiers" style="display:none;"></div>
   </div>
 </div>
 
@@ -32111,13 +32230,14 @@ function vHeroTab(tab) {
   if (body) body.scrollTop = 0;
 }
 
-// Reflect "ADD TO SQUAD" → "REMOVE" state on the primary action button.
+// Reflect "EQUIP TO SQUAD" → "REMOVE" state on the primary action button.
 // Called after openHeroDetail / toggleSquadFromDetail.
+// 2026-04-27 — spec §1.1 wording: "EQUIP TO SQUAD" not "ADD TO SQUAD".
 function vUpdateHeroSheetActions(heroId) {
   const btn = document.getElementById('detailSquadBtn');
   if (!btn) return;
   const inSquad = activeSquad && activeSquad.indexOf(heroId) >= 0;
-  btn.textContent = inSquad ? 'REMOVE FROM SQUAD' : 'ADD TO SQUAD';
+  btn.textContent = inSquad ? 'REMOVE FROM SQUAD' : 'EQUIP TO SQUAD';
   btn.classList.toggle('in-squad', inSquad);
 }
 
@@ -32690,30 +32810,26 @@ function renderHeroDetailLore(hero) {
   if (bioEl)     bioEl.textContent     = (bio && bio.bio)     || 'No lore entry yet.';
   if (voiceBtn)  voiceBtn.style.display = (bio && bio.voice) ? '' : 'none';
   // Block H.4 — Captain-only sections: power visualization + race lore.
-  // Container for these injected sections is created lazily so non-captains
-  // don't carry empty DOM. Lookup uses getElementById on stable IDs.
-  const section = document.getElementById('detailLoreSection');
+  // 2026-04-27 — Spec §1.1 single-scroll refactor: captain extras now mount
+  // into dedicated container `detailCaptainExtrasMount` (between TIER PROGRESSION
+  // and VOICE per spec §1.2 cinematic flow). Non-captains: container empty.
+  const section = document.getElementById('detailCaptainExtrasMount');
   if (section) {
     let captainBox = document.getElementById('detailCaptainBox');
     let raceBox    = document.getElementById('detailRaceLoreBox');
     if (isCaptain) {
-      // Lazy-create captain power + race lore boxes.
+      // Lazy-create captain power + race lore boxes inside the mount point.
       if (!captainBox) {
         captainBox = document.createElement('div');
         captainBox.id = 'detailCaptainBox';
         captainBox.className = 'detail-captain-power';
-        // Insert after tagline so it sits at the top of the pane.
-        const after = (taglineEl && taglineEl.parentNode === section) ? taglineEl : null;
-        if (after) section.insertBefore(captainBox, after.nextSibling);
-        else section.insertBefore(captainBox, section.firstChild);
+        section.appendChild(captainBox);
       }
       if (!raceBox) {
         raceBox = document.createElement('div');
         raceBox.id = 'detailRaceLoreBox';
         raceBox.className = 'detail-race-lore';
-        // Insert before tier progression so race lore reads after bio/visual.
-        if (stripEl && stripEl.parentNode === section) section.insertBefore(raceBox, stripEl);
-        else section.appendChild(raceBox);
+        section.appendChild(raceBox);
       }
       // Fill captain power box.
       const _RACE_PLURAL = { pirate: 'PIRATES', rock: 'ROCK BAND', shark: 'SHARKS', crocodile: 'CROCODILES', spark: 'SPARKS' };
@@ -32795,6 +32911,55 @@ function renderHeroDetailLore(hero) {
   }
 }
 
+// 2026-04-27 — Spec §1.1 STATS bars renderer (HP / DMG / Charge).
+// Computes current vs max from base hero stats × level bonuses. Bars show
+// progress toward LV60 cap (100% bar = max level reached).
+function renderHeroDetailStats(hero) {
+  const host = document.getElementById('detailStatsBars');
+  if (!host || !hero) return;
+  const lvl = (typeof getHeroLevel === 'function') ? getHeroLevel(hero.id) : 1;
+  const lvlPct = ((lvl - 1) / Math.max(1, (HERO_LEVEL_MAX - 1))) * 100;
+  const bonuses = (typeof getLevelBonuses === 'function') ? getLevelBonuses(hero.id) : { dmgBonus: 0, hpBonus: 0, ultBonus: 0 };
+  // HP / DMG bars use the level progress as fill (since stat scales with level).
+  // Charge: stat is hero.period (mage) or generic — show as static label per spec.
+  const dmgPct = Math.round((bonuses.dmgBonus || 0) * 100);
+  const hpPlus = bonuses.hpBonus || 0;
+  const ultPct = (bonuses.ultBonus || 0) * 100;
+  const chargeLabel = hero.period ? `period ${hero.period}` : 'combo-driven';
+  const bar = (label, value, fillPct) =>
+    `<div class="detail-stat-row">
+       <span class="label">${label}</span>
+       <div class="bar"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, fillPct))}%"></div></div>
+       <span class="value">${value}</span>
+     </div>`;
+  host.innerHTML =
+    bar('HP',     `+${hpPlus}`,           lvlPct) +
+    bar('DMG',    `+${dmgPct}%`,          lvlPct) +
+    bar('Charge', chargeLabel,            lvlPct);
+}
+
+// 2026-04-27 — Spec §1.1 TIER PROGRESSION text block.
+// Reads from HERO_T2_ABILITIES for the T2 ability name + spec-fixed cost text.
+function renderHeroDetailTierText(hero) {
+  const host = document.getElementById('detailTierProgressionText');
+  if (!host || !hero) return;
+  const isAsc = (typeof isHeroAscended === 'function') && isHeroAscended(hero.id);
+  const t2 = (typeof HERO_T2_ABILITIES !== 'undefined') ? HERO_T2_ABILITIES[hero.id] : null;
+  const t2Name = t2 ? t2.name : '—';
+  const t2Desc = t2 ? t2.desc : '';
+  if (isAsc) {
+    host.innerHTML =
+      `<div class="detail-tier-text-line"><span class="tt-label">Status:</span>Tier 2 ASCENDED ★</div>` +
+      `<div class="detail-tier-text-line"><span class="tt-label">T2 Ability:</span>${t2Name} — ${t2Desc}</div>` +
+      `<div class="detail-tier-text-line"><span class="tt-label">Next:</span>Tier 3 (Phase 9)</div>`;
+  } else {
+    host.innerHTML =
+      `<div class="detail-tier-text-line">Tier 1 (current) → Tier 2 unlocks via Ascension</div>` +
+      `<div class="detail-tier-text-line"><span class="tt-label">T2 Ability:</span>${t2Name} — ${t2Desc}</div>` +
+      `<div class="detail-tier-text-line"><span class="tt-label">T2 Cost:</span>5 Hero Cards + 1 T2 Stone + 200 gold + 5 essence</div>`;
+  }
+}
+
 function openHeroDetail(heroId) {
   const hero = HERO_ROSTER.find(h => h.id === heroId);
   if (!hero) return;
@@ -32812,10 +32977,13 @@ function openHeroDetail(heroId) {
   document.getElementById('detailImg').src = ASSETS[hero.img];
   document.getElementById('detailImg').alt = hero.name;
   document.getElementById('detailName').textContent = hero.name;
-  const roleLabel = { guard:'🛡 GUARD', striker:'⚔ STRIKER', weaver:'✦ WEAVER' }[hero.role] || hero.role.toUpperCase();
+  // 2026-04-27 — Spec §1.1 meta line: "Warrior · Fire · Pirate · Tier 1" (plain text,
+  // no emoji glyphs that could fall back to Unicode square boxes on some fonts).
+  const roleLabel = (hero.newRole || hero.role || '—').toUpperCase();
   const raceLabel = hero.race ? hero.race.replace('_',' ').toUpperCase() : '';
+  const tierLabel = tier > 0 ? ' · TIER ' + ['','I','II','III','IV'][tier] : ' · TIER I';
   document.getElementById('detailMeta').innerHTML =
-    `<span style="color:${STIHIYA_COLORS[hero.stihiya]}">${hero.stihiya.toUpperCase()}</span> · ${roleLabel} · ${raceLabel}`;
+    `${roleLabel} · <span style="color:${STIHIYA_COLORS[hero.stihiya]}">${hero.stihiya.toUpperCase()}</span> · ${raceLabel}${tierLabel}`;
   // Tier badge
   const badge = document.getElementById('detailTierBadge');
   badge.className = `detail-tier-badge t${tier}`;
@@ -32835,16 +33003,20 @@ function openHeroDetail(heroId) {
       `<div class="ab-row"><span class="ab-label">PASSIVE</span>${hero.fireText || '—'}</div>` +
       `<div class="ab-row"><span class="ab-label">ULTIMATE</span>${hero.ultText || '—'}</div>`;
   }
-  // Tier buttons
+  // Tier buttons (legacy 4-tier engine — hidden via display:none on container per spec §1.1)
   renderHeroDetailTiers(hero);
   // V3.0 Phase 4 Block 4.2: render level section (level value, bar, stat preview, upgrade button)
   try { renderHeroDetailLevel(hero); } catch (e) { console.warn('renderHeroDetailLevel failed:', e); }
+  // 2026-04-27 — Spec §1.1 — STATS bars (HP / DMG / Charge) above level section
+  try { renderHeroDetailStats(hero); } catch (e) { console.warn('renderHeroDetailStats failed:', e); }
+  // 2026-04-27 — Spec §1.1 — TIER PROGRESSION text block (T2 ability + cost)
+  try { renderHeroDetailTierText(hero); } catch (e) { console.warn('renderHeroDetailTierText failed:', e); }
   // 2026-04-27 — Block H.3 — render LORE pane (bio + voice + visual + tier strip).
   try { renderHeroDetailLore(hero); } catch (e) { console.warn('renderHeroDetailLore failed:', e); }
-  // Squad button label
+  // Squad button label (per spec: "EQUIP TO SQUAD" / "REMOVE FROM SQUAD")
   const squadBtn = document.getElementById('detailSquadBtn');
   const inSquad = activeSquad.includes(heroId);
-  squadBtn.textContent = inSquad ? 'REMOVE FROM SQUAD' : 'ADD TO SQUAD';
+  squadBtn.textContent = inSquad ? 'REMOVE FROM SQUAD' : 'EQUIP TO SQUAD';
   squadBtn.classList.toggle('in-squad', inSquad);
   // 2026-04-27 — Block 6.4 — Tier 2 Ascension UI surface
   // 2026-04-27 — Block H.1 — full cost-chip surface (cards/stone/gold/essence).
@@ -32887,11 +33059,11 @@ function openHeroDetail(heroId) {
   } catch (e) { console.warn('Tier 2 detail render failed:', e); }
   // Show
   document.getElementById('heroDetailModal').classList.add('active');
-  // V3.0 Phase 8 Vivid: default to STATS tab on open, sync equipment grid, wire swipe-close.
-  // 2026-04-27 — Block H.4 — Captain cinematic mode lands on LORE by default
-  // (per HERO_COMPENDIUM §1.2 — "Voice line auto-plays on entry"). Non-captains
-  // keep STATS as default.
-  try { vHeroTab(hero.newRole === 'captain' ? 'lore' : 'stats'); } catch (e) {}
+  // 2026-04-27 — Spec §1.1 single-scroll layout: tabs removed. vHeroTab call
+  // retired here. Equipment slots + swipe-close still wire below.
+  // (Old "STATS / ULT / LORE" tabs were collapsed into a single scrollable view
+  // per spec image. vHeroTab() may still be called from other modals using the
+  // same primitives — left intact globally.)
   try { vWireHeroSheetSwipe(); }    catch(e){}
   try { if (typeof renderEquipmentSlots === 'function') renderEquipmentSlots(); } catch(e){}
   try { vUpdateHeroSheetActions(heroId); } catch(e){}
@@ -32939,7 +33111,7 @@ function renderHeroDetailLevel(hero) {
     lbl.textContent = '⭐ MAX LEVEL';
     costEl.textContent = '';
   } else {
-    lbl.textContent = 'LEVEL UP';
+    lbl.textContent = 'UPGRADE';
     costEl.textContent = `${cost.toLocaleString('en-US')} 💰`;
     // Gray out if gold insufficient (but stay visually hinted vs. flat 'UNLOCK FIRST')
     btn.disabled = (gold || 0) < cost;
@@ -33197,7 +33369,7 @@ function toggleSquadFromDetail() {
   // Update button label
   const inSquad = activeSquad.includes(detailHeroId);
   const btn = document.getElementById('detailSquadBtn');
-  btn.textContent = inSquad ? 'REMOVE FROM SQUAD' : 'ADD TO SQUAD';
+  btn.textContent = inSquad ? 'REMOVE FROM SQUAD' : 'EQUIP TO SQUAD';
   btn.classList.toggle('in-squad', inSquad);
 }
 
