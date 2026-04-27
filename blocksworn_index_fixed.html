@@ -6128,9 +6128,11 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Period badge (weavers/captains) — moved to top-LEFT to avoid colliding with
+   the role badge now in top-right. */
 .hero-badge {
   position: absolute;
-  top: 3px; right: 3px;
+  top: 3px; left: 3px;
   background: var(--glow);
   color: #0F0F1F;
   font-size: 9px;
@@ -6140,13 +6142,14 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.5px;
   box-shadow: 0 0 6px rgba(0,0,0,0.5);
+  z-index: 4;
 }
-/* V.1: role badge promoted to TOP-CENTER overlay, prominent. Important visual
-   signal — players need to see Warrior/Hunter/Mage/Tank/Captain at a glance. */
+/* V.1: role badge — top-right corner so it doesn't obscure the hero's head/face.
+   Period badge (for weavers/captains) moves to top-left to avoid collision.
+   Still prominent: 26×26 with element-color border + glow + drop shadow. */
 .hero-role-badge {
   position: absolute;
-  top: 4px; left: 50%;
-  transform: translateX(-50%);
+  top: 4px; right: 4px;
   background: rgba(0, 0, 0, 0.82);
   color: var(--glow);
   font-size: 13px;
