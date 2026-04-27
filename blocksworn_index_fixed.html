@@ -4494,6 +4494,90 @@
   outline-offset: 2px;
 }
 
+/* 2026-04-27 — Block 6.5 DEBT-9: Cosmic Memorial — defeated Chapter 3 bosses
+   as ethereal cosmetic guides on the home hub. Pure cosmetic per spec §12.3. */
+.a-hub-memorial {
+  margin: 8px 12px 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(192,106,223,0.3);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(192,106,223,0.08), rgba(0,0,0,0.25));
+  text-align: center;
+}
+.a-hub-memorial-lbl {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: rgba(192,106,223,0.85);
+  text-shadow: 0 0 6px rgba(192,106,223,0.5);
+  display: block;
+  margin-bottom: 4px;
+}
+.a-hub-memorial-strip {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.a-hub-memorial-ghost {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(192,106,223,0.6);
+  background: rgba(0,0,0,0.4);
+  overflow: hidden;
+  position: relative;
+  filter: grayscale(0.4) brightness(0.85) drop-shadow(0 0 4px rgba(192,106,223,0.55));
+  animation: memorialFloat 4s ease-in-out infinite;
+}
+.a-hub-memorial-ghost img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.75;
+}
+.a-hub-memorial-ghost::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(192,106,223,0.18), transparent 70%);
+  pointer-events: none;
+}
+@keyframes memorialFloat {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-2px); }
+}
+
+/* 2026-04-27 — Block 6.5 DEBT-7: "Forgotten Names" mythic portrait frame.
+   Auto-applied to all .hero-card / .v-hero-card portraits when the player has
+   the voice_forgotten title selected (Chapter 3 finale cosmetic per spec §2.7).
+   Pure cosmetic — never affects gameplay. Frame uses umbra/solar duality glow
+   to evoke the "DUAL SHIFT" mythos central to the chapter. */
+body.cosmetic-forgotten-names .hero-card,
+body.cosmetic-forgotten-names .v-hero-card {
+  border-color: rgba(192,106,223,0.85) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,213,61,0.35),
+    0 0 14px rgba(192,106,223,0.55),
+    inset 0 0 10px rgba(255,213,61,0.15) !important;
+  position: relative;
+}
+body.cosmetic-forgotten-names .hero-card::after,
+body.cosmetic-forgotten-names .v-hero-card::after {
+  content: '✦';
+  position: absolute;
+  top: 4px; left: 6px;
+  font-size: 11px;
+  color: rgba(255,213,61,0.95);
+  text-shadow: 0 0 6px rgba(192,106,223,0.95);
+  pointer-events: none;
+  z-index: 4;
+  animation: forgottenNamesShimmer 3.2s ease-in-out infinite;
+}
+@keyframes forgottenNamesShimmer {
+  0%, 100% { opacity: 0.6; transform: scale(1.0); }
+  50%      { opacity: 1.0; transform: scale(1.15); }
+}
+
 /* Prevent body double-scroll on Arena screens (html already overflow:hidden) */
 .a-hub, .a-loadout, .a-shop { overflow-x: hidden; }
 
@@ -9678,6 +9762,14 @@ button.season-tier-claim:active {
     <div class="a-hub-rewards" id="vBossRewards">
       <span class="a-hub-rewards-lbl">REWARDS</span>
       <div class="a-hub-rewards-items" id="vBossRewardsItems"></div>
+    </div>
+
+    <!-- 2026-04-27 — Block 6.5 DEBT-9: Cosmic Memorial. Defeated Chapter 3
+         bosses appear as ethereal cosmetic guides on the home screen per
+         spec §2.7. Pure cosmetic per §12.3 — never affects gameplay. -->
+    <div class="a-hub-memorial" id="vCosmicMemorial" style="display:none;">
+      <span class="a-hub-memorial-lbl">COSMIC MEMORIAL</span>
+      <div class="a-hub-memorial-strip" id="vMemorialStrip"></div>
     </div>
 
     <!-- Squad -->
@@ -15372,6 +15464,7 @@ function unlockTowerAchievement(id) {
   // Auto-select first earned title
   if (!towerState.selectedTitle) towerState.selectedTitle = ach.id;
   saveTowerState();
+  try { applyForgottenNamesFrame(); } catch (e) {}
   // Celebration banner — defers via existing dialog/banner queue.
   try {
     const rareCol = ach.rarity === 'mythic' ? '#FFD53D'
@@ -15394,7 +15487,18 @@ function setActiveTitle(id) {
   if (id !== null && !towerState.unlockedTitles.includes(id)) return false;
   towerState.selectedTitle = id;
   saveTowerState();
+  try { applyForgottenNamesFrame(); } catch (e) {}
   return true;
+}
+// 2026-04-27 — Block 6.5 DEBT-7: toggle the "Forgotten Names" mythic
+// portrait frame body class. CSS in the head section reacts to this class
+// to apply the umbra/solar shimmer frame on every hero card site-wide.
+// Pure cosmetic per spec §2.7 + §12.3.
+function applyForgottenNamesFrame() {
+  try {
+    const on = (towerState && towerState.selectedTitle === 'voice_forgotten');
+    document.body.classList.toggle('cosmetic-forgotten-names', !!on);
+  } catch (e) {}
 }
 // Pact Master tracking — call when a pact is offered/seen.
 function markPactSeen(pactId) {
@@ -15870,6 +15974,37 @@ const PACTS = [
     power: '+125% damage to all heroes',
     cost:  'Bosses +100% HP, ULT cost +50%',
     apply: (s) => { s.damageMult *= 2.25; s.bossHpMult *= 2.00; s.ultCostMult *= 1.50; } },
+  // 2026-04-27 — Block 6.5 DEBT-10: Dual-element pact synergies (spec §2.7).
+  // Each gives a passive runtime bonus only when the squad contains heroes of
+  // BOTH listed elements. Bonus is folded via _pactDualElementMult() into
+  // _multStack alongside _pactDamageMult. Cost is unconditional.
+  // Tier 3 placement (between T3 strong and T4 dangerous) — modest reward gated
+  // on team comp, encouraging two-element synergy builds.
+  { id: 'pact_pyretide',   tier: 3, name: 'THE PYRETIDE PACT',
+    power: '+40% damage when squad has Ember + Tide heroes',
+    cost:  'Bosses gain +20% HP',
+    dualElements: ['ember','tide'], dualBonus: 1.40,
+    apply: (s) => { s.bossHpMult *= 1.20; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['ember','tide'], mult:1.40 }); } },
+  { id: 'pact_tideroot',   tier: 3, name: 'THE TIDEROOT PACT',
+    power: '+40% damage when squad has Tide + Grove heroes',
+    cost:  'Bosses gain +20% HP',
+    dualElements: ['tide','grove'], dualBonus: 1.40,
+    apply: (s) => { s.bossHpMult *= 1.20; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['tide','grove'], mult:1.40 }); } },
+  { id: 'pact_sunbloom',   tier: 3, name: 'THE SUNBLOOM PACT',
+    power: '+40% damage when squad has Grove + Solar heroes',
+    cost:  'Bosses gain +20% HP',
+    dualElements: ['grove','solar'], dualBonus: 1.40,
+    apply: (s) => { s.bossHpMult *= 1.20; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['grove','solar'], mult:1.40 }); } },
+  { id: 'pact_eclipse',    tier: 3, name: 'THE ECLIPSE PACT',
+    power: '+40% damage when squad has Solar + Umbra heroes',
+    cost:  'Bosses gain +20% HP',
+    dualElements: ['solar','umbra'], dualBonus: 1.40,
+    apply: (s) => { s.bossHpMult *= 1.20; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['solar','umbra'], mult:1.40 }); } },
+  { id: 'pact_emberdusk',  tier: 3, name: 'THE EMBERDUSK PACT',
+    power: '+40% damage when squad has Umbra + Ember heroes',
+    cost:  'Bosses gain +20% HP',
+    dualElements: ['umbra','ember'], dualBonus: 1.40,
+    apply: (s) => { s.bossHpMult *= 1.20; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['umbra','ember'], mult:1.40 }); } },
 ];
 
 // 2026-04-27 — Block T.4 — Mode-aware floor → pact tier mapper. Daily caps
@@ -15903,6 +16038,9 @@ let pactRunState = {
   shieldsBonus: 0,     // additional starting shields per fight
   ultCostMult: 1.0,    // ULT charge cost scale (>1 = harder, <1 = easier)
   comboCap: 12,        // combo multiplier ceiling (default = engine default)
+  // Block 6.5 DEBT-10 — dual-element pact synergies. Each entry:
+  // { pair: ['ember','tide'], mult: 1.40 } — bonus only fires if squad has both.
+  dualBonuses: [],
 };
 function resetPactRunState() {
   pactRunState = {
@@ -15912,7 +16050,33 @@ function resetPactRunState() {
     shieldsBonus: 0,
     ultCostMult: 1.0,
     comboCap: 12,
+    dualBonuses: [],
   };
+}
+// 2026-04-27 — Block 6.5 DEBT-10: runtime calc of dual-element pact bonuses.
+// Returns the multiplicative product across all dual-element pacts whose pair
+// is satisfied by the current activeSquad. Returns 1.0 outside Tower runs or
+// when no dual pacts are active. Folds into the dealDamage _multStack.
+function _pactDualElementMult() {
+  try {
+    if (typeof _isTowerBattle === 'undefined' || !_isTowerBattle) return 1.0;
+    if (!pactRunState || !Array.isArray(pactRunState.dualBonuses) || pactRunState.dualBonuses.length === 0) return 1.0;
+    if (typeof activeSquad === 'undefined' || !Array.isArray(activeSquad) || activeSquad.length === 0) return 1.0;
+    const squadStihiyas = new Set();
+    for (const id of activeSquad) {
+      if (!id) continue;
+      const h = (typeof HERO_ROSTER !== 'undefined') ? HERO_ROSTER.find(x => x && x.id === id) : null;
+      if (h && h.stihiya) squadStihiyas.add(h.stihiya);
+    }
+    let m = 1.0;
+    for (const db of pactRunState.dualBonuses) {
+      if (!db || !Array.isArray(db.pair)) continue;
+      if (squadStihiyas.has(db.pair[0]) && squadStihiyas.has(db.pair[1])) {
+        m *= (db.mult || 1.0);
+      }
+    }
+    return m;
+  } catch (e) { return 1.0; }
 }
 
 // Returns 2 random pacts of the appropriate tier for the player's NEXT floor.
@@ -15977,6 +16141,14 @@ function loadTowerState() {
   } catch (e) { console.warn('loadTowerState:', e); }
 }
 loadTowerState();
+// Apply cosmetic frames on initial load (re-applied on title change too).
+try {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { try { applyForgottenNamesFrame(); } catch (e) {} });
+  } else {
+    setTimeout(() => { try { applyForgottenNamesFrame(); } catch (e) {} }, 0);
+  }
+} catch (e) {}
 
 // 2026-04-27 — Block T.1 daily reset key. Returns YYYY-MM-DD where the day
 // is bounded by 4 AM local time (per spec §2.1). E.g., a play session at
@@ -18294,6 +18466,11 @@ function distributeChargeOnElementClear(element, cellsCleared) {
 }
 function addChargeToHero(heroId, amount) {
   if (!heroId || !amount) return;
+  // 2026-04-27 — Block 6.5 DEBT-6 — ARCHIVAL "charge_frozen" seal:
+  // hero per-cell charges = 0. No charge gain while seal active.
+  try {
+    if (typeof _ch3HasSeal === 'function' && _ch3HasSeal('charge_frozen')) return;
+  } catch (e) {}
   // PHASE 5 BLOCK 4 — Spark race-passive [CHARGE REGEN] (2-of-race). Multiplies
   // every charge gain by SPARK_CHARGE_REGEN_MULT (1.10 = +10%). Stateless — read
   // squad composition at fire time. Fires for ALL heroes regardless of race
@@ -18988,9 +19165,34 @@ function tickChapter3Boss() {
     _ch3State.lightActive = (phase === 1 || phase === 3);
     _ch3State.darkActive  = (phase === 2 || phase === 3);
   }
-  // ===== STORMSHEPHERD — STORM SUMMONING =====
+  // ===== STORMSHEPHERD — STORM SUMMONING (with shatter escape per spec §2.3) =====
   // Spawn N extra storm voids per turn (N = phase). 3 storm types cycle.
+  // 2026-04-27 — Block 6.5 DEBT-3: storm cells track {r,c,turnsLeft=2}.
+  // If storm cell still on grid after 2 turns → INTENSIFY (chip 100 dmg).
+  // If storm cell cleared via cascade/ULT before timer expires → DEFUSED.
   if (_ch3BossId === 'storm') {
+    if (!Array.isArray(_ch3State.stormCells)) _ch3State.stormCells = [];
+    // Tick existing storms: drop those whose cell was cleared, intensify those
+    // that timed out, decrement otherwise.
+    const survivors = [];
+    let intensified = 0;
+    for (const s of _ch3State.stormCells) {
+      const stillThere = grid[s.r] && (typeof grid[s.r][s.c] === 'string') && grid[s.r][s.c].startsWith('void_');
+      if (!stillThere) continue;  // DEFUSED — player cleared the storm cell
+      s.turnsLeft--;
+      if (s.turnsLeft <= 0) {
+        intensified++;
+      } else {
+        survivors.push(s);
+      }
+    }
+    if (intensified > 0) {
+      const dmg = 100 * intensified;
+      try { hp = Math.max(0, hp - dmg); battleDamageTaken = (battleDamageTaken || 0) + dmg; } catch (e) {}
+      try { flashText('⚡ STORM INTENSIFIES · −' + dmg + ' HP', '#9CC8DE'); renderHP(); } catch (e) {}
+    }
+    _ch3State.stormCells = survivors;
+    // Spawn new storms this turn
     const stormCount = phase;
     const stormTypes = ['❄ BLIZZARD', '🌍 EARTHQUAKE', '⚡ LIGHTNING'];
     const empties = [];
@@ -18999,10 +19201,13 @@ function tickChapter3Boss() {
     }
     empties.sort(() => Math.random() - 0.5);
     const picks = empties.slice(0, stormCount);
-    for (const [r, c] of picks) grid[r][c] = 'void_' + (currentBoss.stihiya || 'tide');
+    for (const [r, c] of picks) {
+      grid[r][c] = 'void_' + (currentBoss.stihiya || 'tide');
+      _ch3State.stormCells.push({ r, c, turnsLeft: 2 });
+    }
     if (picks.length > 0) {
       const stormName = stormTypes[Math.floor(Math.random() * 3)];
-      try { flashText('⚡ ' + stormName + ' ×' + picks.length, '#9CC8DE'); } catch (e) {}
+      try { flashText('⚡ ' + stormName + ' ×' + picks.length + ' · 2 turns to defuse', '#9CC8DE'); } catch (e) {}
       try { render(); } catch (e) {}
     }
   }
@@ -19067,7 +19272,14 @@ function tickChapter3Boss() {
   // Apply N seals per turn (N = phase). Seals are 2-turn debuffs read
   // by combat hooks. Pool: combo_cap_4 / ults_disabled / dmg_halved.
   if (_ch3BossId === 'archival') {
-    const sealPool = ['combo_cap_4', 'ults_disabled', 'dmg_halved'];
+    // 2026-04-27 — Block 6.5 DEBT-6: extended seal pool (7 of 7 from spec §2.6).
+    const sealPool = [
+      'combo_cap_4', 'ults_disabled', 'dmg_halved',
+      'charge_frozen',        // hero per-cell charges = 0 next turn
+      'placement_costs_hp',   // -1 HP per placement
+      'element_drops_random', // captain element drop bonus disabled
+      'captain_inverted',     // captain dual buff inverted (×1/value)
+    ];
     _ch3State.seals = _ch3State.seals
       .map(s => ({ id: s.id, turns: s.turns - 1 }))
       .filter(s => s.turns > 0);
@@ -21480,6 +21692,13 @@ function weightedStihiya() {
   // TASK #2.2c: use ?? not || so an explicit 0 weight (gated-out element) is honored.
   // Fallback if all weights end up 0 (shouldn't happen — at least one squad/boss element
   // is always active): return the first non-zero stihiya, else first STIHIYA.
+  // 2026-04-27 — Block 6.5 DEBT-6 — ARCHIVAL "element_drops_random" seal:
+  // bypass weights entirely → uniform random pick (captain bonus erased).
+  try {
+    if (typeof _ch3HasSeal === 'function' && _ch3HasSeal('element_drops_random')) {
+      return STIHIYAS[Math.floor(Math.random() * STIHIYAS.length)];
+    }
+  } catch (e) {}
   let total = 0;
   for (const s of STIHIYAS) total += (stihiyaSpawnWeights[s] ?? 1);
   if (total <= 0) {
@@ -21972,6 +22191,14 @@ function place(p, br, bc) {
   }
   p.used = true;
   placementCount++;
+  // 2026-04-27 — Block 6.5 DEBT-6 — ARCHIVAL "placement_costs_hp" seal:
+  // -1 HP per piece placed. Capped at 0 — never lethal directly.
+  try {
+    if (typeof _ch3HasSeal === 'function' && _ch3HasSeal('placement_costs_hp')) {
+      hp = Math.max(0, hp - 1);
+      battleDamageTaken = (battleDamageTaken || 0) + 1;
+    }
+  } catch (e) {}
   // V3.0 Phase 9 Vivid: haptic feedback on piece placement.
   try { vHaptic('place'); } catch(e){}
   // V3.0 Phase 5 Block 5.1: mission tracking
@@ -22050,6 +22277,41 @@ async function clearLines(rows, cols) {
     }
     try { vibrate([100, 50, 100]); } catch(e) {}
   }
+  // 2026-04-27 — Block 6.5 DEBT-4: Root-of-Nothing wither neighbor-clear escape.
+  // Per spec §2.5: "Player must STRATEGICALLY clear neighbors to break wither stack".
+  // When a row/col is cleared and any cleared cell is 4-neighbor-adjacent to a wither,
+  // that wither is broken (void_grove cell removed, witherCells entry dropped).
+  try {
+    if (typeof _ch3BossId !== 'undefined' && _ch3BossId === 'root'
+        && _ch3State && Array.isArray(_ch3State.witherCells) && _ch3State.witherCells.length > 0) {
+      const clearedKeys = new Set();
+      for (const r of rows) for (let c = 0; c < SIZE; c++) clearedKeys.add(r + '_' + c);
+      for (const c of cols) for (let r = 0; r < SIZE; r++) clearedKeys.add(r + '_' + c);
+      const survivors = [];
+      let broken = 0;
+      for (const w of _ch3State.witherCells) {
+        // Adjacency: 4-neighbor.
+        const neighbors = [
+          (w.r - 1) + '_' + w.c,
+          (w.r + 1) + '_' + w.c,
+          w.r + '_' + (w.c - 1),
+          w.r + '_' + (w.c + 1),
+        ];
+        const hasNeighborClear = neighbors.some(k => clearedKeys.has(k));
+        if (hasNeighborClear && grid[w.r] && grid[w.r][w.c] === 'void_grove') {
+          grid[w.r][w.c] = null;
+          broken++;
+        } else {
+          survivors.push(w);
+        }
+      }
+      if (broken > 0) {
+        _ch3State.witherCells = survivors;
+        try { flashText('🌱 WITHER BROKEN ×' + broken, '#A8D89C'); } catch (e) {}
+        try { render(); } catch (e) {}
+      }
+    }
+  } catch (e) {}
 }
 
 // ===== V2.0 BLOCK 1.1: MOTIF HELPERS =====
@@ -23078,6 +23340,14 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
       _captainDualContext = 1;
     }
   } catch (e) {}
+  // 2026-04-27 — Block 6.5 DEBT-6 — ARCHIVAL "captain_inverted" seal:
+  // captain dual buff inverted (mult > 1 → reciprocal < 1).
+  try {
+    if (typeof _ch3HasSeal === 'function' && _ch3HasSeal('captain_inverted')
+        && _captainDualContext && _captainDualContext !== 1) {
+      _captainDualContext = 1 / _captainDualContext;
+    }
+  } catch (e) {}
   _signatureComboContext = (activeSignatureCombo && activeSignatureCombo.mult) || 1;
   // PHASE 5b BLOCK 3 — Hypnotist Suggestion: if VEROTHIRA "suggested" the firing hero
   // and player obeyed (fired that hero this turn), apply phase-scaled bonus damage
@@ -23170,7 +23440,16 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
                    * (typeof _ch3TwilightMult === 'function' && _currentFiringHero ? _ch3TwilightMult(_currentFiringHero) : 1.0)
                    * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('hunter_silenced') && _currentFiringHero && _currentFiringHero.newRole === 'hunter') ? 0.5 : 1.0)
                    * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('mage_halved') && _currentFiringHero && _currentFiringHero.newRole === 'mage') ? 0.5 : 1.0)
-                   * ((typeof _ch3HasSeal === 'function' && _ch3HasSeal('dmg_halved')) ? 0.5 : 1.0);
+                   // 2026-04-27 — Block 6.5 DEBT-5: tank_halved (Tank dmg ×0.5) + warrior_blocked (Warrior dmg ×0.5).
+                   //  Pragmatic interpretation of spec §2.4 (shield half / first-row block) as damage halve —
+                   //  cleaner cross-cutting integration without per-tank/warrior shield/spawn refactor.
+                   * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('tank_halved') && _currentFiringHero && _currentFiringHero.newRole === 'tank') ? 0.5 : 1.0)
+                   * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('warrior_blocked') && _currentFiringHero && _currentFiringHero.newRole === 'warrior') ? 0.5 : 1.0)
+                   * ((typeof _ch3HasSeal === 'function' && _ch3HasSeal('dmg_halved')) ? 0.5 : 1.0)
+                   // 2026-04-27 — Block 6.5 DEBT-10: dual-element pact synergies.
+                   //  Folds the product of all squad-satisfied dual pacts into the stack.
+                   //  Returns 1.0 outside Tower or when no dual pacts active.
+                   * (typeof _pactDualElementMult === 'function' ? _pactDualElementMult() : 1.0);
   const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // V2.0 Block 3.3: track whether Hunter Mark bonus actually applied to damage (drives consumption logic)
@@ -29019,6 +29298,7 @@ function renderMenu() {
   try { vRenderChapter(); }   catch(e){ console.warn('vRenderChapter failed:', e); }
   try { vRenderBossCard(); }  catch(e){ console.warn('vRenderBossCard failed:', e); }
   try { vRenderSquadDock(); } catch(e){ console.warn('vRenderSquadDock failed:', e); }
+  try { vRenderCosmicMemorial(); } catch(e){ console.warn('vRenderCosmicMemorial failed:', e); }
   // Legacy renderers — kept because they update other screens or are called from
   // many code paths. Their DOM hosts no longer exist in screenMenu, but each
   // function no-ops via null-guards when the target element is missing.
@@ -29231,6 +29511,46 @@ function vRenderSquadDock() {
     }
     host.appendChild(av);
   }
+}
+
+// 2026-04-27 — Block 6.5 DEBT-9: Cosmic Memorial. Renders ethereal mini
+// portraits of Chapter 3 bosses the player has defeated (per chapterProgress[3]).
+// They appear as cosmetic guides per spec §2.7. Pure cosmetic per §12.3 — no
+// gameplay impact. Strip is hidden until the player has at least 1 Ch3 defeat.
+function vRenderCosmicMemorial() {
+  const wrap  = document.getElementById('vCosmicMemorial');
+  const strip = document.getElementById('vMemorialStrip');
+  if (!wrap || !strip) return;
+  strip.innerHTML = '';
+  // Only show on the Home screen / Ch3 unlock requirement met.
+  const ch3Cleared = (typeof chapterProgress !== 'undefined' && chapterProgress && chapterProgress[3]) || 0;
+  if (!ch3Cleared || ch3Cleared <= 0) { wrap.style.display = 'none'; return; }
+  // Boss 11..15 — Chapter 3 roster. Image keys are Boss_11..Boss_15 per Block 6.1.
+  const ch3Bosses = [
+    { idx: 1, key: 'Boss_11', name: 'TWILIGHT VESSEL'    },
+    { idx: 2, key: 'Boss_12', name: 'STORMSHEPHERD'      },
+    { idx: 3, key: 'Boss_13', name: 'VOIDPRIESTESS'      },
+    { idx: 4, key: 'Boss_14', name: 'ROOT-OF-NOTHING'    },
+    { idx: 5, key: 'Boss_15', name: 'ARCHIVAL ETERNAL'   },
+  ];
+  let shown = 0;
+  for (const b of ch3Bosses) {
+    if (b.idx > ch3Cleared) break;
+    const ghost = document.createElement('div');
+    ghost.className = 'a-hub-memorial-ghost';
+    ghost.title = b.name + ' — guide of the forgotten';
+    if (typeof ASSETS !== 'undefined' && ASSETS[b.key]) {
+      const im = document.createElement('img');
+      im.src = ASSETS[b.key];
+      im.alt = b.name;
+      ghost.appendChild(im);
+    }
+    // Stagger animation start so each ghost floats slightly out-of-phase.
+    ghost.style.animationDelay = (shown * 0.4) + 's';
+    strip.appendChild(ghost);
+    shown++;
+  }
+  wrap.style.display = (shown > 0) ? '' : 'none';
 }
 
 // ===== V3.0 PHASE 2 · BOTTOM NAV ACTIVATION =====
