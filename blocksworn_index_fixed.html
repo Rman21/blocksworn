@@ -24249,7 +24249,11 @@ function onTideCellsCleared(n) {
   if (!MOTIFS_ENABLED.tide) return;
   if (!n) return;
   if (typeof computeActiveElements === 'function' && computeActiveElements().has('tide')) {
-    frostChainSegments = Math.min(FROST_CHAIN_CAP, frostChainSegments + n);
+    // 2026-04-27 — Block H.9b — CHAIN MASTER (T2): RIMEFANG ascended →
+    // +1 extra chain segment per tide clear.
+    const _t2RimefangBonus = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('shark_warrior', 'chainPerClearBonus') : null;
+    const segsPerClear = 1 + (_t2RimefangBonus || 0);
+    frostChainSegments = Math.min(FROST_CHAIN_CAP, frostChainSegments + n * segsPerClear);
   }
 }
 
@@ -24348,9 +24352,12 @@ function onSolarCellsCleared(n) {
   if (typeof computeActiveElements === 'function' && !computeActiveElements().has('solar')) return;
   // Each cleared solar cell → +1 shield (default), or +(1 + lumenwindHaloShieldsBonus)
   // during LUMENWIND HALO WINDOW (Phase 5 Block 4 Spark Mage). Capped by max-shield ceiling.
+  // 2026-04-27 — Block H.9b — SOLAR CRESCENDO (T2): EMBERSPARK ascended → +1 extra
+  // shield per solar clear, stacking with HALO bonus. So baseline becomes 2 shields/clear.
   const cap = MAX_SHIELD + 2 + (maxShieldBonus || 0);
   const haloActive = (typeof lumenwindHaloActive !== 'undefined' && lumenwindHaloActive && lumenwindHaloDuration > 0);
-  const shieldsPerClear = haloActive ? (1 + lumenwindHaloShieldsBonus) : 1;
+  const _t2EmberSparkBonus = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('spark_warrior', 'solarShieldPerClear') : null;
+  const shieldsPerClear = (haloActive ? (1 + lumenwindHaloShieldsBonus) : 1) + (_t2EmberSparkBonus || 0);
   let gained = 0;
   for (let i = 0; i < n; i++) {
     let bumpThisClear = 0;
@@ -24452,8 +24459,25 @@ function onUmbraCellsCleared(n) {
   // accumulate in non-umbra contexts. Capped at ENCORE_STACK_CAP so a single 4-row clear
   // can't overshoot the spec-compatible scaling space.
   if (typeof computeActiveElements === 'function' && computeActiveElements().has('umbra')) {
-    encoreStacks = Math.min(ENCORE_STACK_CAP, encoreStacks + n);
+    // 2026-04-27 — Block H.9b — ENCORE MASTER (T2): RIFFBLADE ascended → +1 extra
+    // stack per umbra clear (so each clear adds 2 stacks instead of 1).
+    const _t2RiffBonus = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('rock_warrior', 'encorePerClearBonus') : null;
+    const stacksPerClear = 1 + (_t2RiffBonus || 0);
+    encoreStacks = Math.min(ENCORE_STACK_CAP, encoreStacks + n * stacksPerClear);
   }
+  // 2026-04-27 — Block H.9b — RHYTHMIC PROTECTOR (T2): THUNDERBEAT ascended →
+  // +1 extra shield per umbra clear (drumhead amplifies). Gated by THUNDERBEAT
+  // in deck. Capped by max-shield ceiling.
+  try {
+    const _t2ThunderBonus = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('rock_tank', 'shieldOnEncoreBonus') : null;
+    if (_t2ThunderBonus && _t2ThunderBonus > 0 && n > 0) {
+      const cap = MAX_SHIELD + 2 + (maxShieldBonus || 0);
+      const before = shieldCount;
+      shieldCount = Math.min(cap, shieldCount + n * _t2ThunderBonus);
+      const gained = shieldCount - before;
+      if (gained > 0) flashText('DRUMHEAD +' + gained + '🛡', STIHIYA_COLORS.umbra);
+    }
+  } catch (e) {}
   umbraClearCounter += n;
   // V2.0 Block 2.5: ROCK RHYTHM SECTION — every 3rd umbra cleared → +1 umbraEchoBonus (cap 10)
   // Side effect: counter ticks during phoenix immunity too (echo-damage is gated in pipeline).
@@ -28272,7 +28296,10 @@ async function fireBrineshot(counts) {
     flashText('+' + Math.round((mult - 1) * 100) + '% SHATTER', STIHIYA_COLORS.tide);
   }
 
-  const cappedSegments = Math.min(segments, 4);
+  // 2026-04-27 — Block H.9b — VOLLEY MASTER (T2): chain cap 4 → 5.
+  const _t2BrineshotBonus = (typeof _t2Bonus === 'function') ? _t2Bonus('shark_hunter', 'hunterCapBonus') : null;
+  const _chainCap = 4 + (_t2BrineshotBonus || 0);
+  const cappedSegments = Math.min(segments, _chainCap);
   const echoDmg = Math.floor(baseDmg * cappedSegments * mult);
   if (segments >= 4) flashText('SHATTER VOLLEY!', STIHIYA_COLORS.tide);
   dealDamage(echoDmg, segments >= 4, 0);
@@ -28737,7 +28764,11 @@ async function fireRadiance(counts) {
     vibrate([30, 30, 30]);
     return;
   }
-  const dmg = shields * SOLAR_BURST_DMG_PER_SHIELD;
+  // 2026-04-27 — Block H.9b — SOLAR MASTER (T2): RADIANCE per-shield scaling
+  // ×1.5 (so 200 → 300 dmg per shield). Applied to both fire and ULT paths.
+  const _t2RadianceBonus = (typeof _t2Bonus === 'function') ? _t2Bonus('spark_hunter', 'shieldDmgScaleBonus') : null;
+  const _perShield = SOLAR_BURST_DMG_PER_SHIELD * (1 + (_t2RadianceBonus || 0));
+  const dmg = Math.floor(shields * _perShield);
   flashText('AURORA · ' + shields + '🛡 → ' + dmg, STIHIYA_COLORS.solar || '#E8B84A');
   dealDamage(dmg, shields >= 4, 0);
   vibrate(shields >= 4 ? [80, 40, 80, 40, 120] : [60, 30, 60]);
@@ -28749,7 +28780,11 @@ async function ultTwistRadiance(ctx) {
     flashText('NO SHIELDS', STIHIYA_COLORS.solar || '#E8B84A');
     return;
   }
-  const dmg = shields * SOLAR_BURST_DMG_PER_SHIELD;
+  // 2026-04-27 — Block H.9b — SOLAR MASTER (T2): RADIANCE per-shield scaling
+  // ×1.5 (so 200 → 300 dmg per shield). Applied to both fire and ULT paths.
+  const _t2RadianceBonus = (typeof _t2Bonus === 'function') ? _t2Bonus('spark_hunter', 'shieldDmgScaleBonus') : null;
+  const _perShield = SOLAR_BURST_DMG_PER_SHIELD * (1 + (_t2RadianceBonus || 0));
+  const dmg = Math.floor(shields * _perShield);
   flashText('AURORA BURST · ' + dmg + ' (kept ' + shields + '🛡)', STIHIYA_COLORS.solar || '#E8B84A');
   dealDamage(dmg, true);
   // shields NOT consumed — that's the ULT's defining trait per Combat Ref §9
@@ -29315,6 +29350,26 @@ async function afterPlacement(piece) {
   if (gameEnded) return;
   render();
   vibrate(12);
+  // 2026-04-27 — Block H.9b — THORGAR FORGE (T2): every placement, auto-charge
+  // 1 random uncharged ember cell on the grid. Capped by EMBER_CHARGED_CAP.
+  // Pure passive — no banner spam (only flashes when an actual cell flips).
+  try {
+    const _t2ThorgarBonus = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('pirate_warrior', 'passiveEmberOnPlace') : null;
+    if (_t2ThorgarBonus && _t2ThorgarBonus > 0
+        && typeof chargedCells !== 'undefined' && chargedCells.size < EMBER_CHARGED_CAP) {
+      const candidates = [];
+      for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+        const k = r + '_' + c;
+        if (grid[r][c] === 'ember' && !chargedCells.has(k)) candidates.push(k);
+      }
+      if (candidates.length > 0) {
+        const pick = candidates[Math.floor(Math.random() * candidates.length)];
+        chargedCells.add(pick);
+        try { renderChargedVisuals(); } catch (e) {}
+        try { flashText('🔥 FORGE +1 charged', STIHIYA_COLORS.ember); } catch (e) {}
+      }
+    }
+  } catch (e) {}
 
   // V2.0 Block 2.4: SUNBLAZE Golden Hour — decrement here (AFTER place() already marked cells this turn).
   // Decrementing post-mark means placement 1/2/3 still see goldenHourRemaining > 0 during maybeMarkRadiant.
