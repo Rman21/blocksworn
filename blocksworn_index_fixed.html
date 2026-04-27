@@ -32316,14 +32316,24 @@ function playMusic(trackUrl, options) {
     audio.loop = options.loop !== false;
     audio.volume = 0;
     const targetVol = (options.targetVolume != null ? options.targetVolume : (audioSettings.musicVolume * 0.6));
+    // 2026-04-27 — Diagnostic: log loading errors so file-not-found / encoding
+    // bugs surface. Both 'error' (404 / decode fail) and 'stalled' (network).
+    audio.addEventListener('error', (ev) => {
+      const code = audio.error ? audio.error.code : '?';
+      console.warn('[audio] track load error code=' + code + ' for', trackUrl);
+    });
     audio.play().then(() => {
       fadeMusicIn(audio, options.crossfadeDuration || 1000, targetVol);
       currentMusicAudio = audio;
     }).catch(err => {
-      // 404 / blocked autoplay / user-gesture-required — fail silently per spec
-      console.warn('[audio] music play failed:', trackUrl, err && err.message);
+      // Most common: autoplay-policy block (need fresh user gesture). Log so
+      // user sees the reason instead of mysterious silence.
+      console.warn('[audio] music play() rejected:', trackUrl, '·', err && err.message);
+      // Best-effort recovery: store as currentMusicAudio anyway so a later
+      // user-gesture trigger can call .play() on the existing element.
+      currentMusicAudio = audio;
     });
-  } catch (e) {}
+  } catch (e) { console.warn('[audio] playMusic threw:', e && e.message); }
 }
 
 function fadeMusicIn(audio, duration, targetVolume) {
