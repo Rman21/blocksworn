@@ -4506,6 +4506,140 @@
   color: var(--a-text-secondary);
   margin-bottom: 10px;
 }
+/* 2026-04-27 — Block H.7 — Info Tab strip. */
+#infoModal .info-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255,213,61,0.2);
+  padding-bottom: 4px;
+  overflow-x: auto;
+}
+#infoModal .info-tab {
+  flex: 1;
+  min-width: 56px;
+  padding: 7px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  color: #9A98A4;
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+#infoModal .info-tab:hover { color: var(--a-gold-300); }
+#infoModal .info-tab.active {
+  color: var(--a-gold-300);
+  background: linear-gradient(180deg, rgba(255,213,61,0.18), rgba(0,0,0,0));
+  border-color: rgba(255,213,61,0.4);
+  text-shadow: 0 0 4px rgba(255,213,61,0.6);
+}
+.info-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(0,0,0,0.30));
+  border: 1px solid var(--a-gold-500);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.info-profile-avatar {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--a-gold-500);
+  overflow: hidden;
+  background: rgba(0,0,0,0.4);
+  flex: 0 0 56px;
+}
+.info-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.info-profile-name { font-family: var(--a-font-display); font-size: 14px; color: var(--a-gold-300); letter-spacing: 1px; }
+.info-profile-title { font-size: 10px; color: #C8C5D4; font-style: italic; margin-top: 2px; }
+.info-profile-level { font-size: 11px; color: #9A98A4; margin-top: 4px; }
+.info-section-title {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300);
+  margin: 14px 0 6px;
+  border-top: 1px dashed rgba(255,213,61,0.18);
+  padding-top: 10px;
+}
+.info-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 10px;
+}
+.info-stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: rgba(0,0,0,0.20);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.info-stat-row .label { color: #9A98A4; }
+.info-stat-row .value { color: #FFD700; font-weight: 700; }
+.info-currency-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 10px;
+  font-size: 11px;
+}
+.info-currency-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 8px;
+}
+.info-currency-row .label { color: #9A98A4; }
+.info-currency-row .value { color: #FFD700; font-weight: 700; }
+.info-lore-chapter {
+  background: rgba(0,0,0,0.18);
+  border-left: 3px solid var(--a-gold-500);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.info-lore-chapter-title {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  color: var(--a-gold-300);
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.info-lore-chapter-desc {
+  font-size: 11px;
+  color: #B8B5C4;
+  line-height: 1.4;
+}
+.info-tier-breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.info-tier-cell {
+  text-align: center;
+  padding: 8px 6px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.18);
+  border-radius: 6px;
+}
+.info-tier-cell .tier-label {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  color: var(--a-gold-300);
+  letter-spacing: 1px;
+}
+.info-tier-cell .tier-count {
+  font-size: 16px;
+  color: #FFD700;
+  font-weight: 800;
+  margin-top: 4px;
+}
 #infoModal .btn {
   background: linear-gradient(180deg, var(--a-fire-300) 0%, var(--a-fire-700) 100%) !important;
   border: 2px solid var(--a-fire-100) !important;
@@ -10718,9 +10852,19 @@ button.season-tier-claim:active {
   </div>
 </div>
 
-<div class="modal" id="infoModal">
+<div class="modal" id="infoModal" data-info-tab="profile">
   <div class="modal-box">
-    <div class="modal-title">REFERENCE</div>
+    <div class="modal-title" id="infoModalTitle">PROFILE</div>
+    <!-- 2026-04-27 — Block H.7 — Info Tab restructure (HERO_COMPENDIUM §13).
+         5 tabs: PROFILE / HEROES / LORE / STATS / HELP. Each tab renders into
+         #infoModalBody via dispatcher in renderInfoModal(). Default = PROFILE. -->
+    <div class="info-tabs" id="infoTabs">
+      <button class="info-tab active" data-info-tab="profile" onclick="infoTab('profile')">PROFILE</button>
+      <button class="info-tab"        data-info-tab="heroes"  onclick="infoTab('heroes')">HEROES</button>
+      <button class="info-tab"        data-info-tab="lore"    onclick="infoTab('lore')">LORE</button>
+      <button class="info-tab"        data-info-tab="stats"   onclick="infoTab('stats')">STATS</button>
+      <button class="info-tab"        data-info-tab="help"    onclick="infoTab('help')">HELP</button>
+    </div>
     <div class="info-modal-body" id="infoModalBody">
       <!-- V18.18: content rendered by renderInfoModal() — dynamically built from ASSETS + RACE_SYNERGY -->
     </div>
@@ -25226,16 +25370,270 @@ function flashAttack(cellCount = 3) {
 
 // ===== INFO MODAL =====
 function showInfoModal() {
-  renderInfoModal();
+  // 2026-04-27 — Block H.7 — default to PROFILE tab on every open
+  // (HERO_COMPENDIUM §13.1: Info Tab opens with Profile overview).
+  try { infoTab('profile'); } catch (e) {}
   document.getElementById('infoModal').classList.add('active');
 }
 function closeInfoModal() {
   document.getElementById('infoModal').classList.remove('active');
 }
+// 2026-04-27 — Block H.7 — Info Tab switcher.
+// Updates active tab pill + modal title + dispatches to correct renderer.
+function infoTab(tab) {
+  const modal = document.getElementById('infoModal');
+  if (!modal) return;
+  modal.setAttribute('data-info-tab', tab);
+  // Toggle active class on tab buttons
+  modal.querySelectorAll('.info-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-info-tab') === tab);
+  });
+  // Update title
+  const title = document.getElementById('infoModalTitle');
+  const titles = { profile: 'PROFILE', heroes: 'HEROES', lore: 'LORE', stats: 'STATS', help: 'HELP' };
+  if (title) title.textContent = titles[tab] || 'INFO';
+  // Dispatch to renderer
+  renderInfoModal();
+  // Reset scroll for fresh tab read
+  const body = document.getElementById('infoModalBody');
+  if (body) body.scrollTop = 0;
+}
+
+// V18.18 → Block H.7: dispatcher. Each tab has its own renderer.
+function renderInfoModal() {
+  const modal = document.getElementById('infoModal');
+  const tab = (modal && modal.getAttribute('data-info-tab')) || 'profile';
+  const body = document.getElementById('infoModalBody');
+  if (!body) return;
+  try {
+    if      (tab === 'profile') renderInfoTabProfile(body);
+    else if (tab === 'heroes')  renderInfoTabHeroes(body);
+    else if (tab === 'lore')    renderInfoTabLore(body);
+    else if (tab === 'stats')   renderInfoTabStats(body);
+    else                        renderInfoTabHelp(body);
+  } catch (e) {
+    console.warn('renderInfoModal dispatch failed:', e);
+    renderInfoTabHelp(body);
+  }
+}
+
+// Block H.7 — PROFILE tab (HERO_COMPENDIUM §13.1).
+// Avatar (leader/squad-0) + active title + level proxy + currency overview.
+function renderInfoTabProfile(body) {
+  // Avatar — leader hero, else first squad slot, else first unlocked hero
+  const avHeroId = (typeof leaderHeroId !== 'undefined' && leaderHeroId)
+                 || (Array.isArray(activeSquad) && activeSquad[0])
+                 || (HERO_ROSTER.find(h => h && h.unlocked) || {}).id;
+  const avHero = avHeroId ? HERO_ROSTER.find(h => h.id === avHeroId) : null;
+  const avSrc  = (avHero && typeof ASSETS !== 'undefined' && ASSETS[avHero.img]) || '';
+  const title  = (typeof getActiveTitle === 'function') ? (getActiveTitle() || 'Warchief') : 'Warchief';
+  // Level proxy: chapters cleared × 5 + bosses progress
+  const lvl = ((typeof currentChapter !== 'undefined' ? currentChapter - 1 : 0) * 5)
+            + ((typeof chapterProgress !== 'undefined' && chapterProgress[currentChapter || 1]) || 0)
+            + 1;
+  const ch1Done = !!(typeof hasCompletedChapter1 === 'function' && hasCompletedChapter1());
+  const ch2Done = !!(typeof chapter2Unlocked !== 'undefined' && chapter2Unlocked
+                  && typeof chapterProgress !== 'undefined' && chapterProgress[2] >= 5);
+  const ch3Done = !!(typeof chapter3Unlocked !== 'undefined' && chapter3Unlocked
+                  && typeof chapterProgress !== 'undefined' && chapterProgress[3] >= 5);
+  const totalBossesDefeated = (typeof bossesDefeated !== 'undefined' ? bossesDefeated : 0);
+  const heroesUnlocked = HERO_ROSTER.filter(h => h && h.unlocked && h.race !== 'clockwork').length;
+  const heroesTotal    = HERO_ROSTER.filter(h => h && h.race !== 'clockwork').length;
+  const towerBest = (typeof towerState !== 'undefined' && towerState.allTimeBest) || 0;
+  let html = `
+    <div class="info-profile-card">
+      <div class="info-profile-avatar">${avSrc ? `<img src="${avSrc}" alt="${avHero ? avHero.name : ''}"/>` : ''}</div>
+      <div>
+        <div class="info-profile-name">${avHero ? avHero.name : 'NO HERO SELECTED'}</div>
+        <div class="info-profile-title">"${title}"</div>
+        <div class="info-profile-level">Level ${lvl}</div>
+      </div>
+    </div>
+    <div class="info-section-title">PROGRESSION</div>
+    <div class="info-stats-grid">
+      <div class="info-stat-row"><span class="label">Ch.1 Ashen Dominion</span><span class="value">${ch1Done ? '★ COMPLETE' : 'in progress'}</span></div>
+      <div class="info-stat-row"><span class="label">Ch.2 Bloom of Madness</span><span class="value">${ch2Done ? '★ COMPLETE' : (typeof chapter2Unlocked !== 'undefined' && chapter2Unlocked ? 'in progress' : 'locked')}</span></div>
+      <div class="info-stat-row"><span class="label">Ch.3 Veil of Forgotten Gods</span><span class="value">${ch3Done ? '★ COMPLETE' : (typeof chapter3Unlocked !== 'undefined' && chapter3Unlocked ? 'in progress' : 'locked')}</span></div>
+      <div class="info-stat-row"><span class="label">Bosses defeated</span><span class="value">${totalBossesDefeated} / 15</span></div>
+      <div class="info-stat-row"><span class="label">Heroes unlocked</span><span class="value">${heroesUnlocked} / ${heroesTotal}</span></div>
+      <div class="info-stat-row"><span class="label">Tower record</span><span class="value">F${towerBest}</span></div>
+    </div>
+    <div class="info-section-title">CURRENCY</div>
+    <div class="info-currency-grid">
+      <div class="info-currency-row"><span class="label">💰 Gold</span><span class="value">${(gold || 0).toLocaleString('en-US')}</span></div>
+      <div class="info-currency-row"><span class="label">💎 Gems</span><span class="value">${gems || 0}</span></div>
+      <div class="info-currency-row"><span class="label">🃏 Hero Cards</span><span class="value">${Object.values(heroFragments || {}).reduce((a, b) => a + b, 0)}</span></div>
+      <div class="info-currency-row"><span class="label">⚡ T2 Stones</span><span class="value">${(towerState && towerState.tier2Stones) || 0}</span></div>
+      <div class="info-currency-row"><span class="label">♥ Tower Hearts</span><span class="value">${(towerState && towerState.towerHearts) || 0}</span></div>
+      <div class="info-currency-row"><span class="label">◈ Sigil Shards</span><span class="value">${(towerState && towerState.sigilShards) || 0}</span></div>
+      <div class="info-currency-row"><span class="label">🔥 Ember</span><span class="value">${(typeof essences !== 'undefined' && essences.ember) || 0}</span></div>
+      <div class="info-currency-row"><span class="label">💧 Tide</span><span class="value">${(typeof essences !== 'undefined' && essences.tide) || 0}</span></div>
+      <div class="info-currency-row"><span class="label">🌿 Grove</span><span class="value">${(typeof essences !== 'undefined' && essences.grove) || 0}</span></div>
+      <div class="info-currency-row"><span class="label">☀ Solar</span><span class="value">${(typeof essences !== 'undefined' && essences.solar) || 0}</span></div>
+      <div class="info-currency-row"><span class="label">🌑 Umbra</span><span class="value">${(typeof essences !== 'undefined' && essences.umbra) || 0}</span></div>
+    </div>`;
+  // Achievements summary if Tower system available
+  if (typeof TOWER_ACHIEVEMENTS !== 'undefined') {
+    const unlocked = ((towerState && towerState.unlockedAchievements) || []).length;
+    html += `<div class="info-section-title">ACHIEVEMENTS</div>
+      <div class="info-stat-row"><span class="label">Unlocked</span><span class="value">${unlocked} / ${TOWER_ACHIEVEMENTS.length}</span></div>`;
+  }
+  body.innerHTML = html;
+}
+
+// Block H.7 — HEROES tab. Tier breakdown across the 25 heroes.
+function renderInfoTabHeroes(body) {
+  const allHeroes = HERO_ROSTER.filter(h => h && h.race !== 'clockwork');
+  const unlocked = allHeroes.filter(h => h && h.unlocked);
+  const ascended = (towerState && Array.isArray(towerState.ascendedHeroes) ? towerState.ascendedHeroes.length : 0);
+  const lockedCount = allHeroes.length - unlocked.length;
+  // Per-race breakdown
+  const races = ['pirate', 'rock', 'shark', 'crocodile', 'spark'];
+  const raceLabels = { pirate: 'PIRATES', rock: 'ROCK BAND', shark: 'SHARKS', crocodile: 'CROCODILES', spark: 'SPARKS' };
+  let html = `
+    <div class="info-section-title">TIER BREAKDOWN</div>
+    <div class="info-tier-breakdown">
+      <div class="info-tier-cell"><span class="tier-label">T1</span><div class="tier-count">${unlocked.length - ascended}</div></div>
+      <div class="info-tier-cell" style="border-color:rgba(168,138,200,0.6)"><span class="tier-label">T2</span><div class="tier-count">${ascended}</div></div>
+      <div class="info-tier-cell" style="opacity:0.5"><span class="tier-label">T3</span><div class="tier-count">0</div></div>
+      <div class="info-tier-cell" style="opacity:0.5"><span class="tier-label">M</span><div class="tier-count">0</div></div>
+    </div>
+    <div class="info-section-title">BY RACE</div>
+    <div class="info-stats-grid">`;
+  for (const race of races) {
+    const heroes = allHeroes.filter(h => h.race === race);
+    const u = heroes.filter(h => h.unlocked).length;
+    const stih = (heroes[0] && heroes[0].stihiya) || '';
+    const color = (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS[stih]) || '#FFD700';
+    html += `<div class="info-stat-row"><span class="label" style="color:${color}">${raceLabels[race]}</span><span class="value">${u} / ${heroes.length}</span></div>`;
+  }
+  html += `</div>
+    <div class="info-section-title">HERO CARDS STOCKPILE</div>
+    <div style="font-size:11px;color:#9A98A4;margin-bottom:8px">Top 5 by fragment count:</div>`;
+  const fragsList = Object.entries(heroFragments || {})
+    .filter(([id, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  if (fragsList.length === 0) {
+    html += `<div style="font-size:11px;color:#6E6B7B;font-style:italic">No fragments yet — defeat bosses or buy packs to collect.</div>`;
+  } else {
+    html += `<div class="info-currency-grid">`;
+    for (const [id, n] of fragsList) {
+      const h = HERO_ROSTER.find(x => x && x.id === id);
+      if (!h) continue;
+      html += `<div class="info-currency-row"><span class="label">${h.name}</span><span class="value">${n}</span></div>`;
+    }
+    html += `</div>`;
+  }
+  // Active title controls (from existing TOWER_ACHIEVEMENTS system)
+  if (typeof TOWER_ACHIEVEMENTS !== 'undefined' && towerState && Array.isArray(towerState.unlockedTitles) && towerState.unlockedTitles.length) {
+    html += `<div class="info-section-title">ACTIVE TITLE</div><div style="font-size:11px;color:#C8C5D4;margin-bottom:6px">Tap to switch:</div><div class="info-currency-grid">`;
+    for (const tid of towerState.unlockedTitles) {
+      const ach = TOWER_ACHIEVEMENTS.find(a => a.id === tid);
+      if (!ach) continue;
+      const isActive = (towerState.selectedTitle === tid);
+      const col = isActive ? '#FFD700' : '#9A98A4';
+      html += `<button class="info-stat-row" style="cursor:pointer;border:1px solid ${col};background:${isActive ? 'rgba(255,213,61,0.15)' : 'rgba(0,0,0,0.20)'};color:${col};font-family:inherit;font-size:11px;text-align:left" onclick="onSelectTitle('${tid}')">
+        <span class="label" style="color:${col}">${ach.title}</span>
+        <span class="value" style="color:${col}">${isActive ? '★' : ''}</span>
+      </button>`;
+    }
+    html += `</div>`;
+  }
+  body.innerHTML = html;
+}
+
+// Block H.7 — LORE tab (HERO_COMPENDIUM §13.3).
+// Chapter lore + race lore (5 entries via RACE_LORE from H.4).
+function renderInfoTabLore(body) {
+  let html = `<div class="info-section-title">CHAPTERS</div>`;
+  const chapters = [
+    { num: 1, name: 'ASHEN DOMINION', desc: 'The world burned — you rise from the ashes. Five elemental lords stand between you and the Crypt Lich. Each boss tests a different aspect of your warband.' },
+    { num: 2, name: 'BLOOM OF MADNESS', desc: 'A corruption blooms in the wake of the burning. Five archetype-driven bosses (Hypnotist, Engineer, Frenzy, Tempo Disruptor, Battery) demand new tactics. Crocodiles + Sparks join your roster.' },
+    { num: 3, name: 'VEIL OF FORGOTTEN GODS', desc: 'Forgotten deities stir. The Twilight Vessel, Stormshepherd, Voidpriestess, Root-of-Nothing, and Archival Eternal each carry mythic mechanics. Tier 2 ascension unlocks here.' },
+  ];
+  for (const c of chapters) {
+    html += `<div class="info-lore-chapter">
+      <div class="info-lore-chapter-title">CH.${c.num} · ${c.name}</div>
+      <div class="info-lore-chapter-desc">${c.desc}</div>
+    </div>`;
+  }
+  html += `<div class="info-section-title">RACES</div>`;
+  if (typeof RACE_LORE !== 'undefined') {
+    const races = ['pirate', 'rock', 'shark', 'crocodile', 'spark'];
+    for (const r of races) {
+      const rl = RACE_LORE[r];
+      if (!rl) continue;
+      const stih = ({ pirate:'ember', rock:'umbra', shark:'tide', crocodile:'grove', spark:'solar' })[r];
+      const color = (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS[stih]) || '#FFD700';
+      html += `<div class="info-lore-chapter" style="border-left-color:${color}">
+        <div class="info-lore-chapter-title" style="color:${color}">${rl.name}</div>
+        <div class="info-lore-chapter-desc" style="font-style:italic;margin-bottom:4px">"${rl.philosophy}"</div>
+        <div class="info-lore-chapter-desc">${rl.lore}</div>
+      </div>`;
+    }
+  }
+  html += `<div class="info-section-title">TOWER OF ENDLESS</div>
+    <div class="info-lore-chapter">
+      <div class="info-lore-chapter-desc">Three gauntlet trio: Daily (10 floors, 5 attempts) · Weekly (25 floors, 1 attempt Sunday) · Seasonal (50 floors, last 3 days of month). Climb to UROBOROS at F50 for the Crown Breaker mythic title.</div>
+    </div>`;
+  body.innerHTML = html;
+}
+
+// Block H.7 — STATS tab. Detailed numerical breakdown.
+function renderInfoTabStats(body) {
+  const totalBosses = (typeof bossesDefeated !== 'undefined' ? bossesDefeated : 0);
+  const allHeroes = HERO_ROSTER.filter(h => h && h.race !== 'clockwork');
+  const unlocked = allHeroes.filter(h => h.unlocked).length;
+  const ascended = (towerState && Array.isArray(towerState.ascendedHeroes) ? towerState.ascendedHeroes.length : 0);
+  const towerBest = (towerState && towerState.allTimeBest) || 0;
+  const towerWeekly = (towerState && towerState.weeklyBest) || 0;
+  const dailyClears = (towerState && towerState.dailyClearsTotal) || 0;
+  const dailyStreak = (towerState && towerState.dailyStreak) || 0;
+  const seenPacts = (towerState && Array.isArray(towerState.seenPactIds) ? towerState.seenPactIds.length : 0);
+  const totalPacts = (typeof PACTS !== 'undefined') ? PACTS.length : 0;
+  const totalCards = Object.values(heroFragments || {}).reduce((a, b) => a + b, 0);
+  // Avg level
+  const lvls = Object.values(heroLevels || {}).filter(v => v > 0);
+  const avgLvl = lvls.length ? (lvls.reduce((a, b) => a + b, 0) / lvls.length).toFixed(1) : '1.0';
+  let html = `
+    <div class="info-section-title">CAMPAIGN</div>
+    <div class="info-stats-grid">
+      <div class="info-stat-row"><span class="label">Bosses defeated</span><span class="value">${totalBosses} / 15</span></div>
+      <div class="info-stat-row"><span class="label">Current chapter</span><span class="value">${typeof currentChapter !== 'undefined' ? currentChapter : 1}</span></div>
+    </div>
+    <div class="info-section-title">HEROES</div>
+    <div class="info-stats-grid">
+      <div class="info-stat-row"><span class="label">Unlocked</span><span class="value">${unlocked} / ${allHeroes.length}</span></div>
+      <div class="info-stat-row"><span class="label">Tier 2 Ascended</span><span class="value">${ascended}</span></div>
+      <div class="info-stat-row"><span class="label">Average level</span><span class="value">${avgLvl}</span></div>
+      <div class="info-stat-row"><span class="label">Hero Cards</span><span class="value">${totalCards}</span></div>
+    </div>
+    <div class="info-section-title">TOWER</div>
+    <div class="info-stats-grid">
+      <div class="info-stat-row"><span class="label">All-time best</span><span class="value">F${towerBest}</span></div>
+      <div class="info-stat-row"><span class="label">Weekly best</span><span class="value">F${towerWeekly}</span></div>
+      <div class="info-stat-row"><span class="label">Daily clears</span><span class="value">${dailyClears}</span></div>
+      <div class="info-stat-row"><span class="label">Daily streak</span><span class="value">${dailyStreak}</span></div>
+      <div class="info-stat-row"><span class="label">Pacts encountered</span><span class="value">${seenPacts} / ${totalPacts}</span></div>
+    </div>`;
+  body.innerHTML = html;
+}
+
+// Block H.7 — title selector (called from HEROES tab).
+function onSelectTitle(titleId) {
+  if (typeof setActiveTitle !== 'function') return;
+  if (setActiveTitle(titleId)) {
+    try { flashText('TITLE: ' + (TOWER_ACHIEVEMENTS.find(a => a.id === titleId) || {}).title || titleId, '#FFD700'); } catch (e) {}
+    // Re-render to reflect new active title
+    try { renderInfoModal(); } catch (e) {}
+  }
+}
 
 // V18.18: dynamic INFO modal — emblems + tier bonuses + mechanics, beginner-friendly
-function renderInfoModal() {
-  const body = document.getElementById('infoModalBody');
+// Block H.7 — moved to renderInfoTabHelp (existing reference content).
+//   The body element is now passed in by the dispatcher (renderInfoModal).
+function renderInfoTabHelp(body) {
   if (!body) return;
   const em = (key, size = 22) => ASSETS[key]
     ? `<img src="${ASSETS[key]}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;vertical-align:middle;flex:0 0 auto"/>`
