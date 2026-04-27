@@ -23833,33 +23833,14 @@ let _vSplashSlide = 0;
 const _V_SPLASH_TOTAL = 3;
 
 function vMaybeShowSplash() {
-  let seen = 'done';
-  try { seen = localStorage.getItem(V_FIRST_RUN_KEY); } catch(e){}
-  if (seen === 'done') return false;
+  // 2026-04-27 — User request: removed 3-card intro carousel
+  // (SUMMONER / PLACE BLOCKS / MATCH ELEMENTS). Mark first-run as 'done'
+  // and route directly to FTUE / main hub. Logo + wordmark splash also
+  // skipped — players land straight on the game.
+  try { localStorage.setItem(V_FIRST_RUN_KEY, 'done'); } catch (e) {}
   const host = document.getElementById('vSplash');
-  if (!host) return false;
-  // V3.0 Phase 11: wire the wordmark src lazily.
-  const splashImg = document.getElementById('vSplashLogoImg');
-  if (splashImg && ASSETS.Logo && !splashImg.src) splashImg.src = ASSETS.Logo;
-  // AAA+ polish: lazily wire 5 element emblem sources for slide 3.
-  document.querySelectorAll('#vSplash .v-splash-elem-img').forEach(img => {
-    if (img.src) return;
-    const stihiya = img.dataset.emblem;
-    const key = 'emblem_' + stihiya + '_v2';
-    if (ASSETS[key]) img.src = ASSETS[key];
-  });
-  host.hidden = false;
-  // Logo reveal first (1500ms), then intro cards.
-  setTimeout(() => {
-    const logo = document.getElementById('vSplashLogo');
-    const intro = document.getElementById('vSplashIntro');
-    if (logo) logo.classList.add('fade-out');
-    setTimeout(() => {
-      if (logo) logo.style.display = 'none';
-      if (intro) { intro.hidden = false; vSplashShowSlide(0); }
-    }, 320);
-  }, 1500);
-  return true;
+  if (host) host.hidden = true;
+  return false;
 }
 
 function vSplashShowSlide(idx) {
