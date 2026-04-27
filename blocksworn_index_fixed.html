@@ -1966,7 +1966,112 @@
 .a-hero-detail[data-tab="stats"]  .v-hero-tab-pane[data-tab="stats"],
 .a-hero-detail[data-tab="ult"]    .v-hero-tab-pane[data-tab="ult"],
 .a-hero-detail[data-tab="awaken"] .v-hero-tab-pane[data-tab="awaken"],
-.a-hero-detail[data-tab="equip"]  .v-hero-tab-pane[data-tab="equip"] {
+.a-hero-detail[data-tab="equip"]  .v-hero-tab-pane[data-tab="equip"],
+.a-hero-detail[data-tab="lore"]   .v-hero-tab-pane[data-tab="lore"] {
+  display: block;
+}
+
+/* 2026-04-27 — Block H.3 — LORE pane styling (HERO_COMPENDIUM §1.1). */
+.detail-lore-section {
+  padding: 4px 2px 12px;
+}
+.detail-lore-tagline {
+  font-family: var(--a-font-display);
+  font-size: 14px;
+  font-style: italic;
+  color: var(--a-gold-300);
+  text-align: center;
+  margin: 6px 0 14px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+.detail-lore-bio {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #D6D3DE;
+  background: rgba(0,0,0,0.25);
+  border-left: 3px solid var(--a-gold-500);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+.detail-lore-voice-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.15), rgba(255,213,61,0.05));
+  border: 1px solid var(--a-gold-500);
+  border-radius: 8px;
+  color: var(--a-gold-300);
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: background 0.2s;
+}
+.detail-lore-voice-btn:active { transform: scale(0.97); }
+.detail-lore-voice-btn:hover { background: rgba(255,213,61,0.25); }
+.detail-lore-visual {
+  font-size: 10px;
+  line-height: 1.45;
+  color: #9A98A4;
+  font-style: italic;
+  background: rgba(0,0,0,0.18);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+.detail-lore-visual::before {
+  content: 'VISUAL · ';
+  color: var(--a-gold-500);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.detail-tier-progression {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255,213,61,0.18);
+  padding-top: 12px;
+}
+.detail-tier-slot {
+  flex: 1;
+  text-align: center;
+  padding: 6px 4px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  position: relative;
+}
+.detail-tier-slot--current {
+  border-color: var(--a-gold-500);
+  box-shadow: 0 0 6px rgba(255,213,61,0.4);
+}
+.detail-tier-slot--locked {
+  opacity: 0.5;
+  filter: grayscale(0.8);
+}
+.detail-tier-slot-label {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--a-gold-300);
+  display: block;
+  margin-bottom: 4px;
+}
+.detail-tier-slot-icon {
+  font-size: 18px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.detail-tier-slot-cost {
+  font-size: 8px;
+  color: #9A98A4;
   display: block;
 }
 
@@ -10461,6 +10566,9 @@ button.season-tier-claim:active {
     <div class="v-hero-tabs">
       <button class="v-hero-tab active" data-tab="stats"  onclick="vHeroTab('stats')">STATS</button>
       <button class="v-hero-tab"        data-tab="ult"    onclick="vHeroTab('ult')">ULT</button>
+      <!-- 2026-04-27 — Block H.3 — LORE tab (HERO_COMPENDIUM §1.1):
+           bio + visual descriptor + voice line + tier progression strip. -->
+      <button class="v-hero-tab"        data-tab="lore"   onclick="vHeroTab('lore')">LORE</button>
     </div>
     <div class="v-hero-tab-body">
       <div class="v-hero-tab-pane" data-tab="stats">
@@ -10485,6 +10593,16 @@ button.season-tier-claim:active {
       </div>
       <div class="v-hero-tab-pane" data-tab="ult">
         <div class="detail-abilities" id="detailAbilities"></div>
+      </div>
+      <!-- 2026-04-27 — Block H.3 — LORE pane. Filled by renderHeroDetailLore(). -->
+      <div class="v-hero-tab-pane" data-tab="lore">
+        <div class="detail-lore-section" id="detailLoreSection">
+          <div class="detail-lore-tagline" id="detailLoreTagline"></div>
+          <div class="detail-lore-bio" id="detailLoreBio"></div>
+          <button class="detail-lore-voice-btn" id="detailLoreVoiceBtn" onclick="onPlayHeroVoiceLine()">▶ VOICE LINE</button>
+          <div class="detail-lore-visual" id="detailLoreVisual"></div>
+          <div class="detail-tier-progression" id="detailTierProgression"></div>
+        </div>
       </div>
     </div>
     <div class="detail-actions v-hero-sheet-actions">
@@ -30930,7 +31048,266 @@ function getHeroBullets(hero) {
   out.push({ label: '🔥 PASSIVE',  text: hero.fireText || '—', color: '#aaa' });
   out.push({ label: '💥 ULT',      text: hero.ultText  || '—', color: '#aaa' });
   if (race) out.push({ label: '👥 RACE',  text: race, color: '#aaa' });
+  // 2026-04-27 — Block H.3 — Tier 2 ability preview (HERO_COMPENDIUM §2-6).
+  // Shows what T2 ascension unlocks. Active = green, locked = dim.
+  try {
+    const t2 = (typeof HERO_T2_ABILITIES !== 'undefined') ? HERO_T2_ABILITIES[hero.id] : null;
+    if (t2) {
+      const isAsc = (typeof isHeroAscended === 'function') && isHeroAscended(hero.id);
+      out.push({
+        label: '⚡ T2 ' + (isAsc ? '· ACTIVE' : '· LOCKED'),
+        text: t2.name + ' — ' + t2.desc,
+        color: isAsc ? '#5DCA79' : '#A88AC8',
+      });
+    }
+  } catch (e) {}
   return out;
+}
+
+// 2026-04-27 — Block H.3 — HERO_BIOS data (HERO_COMPENDIUM §2-6 verbatim).
+// All 25 heroes: tagline + bio + visual descriptor + voice line.
+// Used by renderHeroDetailLore() to fill the LORE tab. Bios pulled VERBATIM
+// from BLOCKSWORN_HERO_COMPENDIUM.md so the game ships matching design intent.
+const HERO_BIOS = {
+  // ===== PIRATES (Ember) =====
+  pirate_warrior: {
+    tagline: '"The first to fall. The last to die."',
+    bio: 'THORGAR commanded the Pirate fleet that burned the eastern shores. When the cinder came, he stood his ground while his crew fled. He learned then: fire isn\'t the foe. Fire is the friend. He carries that lesson in his cleaver — and burns it into bosses.',
+    visual: 'Massive skull-emblem coat, scarred bald head, ember-glowing tattoos. Carries enormous serrated cleaver (one-handed). Eyes burn yellow. Tribal pirate aesthetic with embers smoldering on shoulders.',
+    voice: '"The world burns. So do I. Stand back."',
+  },
+  pirate_mage: {
+    tagline: '"She does not burn. She remembers fire."',
+    bio: 'EMBERHAND was the youngest sister of THORGAR\'s crew. When the world burned, she was already learning to GROW fire — not just wield it. Her hands are scarred from a thousand controlled burns. She speaks of fire like a gardener speaks of seeds.',
+    visual: 'Slender figure in ember-colored robes. Hood half-down revealing pale face with ember-marks on cheeks. Hands wrapped in fire-cloth gauntlets. Carries no weapon — fire IS her weapon. Eyes glow soft gold.',
+    voice: '"Bloom. Burn. Bloom again."',
+  },
+  pirate_hunter: {
+    tagline: '"He hunts the embers themselves."',
+    bio: 'BLACKTOOTH was a child when the world burned. He learned to read ember-charged cells like other hunters read tracks. They never escape him. His blackened tooth is a relic of his first detonation gone wrong — and the lesson he never forgets: detonate clean, detonate hard, detonate every time.',
+    visual: 'Wiry warrior, dark eyes, single black-stained tooth (visibly missing in grin). Wears tattered red leathers. Carries dual hand-cannons that fire ember-shells. Stance like a marksman ready to fire. Quiet menace.',
+    voice: '"INFERNO. Every. Single. Time."',
+  },
+  pirate_tank: {
+    tagline: '"He stands. They burn around him. He stands."',
+    bio: 'IRONBELLY earned his name when fire couldn\'t pierce his armor anymore. He was the first to discover that ember-fire could be ABSORBED. He stands at the front of the squad, taking blows other heroes cannot. He never speaks. He never needs to.',
+    visual: 'Massive armored figure. Shoulders broader than head. Iron-plate body covered in ember-fire patterns. Helm closed — only red glow visible behind eye-slits. Two-handed war hammer slung across back. Stand wide, immovable.',
+    voice: '"..."  (silent — the wall does not speak)',
+  },
+  pirate_captain: {
+    tagline: '"She came after the burning. She was BORN of it."',
+    bio: 'CRIMSON was a child of the ember-storm — born during the year the sky was red. She was raised among Pirates who had learned to live with fire. She became a captain not by inheritance but by BEING — every Pirate respects her authority because she IS Pirate identity. Her cape is woven from cooled ember-thread. Her crown is made of shattered cinders.',
+    visual: 'Tall feminine figure in red-gold pirate captain attire. Tricorn hat with ember-feather plume. Dual cutlasses sheathed at hips. Captain\'s coat that flows ember-particles when she moves. Crown of cinders subtle on brow. Eyes burn deep orange.',
+    voice: '"To the cinder coast! With me, my crew!"',
+  },
+  // ===== ROCK BAND (Umbra) =====
+  rock_warrior: {
+    tagline: '"He was lead guitarist. The world ended mid-solo."',
+    bio: 'RIFFBLADE played the song that started the apocalypse — or so the legend says. He carries that guilt as power. His weapon is a guitar-axe — half-instrument, half-blade. He plays at his enemies before he kills them. The riff is the warning. The strike is the promise.',
+    visual: 'Lean figure in black leather and silver chains. Half-Mohawk, electric-blue tips. Tattoos of sheet music covering one arm. Wields a guitar-shaped axe (visible electric strings). Grin permanent, slightly sinister. Shadow follows him with a half-second delay.',
+    voice: '"This riff... is for the END."',
+  },
+  rock_mage: {
+    tagline: '"She plays piano. The piano plays bones."',
+    bio: 'KEYCRYPT was a music professor before the burning. She learned the secret that music CAN raise dead — but only if you play it WRONG. She does. Her piano is impossible — keys made of bone, body of black crystal. Each note resonates with darkness. She amplifies. She does not destroy.',
+    visual: 'Tall feminine figure in black gothic dress. Pale skin, black-stained eyes. Hands wear gloves of pure shadow. Bone-piano keys hang from her belt as totems. Dark wisps swirl around her fingers when she casts.',
+    voice: '"Listen to the bones. They sing."',
+  },
+  rock_hunter: {
+    tagline: '"She had a voice like a knife. She still does."',
+    bio: 'SHRIEK was the lead vocalist of the Old World\'s most defiant band. When the burning silenced the music, her voice kept singing — at first softly, then louder. She found that her voice could break things. It still can. She doesn\'t need a microphone anymore.',
+    visual: 'Punk aesthetic, neon-pink and black hair. Spiked collar, ripped band shirt under leather jacket. Tongue-pierced. Wields a guitar that doubles as a weapon (shape like a handheld instrument with sharp edges). When she screams, sound visibly waves outward in shadow particles.',
+    voice: '"ENCOOOOOORE!!!"',
+  },
+  rock_tank: {
+    tagline: '"He was the drummer. The drummer became the heart-beat of the world."',
+    bio: 'THUNDERBEAT was always the rhythm-keeper. When the burning came, he learned that drumming was the closest thing to a heartbeat the world had left. He keeps the beat for everyone — every squad fights to his rhythm. He doesn\'t speak much. He doesn\'t need to.',
+    visual: 'Burly figure in studded leather. Bald head, thick beard. Wields giant double-headed war drum-hammer (drum on one side, hammer on the other). Each step makes a low pulse. Tattoos of beat-patterns visible on arms.',
+    voice: '"Boom. Boom. Boom-boom-BOOM."',
+  },
+  rock_captain: {
+    tagline: '"He was the band\'s manager. Then the band died. He became the band."',
+    bio: 'NIGHTLORD was the impresario behind the most defiant rock collective of the Old World. When the burning silenced his musicians, he ABSORBED their power. He carries them all in himself — every guitarist\'s anger, every drummer\'s pulse, every singer\'s defiance. He is no longer a man. He is a CONCERT.',
+    visual: 'Tall thin figure in black tuxedo turned punk. Top hat with band-logo silhouette. Half-mask of mirror-shadow on one side of face. Carries no weapon — instead, a black-orb that emanates sound-waves visibly. Dark cape that flickers like television static.',
+    voice: '"All. Together. NOW."',
+  },
+  // ===== SHARKS (Tide) =====
+  shark_warrior: {
+    tagline: '"His teeth still have salt of the deep."',
+    bio: 'RIMEFANG was a young hunter of the Shark tribes. When the seas froze, he led his pack to the surface — they emerged carrying bones from the deep as weapons. RIMEFANG carries the bone-sword of his ancestor. He never sheathes it. He never apologizes for the strike.',
+    visual: 'Tall lean shark-creature, blue-gray scales. Helmet of bone-and-frost. Wields a curved bone sword (blade has teeth-like ridges). Frost particles drift around him. Eyes pure cold blue. Stance: predator ready.',
+    voice: '"From the deep. To you."',
+  },
+  shark_mage: {
+    tagline: '"She read the currents. Then she read the futures."',
+    bio: 'CRYOMIND was the deep-sea oracle of the Shark tribes. She predicted the burning ten years before it happened. They didn\'t believe her until the seas froze. Now they listen. She speaks in murmurs. She extends time itself.',
+    visual: 'Slender feminine shark. Light blue scales with white belly. Long fin-tail. Wears flowing kelp robes embedded with frost-crystal beads. Carries staff of white coral. Eyes wide and ancient. Floats just above ground, never touching it.',
+    voice: '"The current... it warns. Listen."',
+  },
+  shark_hunter: {
+    tagline: '"His arrows are made of cold. Cold remembers everything."',
+    bio: 'BRINESHOT was a fisherman of the Shark tribes. He learned to read the deep waters like a hunter reads forest tracks. When chains form, he sees them as paths. His harpoon-bow is woven from kelp and bone. He never misses. He targets the chain, not the boss.',
+    visual: 'Thin agile shark-warrior. Dark blue dorsal scales. Carries a bow shaped like a harpoon (bone construction). Quiver full of frost-tipped arrows. Wears scarf of dried kelp. Eyes scan constantly.',
+    voice: '"Chain... locked. Shatter."',
+  },
+  shark_tank: {
+    tagline: '"The deep does not crack. He does not crack."',
+    bio: 'BULWARK was the Shark tribes\' guardian — the one who stood at the depth-mouth, the threshold between deep and shallow. Nothing entered or left without his approval. He learned PATIENCE from the deep. Now he stands at the front of every fight.',
+    visual: 'Massive shark-warrior, gray-blue scales like mountain stone. Heavy armor of compressed kelp and frost-crystal. Carries giant clamshell shield (decoration: frozen waterfall pattern). Helmet covers face except for predator-eyes. Stands like a statue.',
+    voice: '"The deep. Holds. The line."',
+  },
+  shark_captain: {
+    tagline: '"He came from beneath the deep — beneath the deep itself."',
+    bio: 'ABYSSKING was found by the Shark tribes during the year the seas froze. They thought he was dead. He was waiting. He had been waiting in the deep for ten thousand years. He claimed the throne of the Sharks because no one dared challenge him. He doesn\'t sleep. He doesn\'t eat. He waits.',
+    visual: 'Massive shark-king. Black-blue scales with bioluminescent patterns. Crown of frozen coral and pearl. Wears robes that flow like deep water. Carries massive trident of bone and ice. Eyes emit cold blue glow.',
+    voice: '"The depths. Speak. Through me."',
+  },
+  // ===== CROCODILES (Grove) =====
+  crocodile_warrior: {
+    tagline: '"His scales are mossy. The moss has learned to defend."',
+    bio: 'MOSSJAW was a swamp-king. When the burning came, his swamp dried — but he did not. He carries the dried swamp with him as armor. His club is made of compressed ancient stone. He doesn\'t run. He never runs.',
+    visual: 'Massive croc-warrior. Stone-and-moss armor plates over green-brown scales. Carries giant stone club. Vines wrapped around arms and waist. Helm of bone with moss tufts. Eyes deep emerald.',
+    voice: '"Swamp endures. So I."',
+  },
+  crocodile_mage: {
+    tagline: '"She was the swamp-shaman. She was the ROOT of the swamp."',
+    bio: 'MOSSWEAVER was the spiritual leader of the Crocodiles. When the burning came, she went into the deepest part of the swamp and did not move for a year. She emerged as a vessel — half mage, half tree. She knows what the earth-cells WANT. She speaks for them.',
+    visual: 'Slender feminine croc-mage. Pale green scales. Wears vine-wrapped robes. Hair is moss. Carries staff topped with green crystal. Soft glow around her hands. Eyes ancient.',
+    voice: '"The roots. They speak. I listen."',
+  },
+  crocodile_hunter: {
+    tagline: '"He counts wounds like coins. Each wound is interest."',
+    bio: 'THORNBACK was the Crocodile tribes\' lone hunter. He waits while others fight. He marks the wounds taken. Then he UNLEASHES them. His emerald-crystal bow speaks of accumulated rage in physics terms. He is patient. He is methodical. He destroys.',
+    visual: 'Lean croc-warrior with darker scales (greens and browns). Wears green-tipped armor. Carries emerald crystal bow with crystal-tipped arrows. Vine wrappings on arms.',
+    voice: '"Patience. Harvest. REVENGE."',
+  },
+  crocodile_tank: {
+    tagline: '"His scales were already stone before the burning."',
+    bio: 'IRONSCALE was born to the Crocodile clan with anomalously hard scales. Some said he was cursed. Some said he was blessed. When the burning came, he stood in front of his clan — and did not burn. He has been called "First-Stone" ever since.',
+    visual: 'Massive armored croc. Heavy stone armor over hardened scales. Bald head with horn-spikes. Carries giant stone shield. Looks unmovable.',
+    voice: '"Stone. Holds."',
+  },
+  crocodile_captain: {
+    tagline: '"He is older than memory. He IS memory."',
+    bio: 'ANCIENTSCALE was alive before the Crocodile tribes had names. He has watched the burning. He has watched the corruption. He has watched the player rise. He does not speak much — but when he does, the words carry weight of millennia. The Crocodile clan listens because he speaks for the swamp itself.',
+    visual: 'Massive ancient croc-king. Mossy crown of crystal and bone. Wears vine-and-stone robe. Carries staff topped with massive emerald. Body covered in symbols that shift with thought. Eyes carry depth.',
+    voice: '"Ten thousand years. Of waiting. Now."',
+  },
+  // ===== SPARKS (Solar) =====
+  spark_warrior: {
+    tagline: '"He was a candle. Now he is a STAR."',
+    bio: 'EMBERSPARK was the smallest of the Spark spirits when they manifested. He was light — but small light. He fought to GROW. Each battle, he became more luminous. He carries his own light as armor and weapon both. He glows, he burns, he protects.',
+    visual: 'Crystalline humanoid of golden flame. White-gold body, fire-crown of hair. Carries crystalline sword that glows. Energy core in chest. Dynamic warrior stance with arms wide.',
+    voice: '"Light. WILL. SHINE."',
+  },
+  spark_mage: {
+    tagline: '"She was wind. The wind learned to GLOW."',
+    bio: 'LUMENWIND was the lightest of the Spark spirits — barely visible at first. She drifted between the others, gathering their excess light. She learned to AMPLIFY rather than create. Now she carries a vast pool of light that she gives in waves. She is gentle. She is overwhelming.',
+    visual: 'Ethereal feminine figure. Pure white-gold body, hair flowing like wind. Wears flowing robes that shimmer. Carries staff topped with golden orb. Eyes pure white. Levitates above ground.',
+    voice: '"Halo. For all. Forever."',
+  },
+  spark_hunter: {
+    tagline: '"She was the spear. The spear of light, returning."',
+    bio: 'RADIANCE was a warrior of the Spark spirits. She studied combat for a thousand years before manifesting fully. She is precision. She is devastation. Her bow is woven from sunlight. She doesn\'t waste. She waits for the perfect moment, then ENDS the boss.',
+    visual: 'Lithe agile figure. Crystalline gold armor of warrior style. Carries golden bow with light-arrows. Sharp angular features. Dynamic shooting stance. Glows brighter when she\'s about to fire.',
+    voice: '"Aim. Hold. RELEASE."',
+  },
+  spark_tank: {
+    tagline: '"He stood between you and the dark. He still does."',
+    bio: 'AEGIS was the eldest of the Spark spirits. He chose to be a protector when the others manifested. His shield is forged from his own essence — the largest concentration of light any Spark has ever held. He stands in front. He absorbs. He protects.',
+    visual: 'Massive armored figure of golden crystalline body. Helm closed. Carries giant tower shield with sun-emblem. Wears full plate armor. Stands wide, planted. Stoic figure radiating warmth.',
+    voice: '"Behind me. ALWAYS behind me."',
+  },
+  spark_captain: {
+    tagline: '"He is the dawn that comes after the longest night."',
+    bio: 'SOLARLORD was named by the Spark spirits themselves — they recognized the brightest among them. He carries a fragment of the original sun within him. His light heals. His command unifies. He is what light WANTS to become — not a flame, not a candle, but THE sun itself.',
+    visual: 'Tall regal figure. Sun-crowned. Crystalline gold armor with ceremonial flourishes. Long flowing hair of pure light. Carries staff topped with miniature sun. Eyes white-gold. Radiant aura outward. Captain\'s bearing.',
+    voice: '"The dawn. RISES. With us."',
+  },
+};
+
+// Block H.3 — Tier 2 ability previews (HERO_COMPENDIUM §2-6).
+// Used by tier progression strip + ability list to show what T2 unlocks.
+const HERO_T2_ABILITIES = {
+  pirate_warrior:    { name: 'FORGE',                  desc: 'Each placement creates 1 ember-charged cell automatically.' },
+  pirate_mage:       { name: 'VERDANT MASTERY',        desc: 'BLOOM window 5 placements (vs 3); +75% mult (vs +50%).' },
+  pirate_hunter:     { name: 'VOLLEY MASTER',          desc: 'INFERNO cap raised to ×4. Follow-up shot ~30% dmg.' },
+  pirate_tank:       { name: 'IRON FORGE',             desc: 'Counter-burns on EACH boss attack. ULT seeds 5-7 cells.' },
+  pirate_captain:    { name: 'DOMINION ASCENDANT',     desc: 'Captain race buff +50%. ULT spawns 8-10 ember cells.' },
+  rock_warrior:      { name: 'ENCORE MASTER',          desc: '+1 Encore stack per umbra clear. Aura: +20% to rock heroes at 4+ stacks.' },
+  rock_mage:         { name: 'DEEP BEAT MASTERY',      desc: 'DEEP BEAT window 5 placements; +25% per stack (vs 20%).' },
+  rock_hunter:       { name: 'VOLLEY MASTER',          desc: 'ENCORE-OF-ENCORE 75% repeat (vs 50%); 5-cell line burst.' },
+  rock_tank:         { name: 'RHYTHMIC PROTECTOR',     desc: 'Shield-on-Encore +2 (vs +1). ULT seeds 7-10 umbra cells.' },
+  rock_captain:      { name: 'DOMINION ASCENDANT',     desc: 'Captain race buff +50%. ULT extends encore window to 5.' },
+  shark_warrior:     { name: 'CHAIN MASTER',           desc: '+1 chain segment per clear; chains last +1 turn.' },
+  shark_mage:        { name: 'WEAVE MASTERY',          desc: 'WEAVE window 5 placements; +50% per chain segment (vs 25%).' },
+  shark_hunter:      { name: 'VOLLEY MASTER',          desc: 'Chain detonation cap ×5 (vs 4). Follow-up frost-shot ~25% dmg.' },
+  shark_tank:        { name: 'DEEP GUARD',             desc: 'Shield-per-chain-broken +2 (vs +1). Reliable placement refund.' },
+  shark_captain:     { name: 'DOMINION ASCENDANT',     desc: 'Captain race buff +50%. ULT chills board for 3 turns (vs 2).' },
+  crocodile_warrior: { name: 'STONE BLOOM',            desc: 'Earth-cells absorb 1.5×. +1 earth-cell per grove clear.' },
+  crocodile_mage:    { name: 'VERDANT MASTERY',        desc: 'BLOOM window 5 placements; earth-cell absorption +2× (vs +1.5×).' },
+  crocodile_hunter:  { name: 'REVENGE MASTER',         desc: 'REVENGE BURST scaling ×1.5. Follow-up arrow on detonate.' },
+  crocodile_tank:    { name: 'DEEP STONE',             desc: 'Counter-conversion +1 cell. ULT spans 2 adjacent rows.' },
+  crocodile_captain: { name: 'DOMINION ASCENDANT',     desc: 'Captain race buff +50%. ULT shields +5; spawns 8 earth-cells.' },
+  spark_warrior:     { name: 'SOLAR CRESCENDO',        desc: 'Solar clears generate +2 shields each. Strike spawns 2 cells/clear.' },
+  spark_mage:        { name: 'WEAVE MASTERY',          desc: 'WEAVE window 5 placements; +1 shield per clear (3 vs 2).' },
+  spark_hunter:      { name: 'SOLAR MASTER',           desc: 'Solar Lance scaling +50% per shield. Follow-up light-arrow.' },
+  spark_tank:        { name: 'DEEP SHIELD',            desc: 'Auto-block first 2 attacks per turn (vs 1). +1 shield each hero on ULT.' },
+  spark_captain:     { name: 'DOMINION ASCENDANT',     desc: 'Captain race buff +50%. ULT heals +35% (vs 25%); +3 shields (vs 2).' },
+};
+
+// Block H.3 — voice line "play" handler (text-based since no audio assets).
+// Shows current bio's voice line as a flashText banner with hero-themed color.
+function onPlayHeroVoiceLine() {
+  if (!detailHeroId) return;
+  const hero = HERO_ROSTER.find(h => h.id === detailHeroId);
+  if (!hero) return;
+  const bio = HERO_BIOS[detailHeroId];
+  if (!bio || !bio.voice) {
+    try { flashText('(no voice line)', '#9A98A4'); } catch (e) {}
+    return;
+  }
+  const color = (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS[hero.stihiya]) || '#FFD53D';
+  try { flashText(bio.voice, color); } catch (e) {}
+  try { vibrate([30, 20, 60]); } catch (e) {}
+}
+
+// Block H.3 — render LORE pane: tagline / bio / voice button / visual / tier strip.
+function renderHeroDetailLore(hero) {
+  if (!hero) return;
+  const bio = HERO_BIOS[hero.id];
+  const taglineEl = document.getElementById('detailLoreTagline');
+  const bioEl     = document.getElementById('detailLoreBio');
+  const visualEl  = document.getElementById('detailLoreVisual');
+  const stripEl   = document.getElementById('detailTierProgression');
+  const voiceBtn  = document.getElementById('detailLoreVoiceBtn');
+  if (taglineEl) taglineEl.textContent = (bio && bio.tagline) || '';
+  if (bioEl)     bioEl.textContent     = (bio && bio.bio)     || 'No lore entry yet.';
+  if (visualEl)  visualEl.textContent  = (bio && bio.visual)  || '';
+  if (voiceBtn)  voiceBtn.style.display = (bio && bio.voice) ? '' : 'none';
+  // Tier progression strip — 4 slots: T1 (current) / T2 / T3 / Mythic.
+  // Each slot: label, icon, current/locked styling, optional cost preview.
+  if (stripEl) {
+    const isT2 = (typeof isHeroAscended === 'function') && isHeroAscended(hero.id);
+    const t2 = HERO_T2_ABILITIES[hero.id];
+    const slots = [
+      { tier: 1, label: 'T1', icon: '⚔', current: !isT2, locked: false,
+        cost: 'Levels 1-' + (typeof HERO_LEVEL_MAX !== 'undefined' ? HERO_LEVEL_MAX : 60) },
+      { tier: 2, label: 'T2', icon: '⚡', current: isT2, locked: !isT2,
+        cost: t2 ? t2.name : 'Ascend' },
+      { tier: 3, label: 'T3', icon: '✦', current: false, locked: true,
+        cost: 'Phase 9' },
+      { tier: 4, label: 'M',  icon: '★', current: false, locked: true,
+        cost: 'Phase 11' },
+    ];
+    stripEl.innerHTML = slots.map(s =>
+      `<div class="detail-tier-slot ${s.current ? 'detail-tier-slot--current' : ''} ${s.locked ? 'detail-tier-slot--locked' : ''}">
+        <span class="detail-tier-slot-label">${s.label}</span>
+        <div class="detail-tier-slot-icon">${s.icon}</div>
+        <span class="detail-tier-slot-cost">${s.cost}</span>
+      </div>`
+    ).join('');
+  }
 }
 
 function openHeroDetail(heroId) {
@@ -30977,6 +31354,8 @@ function openHeroDetail(heroId) {
   renderHeroDetailTiers(hero);
   // V3.0 Phase 4 Block 4.2: render level section (level value, bar, stat preview, upgrade button)
   try { renderHeroDetailLevel(hero); } catch (e) { console.warn('renderHeroDetailLevel failed:', e); }
+  // 2026-04-27 — Block H.3 — render LORE pane (bio + voice + visual + tier strip).
+  try { renderHeroDetailLore(hero); } catch (e) { console.warn('renderHeroDetailLore failed:', e); }
   // Squad button label
   const squadBtn = document.getElementById('detailSquadBtn');
   const inSquad = activeSquad.includes(heroId);
