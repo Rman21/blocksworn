@@ -2,15 +2,17 @@
 
 Per BLOCKSWORN_AUDIO_SOUND.md §3 + §15.
 
-## Currently shipped (3 tracks · pirate-themed v1)
+## Currently shipped (5 tracks · pirate-themed v1)
 
 | File | Context | Mapped to |
 |---|---|---|
 | `ebunny-pirate-adventure-361663.mp3` | atmospheric / ascending | menu, world map, chapter screen |
-| `alex_besss-pirate-ship-battle-433529.mp3` | battle intensity | boss fights, victory |
+| `alex_besss-pirate-ship-battle-433529.mp3` | battle intensity | boss fights |
 | `audiodollar-pirate-music-pirate-331490.mp3` | general pirate ambient | tower mode |
+| `win.mp3` | triumphant | post-victory cinematic |
+| `lose.mp3` | reflective | defeat modal |
 
-Total: ~13 MB. Source: Pixabay Music (verify CC0 / CC-BY licensing on
+Total: ~18 MB. Source: Pixabay Music (verify CC0 / CC-BY licensing on
 each track page before commercial release per spec §10.3).
 
 ## Routing (in `MUSIC_TRACKS` const, blocksworn_index_fixed.html)
@@ -21,8 +23,8 @@ const MUSIC_TRACKS = {
   chapter: 'assets/audio/music/ebunny-pirate-adventure-361663.mp3',
   boss:    'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',
   tower:   'assets/audio/music/audiodollar-pirate-music-pirate-331490.mp3',
-  victory: 'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',
-  defeat:  null,
+  victory: 'assets/audio/music/win.mp3',
+  defeat:  'assets/audio/music/lose.mp3',
 };
 ```
 
@@ -42,8 +44,8 @@ boss-treant.mp3        [ ] tribal forest spirit
 boss-phoenix.mp3       [ ] heroic golden brass
 boss-lich.mp3          [ ] dark final boss climax
 tower-mode.mp3         [✓ pirate ambient in use]
-victory.mp3            [ ] short triumphant 15-30s
-defeat.mp3             [ ] short reflective 10-15s
+victory.mp3            [✓ win.mp3]
+defeat.mp3             [✓ lose.mp3]
 ```
 
 ## License compliance

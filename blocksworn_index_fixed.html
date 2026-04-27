@@ -25754,10 +25754,13 @@ async function onBossDefeated() {
   // POLISH v1 · PHASE 5 — fire 5-beat cinematic only on final death (after revive checks)
   try { vPlayBossDieFx(); } catch(e){}
   // 2026-04-27 — Audio A.2.7: victory chime + heroUnlock layered (per spec §4.1 boss death).
-  // Music ducked to 0 for 3s for full payoff (spec §12.2 example).
+  // SFX ascend plays first; then boss music silenced for 1s; then victory.mp3
+  // begins (per spec §8.2 quick crossfade). Player exit to menu auto-switches
+  // back via showScreen('menu') → playContextMusic('menu').
   try { if (typeof playVictory === 'function') playVictory(); } catch(e){}
-  try { if (typeof duckMusic === 'function') duckMusic(0.0, 3000); } catch(e){}
+  try { if (typeof duckMusic === 'function') duckMusic(0.0, 1000); } catch(e){}
   setTimeout(() => { try { if (typeof playHeroUnlock === 'function') playHeroUnlock(); } catch(e){} }, 700);
+  setTimeout(() => { try { if (typeof playContextMusic === 'function') playContextMusic('victory'); } catch(e){} }, 1200);
   gameEnded = true;
   // V2.0 Stage 5 Block 5.1: award post-battle XP + tier-ups on WIN (participation + ULT fires + kill-shot)
   try { awardPostBattleXP(true); } catch (e) { console.warn('awardPostBattleXP (win) failed:', e); }
@@ -26211,8 +26214,9 @@ function showVictoryModal() {
 function showDefeatModal() {
   gameEnded = true;
   // 2026-04-27 — Audio A.2.7: defeat tone (per spec §4.1).
+  // SFX descend first (~1.2s), then defeat.mp3 fades in for reflective music.
   try { if (typeof playDefeat === 'function') playDefeat(); } catch(e){}
-  try { if (typeof stopMusic === 'function') stopMusic(); } catch(e){}
+  setTimeout(() => { try { if (typeof playContextMusic === 'function') playContextMusic('defeat'); } catch(e){} }, 1200);
   // V2.0 Stage 5 Block 5.1: award participation XP on LOSS (no ULT/kill-shot bonuses per cap logic)
   try { awardPostBattleXP(false); } catch (e) { console.warn('awardPostBattleXP (loss) failed:', e); }
   // Task #1.7: Floor 3 loss tracking for stihiya_focus paid-pack trigger removed
@@ -32215,8 +32219,8 @@ const MUSIC_TRACKS = {
   chapter: 'assets/audio/music/ebunny-pirate-adventure-361663.mp3',  // share with menu until per-chapter tracks land
   boss:    'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',
   tower:   'assets/audio/music/audiodollar-pirate-music-pirate-331490.mp3',
-  victory: 'assets/audio/music/alex_besss-pirate-ship-battle-433529.mp3',  // reused until short victory track lands
-  defeat:  null,  // no defeat track yet; stopMusic suffices
+  victory: 'assets/audio/music/win.mp3',
+  defeat:  'assets/audio/music/lose.mp3',
 };
 
 // Plays the music for a given context. Re-entrant — if same context's track
