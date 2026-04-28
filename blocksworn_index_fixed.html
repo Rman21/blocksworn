@@ -3658,6 +3658,104 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
 .tower-ach-row.ach-gold   .ta-rarity { color: var(--a-gold-300); }
 .tower-ach-row.ach-mythic .ta-rarity { color: #BB60FF; }
 
+/* ----- Customization picker (P5) — reuses avatar modal shell ----- */
+.customization-picker-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+}
+.cust-pick-cell {
+  position: relative;
+  padding: 12px 14px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.20);
+  border-radius: 8px;
+  color: #FFFFFF;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.12s, border-color 0.15s;
+}
+.cust-pick-cell:hover, .cust-pick-cell:active { transform: scale(0.99); }
+.cust-pick-cell.locked { opacity: 0.55; cursor: not-allowed; }
+.cust-pick-cell.ach-bronze { border-color: rgba(205,127,50,0.45); }
+.cust-pick-cell.ach-silver { border-color: rgba(192,192,192,0.50); }
+.cust-pick-cell.ach-gold   { border-color: rgba(255,213,61,0.60); }
+.cust-pick-cell.ach-mythic { border-color: rgba(187,96,255,0.60); background: rgba(187,96,255,0.06); }
+.cust-pick-cell .cust-name {
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.1px;
+  font-weight: 800;
+  color: #FFFFFF;
+}
+.cust-pick-cell .cust-desc {
+  font-size: 10px;
+  color: #B8B5C4;
+  margin-top: 4px;
+}
+.cust-pick-cell .cust-rarity {
+  position: absolute;
+  top: 8px; right: 10px;
+  font-family: var(--a-font-display);
+  font-size: 8px; letter-spacing: 1px; font-weight: 800;
+}
+.cust-pick-cell.ach-bronze .cust-rarity { color: #CD7F32; }
+.cust-pick-cell.ach-silver .cust-rarity { color: #C0C0C0; }
+.cust-pick-cell.ach-gold   .cust-rarity { color: var(--a-gold-300); }
+.cust-pick-cell.ach-mythic .cust-rarity { color: #BB60FF; }
+.cust-pick-cell .cust-lock {
+  position: absolute;
+  top: 50%; right: 12px;
+  transform: translateY(-50%);
+  font-size: 18px;
+}
+
+/* ----- Roster tab (P5) ----- */
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.roster-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.18);
+  border-radius: 8px;
+  text-align: center;
+}
+.rc-portrait {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,213,61,0.20);
+}
+.rc-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.rc-ascend {
+  position: absolute;
+  top: 4px; right: 4px;
+  font-size: 14px;
+  color: var(--a-gold-300);
+  text-shadow: 0 0 6px rgba(255,213,61,0.8);
+}
+.rc-name {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1px;
+  font-weight: 800;
+  color: #FFFFFF;
+}
+.rc-meta {
+  font-size: 9px;
+  color: #B8B5C4;
+  letter-spacing: 0.5px;
+}
+
 /* ----- Title picker (P4) ----- */
 .title-picker-grid {
   display: grid;
@@ -22831,6 +22929,168 @@ function trackProfileDayActive() {
   playerProfile.lastActiveDate = today;
   savePlayerProfile();
   addProfileXp(20); // daily login XP
+}
+
+// ===== P5 — Customization: Backgrounds + Banner tags + Roster tab =====
+// Backgrounds (3 tiers — visual only, never affect gameplay).
+const PROFILE_BACKGROUNDS = [
+  { id: 'default', label: 'DEFAULT',           desc: 'Cosmic radial — always available',           unlock: () => true },
+  { id: 'ch1',     label: 'ASHEN DOMINION',    desc: 'Chapter 1 reward — fire-tinted',             unlock: () => (chapterProgress && (chapterProgress[1] || 0)) >= 5 },
+  { id: 'ch2',     label: 'BLOOM OF MADNESS',  desc: 'Chapter 2 reward — violet bloom',            unlock: () => (chapterProgress && (chapterProgress[2] || 0)) >= 5 },
+];
+// Banner tags (5 tiers — small text under title).
+const PROFILE_BANNER_TAGS = [
+  { id: null,                 label: '— NONE —',           rarity: '',        unlock: () => true },
+  { id: 'Founder',            label: 'Founder',            rarity: 'gold',    unlock: () => (typeof _hasFounderBadge === 'function') && _hasFounderBadge() },
+  { id: 'Architect Funder',   label: 'Architect Funder',   rarity: 'mythic',  unlock: () => { try { return localStorage.getItem(ARCHITECT_BADGE_KEY) === 'true'; } catch (e) { return false; } } },
+  { id: 'Subscriber',         label: 'Subscriber',         rarity: 'gold',    unlock: () => typeof _isSeasonPassActive === 'function' && _isSeasonPassActive() },
+  { id: 'Year One',            label: 'Year One',           rarity: 'mythic',  unlock: () => (playerProfile.daysActive || 0) >= 365 },
+  { id: 'Cascade Master',     label: 'Cascade Master',     rarity: 'mythic',  unlock: () => (playerProfile.totalCascades || 0) >= 1000 },
+];
+function isBackgroundUnlocked(id) {
+  const bg = PROFILE_BACKGROUNDS.find(b => b.id === id);
+  if (!bg) return false;
+  try { return !!bg.unlock(); } catch (e) { return false; }
+}
+function setProfileBackground(id) {
+  if (!isBackgroundUnlocked(id)) { try { flashText('Background locked', '#A8A5B8'); } catch (e) {} return false; }
+  playerProfile.selectedBackgroundId = id;
+  savePlayerProfile();
+  renderProfileHeader();
+  return true;
+}
+function setProfileBannerTag(id) {
+  const tag = PROFILE_BANNER_TAGS.find(t => t.id === id);
+  if (!tag) return false;
+  if (id !== null) {
+    let ok = false; try { ok = !!tag.unlock(); } catch (e) {}
+    if (!ok) { try { flashText('Tag locked', '#A8A5B8'); } catch (e) {} return false; }
+  }
+  playerProfile.selectedBannerId = id;
+  savePlayerProfile();
+  renderProfileHeader();
+  return true;
+}
+
+// ----- Wire EDIT PROFILE rows so Title/Background/Banner now actually work -----
+// Replace the openEditProfile body to call live pickers (was P1 stubs).
+function openCustomizationPicker(kind) {
+  // kind: 'title' / 'background' / 'banner'
+  const modal = document.getElementById('avatarPickerModal');  // reuse modal shell
+  if (!modal) return;
+  const grid  = document.getElementById('avatarPickerGrid');
+  const titleEl = modal.querySelector('.modal-title');
+  if (!grid) return;
+  grid.innerHTML = '';
+  grid.className = 'customization-picker-grid';  // override avatar grid styling
+  if (titleEl) titleEl.textContent = kind === 'title' ? 'PICK TITLE' : kind === 'background' ? 'PICK BACKGROUND' : 'PICK BANNER TAG';
+  let items = [];
+  if (kind === 'title') {
+    const unlocked = new Set(playerProfile.unlockedAchievementIds || []);
+    items = [{ id: null, label: 'Default · Warchief', rarity: '', got: true }]
+      .concat(PROFILE_ACHIEVEMENTS.filter(a => a.title).map(a => ({
+        id: a.id, label: a.title, rarity: a.rarity, got: unlocked.has(a.id),
+      })));
+  } else if (kind === 'background') {
+    items = PROFILE_BACKGROUNDS.map(b => ({ id: b.id, label: b.label, desc: b.desc, rarity: '', got: isBackgroundUnlocked(b.id) }));
+  } else if (kind === 'banner') {
+    items = PROFILE_BANNER_TAGS.map(t => {
+      let got = false; try { got = !!t.unlock(); } catch (e) {}
+      return { id: t.id, label: t.label, rarity: t.rarity, got: got };
+    });
+  }
+  items.forEach(it => {
+    const cell = document.createElement('button');
+    cell.className = 'cust-pick-cell ach-' + (it.rarity || 'bronze') + (it.got ? '' : ' locked');
+    let onclick;
+    if (kind === 'title')      onclick = () => { setActiveProfileTitle(it.id); renderProfileHeader(); _closeCustomizationPicker(); };
+    else if (kind === 'background') onclick = () => { setProfileBackground(it.id); _closeCustomizationPicker(); };
+    else if (kind === 'banner')     onclick = () => { setProfileBannerTag(it.id); _closeCustomizationPicker(); };
+    cell.onclick = it.got ? onclick : (() => { try { flashText('Locked', '#A8A5B8'); } catch (e) {} });
+    cell.innerHTML =
+      '<div class="cust-name">' + it.label + '</div>' +
+      (it.desc ? '<div class="cust-desc">' + it.desc + '</div>' : '') +
+      (it.rarity ? '<div class="cust-rarity">' + it.rarity.toUpperCase() + '</div>' : '') +
+      (!it.got ? '<div class="cust-lock">🔒</div>' : '');
+    grid.appendChild(cell);
+  });
+  modal.classList.add('active');
+}
+function _closeCustomizationPicker() {
+  const modal = document.getElementById('avatarPickerModal');
+  if (modal) {
+    modal.classList.remove('active');
+    // Restore grid class for avatar usage on next openAvatarPicker.
+    const grid = document.getElementById('avatarPickerGrid');
+    if (grid) grid.className = 'avatar-picker-grid';
+  }
+}
+// Re-route the Title/Background/Banner rows in openEditProfile (was P1 placeholders).
+const _origOpenEditProfile = openEditProfile;
+openEditProfile = function() {
+  _origOpenEditProfile();
+  // Re-bind onclicks for the soon-rows now that pickers exist.
+  setTimeout(() => {
+    const rows = document.querySelectorAll('#editProfileRows .edit-profile-row');
+    rows.forEach(r => {
+      const lbl = r.querySelector('.ep-label');
+      if (!lbl) return;
+      if (lbl.textContent === 'Title')      { r.disabled = false; r.style.opacity = ''; r.onclick = () => { closeEditProfile(); openCustomizationPicker('title'); }; }
+      if (lbl.textContent === 'Background') { r.disabled = false; r.style.opacity = ''; r.onclick = () => { closeEditProfile(); openCustomizationPicker('background'); }; }
+      if (lbl.textContent === 'Banner Tag') { r.disabled = false; r.style.opacity = ''; r.onclick = () => { closeEditProfile(); openCustomizationPicker('banner'); }; }
+      // Strip "coming soon" suffixes.
+      const val = r.querySelector('.ep-value');
+      if (val) {
+        const soon = val.querySelector('.ep-soon');
+        if (soon) soon.remove();
+      }
+    });
+  }, 30);
+};
+
+// ===== Roster tab — owned heroes summary =====
+function renderProfileTabRoster() {
+  const heroes = HERO_ROSTER.filter(h => h && h.race !== 'clockwork');
+  const unlocked = heroes.filter(h => h.unlocked);
+  // Group by race
+  const byRace = {};
+  for (const h of unlocked) { (byRace[h.race] = byRace[h.race] || []).push(h); }
+  const races = Object.keys(byRace);
+  const ascendedSet = new Set((towerState && Array.isArray(towerState.ascendedHeroes)) ? towerState.ascendedHeroes : []);
+  const sections = races.length === 0
+    ? '<div class="profile-body-placeholder">No heroes unlocked yet</div>'
+    : races.map(r => {
+        const members = byRace[r];
+        const total = HERO_ROSTER.filter(h => h && h.race === r).length;
+        return '<div class="profile-stat-section">' +
+          '<div class="profile-stat-section-title">' + r.toUpperCase() + ' · ' + members.length + ' / ' + total + '</div>' +
+          '<div class="roster-grid">' +
+            members.map(h => {
+              const lvl = (typeof heroLevels === 'object' && heroLevels && heroLevels[h.id]) || 1;
+              const ascended = ascendedSet.has(h.id);
+              const src = (typeof ASSETS !== 'undefined' && ASSETS[h.img]) || '';
+              return '<div class="roster-card">' +
+                '<div class="rc-portrait"><img src="' + src + '" alt="' + h.name + '"/>' +
+                  (ascended ? '<span class="rc-ascend">★</span>' : '') +
+                '</div>' +
+                '<div class="rc-name">' + h.name + '</div>' +
+                '<div class="rc-meta">LV ' + lvl + ' · ' + (h.newRole || '?').toUpperCase() + '</div>' +
+              '</div>';
+            }).join('') +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+  return '<div class="profile-stats-grid">' +
+    '<div class="profile-stat-section">' +
+      '<div class="profile-stat-section-title">📊 ROSTER OVERVIEW</div>' +
+      '<div class="profile-stat-row">' +
+        '<div class="stat-card"><div class="stat-label">UNLOCKED</div><div class="stat-value">' + unlocked.length + ' / ' + heroes.length + '</div><div class="stat-sub">' + Math.round((unlocked.length / heroes.length) * 100) + '% complete</div></div>' +
+        '<div class="stat-card"><div class="stat-label">ASCENDED</div><div class="stat-value">' + ascendedSet.size + '</div><div class="stat-sub">T2 ascensions</div></div>' +
+      '</div>' +
+    '</div>' +
+    sections +
+  '</div>';
 }
 
 // ===== P4 — Achievements catalog + Title picker (2026-04-28) =====
