@@ -22153,7 +22153,13 @@ const SEASON_KEY            = 'blocksworn_season_state';
 const SEASON_LENGTH_DAYS    = 30;
 const SEASON_TIER_XP_BASE   = 500;
 const SEASON_TIER_XP_STEP   = 150;
-const SEASON_TIER_COUNT     = 50;
+// 2026-04-29 — Bumped 50 → 100 per BLOCKSWORN_MONETIZATION.md §4.2.
+// 100 tiers across the 30-day season (spec ideally 60, deferred to a separate
+// pass). T1-50 preserved verbatim from the original mature curve; T51-100
+// appended below using the spec's reward primitives — adds Hero Cards
+// (cards), Tier 2 Stones (t2), Tier 3 Stones (t3), and Tower Hearts (hearts)
+// alongside the existing gold/gems/essence/shards/label model.
+const SEASON_TIER_COUNT     = 100;
 const SEASON_PREMIUM_COST   = 2000; // gems
 
 // Reward helpers — condensed so the 50-tier table below stays readable.
@@ -22237,6 +22243,76 @@ const SEASON_REWARDS = [
   { free: { gems: 140 },                     premium: { gold: 9500, gems: 400 } },
   // Tier 50 — JACKPOT HEADLINE
   { free: { gold: 5000, gems: 200 },         premium: { gold: 15000, gems: 800, shards: 5, label: 'season_banner_gold' } },
+  // ===== 2026-04-29 — T51-T100 expansion per BLOCKSWORN_MONETIZATION.md §4.3-4.4. =====
+  // Adds Hero Cards (cards), Tier 2/3 Stones (t2/t3), Tower Hearts (hearts) per
+  // spec. Pacing: HEADLINE tiers at 55 / 60 / 70 / 80 / 90 / 100 carry the big
+  // chunks (cards + T2/T3); filler tiers (51-54, 56-59, 61-69, 71-79, 81-89,
+  // 91-99) carry small gold/gems/essence drips so progression always rewards.
+  // Tier 51-54 — early second-half filler
+  { free: { gold: 3300 },                    premium: { gems: 380 } },
+  { free: { essenceRandom: 150 },            premium: { gold: 8800, gems: 380 } },
+  { free: { gold: 3500 },                    premium: { gems: 420 } },
+  { free: { gems: 150 },                     premium: { gold: 9800, gems: 420 } },
+  // Tier 55 — Free 200g + 10 essence · Premium 500g + 30 essence (per spec §4.3-4.4)
+  { free: { gold: 200, essenceRandom: 10 }, premium: { gold: 500, essenceRandom: 30, gems: 150 } },
+  // Tier 56-59 — filler
+  { free: { gold: 3700 },                    premium: { gems: 440 } },
+  { free: { essenceRandom: 160 },            premium: { gold: 9200, gems: 440 } },
+  { free: { gold: 3900 },                    premium: { gems: 480 } },
+  { free: { gems: 170 },                     premium: { gold: 10500, gems: 480 } },
+  // Tier 60 — HEADLINE: Free 3 cards + 1 T2 · Premium 10 cards + 5 T2
+  { free: { cards: 3, t2: 1, gold: 500 },   premium: { cards: 10, t2: 5, gold: 2000, gems: 300, label: 'season_banner_amber' } },
+  // Tier 61-69 — filler
+  { free: { gold: 4000 },                    premium: { gems: 500 } },
+  { free: { essenceRandom: 180 },            premium: { gold: 10000, gems: 500 } },
+  { free: { gold: 4200 },                    premium: { gems: 540 } },
+  { free: { gems: 180 },                     premium: { gold: 11200, gems: 540 } },
+  { free: { gold: 4400 },                    premium: { gems: 580 } },
+  { free: { essenceRandom: 200 },            premium: { gold: 11500, gems: 580 } },
+  { free: { gold: 4500 },                    premium: { gems: 620 } },
+  { free: { gems: 200 },                     premium: { gold: 12500, gems: 620 } },
+  { free: { gold: 4700 },                    premium: { gems: 660 } },
+  // Tier 70 — Free 200g + 5 essence · Premium 500g + 20 essence (per spec)
+  { free: { gold: 200, essenceRandom: 5 },  premium: { gold: 500, essenceRandom: 20, gems: 200 } },
+  // Tier 71-79 — filler
+  { free: { gold: 4800 },                    premium: { gems: 700 } },
+  { free: { essenceRandom: 220 },            premium: { gold: 13000, gems: 700 } },
+  { free: { gold: 5000 },                    premium: { gems: 740 } },
+  { free: { gems: 220 },                     premium: { gold: 14000, gems: 740 } },
+  { free: { gold: 5200 },                    premium: { gems: 780 } },
+  { free: { essenceRandom: 240 },            premium: { gold: 14500, gems: 780 } },
+  { free: { gold: 5400 },                    premium: { gems: 820 } },
+  { free: { gems: 240 },                     premium: { gold: 15500, gems: 820 } },
+  { free: { gold: 5500 },                    premium: { gems: 860 } },
+  // Tier 80 — Free 100g + 5 essence · Premium 500g + 20 essence (per spec)
+  { free: { gold: 100, essenceRandom: 5 },  premium: { gold: 500, essenceRandom: 20, gems: 250 } },
+  // Tier 81-89 — filler + ramping rewards
+  { free: { gold: 5800 },                    premium: { gems: 900 } },
+  { free: { essenceRandom: 260 },            premium: { gold: 17000, gems: 900 } },
+  { free: { gold: 6000 },                    premium: { gems: 950 } },
+  { free: { gems: 260 },                     premium: { gold: 18000, gems: 950 } },
+  { free: { gold: 6200 },                    premium: { gems: 1000 } },
+  { free: { essenceRandom: 280 },            premium: { gold: 18500, gems: 1000 } },
+  { free: { gold: 6500 },                    premium: { gems: 1050 } },
+  { free: { gems: 280 },                     premium: { gold: 19500, gems: 1050 } },
+  { free: { gold: 6800 },                    premium: { gems: 1100 } },
+  // Tier 90 — HEADLINE: Free 3 cards + 200g · Premium 10 cards + 500g
+  { free: { cards: 3, gold: 200 },           premium: { cards: 10, gold: 500, gems: 400, label: 'season_banner_emerald' } },
+  // Tier 91-99 — final stretch filler
+  { free: { gold: 7000 },                    premium: { gems: 1200 } },
+  { free: { essenceRandom: 320 },            premium: { gold: 21000, gems: 1200 } },
+  { free: { gold: 7500 },                    premium: { gems: 1300 } },
+  { free: { gems: 320 },                     premium: { gold: 23000, gems: 1300 } },
+  { free: { gold: 8000 },                    premium: { gems: 1400 } },
+  { free: { essenceRandom: 360 },            premium: { gold: 25000, gems: 1400 } },
+  { free: { gold: 8500 },                    premium: { gems: 1500 } },
+  { free: { gems: 360 },                     premium: { gold: 27000, gems: 1500 } },
+  { free: { gold: 9000 },                    premium: { gems: 1600 } },
+  // Tier 100 — FINAL JACKPOT HEADLINE
+  // Free: 5 cards + 500 gold + 1 T2 stone (per spec §4.3 final tier)
+  // Premium: 25 cards + 2000 gold + 5 T2 + 1 T3 (per spec §4.4 final tier)
+  { free:    { cards: 5, t2: 1, gold: 500 },
+    premium: { cards: 25, t2: 5, t3: 1, gold: 2000, gems: 1000, shards: 10, label: 'season_banner_legendary' } },
 ];
 // Sanity check — if count drifts, flag it early
 if (SEASON_REWARDS.length !== SEASON_TIER_COUNT) {
@@ -22369,6 +22445,41 @@ function _applySeasonReward(reward) {
     essences[s] = (essences[s] || 0) + amt;
     try { saveProgress(); } catch (e) {}
   }
+  // 2026-04-29 — Spec §4.3-4.4 reward types added for the T51-100 expansion.
+  // Existing primitives reused so no new state surface — Hero Cards via
+  // dropRandomHeroCards (silent grant — no banner spam mid-claim), Tower
+  // currencies via towerState mutation + saveTowerState.
+  if (reward.cards && reward.cards > 0) {
+    try {
+      if (typeof dropRandomHeroCards === 'function') {
+        dropRandomHeroCards(reward.cards, { silent: true });
+      }
+    } catch (e) { console.warn('season reward cards grant failed:', e); }
+  }
+  if (reward.t2 && reward.t2 > 0) {
+    try {
+      if (typeof towerState !== 'undefined') {
+        towerState.tier2Stones = (towerState.tier2Stones || 0) + reward.t2;
+        if (typeof saveTowerState === 'function') saveTowerState();
+      }
+    } catch (e) { console.warn('season reward t2 grant failed:', e); }
+  }
+  if (reward.t3 && reward.t3 > 0) {
+    try {
+      if (typeof towerState !== 'undefined') {
+        towerState.tier3Stones = (towerState.tier3Stones || 0) + reward.t3;
+        if (typeof saveTowerState === 'function') saveTowerState();
+      }
+    } catch (e) { console.warn('season reward t3 grant failed:', e); }
+  }
+  if (reward.hearts && reward.hearts > 0) {
+    try {
+      if (typeof towerState !== 'undefined') {
+        towerState.towerHearts = (towerState.towerHearts || 0) + reward.hearts;
+        if (typeof saveTowerState === 'function') saveTowerState();
+      }
+    } catch (e) { console.warn('season reward hearts grant failed:', e); }
+  }
   // label is a cosmetic stub — just log for now
   if (reward.label) console.log(`[Season Pass] cosmetic unlocked: ${reward.label}`);
 }
@@ -22391,8 +22502,14 @@ function claimSeasonTier(tier, track) {
   _applySeasonReward(reward);
   claimedList.push(tier);
   saveSeasonState();
-  // Flash reward summary
+  // Flash reward summary — show all 8 supported reward types so the player
+  // sees exactly what they got (Hero Cards / T2 / T3 / Hearts joined the
+  // model in the T51-100 expansion).
   const parts = [];
+  if (reward.cards)   parts.push(`+${reward.cards}🎴`);
+  if (reward.t3)      parts.push(`+${reward.t3}💠`);
+  if (reward.t2)      parts.push(`+${reward.t2}⚡`);
+  if (reward.hearts)  parts.push(`+${reward.hearts}♥`);
   if (reward.gold)    parts.push(`+${reward.gold}💰`);
   if (reward.gems)    parts.push(`+${reward.gems}💎`);
   if (reward.essenceRandom) parts.push(`+${reward.essenceRandom}🔮`);
@@ -25098,6 +25215,10 @@ function renderSeasonScreen() {
 function _fmtReward(r) {
   if (!r) return '—';
   const parts = [];
+  if (r.cards)   parts.push(`${r.cards}🎴`);
+  if (r.t3)      parts.push(`${r.t3}💠`);
+  if (r.t2)      parts.push(`${r.t2}⚡`);
+  if (r.hearts)  parts.push(`${r.hearts}♥`);
   if (r.gold)    parts.push(`${r.gold}💰`);
   if (r.gems)    parts.push(`${r.gems}💎`);
   if (r.shards)  parts.push(`${r.shards}✦`);
