@@ -36,7 +36,7 @@ const config: Config = {
       },
       fontFamily: {
         display: ['Cinzel', 'Trajan Pro', 'serif'],
-        body: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Helvetica', 'Arial', 'sans-serif'],
+        body: ['var(--font-inter)', 'Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Helvetica', 'Arial', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       animation: {

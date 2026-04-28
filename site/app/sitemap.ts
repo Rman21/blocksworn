@@ -1,12 +1,13 @@
 import type { MetadataRoute } from 'next';
 import { HEROES } from '@/lib/heroes';
 import { BOSSES } from '@/lib/bosses';
+import { NEWS } from '@/lib/news';
 
 const BASE = 'https://blocksworm.com';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
-  const staticRoutes = ['', '/play', '/heroes', '/bosses', '/leaderboard', '/about'];
+  const staticRoutes = ['', '/play', '/heroes', '/bosses', '/leaderboard', '/news', '/about'];
 
   return [
     ...staticRoutes.map(p => ({
@@ -26,6 +27,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: now,
       changeFrequency: 'monthly' as const,
       priority: 0.7, // bosses get slightly higher SEO priority — strategy guides drive search traffic
+    })),
+    ...NEWS.map(p => ({
+      url: `${BASE}/news/${p.slug}`,
+      lastModified: new Date(p.date),
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
     })),
   ];
 }
