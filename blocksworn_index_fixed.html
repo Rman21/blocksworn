@@ -29545,8 +29545,14 @@ function startBossBattle() {
   // 2026-04-27 — Race-passive UX visibility banner. Show 1 banner per active
   // passive at battle start, staggered so each gets eye-time. Fires AFTER boss
   // intro/narrator so it doesn't collide with the boss reveal moment.
+  // 2026-04-28 — UX cleanup: same intent as the synergy-bar hide in
+  // renderSynergyBar — post-FTUE the player has seen what race-passives are
+  // and doesn't need a battle-start recap chain. Mechanics still apply; only
+  // the start-of-battle recap chain is suppressed. During FTUE the chain
+  // stays so the player sees the system once.
   try {
-    if (typeof getActiveRacePassives === 'function') {
+    const _ftueDoneRP = (typeof isFtueComplete === 'function') && isFtueComplete();
+    if (!_ftueDoneRP && typeof getActiveRacePassives === 'function') {
       const active = getActiveRacePassives();
       active.forEach((p, i) => {
         setTimeout(() => {
