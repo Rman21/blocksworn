@@ -6,10 +6,9 @@ export const metadata: Metadata = {
     'Play Blocksworm directly in your browser. No download, no signup. Anonymous play available with optional cross-device sync.',
 };
 
-// Game URL: hosted on legacy GitHub Pages so the marketing site doesn't have to
-// re-host the 16 MB single-file PWA. iframe is same-origin-friendly because the
-// game uses postMessage only when explicitly invoked.
-const GAME_SRC = 'https://rman21.github.io/blocksworn/blocksworn_index_fixed.html';
+// Game served from the same origin (vendored into /public) so the iframe doesn't
+// hop across domains and we keep one localStorage namespace for player progress.
+const GAME_SRC = '/blocksworn_index_fixed.html';
 
 export default function PlayPage() {
   return (
