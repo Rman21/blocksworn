@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Cinzel font (loaded via <link> in layout, this is fallback styling) */
+:root {
+  --bg-dark: #0A0A1A;
+  --bg-mid: #12121E;
+  --gold-300: #FFD53D;
+  --gold-700: #E8A02C;
+}
+
+html, body {
+  background: var(--bg-dark);
+  color: #F5F3EC;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth scroll for anchor links */
+html { scroll-behavior: smooth; }
+
+/* Selection color */
+::selection {
+  background: rgba(255, 213, 61, 0.3);
+  color: #FFFFFF;
+}
+
+/* Subtle scrollbar — desktop only */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: #0A0A1A; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 213, 61, 0.25);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255, 213, 61, 0.45); }
+}
+
+/* Reusable utility classes — used by both Home + future pages */
+@layer components {
+  .container-page {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+  .heading-display {
+    @apply font-display tracking-widest font-bold;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-8 py-4 rounded-xl
+           font-display tracking-widest font-bold text-bg-dark text-sm sm:text-base
+           bg-gradient-to-b from-gold-300 to-gold-700
+           hover:scale-[0.98] active:scale-95 transition-transform
+           shadow-[0_0_24px_rgba(255,213,61,0.35)]
+           hover:shadow-[0_0_36px_rgba(255,213,61,0.55)];
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center px-8 py-4 rounded-xl
+           font-display tracking-widest font-bold text-gold-300 text-sm sm:text-base
+           bg-transparent border-2 border-gold-300/40
+           hover:border-gold-300 hover:bg-gold-300/10
+           transition-colors;
+  }
+}
