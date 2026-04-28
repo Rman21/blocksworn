@@ -1,32 +1,14 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { ELEMENTS, RACES, ROLES } from '@/lib/codex';
 import { HEROES } from '@/lib/heroes';
 import { BOSSES } from '@/lib/bosses';
+import { CodexCard } from '@/components/CodexCard';
 
 export const metadata: Metadata = {
   title: 'Codex — Mechanics, Elements, Races & Roles',
   description:
     'The Blocksworm encyclopedia. Five elements (Ember / Tide / Grove / Umbra / Solar). Five races (Pirates / Rock Band / Sharks / Crocodiles / Sparks). Five roles (Warrior / Mage / Hunter / Tank / Captain). The full combo grammar.',
 };
-
-function Card({ href, accent, label, title, sub }: { href: string; accent: string; label: string; title: string; sub: string }) {
-  return (
-    <Link
-      href={href}
-      className="group relative block p-5 rounded-2xl border-2 bg-bg-mid transition-all hover:-translate-y-1"
-      style={{ borderColor: accent + '55', boxShadow: `0 0 20px ${accent}1A` }}
-    >
-      <p className="font-display text-[10px] tracking-[0.2em] font-bold mb-2" style={{ color: accent }}>
-        {label}
-      </p>
-      <h3 className="font-display text-lg sm:text-xl font-bold text-white mb-1 tracking-wide group-hover:text-gold-300 transition-colors">
-        {title}
-      </h3>
-      <p className="text-xs text-text-muted">{sub}</p>
-    </Link>
-  );
-}
 
 export default function CodexPage() {
   return (
@@ -66,7 +48,7 @@ export default function CodexPage() {
               const heroes = HEROES.filter(h => h.stihiya === e.id).length;
               const bosses = BOSSES.filter(b => b.element === e.id || b.secondaryElement === e.id).length;
               return (
-                <Card
+                <CodexCard
                   key={e.id}
                   href={`/codex/elements/${e.id}`}
                   accent={e.color}
@@ -92,7 +74,7 @@ export default function CodexPage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             {RACES.map(r => (
-              <Card
+              <CodexCard
                 key={r.id}
                 href={`/codex/races/${r.id}`}
                 accent={ELEMENTS.find(e => e.id === r.element)!.color}
@@ -116,7 +98,7 @@ export default function CodexPage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             {ROLES.map(r => (
-              <Card
+              <CodexCard
                 key={r.id}
                 href={`/codex/roles/${r.id}`}
                 accent="#FFD53D"
