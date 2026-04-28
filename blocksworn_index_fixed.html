@@ -6966,6 +6966,99 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   50%      { box-shadow: 0 4px 22px rgba(255,184,74,0.9), 0 0 32px rgba(255,213,61,0.8); }
 }
 
+/* 2026-04-28 — Anti-Deadlock post-battle education modal (Player Education Stage 14,
+   spec §17.2 step 4). Single-shot per install via blocksworn_ad_education_revealed.
+   Layered above victory/defeat modal (z-index 10020 > .modal=100) — player dismisses
+   education first, then sees rewards. Mirrors .tank-mode-modal styling. */
+.ad-education-modal { display: none; }
+.ad-education-modal.active {
+  display: flex;
+  position: fixed; inset: 0;
+  background: rgba(5,3,8,0.88);
+  backdrop-filter: blur(7px);
+  z-index: 10020;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.ad-education-box {
+  width: min(94vw, 420px);
+  background: linear-gradient(180deg, #1A1429, #0A0612);
+  border: 2px solid var(--a-gold-500, #FFAA00);
+  border-radius: 14px;
+  padding: 22px 20px;
+  text-align: center;
+  color: #FFFFFF;
+}
+.ad-education-title {
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 6px;
+  text-shadow: 0 0 6px rgba(255,213,61,0.6);
+}
+.ad-education-sub {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #9A98A4;
+  margin-bottom: 16px;
+}
+.ad-education-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  padding: 10px;
+  margin: 6px 0;
+  background: linear-gradient(180deg, rgba(255,213,61,0.08), rgba(0,0,0,0.30));
+  border: 1px solid rgba(255,213,61,0.25);
+  border-radius: 8px;
+}
+.ad-education-row .ad-row-icon {
+  flex-shrink: 0;
+  width: 28px;
+  font-size: 18px;
+  text-align: center;
+  line-height: 1.4;
+}
+.ad-education-row .ad-row-name {
+  display: block;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 2px;
+}
+.ad-education-row .ad-row-desc {
+  display: block;
+  font-size: 11px;
+  color: #C8C5D4;
+  line-height: 1.4;
+}
+.ad-education-footer {
+  font-size: 11px;
+  color: #9A98A4;
+  margin: 14px 4px 12px;
+  line-height: 1.5;
+}
+.ad-education-confirm {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.18), rgba(0,0,0,0.30));
+  border: 2px solid var(--a-gold-500, #FFAA00);
+  border-radius: 10px;
+  color: var(--a-gold-300, #FFD53D);
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.ad-education-confirm:active { transform: scale(0.98); }
+
 /* 2026-04-27 — Audio A.3 settings UI (per BLOCKSWORN_AUDIO_SOUND.md §11.1). */
 .info-audio-section {
   margin-bottom: 16px;
@@ -18207,6 +18300,12 @@ let rainbowTier              = null;   // 'ONE_OF_EACH' / 'TWO_OF_EACH' / 'FULL_
 let rainbowBonus             = null;
 let _deadlockNotifiedThisBattle = false;  // guard: notification fires once per battle
 
+// 2026-04-28 — Player Education Stage 14 (BLOCKSWORN_PLAYER_EDUCATION.md §17.2 step 4).
+// One-time post-battle modal explaining all 3 AD layers. Fires on the first battle
+// where deadlock was actually detected (i.e. _deadlockNotifiedThisBattle was set).
+// localStorage flag persists across battles — modal never shown twice.
+const AD_EDUCATION_KEY = 'blocksworn_ad_education_revealed';
+
 // Reset all anti-deadlock state on battle start.
 function resetAntiDeadlockState() {
   deadlockImmunity = false;
@@ -18313,6 +18412,60 @@ function showDeadlockNotification() {
     `<div class="deadlock-options">• Hunter charge boost activated<br>• Tank ULT Emergency Mode available</div>`;
   notif.classList.add('active');
   setTimeout(() => { try { notif.classList.remove('active'); } catch (e) {} }, 5000);
+}
+
+// 2026-04-28 — Player Education Stage 14. Post-battle one-time modal explaining
+// all 3 anti-deadlock layers. Called from showVictoryModal + showDefeatModal
+// endings. No-op unless deadlock fired this battle AND player hasn't seen the
+// modal before (localStorage AD_EDUCATION_KEY flag).
+function maybeShowAntiDeadlockEducation() {
+  if (!_deadlockNotifiedThisBattle) return;
+  try {
+    if (localStorage.getItem(AD_EDUCATION_KEY) === '1') return;
+  } catch (e) { return; }
+  let modal = document.getElementById('adEducationModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'adEducationModal';
+    modal.className = 'ad-education-modal';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML =
+    `<div class="ad-education-box">
+      <div class="ad-education-title">ANTI-DEADLOCK SYSTEMS</div>
+      <div class="ad-education-sub">WHEN BOARDS FILL UP, THE GAME HAS YOUR BACK</div>
+      <div class="ad-education-row">
+        <div class="ad-row-icon">⚡</div>
+        <div>
+          <span class="ad-row-name">HUNTER EMERGENCY</span>
+          <span class="ad-row-desc">Hunter gets +50% ULT charge boost when stuck. Auto-triggered, once per battle.</span>
+        </div>
+      </div>
+      <div class="ad-education-row">
+        <div class="ad-row-icon">🛡</div>
+        <div>
+          <span class="ad-row-name">TANK ULT EMERGENCY</span>
+          <span class="ad-row-desc">When tank fires, choose Emergency Mode to clear the bottom row + standard ULT. Once per battle.</span>
+        </div>
+      </div>
+      <div class="ad-education-row">
+        <div class="ad-row-icon">🌈</div>
+        <div>
+          <span class="ad-row-name">RAINBOW SQUAD</span>
+          <span class="ad-row-desc">Mix all 5 roles (Warrior + Mage + Hunter + Tank + Captain) for +15% starting ULT charge.</span>
+        </div>
+      </div>
+      <div class="ad-education-footer">Smart squad design = never softlock. Mix roles for safety.</div>
+      <button type="button" class="ad-education-confirm" id="adEducationConfirmBtn">GOT IT</button>
+    </div>`;
+  modal.classList.add('active');
+  const btn = modal.querySelector('#adEducationConfirmBtn');
+  if (btn) {
+    btn.onclick = () => {
+      try { localStorage.setItem(AD_EDUCATION_KEY, '1'); } catch (e) {}
+      modal.classList.remove('active');
+    };
+  }
 }
 
 // Spec §7.2 — turn-end check. Increments per-Hunter turnsSinceLastFire,
@@ -30748,6 +30901,9 @@ function showVictoryModal() {
   try { vDecorateVictoryModal(); } catch(e){ console.warn('vDecorateVictoryModal failed:', e); }
   // V3.0 Phase 9 Vivid: celebratory haptic.
   try { vHaptic('victory'); } catch(e){}
+  // 2026-04-28 — Player Education Stage 14: one-time AD-systems explainer if
+  // deadlock fired this battle. No-op otherwise.
+  try { maybeShowAntiDeadlockEducation(); } catch(e){ console.warn('maybeShowAntiDeadlockEducation (victory) failed:', e); }
 }
 
 function showDefeatModal() {
@@ -30803,6 +30959,10 @@ function _showDefeatModalBody() {
   try { vDecorateDefeatModal(); } catch(e){ console.warn('vDecorateDefeatModal failed:', e); }
   // V3.0 Phase 9 Vivid: single long defeat haptic.
   try { vHaptic('defeat'); } catch(e){}
+  // 2026-04-28 — Player Education Stage 14: one-time AD-systems explainer if
+  // deadlock fired this battle. Especially valuable on defeat — board-fill loss
+  // is the most common deadlock cause and the moment player most needs to know.
+  try { maybeShowAntiDeadlockEducation(); } catch(e){ console.warn('maybeShowAntiDeadlockEducation (defeat) failed:', e); }
 }
 
 function injectMenuButton() {
