@@ -55,17 +55,16 @@ export default async function HeroDetailPage({ params }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
             <div className="md:col-span-1">
               <div
-                className="relative aspect-square rounded-3xl overflow-hidden border-4 mx-auto max-w-xs"
+                className="relative aspect-square rounded-3xl overflow-hidden border-4 mx-auto max-w-xs flex items-center justify-center"
                 style={{
                   borderColor: h.stihiyaColor,
+                  background: `linear-gradient(180deg, ${h.stihiyaColor}33 0%, #12121E 70%)`,
                   boxShadow: `0 0 40px ${h.stihiyaColor}55`,
                 }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={h.portraitUrl}
-                  alt={h.name}
-                  className="w-full h-full object-cover"
+                <div
+                  className="w-32 h-32 sm:w-40 sm:h-40 rounded-full border-2"
+                  style={{ borderColor: h.stihiyaColor + 'AA', background: '#0A0A1A' }}
                 />
               </div>
             </div>
@@ -133,11 +132,23 @@ export default async function HeroDetailPage({ params }: Props) {
                   <Link
                     key={m.id}
                     href={`/heroes/${m.id}`}
-                    className="block aspect-square rounded-xl overflow-hidden border-2 transition-all hover:-translate-y-1"
-                    style={{ borderColor: m.stihiyaColor + '55' }}
+                    className="relative block aspect-square rounded-xl overflow-hidden border-2 transition-all hover:-translate-y-1"
+                    style={{
+                      borderColor: m.stihiyaColor + '55',
+                      background: `linear-gradient(180deg, ${m.stihiyaColor}26 0%, #12121E 70%)`,
+                    }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={m.portraitUrl} alt={m.name} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div
+                        className="w-16 h-16 rounded-full border-2"
+                        style={{ borderColor: m.stihiyaColor + '88', background: '#0A0A1A' }}
+                      />
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 p-1.5 bg-gradient-to-t from-bg-dark to-transparent">
+                      <p className="text-[9px] font-display tracking-wider font-bold text-white text-center truncate">
+                        {m.name}
+                      </p>
+                    </div>
                   </Link>
                 ))}
               </div>
@@ -155,11 +166,23 @@ export default async function HeroDetailPage({ params }: Props) {
                   <Link
                     key={m.id}
                     href={`/heroes/${m.id}`}
-                    className="block aspect-square rounded-xl overflow-hidden border-2 transition-all hover:-translate-y-1"
-                    style={{ borderColor: m.stihiyaColor + '55' }}
+                    className="relative block aspect-square rounded-xl overflow-hidden border-2 transition-all hover:-translate-y-1"
+                    style={{
+                      borderColor: m.stihiyaColor + '55',
+                      background: `linear-gradient(180deg, ${m.stihiyaColor}26 0%, #12121E 70%)`,
+                    }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={m.portraitUrl} alt={m.name} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div
+                        className="w-16 h-16 rounded-full border-2"
+                        style={{ borderColor: m.stihiyaColor + '88', background: '#0A0A1A' }}
+                      />
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 p-1.5 bg-gradient-to-t from-bg-dark to-transparent">
+                      <p className="text-[9px] font-display tracking-wider font-bold text-white text-center truncate">
+                        {m.name}
+                      </p>
+                    </div>
                   </Link>
                 ))}
               </div>

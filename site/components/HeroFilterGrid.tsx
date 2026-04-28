@@ -78,15 +78,17 @@ export function HeroFilterGrid() {
               key={h.id}
               href={`/heroes/${h.id}`}
               className="group relative aspect-square rounded-2xl overflow-hidden border-2 bg-bg-mid transition-all hover:-translate-y-1"
-              style={{ borderColor: h.stihiyaColor + '55' }}
+              style={{
+                borderColor: h.stihiyaColor + '55',
+                background: `linear-gradient(180deg, ${h.stihiyaColor}26 0%, #12121E 70%)`,
+              }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={h.portraitUrl}
-                alt={h.name}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                loading="lazy"
-              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div
+                  className="w-20 h-20 rounded-full border-2"
+                  style={{ borderColor: h.stihiyaColor + '88', background: '#0A0A1A' }}
+                />
+              </div>
               <div className="absolute inset-x-0 bottom-0 p-2.5 bg-gradient-to-t from-bg-dark via-bg-dark/85 to-transparent">
                 <p
                   className="font-display text-[9px] tracking-[0.18em] mb-0.5"
@@ -98,13 +100,6 @@ export function HeroFilterGrid() {
                   {h.name}
                 </h3>
               </div>
-              {/* Hover tint */}
-              <div
-                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none mix-blend-overlay"
-                style={{
-                  background: `radial-gradient(circle at 50% 30%, ${h.stihiyaColor}40, transparent 70%)`,
-                }}
-              />
             </Link>
           ))}
         </div>
