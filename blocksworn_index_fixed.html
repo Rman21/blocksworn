@@ -3066,6 +3066,311 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
 .ico-coin.lg, .ico-cristal.lg { width: 24px; height: 24px; vertical-align: -6px; }
 .ico-coin.xl, .ico-cristal.xl { width: 40px; height: 40px; vertical-align: -10px; }
 
+/* ===== PROFILE PAGE — P0 Foundation (2026-04-28) ===== */
+/* Per BLOCKSWORN_PROFILE_PAGE.md. 6-tab profile screen with hero banner. */
+.v-profile { display: none; }
+.v-profile.active { display: flex; flex-direction: column; }
+.profile-back-btn {
+  position: absolute; top: 12px; left: 12px;
+  z-index: 10;
+  background: rgba(0,0,0,0.45);
+  color: #FFFFFF;
+  border: 1px solid rgba(255,213,61,0.4);
+  border-radius: 50%;
+  width: 36px; height: 36px;
+  font-size: 20px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+.profile-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--a-bg-radial, #12121E);
+}
+/* ----- Hero Banner ----- */
+.profile-banner {
+  position: relative;
+  min-height: 320px;
+  padding: 60px 20px 22px;
+  overflow: hidden;
+}
+.profile-banner-bg {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, #1A1A2E 0%, rgba(26,26,46,0.4) 60%, transparent 100%),
+              radial-gradient(ellipse at 50% 0%, rgba(255,213,61,0.18) 0%, transparent 60%);
+  z-index: 0;
+}
+.profile-banner[data-bg="ch1"] .profile-banner-bg {
+  background: linear-gradient(180deg, #2A1410 0%, rgba(42,20,16,0.4) 60%, transparent 100%),
+              radial-gradient(ellipse at 50% 0%, rgba(232,93,74,0.30) 0%, transparent 60%);
+}
+.profile-banner[data-bg="ch2"] .profile-banner-bg {
+  background: linear-gradient(180deg, #2A1830 0%, rgba(42,24,48,0.4) 60%, transparent 100%),
+              radial-gradient(ellipse at 50% 0%, rgba(155,89,214,0.30) 0%, transparent 60%);
+}
+.profile-banner-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  z-index: 1;
+}
+.profile-avatar-frame {
+  position: relative;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  border: 3px solid var(--a-gold-300);
+  background: rgba(0,0,0,0.5);
+  overflow: hidden;
+  box-shadow: 0 0 18px rgba(255,213,61,0.40);
+  flex: 0 0 120px;
+}
+.profile-avatar-frame img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.profile-avatar-edit {
+  position: absolute;
+  bottom: 4px; right: 4px;
+  width: 28px; height: 28px;
+  background: var(--a-gold-700);
+  border: 2px solid var(--a-gold-300);
+  border-radius: 50%;
+  color: #12121E;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  z-index: 2;
+}
+.profile-identity {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.profile-username-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.profile-username {
+  font-family: var(--a-font-display);
+  font-size: 18px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+  color: #FFFFFF;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile-username-edit {
+  width: 24px; height: 24px;
+  background: rgba(0,0,0,0.40);
+  border: 1px solid rgba(255,213,61,0.45);
+  border-radius: 6px;
+  color: var(--a-gold-300);
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.profile-title {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300);
+  font-style: italic;
+  margin-top: 2px;
+}
+.profile-banner-tag {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #B8B5C4;
+  margin-top: 2px;
+}
+.profile-banner-tag[hidden] { display: none; }
+.profile-level-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.profile-level-label {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300);
+  font-weight: 700;
+}
+.profile-level-label b {
+  color: #FFFFFF;
+  font-size: 13px;
+  margin-left: 2px;
+}
+.profile-xp-bar {
+  flex: 1;
+  min-width: 100px;
+  height: 8px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,213,61,0.35);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.profile-xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--a-gold-300), var(--a-gold-700));
+  transition: width 0.4s ease;
+}
+.profile-xp-text {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: #B8B5C4;
+  white-space: nowrap;
+}
+/* ----- Tab navigation (horizontal scroll on mobile) ----- */
+.profile-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  background: rgba(0,0,0,0.35);
+  border-bottom: 1px solid rgba(255,213,61,0.2);
+}
+.profile-tabs::-webkit-scrollbar { display: none; }
+.profile-tab {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #8A88A0;
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.profile-tab:hover { color: #E4E1F0; }
+.profile-tab.active {
+  color: var(--a-gold-300);
+  background: rgba(255,213,61,0.12);
+  border-color: rgba(255,213,61,0.40);
+}
+/* ----- Tab content body ----- */
+.profile-body {
+  flex: 1;
+  padding: 16px;
+  padding-bottom: 80px;
+  color: #E4E1F0;
+}
+.profile-body-placeholder {
+  text-align: center;
+  padding: 40px 20px;
+  color: #8A88A0;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  font-style: italic;
+}
+.profile-body-placeholder small {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  color: #6E6B7B;
+}
+/* ----- Avatar Picker modal ----- */
+.avatar-picker-box {
+  max-width: 380px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.avatar-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 10px 0;
+}
+.avatar-pick-cell {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid rgba(255,213,61,0.40);
+  background: rgba(0,0,0,0.45);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.15s;
+  position: relative;
+}
+.avatar-pick-cell img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+.avatar-pick-cell:hover, .avatar-pick-cell:active { transform: scale(0.96); }
+.avatar-pick-cell.active {
+  border-color: var(--a-gold-300);
+  box-shadow: 0 0 12px rgba(255,213,61,0.45);
+}
+.avatar-pick-cell.locked {
+  filter: grayscale(0.9) brightness(0.5);
+  cursor: not-allowed;
+}
+.avatar-pick-cell.locked::after {
+  content: '🔒';
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+/* ----- Username editor modal ----- */
+.username-editor-box {
+  max-width: 320px;
+}
+.username-editor-hint {
+  font-size: 10px;
+  color: #8A88A0;
+  letter-spacing: 0.4px;
+  text-align: center;
+  margin: 10px 0 8px;
+}
+#usernameEditorInput {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.45);
+  border: 2px solid rgba(255,213,61,0.45);
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-family: var(--a-font-display);
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-align: center;
+  outline: none;
+}
+#usernameEditorInput:focus {
+  border-color: var(--a-gold-300);
+  box-shadow: 0 0 10px rgba(255,213,61,0.35);
+}
+.username-editor-error {
+  font-size: 10px;
+  color: #E85D4A;
+  text-align: center;
+  margin: 8px 0 4px;
+  min-height: 14px;
+  letter-spacing: 0.4px;
+}
+.username-editor-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.username-editor-actions .btn { flex: 1; }
+
 /* ===== PHASE F — First-Time UX + Pop-ups (anti-FOMO) ===== */
 /* Shop lock — hide every shop nav entry for days 1-6. */
 body.shop-locked [data-nav="shop"],
@@ -11398,6 +11703,79 @@ button.season-tier-claim:active {
       <div class="a-hub-drawer-grid">
         <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToDailies();">📅 DAILY<span class="v-badge" id="vDailyBadge" style="display:none">0</span></button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PROFILE SCREEN (Phase P0 — Foundation, 2026-04-28) ============ -->
+<!-- Per BLOCKSWORN_PROFILE_PAGE.md spec. Full-screen profile (separate from
+     legacy infoModal which stays for Settings/Audio/Help). 6-tab structure;
+     each tab populated by P1-P6 phases.
+     Entry: avatar chip on home screen → openProfileSheet() → goToProfile(). -->
+<div class="screen v-secondary v-profile" id="screenProfile">
+  <button class="back-btn v-btn-icon profile-back-btn" onclick="goToMenu()" aria-label="Back">←</button>
+  <div class="profile-wrap">
+    <!-- Hero banner (populated by renderProfileHeader in P1) -->
+    <div class="profile-banner" id="profileBanner" data-bg="default">
+      <div class="profile-banner-bg"></div>
+      <div class="profile-banner-content">
+        <div class="profile-avatar-frame" id="profileAvatarFrame">
+          <img id="profileAvatarImg" alt="" />
+          <button class="profile-avatar-edit" onclick="openAvatarPicker()" aria-label="Edit avatar">✎</button>
+        </div>
+        <div class="profile-identity">
+          <div class="profile-username-row">
+            <span class="profile-username" id="profileUsername">SUMMONER</span>
+            <button class="profile-username-edit" onclick="openUsernameEditor()" aria-label="Edit username">✎</button>
+          </div>
+          <div class="profile-title" id="profileTitle">Warchief</div>
+          <div class="profile-banner-tag" id="profileBannerTag" hidden></div>
+          <div class="profile-level-row">
+            <span class="profile-level-label">LEVEL <b id="profileLevel">1</b></span>
+            <div class="profile-xp-bar"><div class="profile-xp-fill" id="profileXpFill" style="width:0%"></div></div>
+            <span class="profile-xp-text" id="profileXpText">0 / 100 XP</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab navigation (horizontal scroll on narrow screens) -->
+    <div class="profile-tabs" id="profileTabs">
+      <button class="profile-tab active" data-tab="stats"        onclick="profileTab('stats')">📊 STATS</button>
+      <button class="profile-tab"        data-tab="journey"      onclick="profileTab('journey')">🗺 JOURNEY</button>
+      <button class="profile-tab"        data-tab="roster"       onclick="profileTab('roster')">👥 ROSTER</button>
+      <button class="profile-tab"        data-tab="achievements" onclick="profileTab('achievements')">🏆 ACHIEVEMENTS</button>
+      <button class="profile-tab"        data-tab="tower"        onclick="profileTab('tower')">🗼 TOWER</button>
+      <button class="profile-tab"        data-tab="social"       onclick="profileTab('social')">👥 SOCIAL</button>
+    </div>
+
+    <!-- Tab content (renderers populate this in P1-P6) -->
+    <div class="profile-body" id="profileBody">
+      <!-- Empty until first render -->
+    </div>
+  </div>
+</div>
+
+<!-- Avatar picker modal (P1 fills body, P0 declares the host) -->
+<div class="modal" id="avatarPickerModal" onclick="if(event.target===this) closeAvatarPicker()">
+  <div class="modal-box avatar-picker-box">
+    <button class="detail-close" onclick="closeAvatarPicker()">×</button>
+    <div class="modal-title">CHOOSE AVATAR</div>
+    <div class="avatar-picker-grid" id="avatarPickerGrid"></div>
+  </div>
+</div>
+
+<!-- Username editor modal -->
+<div class="modal" id="usernameEditorModal" onclick="if(event.target===this) closeUsernameEditor()">
+  <div class="modal-box username-editor-box">
+    <button class="detail-close" onclick="closeUsernameEditor()">×</button>
+    <div class="modal-title">CHANGE USERNAME</div>
+    <div class="username-editor-hint">3-15 characters · letters, numbers, underscores only</div>
+    <input type="text" id="usernameEditorInput" maxlength="15" autocomplete="off" autocapitalize="off" />
+    <div class="username-editor-error" id="usernameEditorError"></div>
+    <div class="username-editor-actions">
+      <button class="btn" onclick="closeUsernameEditor()">CANCEL</button>
+      <button class="btn pack-reveal-claim" onclick="saveUsernameFromEditor()">SAVE</button>
     </div>
   </div>
 </div>
@@ -21623,6 +22001,382 @@ function _maybeShowChapterCompletePopup() {
 
 // Bootstrap — record first-launch date on first ever visit.
 _ensureFirstLaunchDate();
+
+// ===== PROFILE PAGE — P0 Foundation (2026-04-28) =====
+// Per BLOCKSWORN_PROFILE_PAGE.md spec. State + BackendProvider abstraction +
+// 6-tab dispatcher. P1-P6 fill in tab renderers, customization, and social UI.
+// When a real backend (Firebase/Supabase) is added in Phase G-Social, only
+// BackendProvider.ACTIVE flips — every UI/state path is already wired.
+
+const PROFILE_KEY = 'blocksworn_player_profile';
+
+let playerProfile = {
+  username:             null,        // null = bootstrap auto-generates
+  avatarHeroId:         null,        // null = use leader/squad fallback
+  selectedTitle:        null,        // delegated to towerState.selectedTitle for now
+  selectedBackgroundId: 'default',   // 'default' / 'ch1' / 'ch2' / future
+  selectedBannerId:     null,        // text tag under username (P5)
+  // Stats accumulators (P2 wires to game hooks)
+  xp:                   0,
+  level:                1,
+  totalBattlesPlayed:   0,
+  totalBattlesWon:      0,
+  totalDamageDealt:     0,
+  highestCascade:       0,
+  totalCascades:        0,
+  // Playtime (P2 wires session tracking)
+  firstPlayDate:        null,        // ISO date string
+  daysActive:           0,
+  lastActiveDate:       null,
+  totalPlaytimeMinutes: 0,
+  // Friend code (local generation; Phase G-Social syncs to backend)
+  friendCode:           null,        // 'BLO-XXXX-XXXX'
+  // Achievements (P4 expands list; for now only flags persist)
+  unlockedAchievementIds: [],
+};
+
+function loadPlayerProfile() {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') {
+        playerProfile = Object.assign(playerProfile, obj);
+        if (!Array.isArray(playerProfile.unlockedAchievementIds)) playerProfile.unlockedAchievementIds = [];
+      }
+    }
+  } catch (e) { console.warn('loadPlayerProfile failed:', e); }
+}
+function savePlayerProfile() {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(playerProfile)); } catch (e) {}
+}
+
+// ----- Bootstrap helpers -----
+function _generateFriendCode() {
+  // BLO-XXXX-XXXX format. Alphanumeric uppercase, no confusing chars (no 0/O/1/I).
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const block = (n) => Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return 'BLO-' + block(4) + '-' + block(4);
+}
+function _generateDefaultUsername() {
+  const prefixes = ['SUMMONER', 'WARCHIEF', 'CHAMPION', 'ARCHITECT', 'CLIMBER', 'ASCENDED'];
+  const p = prefixes[Math.floor(Math.random() * prefixes.length)];
+  const n = Math.floor(1000 + Math.random() * 9000);
+  return p + '_' + n;
+}
+function _ensureProfileBootstrap() {
+  let dirty = false;
+  if (!playerProfile.username)      { playerProfile.username      = _generateDefaultUsername(); dirty = true; }
+  if (!playerProfile.friendCode)    { playerProfile.friendCode    = _generateFriendCode();      dirty = true; }
+  if (!playerProfile.firstPlayDate) { playerProfile.firstPlayDate = _todayDateString();         dirty = true; }
+  if (dirty) savePlayerProfile();
+}
+
+// ===== BACKEND PROVIDER PATTERN (Phase G-Social scaffold) =====
+// Single switch-point for swapping mock backend → Firebase/Supabase. Same
+// pattern as IAPProvider. Every Profile + Social call routes through this
+// abstraction so swapping is one config flip + filling in TODO bodies.
+//
+// Provider methods all return Promise<T>. Mock backend persists to
+// localStorage and returns synthetic friend/leaderboard data. Firebase
+// backend gets implemented in Phase G-Social when user provides config.
+
+const BackendProvider = {
+  ACTIVE: 'mock',  // Phase G-Social: 'firebase' / 'supabase' / etc.
+
+  // Profile sync — pushes local profile to backend, pulls remote on conflict.
+  async syncProfile()             { return BACKEND_PROVIDERS[this.ACTIVE].syncProfile(); },
+  // Friend code lookup — find a user by their BLO-XXXX-XXXX code.
+  async findUserByCode(code)      { return BACKEND_PROVIDERS[this.ACTIVE].findUserByCode(code); },
+  // Friend management.
+  async addFriend(theirCode)      { return BACKEND_PROVIDERS[this.ACTIVE].addFriend(theirCode); },
+  async getFriendList()           { return BACKEND_PROVIDERS[this.ACTIVE].getFriendList(); },
+  async removeFriend(friendUid)   { return BACKEND_PROVIDERS[this.ACTIVE].removeFriend(friendUid); },
+  // Friend gifts (1× per day per friend).
+  async sendGift(friendUid)       { return BACKEND_PROVIDERS[this.ACTIVE].sendGift(friendUid); },
+  async claimPendingGifts()       { return BACKEND_PROVIDERS[this.ACTIVE].claimPendingGifts(); },
+  // Leaderboard.
+  async submitTowerScore(floor)   { return BACKEND_PROVIDERS[this.ACTIVE].submitTowerScore(floor); },
+  async getLeaderboard(seasonId)  { return BACKEND_PROVIDERS[this.ACTIVE].getLeaderboard(seasonId); },
+};
+
+const BACKEND_PROVIDERS = {
+  // ---- Mock backend: localStorage + synthetic data ----
+  mock: {
+    async syncProfile() {
+      // Local-only — savePlayerProfile already runs on each mutation.
+      return { ok: true, source: 'mock' };
+    },
+    async findUserByCode(code) {
+      // Mock: no remote DB to search. UI shows "user not found" gracefully.
+      return null;
+    },
+    async addFriend(theirCode) {
+      // Mock: writes to local friend list with synthetic profile.
+      const friends = await this.getFriendList();
+      if (friends.find(f => f.friendCode === theirCode)) return { ok: false, error: 'already_added' };
+      const synthetic = {
+        uid:        'mock_' + theirCode.replace(/-/g, '_').toLowerCase(),
+        friendCode: theirCode,
+        username:   'PLAYER_' + theirCode.slice(-4),
+        title:      'Newcomer',
+        towerFloor: Math.floor(20 + Math.random() * 50),
+        lastSeen:   Date.now(),
+        addedAt:    Date.now(),
+      };
+      friends.push(synthetic);
+      try { localStorage.setItem('blocksworn_mock_friends', JSON.stringify(friends)); } catch (e) {}
+      return { ok: true, friend: synthetic };
+    },
+    async getFriendList() {
+      try {
+        const raw = localStorage.getItem('blocksworn_mock_friends');
+        if (raw) { const a = JSON.parse(raw); return Array.isArray(a) ? a : []; }
+      } catch (e) {}
+      return [];
+    },
+    async removeFriend(friendUid) {
+      const friends = await this.getFriendList();
+      const filtered = friends.filter(f => f.uid !== friendUid);
+      try { localStorage.setItem('blocksworn_mock_friends', JSON.stringify(filtered)); } catch (e) {}
+      return { ok: true };
+    },
+    async sendGift(friendUid) {
+      // Mock: register a "gift sent today" timestamp; reciprocal gift back tomorrow.
+      const todayKey = 'blocksworn_mock_gift_sent_' + friendUid + '_' + _todayDateString();
+      try {
+        if (localStorage.getItem(todayKey)) return { ok: false, error: 'already_sent_today' };
+        localStorage.setItem(todayKey, '1');
+      } catch (e) {}
+      return { ok: true };
+    },
+    async claimPendingGifts() {
+      // Mock: random small reward 1× per day.
+      const todayKey = 'blocksworn_mock_gift_claimed_' + _todayDateString();
+      try {
+        if (localStorage.getItem(todayKey)) return { ok: true, gifts: [] };
+        localStorage.setItem(todayKey, '1');
+      } catch (e) {}
+      // Synthetic 50 gold gift.
+      return { ok: true, gifts: [{ from: 'mock', reward: { gold: 50 } }] };
+    },
+    async submitTowerScore(floor) {
+      // Local-only — towerState already tracks personal bests.
+      return { ok: true, rank: 'mock' };
+    },
+    async getLeaderboard(seasonId) {
+      // Synthetic top 10 + player slot.
+      const playerFloor = (towerState && towerState.allTimeBest) || 0;
+      const playerName = playerProfile.username || 'YOU';
+      const top = [
+        { rank: 1,  username: 'TOWER_GOD',     floor: 96, isYou: false },
+        { rank: 2,  username: 'IRON_FIST',     floor: 84, isYou: false },
+        { rank: 3,  username: 'STORM_RIDER',   floor: 78, isYou: false },
+        { rank: 4,  username: 'CRYPT_WALKER',  floor: 71, isYou: false },
+        { rank: 5,  username: 'EMBER_CHAMP',   floor: 65, isYou: false },
+        { rank: 6,  username: 'SHADOW_FANG',   floor: 58, isYou: false },
+        { rank: 7,  username: 'SOLAR_BLADE',   floor: 52, isYou: false },
+        { rank: 8,  username: 'WAVE_BREAKER',  floor: 47, isYou: false },
+        { rank: 9,  username: 'RADIANT_GUARD', floor: 41, isYou: false },
+        { rank: 10, username: 'ASH_BORN',      floor: 36, isYou: false },
+      ];
+      // Insert player at appropriate rank (or add to end).
+      let placed = false;
+      for (let i = 0; i < top.length; i++) {
+        if (playerFloor > top[i].floor) {
+          top.splice(i, 0, { rank: i + 1, username: playerName, floor: playerFloor, isYou: true });
+          placed = true; break;
+        }
+      }
+      if (!placed) {
+        top.push({ rank: top.length + 1, username: playerName, floor: playerFloor, isYou: true });
+      }
+      // Renumber ranks
+      top.forEach((row, i) => row.rank = i + 1);
+      return { ok: true, season: seasonId || 1, board: top.slice(0, 11) };
+    },
+  },
+  // ---- Firebase backend (Phase G-Social TODO) ----
+  firebase: {
+    // TODO Phase G-Social: implement when user provides Firebase config.
+    // Each method maps to a Firestore read/write. Plan:
+    //   syncProfile() → write users/{uid} doc
+    //   findUserByCode() → query users where friendCode == code, limit 1
+    //   addFriend() → batched write: users/{uid}/friends/{theirUid} +
+    //                                 users/{theirUid}/friend_requests/{uid}
+    //   getFriendList() → read users/{uid}/friends subcollection
+    //   sendGift() → write users/{theirUid}/pending_gifts/{giftId}
+    //   claimPendingGifts() → batch read + delete pending_gifts subcollection
+    //   submitTowerScore() → write leaderboard/{seasonId}/scores/{uid}
+    //   getLeaderboard() → query leaderboard/{seasonId}/scores order by floor desc, limit 100
+    async syncProfile()             { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.syncProfile(); },
+    async findUserByCode(code)      { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.findUserByCode(code); },
+    async addFriend(theirCode)      { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.addFriend(theirCode); },
+    async getFriendList()           { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.getFriendList(); },
+    async removeFriend(friendUid)   { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.removeFriend(friendUid); },
+    async sendGift(friendUid)       { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.sendGift(friendUid); },
+    async claimPendingGifts()       { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.claimPendingGifts(); },
+    async submitTowerScore(floor)   { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.submitTowerScore(floor); },
+    async getLeaderboard(seasonId)  { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.getLeaderboard(seasonId); },
+  },
+};
+
+// ===== PROFILE RENDERING — P0 dispatcher (P1-P6 fill tab renderers) =====
+let _profileActiveTab = 'stats';
+
+function renderProfile() {
+  try { _ensureProfileBootstrap(); } catch (e) {}
+  try { renderProfileHeader(); } catch (e) { console.warn('renderProfileHeader failed:', e); }
+  try { renderProfileTab(_profileActiveTab); } catch (e) { console.warn('renderProfileTab failed:', e); }
+}
+
+function renderProfileHeader() {
+  // Avatar — selected hero, else leader/squad fallback.
+  const avHeroId = playerProfile.avatarHeroId
+    || (typeof leaderHeroId !== 'undefined' && leaderHeroId)
+    || (Array.isArray(activeSquad) && activeSquad[0])
+    || ((HERO_ROSTER.find(h => h && h.unlocked) || {}).id);
+  const avHero = avHeroId ? HERO_ROSTER.find(h => h.id === avHeroId) : null;
+  const avSrc  = (avHero && typeof ASSETS !== 'undefined' && ASSETS[avHero.img]) || '';
+  const avImg = document.getElementById('profileAvatarImg');
+  if (avImg) avImg.src = avSrc;
+
+  // Username
+  const unameEl = document.getElementById('profileUsername');
+  if (unameEl) unameEl.textContent = playerProfile.username || 'SUMMONER';
+
+  // Title (delegate to existing Tower title system for now)
+  const titleEl = document.getElementById('profileTitle');
+  let title = 'Warchief';
+  try { if (typeof getActiveTitle === 'function') title = getActiveTitle() || title; } catch (e) {}
+  if (titleEl) titleEl.textContent = title;
+
+  // Banner tag (P5 fills)
+  const tagEl = document.getElementById('profileBannerTag');
+  if (tagEl) {
+    if (playerProfile.selectedBannerId) {
+      tagEl.textContent = playerProfile.selectedBannerId;
+      tagEl.hidden = false;
+    } else {
+      tagEl.hidden = true;
+    }
+  }
+
+  // Level + XP (P2 fills accumulators; P0 shows level 1 / 0 XP defaults)
+  const lvlEl = document.getElementById('profileLevel');
+  const fillEl = document.getElementById('profileXpFill');
+  const xpTextEl = document.getElementById('profileXpText');
+  const lvl = playerProfile.level || 1;
+  const xp = playerProfile.xp || 0;
+  const xpToNext = _xpForLevel(lvl + 1) - _xpForLevel(lvl);
+  const xpInLevel = xp - _xpForLevel(lvl);
+  const pct = xpToNext > 0 ? Math.min(100, Math.floor((xpInLevel / xpToNext) * 100)) : 0;
+  if (lvlEl) lvlEl.textContent = String(lvl);
+  if (fillEl) fillEl.style.width = pct + '%';
+  if (xpTextEl) xpTextEl.textContent = xpInLevel.toLocaleString() + ' / ' + xpToNext.toLocaleString() + ' XP';
+
+  // Background
+  const banner = document.getElementById('profileBanner');
+  if (banner) banner.setAttribute('data-bg', playerProfile.selectedBackgroundId || 'default');
+}
+
+// XP curve per spec §3.7. P2 may fine-tune.
+function _xpForLevel(lvl) {
+  if (lvl <= 1)  return 0;
+  if (lvl <= 10) return (lvl - 1) * 100;
+  if (lvl <= 30) return 900  + (lvl - 10) * 200;
+  if (lvl <= 50) return 4900 + (lvl - 30) * 500;
+  return 14900 + (lvl - 50) * 1000;
+}
+
+function profileTab(tab) {
+  _profileActiveTab = tab;
+  // Toggle nav active state
+  const tabs = document.querySelectorAll('#profileTabs .profile-tab');
+  tabs.forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-tab') === tab));
+  renderProfileTab(tab);
+}
+
+function renderProfileTab(tab) {
+  const body = document.getElementById('profileBody');
+  if (!body) return;
+  // P0: all renderers are placeholders. P1-P6 replace these.
+  const placeholder = (label, phase) =>
+    '<div class="profile-body-placeholder">' + label + '<small>Implementation in ' + phase + '</small></div>';
+  if      (tab === 'stats')        body.innerHTML = (typeof renderProfileTabStats        === 'function') ? renderProfileTabStats()        : placeholder('Stats Dashboard',   'P2');
+  else if (tab === 'journey')      body.innerHTML = (typeof renderProfileTabJourney      === 'function') ? renderProfileTabJourney()      : placeholder('Journey',           'P3');
+  else if (tab === 'roster')       body.innerHTML = (typeof renderProfileTabRoster       === 'function') ? renderProfileTabRoster()       : placeholder('Hero Roster',       'P1');
+  else if (tab === 'achievements') body.innerHTML = (typeof renderProfileTabAchievements === 'function') ? renderProfileTabAchievements() : placeholder('Achievements',      'P4');
+  else if (tab === 'tower')        body.innerHTML = (typeof renderProfileTabTower        === 'function') ? renderProfileTabTower()        : placeholder('Tower Stats',       'P3');
+  else if (tab === 'social')       body.innerHTML = (typeof renderProfileTabSocial       === 'function') ? renderProfileTabSocial()       : placeholder('Social',            'P6');
+  else                              body.innerHTML = placeholder('Unknown tab', '?');
+}
+
+// ===== Avatar Picker (P0 wire-up; P1 polishes the grid) =====
+function openAvatarPicker() {
+  const modal = document.getElementById('avatarPickerModal');
+  const grid  = document.getElementById('avatarPickerGrid');
+  if (!modal || !grid) return;
+  grid.innerHTML = '';
+  const heroes = HERO_ROSTER.filter(h => h && h.race !== 'clockwork');
+  heroes.forEach(h => {
+    const isUnlocked = !!h.unlocked;
+    const isActive = (playerProfile.avatarHeroId === h.id);
+    const cell = document.createElement('button');
+    cell.className = 'avatar-pick-cell' + (isActive ? ' active' : '') + (isUnlocked ? '' : ' locked');
+    if (isUnlocked) cell.onclick = () => selectAvatar(h.id);
+    const src = (typeof ASSETS !== 'undefined' && ASSETS[h.img]) || '';
+    cell.innerHTML = '<img src="' + src + '" alt="' + h.name + '"/>';
+    grid.appendChild(cell);
+  });
+  modal.classList.add('active');
+}
+function closeAvatarPicker() {
+  const modal = document.getElementById('avatarPickerModal');
+  if (modal) modal.classList.remove('active');
+}
+function selectAvatar(heroId) {
+  playerProfile.avatarHeroId = heroId;
+  savePlayerProfile();
+  renderProfileHeader();
+  closeAvatarPicker();
+}
+
+// ===== Username Editor =====
+function openUsernameEditor() {
+  const modal = document.getElementById('usernameEditorModal');
+  const input = document.getElementById('usernameEditorInput');
+  const err   = document.getElementById('usernameEditorError');
+  if (!modal || !input) return;
+  input.value = playerProfile.username || '';
+  if (err) err.textContent = '';
+  modal.classList.add('active');
+  setTimeout(() => { try { input.focus(); input.select(); } catch (e) {} }, 100);
+}
+function closeUsernameEditor() {
+  const modal = document.getElementById('usernameEditorModal');
+  if (modal) modal.classList.remove('active');
+}
+function saveUsernameFromEditor() {
+  const input = document.getElementById('usernameEditorInput');
+  const err   = document.getElementById('usernameEditorError');
+  if (!input) return;
+  const val = String(input.value || '').trim();
+  // Spec §3.3: 3-15 chars · letters + numbers + underscores only.
+  if (!/^[A-Za-z0-9_]{3,15}$/.test(val)) {
+    if (err) err.textContent = 'Use 3-15 letters / numbers / underscores only';
+    return;
+  }
+  playerProfile.username = val.toUpperCase();
+  savePlayerProfile();
+  renderProfileHeader();
+  closeUsernameEditor();
+  try { flashText('★ NAME UPDATED', '#FFD53D'); } catch (e) {}
+}
+
+// Bootstrap — load profile on script parse, ensure defaults stamped.
+loadPlayerProfile();
+_ensureProfileBootstrap();
 
 // ===== IAP PROVIDER PATTERN (Phase G scaffold, 2026-04-28) =====
 // Single switch-point for swapping mock-IAP → Stripe / Apple / Google in Phase G.
@@ -34592,7 +35346,7 @@ function showScreen(name) {
   // V3.0 Phase 3 Block 3.1: added 'shop' route for Shop screen
   // FIX BUG-001: added 'season' — without it, goToSeason() produced a black
   // screen (no .screen had .active, user was soft-locked).
-  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason' };
+  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile' };
   for (const key in map) {
     const el = document.getElementById(map[key]);
     if (el) el.classList.toggle('active', key === name);
@@ -34615,6 +35369,7 @@ function showScreen(name) {
   });
   if (name === 'menu') renderMenu();
   if (name === 'select') renderSelect();
+  if (name === 'profile' && typeof renderProfile === 'function') renderProfile();
   // V3.0 Phase 2 Vivid Stylized: sync bottom-nav active state on every transition.
   try { activateNavFor(name); } catch(e) {}
   // 2026-04-27 — Audio: per-screen background music routing.
@@ -35104,7 +35859,16 @@ if (typeof window !== 'undefined') {
 }
 
 // ===== V3.0 PHASE 2 · BOTTOM SHEET STUBS =====
-function openProfileSheet()   { alert('Profile sheet coming in Phase 9'); }
+// 2026-04-28 — Profile P0 wired: opens full screenProfile (was stub alert).
+function openProfileSheet() { goToProfile(); }
+function goToProfile() {
+  if (typeof isFtueActive === 'function' && isFtueActive()) {
+    try { flashText('FINISH THE TUTORIAL FIRST', '#8A88A0'); } catch(e){}
+    return;
+  }
+  try { _ensureProfileBootstrap(); } catch (e) {}
+  showScreen('profile');
+}
 
 // ===== V3.0 PHASE 4 · BATTLE TUTORIAL CAROUSEL =====
 const BATTLE_TUTORIAL_KEY = 'battleTutorialShown';
