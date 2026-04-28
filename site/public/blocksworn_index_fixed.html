@@ -29126,6 +29126,11 @@ function resetRaceFlags() {
 }
 
 function weightedStihiya() {
+  // 2026-04-28 — Stage 1 polish: Chronicle Tutorial Dummy fight is ember-only
+  // so the Pirate starter squad (THORGAR / BLACKTOOTH / CRIMSON, all ember)
+  // can demonstrate ember mechanics cleanly. Element variance is taught later
+  // via the Stage 5 ELEMENTS modal before Boss 2 (Abyssal Tyrant — Tide).
+  if (typeof ftueBeat !== 'undefined' && ftueBeat === 'chronicle_fight') return 'ember';
   // Pick a stihiya using current spawn weights.
   // TASK #2.2c: use ?? not || so an explicit 0 weight (gated-out element) is honored.
   // Fallback if all weights end up 0 (shouldn't happen — at least one squad/boss element
@@ -29424,6 +29429,26 @@ function startBossBattle() {
   heroCharges = {};
   if (Array.isArray(HERO_DECK)) {
     for (const _h of HERO_DECK) if (_h && _h.id) heroCharges[_h.id] = 0;
+  }
+  // 2026-04-28 — Stage 1 polish: Chronicle Tutorial Dummy starts the player
+  // with all ULTs ready (per spec §4.4 "All 3 heroes have full charge meters
+  // at start"). Lets the player tap THORGAR / BLACKTOOTH / CRIMSON portraits
+  // immediately and feel the ULT-fire loop without grinding charge first.
+  // ultCharges legacy pool also primed for any element-pool readers (DEBT-014).
+  if (currentBoss && currentBoss._isTrainingDummy) {
+    try {
+      if (Array.isArray(HERO_DECK)) {
+        for (const _h of HERO_DECK) {
+          if (_h && _h.id) {
+            const cost = (typeof getUltCost === 'function') ? getUltCost(_h.id) : HERO_ULT_COST_DEFAULT;
+            heroCharges[_h.id] = cost;
+          }
+        }
+      }
+      if (typeof ULT_THRESHOLD === 'object' && ULT_THRESHOLD.ember) {
+        ultCharges.ember = ULT_THRESHOLD.ember;
+      }
+    } catch (e) { console.warn('Chronicle full-ULT prime failed:', e); }
   }
   heroFireCount = 0;
   knownDeadZones = new Set();
