@@ -7066,6 +7066,22 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   transition: transform 0.15s;
 }
 .edu-modal-confirm:active { transform: scale(0.98); }
+.edu-modal-secondary {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: transparent;
+  border: 1px solid #6E6B7B;
+  border-radius: 8px;
+  color: #9A98A4;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: transform 0.15s, color 0.2s;
+}
+.edu-modal-secondary:active { transform: scale(0.98); color: #C8C5D4; }
 
 /* 2026-04-27 — Audio A.3 settings UI (per BLOCKSWORN_AUDIO_SOUND.md §11.1). */
 .info-audio-section {
@@ -12458,6 +12474,11 @@ button.season-tier-claim:active {
       </div>
       <div class="a-hub-drawer-grid">
         <button class="a-btn-ghost" onclick="aCloseHubDrawer(); goToDailies();">📅 DAILY<span class="v-badge" id="vDailyBadge" style="display:none">0</span></button>
+        <!-- 2026-04-28 — Battle Pass entry restored (was DEBT-010, removed Task #1.7).
+             Phase C+ shipped subscription/premium economy; this button is the proper
+             permanent entry point. Visibility gated by updateSeasonButtonVisibility()
+             during FTUE (matches Tower/Daily button gating). -->
+        <button class="a-btn-ghost" id="seasonBtn" onclick="aCloseHubDrawer(); goToSeason();">✦ BATTLE PASS</button>
       </div>
     </div>
   </div>
@@ -24676,6 +24697,83 @@ if (typeof window !== 'undefined') {
     checkSeasonRotation();
     renderSeasonScreen && renderSeasonScreen();
   };
+}
+
+// 2026-04-28 — Player Education Stage 13 (BLOCKSWORN_PLAYER_EDUCATION.md §16).
+// One-time intro modal explaining the Battle Pass — Free vs Premium tracks, XP
+// sources, the "free track is enough" reassurance. Triggered from the menu
+// refresh path (_maybeShowBattlePassEducation below) when the player reaches
+// either of the spec's two milestones, whichever comes first:
+//   - Chapter 1 cleared (chapterProgress[1] >= 5) — equivalent to "progresses
+//     to Chapter 2" in spec §16.1
+//   - 3+ heroes ascended to Tier 2 (towerState.ascendedHeroes.length >= 3)
+// Single-shot via blocksworn_bp_education_revealed.
+const BP_EDUCATION_KEY = 'blocksworn_bp_education_revealed';
+
+function maybeShowBattlePassEducation() {
+  // FTUE gate — never during tutorial
+  if (typeof isFtueActive === 'function' && isFtueActive()) return;
+  try {
+    if (localStorage.getItem(BP_EDUCATION_KEY) === '1') return;
+  } catch (e) { return; }
+  // Trigger condition — Ch1 cleared OR 3+ T2 ascensions
+  const ch1Done = (typeof chapterProgress !== 'undefined' && chapterProgress && (chapterProgress[1] || 0) >= 5);
+  const t2Count = (typeof towerState !== 'undefined' && towerState && Array.isArray(towerState.ascendedHeroes))
+                ? towerState.ascendedHeroes.length : 0;
+  if (!ch1Done && t2Count < 3) return;
+  let modal = document.getElementById('bpEducationModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'bpEducationModal';
+    modal.className = 'edu-modal';
+    document.body.appendChild(modal);
+  }
+  const subPrice = (typeof SEASON_PASS_SUB_PRICE_USD !== 'undefined') ? SEASON_PASS_SUB_PRICE_USD.toFixed(2) : '4.99';
+  const premCost = (typeof SEASON_PREMIUM_COST !== 'undefined') ? SEASON_PREMIUM_COST : 2000;
+  modal.innerHTML =
+    `<div class="edu-modal-box">
+      <div class="edu-modal-title">WELCOME TO BATTLE PASS</div>
+      <div class="edu-modal-sub">30-DAY SEASONAL TRACK · 50 TIERS</div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">◇</div>
+        <div>
+          <span class="edu-row-name">FREE TRACK</span>
+          <span class="edu-row-desc">Gold, gems, random essence, cosmetic banners on T10 / T25 / T50. Fully earnable through play.</span>
+        </div>
+      </div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">✦</div>
+        <div>
+          <span class="edu-row-name">PREMIUM · ${premCost}💎 OR ★$${subPrice}/MO</span>
+          <span class="edu-row-desc">4× more rewards. Premium-only cosmetics. 2× Tower retries. 2× daily login bundle.</span>
+        </div>
+      </div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">⚡</div>
+        <div>
+          <span class="edu-row-name">EARN XP FROM</span>
+          <span class="edu-row-desc">Battles, boss defeats, Tower floors, daily missions, achievements.</span>
+        </div>
+      </div>
+      <div class="edu-modal-footer">Free track is fully valuable — pay only if you want the cosmetic prestige.</div>
+      <button type="button" class="edu-modal-confirm" id="bpEducationOpenBtn">OPEN BATTLE PASS</button>
+      <button type="button" class="edu-modal-secondary" id="bpEducationLaterBtn">MAYBE LATER</button>
+    </div>`;
+  modal.classList.add('active');
+  const setSeen = () => { try { localStorage.setItem(BP_EDUCATION_KEY, '1'); } catch (e) {} };
+  const closeModal = () => modal.classList.remove('active');
+  const openBtn  = modal.querySelector('#bpEducationOpenBtn');
+  const laterBtn = modal.querySelector('#bpEducationLaterBtn');
+  if (openBtn) {
+    openBtn.onclick = () => {
+      setSeen();
+      closeModal();
+      try { goToSeason(); } catch (e) { console.warn('goToSeason from BP intro failed:', e); }
+    };
+  }
+  if (laterBtn) {
+    laterBtn.onclick = () => { setSeen(); closeModal(); };
+  }
 }
 
 // Load + initial rotation check at parse time
@@ -37424,6 +37522,14 @@ function goToMenu() {
     // also respects FTUE state. Both idempotent.
     if (typeof checkTowerWeeklyReset === 'function') checkTowerWeeklyReset();
     if (typeof updateTowerButtonVisibility === 'function') updateTowerButtonVisibility();
+    // 2026-04-28 — Battle Pass button visibility (FTUE gate). Mirrors Tower wiring.
+    if (typeof updateSeasonButtonVisibility === 'function') updateSeasonButtonVisibility();
+    // 2026-04-28 — Player Education Stage 13: Battle Pass intro modal. No-op
+    // unless trigger conditions met (Ch1 done OR 3+ T2 ascensions) and not
+    // shown before. Self-gates on FTUE.
+    if (typeof maybeShowBattlePassEducation === 'function') {
+      try { maybeShowBattlePassEducation(); } catch (e) { console.warn('maybeShowBattlePassEducation failed:', e); }
+    }
   } catch (e) { console.warn('Phase 5/6/7 menu refresh failed:', e); }
   // Phase F (2026-04-28): apply shop lock state + run daily pop-up scheduler.
   // Both are FTUE-gated via isFtueActive — pop-ups never fire during tutorial

@@ -180,21 +180,27 @@ rules:
 
 ## DEBT-010 · Phase 1 Task 1.7 · Season system retained as dead code
 **Introduced:** 2026-04-25 · Task #1.7
-**What:** Season system (`goToSeason()`, `screenSeason` HTML, related CSS and
-localStorage keys) сохранён в коде но недоступен через UI:
+**Resolved:** 2026-04-28 · Player Education Stage 13 work (Option A taken)
+
+**What was the debt:** Season system (`goToSeason()`, `screenSeason` HTML, related
+CSS and localStorage keys) сохранён в коде но недоступен через UI:
 - Drawer SEASON button удалён в Task #1.7
 - Underlying system inert (no trigger path)
 
-**Why:** Scenario A focus (MVP без monetization) не требует Season, но Phase 7+
-(post-launch LTV) потенциально вернёт Season Pass. Удаление entire system =
-double work в Phase 7.
+**Why deferred:** Scenario A focus (MVP без monetization) не требовал Season.
+Удаление entire system = double work в Phase 7.
 
-**Resolution plan:**
-- Option A (Phase 7+ needed): restore drawer SEASON button
-- Option B (deprecated post-launch): full removal as Phase 6 Launch Prep task
+**Resolution:** Phase C+ shipped полную subscription/premium economy
+(`seasonPassSub`, $4.99/mo, 50 tiers с free+premium tracks, 2 warning notifications,
+console dev tools). System is fully alive. Player Education Stage 13
+(BLOCKSWORN_PLAYER_EDUCATION.md §16) restored the permanent drawer entry as
+`#seasonBtn` (✦ BATTLE PASS, alongside DAILY) with FTUE-gated visibility via
+`updateSeasonButtonVisibility()` wired into the menu-refresh path. Stage 13
+intro modal `maybeShowBattlePassEducation()` fires once when player reaches
+Ch1 cleared OR 3+ T2 ascensions, with CTA → goToSeason().
 
-**Action now:** none. Dead code annotated in source with `DEBT-010` comment at
-`goToSeason()` function declaration.
+The `// DEBT-010` comment at `goToSeason()` declaration is stale — left in place
+to avoid touching merged code; future cleanup pass can remove.
 
 ## DEBT-009 · Phase 1 Task 1.6 · Vivid class-name aliases retained
 **Introduced:** 2026-04-25 · Task #1.6
