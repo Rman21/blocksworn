@@ -3448,6 +3448,65 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   font-size: 10px;
   color: #6E6B7B;
 }
+/* ----- Stats Dashboard (P2) ----- */
+.profile-stats-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.profile-stat-section {
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.20);
+  border-radius: 12px;
+  padding: 12px 12px 14px;
+}
+.profile-stat-section-title {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.8px;
+  color: var(--a-gold-300);
+  font-weight: 800;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed rgba(255,213,61,0.20);
+}
+.profile-stat-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.profile-stat-row + .profile-stat-row { margin-top: 8px; }
+.stat-card {
+  padding: 10px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.06), rgba(0,0,0,0.30));
+  border: 1px solid rgba(255,213,61,0.18);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stat-card .stat-label {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: #8A88A0;
+  font-weight: 700;
+}
+.stat-card .stat-value {
+  font-family: var(--a-font-num);
+  font-size: 16px;
+  font-weight: 800;
+  color: #FFFFFF;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.stat-card .stat-sub {
+  font-size: 9px;
+  color: var(--a-gold-300);
+  letter-spacing: 0.4px;
+  margin-top: 2px;
+}
+
 /* ----- Avatar Picker modal ----- */
 .avatar-picker-box {
   max-width: 380px;
@@ -17318,6 +17377,8 @@ function checkAndRefreshDailyMissions() {
 }
 
 function checkLoginStreak() {
+  // Profile P2 — track first-of-day visit for daysActive accumulator.
+  try { if (typeof trackProfileDayActive === 'function') trackProfileDayActive(); } catch (e) {}
   const today = getTodayDateKey();
   if (loginStreakState.lastDate === today) return; // already logged today
   if (!loginStreakState.lastDate) {
@@ -22525,13 +22586,143 @@ function _fallbackCopy(text) {
   } catch (e) { try { flashText('Copy failed', '#E85D4A'); } catch (e2) {} }
 }
 
-// XP curve per spec §3.7. P2 may fine-tune.
+// XP curve per spec §3.7.
 function _xpForLevel(lvl) {
   if (lvl <= 1)  return 0;
   if (lvl <= 10) return (lvl - 1) * 100;
   if (lvl <= 30) return 900  + (lvl - 10) * 200;
   if (lvl <= 50) return 4900 + (lvl - 30) * 500;
   return 14900 + (lvl - 50) * 1000;
+}
+
+// ===== P2 — Stats accumulators (game hooks add via these helpers) =====
+function addProfileXp(n) {
+  const a = Math.max(0, Math.floor(Number(n) || 0));
+  if (a === 0) return;
+  const prevLvl = playerProfile.level || 1;
+  playerProfile.xp = (playerProfile.xp || 0) + a;
+  // Recalc level — find highest L where _xpForLevel(L) <= xp
+  let lvl = 1;
+  while (lvl < 100 && playerProfile.xp >= _xpForLevel(lvl + 1)) lvl++;
+  playerProfile.level = lvl;
+  savePlayerProfile();
+  if (lvl > prevLvl) {
+    try { flashText('★ PROFILE LEVEL ' + lvl, '#FFD53D'); } catch (e) {}
+    try { vibrate([60, 40, 60]); } catch (e) {}
+  }
+  try {
+    if (typeof currentScreen !== 'undefined' && currentScreen === 'profile') renderProfileHeader();
+  } catch (e) {}
+}
+function trackProfileBattlePlayed()  { playerProfile.totalBattlesPlayed = (playerProfile.totalBattlesPlayed || 0) + 1; savePlayerProfile(); }
+function trackProfileBattleWon()     { playerProfile.totalBattlesWon    = (playerProfile.totalBattlesWon    || 0) + 1; savePlayerProfile(); addProfileXp(50); }
+function trackProfileDamage(amount) {
+  const a = Math.max(0, Math.floor(Number(amount) || 0));
+  if (a === 0) return;
+  playerProfile.totalDamageDealt = (playerProfile.totalDamageDealt || 0) + a;
+  // Save lazily — saving every dealDamage would be heavy. Save at battle end instead via trackProfileBattlePlayed.
+}
+function trackProfileCascade(comboCount) {
+  const c = Math.floor(Number(comboCount) || 0);
+  if (c < 3) return; // cascade = combo ≥ 3
+  playerProfile.totalCascades = (playerProfile.totalCascades || 0) + 1;
+  if (c > (playerProfile.highestCascade || 0)) playerProfile.highestCascade = c;
+}
+function trackProfileDayActive() {
+  const today = _todayDateString();
+  if (playerProfile.lastActiveDate === today) return;
+  playerProfile.daysActive = (playerProfile.daysActive || 0) + 1;
+  playerProfile.lastActiveDate = today;
+  savePlayerProfile();
+  addProfileXp(20); // daily login XP
+}
+
+// ===== P2 — Stats Dashboard renderer =====
+function renderProfileTabStats() {
+  const p = playerProfile;
+  const battlesPlayed = p.totalBattlesPlayed || 0;
+  const battlesWon    = p.totalBattlesWon    || 0;
+  const winRate       = battlesPlayed > 0 ? Math.round((battlesWon / battlesPlayed) * 100) : 0;
+  const heroesUnlocked = HERO_ROSTER.filter(h => h && h.unlocked && h.race !== 'clockwork').length;
+  const heroesTotal    = HERO_ROSTER.filter(h => h && h.race !== 'clockwork').length;
+  const ascendedCount  = (towerState && Array.isArray(towerState.ascendedHeroes)) ? towerState.ascendedHeroes.length : 0;
+  const maxLevel       = (typeof heroLevels === 'object' && heroLevels) ? Math.max(0, ...Object.values(heroLevels)) : 0;
+  const fragmentsTotal = (typeof heroFragments === 'object' && heroFragments) ? Object.values(heroFragments).reduce((a,b) => a + (b||0), 0) : 0;
+  const totalEssence   = (typeof essences === 'object' && essences) ? Object.values(essences).reduce((a,b) => a + (b||0), 0) : 0;
+  const firstPlay      = p.firstPlayDate ? p.firstPlayDate : '—';
+  const daysActive     = p.daysActive || 0;
+  // Days since first play
+  let daysSinceFirst = 0;
+  try {
+    if (p.firstPlayDate) {
+      const start = new Date(p.firstPlayDate + 'T00:00:00');
+      daysSinceFirst = Math.max(0, Math.floor((Date.now() - start.getTime()) / 86400000));
+    }
+  } catch (e) {}
+
+  const card = (label, value, sub) =>
+    '<div class="stat-card">' +
+      '<div class="stat-label">' + label + '</div>' +
+      '<div class="stat-value">' + value + '</div>' +
+      (sub ? '<div class="stat-sub">' + sub + '</div>' : '') +
+    '</div>';
+
+  return (
+    '<div class="profile-stats-grid">' +
+      // Battle section
+      '<div class="profile-stat-section">' +
+        '<div class="profile-stat-section-title">⚔ BATTLE</div>' +
+        '<div class="profile-stat-row">' +
+          card('BATTLES PLAYED', battlesPlayed.toLocaleString()) +
+          card('BATTLES WON',    battlesWon.toLocaleString(), winRate + '% win rate') +
+        '</div>' +
+        '<div class="profile-stat-row">' +
+          card('TOTAL DAMAGE',   (p.totalDamageDealt || 0).toLocaleString()) +
+          card('HIGHEST CASCADE', (p.highestCascade || 0) + '×',
+               (p.totalCascades || 0) + ' total cascades') +
+        '</div>' +
+      '</div>' +
+      // Hero section
+      '<div class="profile-stat-section">' +
+        '<div class="profile-stat-section-title">👤 HERO COLLECTION</div>' +
+        '<div class="profile-stat-row">' +
+          card('UNLOCKED',   heroesUnlocked + ' / ' + heroesTotal,
+               Math.round((heroesUnlocked / heroesTotal) * 100) + '% complete') +
+          card('ASCENDED',   ascendedCount + ' heroes', 'T2 ascension') +
+        '</div>' +
+        '<div class="profile-stat-row">' +
+          card('MAX HERO LV', maxLevel.toLocaleString()) +
+          card('FRAGMENTS',   fragmentsTotal.toLocaleString(), 'collected') +
+        '</div>' +
+      '</div>' +
+      // Currency section
+      '<div class="profile-stat-section">' +
+        '<div class="profile-stat-section-title">💰 ECONOMY</div>' +
+        '<div class="profile-stat-row">' +
+          card('GOLD',     (typeof gold !== 'undefined' ? gold : 0).toLocaleString()) +
+          card('GEMS',     (typeof gems !== 'undefined' ? gems : 0).toLocaleString()) +
+        '</div>' +
+        '<div class="profile-stat-row">' +
+          card('ESSENCE TOTAL', totalEssence.toLocaleString(), 'across 5 stihiyas') +
+          card('T2 / T3 STONES', ((towerState && towerState.tier2Stones) || 0) + ' / ' + ((towerState && towerState.tier3Stones) || 0)) +
+        '</div>' +
+      '</div>' +
+      // Playtime section
+      '<div class="profile-stat-section">' +
+        '<div class="profile-stat-section-title">⏱ PLAYTIME</div>' +
+        '<div class="profile-stat-row">' +
+          card('FIRST PLAYED',  firstPlay, daysSinceFirst + ' days ago') +
+          card('DAYS ACTIVE',   daysActive.toLocaleString(),
+               (daysSinceFirst > 0 ? Math.round((daysActive / daysSinceFirst) * 100) + '% activity' : '')) +
+        '</div>' +
+        '<div class="profile-stat-row">' +
+          card('SEASON XP',  (typeof seasonState === 'object' && seasonState ? seasonState.xp : 0).toLocaleString(),
+               'Season ' + ((typeof seasonState === 'object' && seasonState ? seasonState.seasonId : 1))) +
+          card('PROFILE LV', (p.level || 1) + ' (' + (p.xp || 0).toLocaleString() + ' XP)') +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  );
 }
 
 function profileTab(tab) {
@@ -26955,6 +27146,8 @@ function injectEmblemStyles() {
 }
 
 function startBossBattle() {
+  // Profile P2 — track every battle started (incl. retries / Tower floors).
+  try { if (typeof trackProfileBattlePlayed === 'function') trackProfileBattlePlayed(); } catch (e) {}
   // V3.0 Phase 4: show one-time tutorial toast carousel on first battle.
   // PHASE 4 BLOCK 1 — carousel is gated to NON-FTUE inside maybeShowBattleTutorial
   // because the FTUE Pyredrake fight uses the chronograph (deeper, contextual)
@@ -28483,6 +28676,8 @@ function maybePhoenixRevive() {
 // ===== DAMAGE & BOSS =====
 function dealDamage(amount, isCrit = false, critMult = 0) {
   if (gameEnded) return;
+  // Profile P2 — track lifetime damage dealt (positive deltas only, post-armor pre-synergy is fine for "raw effort" metric).
+  try { if (typeof trackProfileDamage === 'function' && amount > 0) trackProfileDamage(amount); } catch (e) {}
   // V2.0 Block 1.3: ARMORED archetype — absorb 70% of incoming dmg per shield break (pre-synergy)
   // V2.0 Stage 5 Block 5.2: THARA T3 bossStonebloodBypass — skip armored absorb ONCE (one-shot consume)
   if (bossStonebloodBypass) {
@@ -28755,6 +28950,8 @@ function hitBoss(isCombo = false) {
 
 async function onBossDefeated() {
   if (gameEnded) return;
+  // Profile P2 — track lifetime wins (covers all paths: story / tower / FTUE).
+  try { if (typeof trackProfileBattleWon === 'function') trackProfileBattleWon(); } catch (e) {}
   // POLISH v1 · PHASE 5 — cinematic moved below revive checks so Phoenix rebirth
   // doesn't incorrectly trigger the death sequence.
   // V3.0 Phase 7 Block 7.1: Tower battles bypass all story rewards + Phase 5/6
@@ -33454,6 +33651,8 @@ async function afterPlacement(piece) {
     } catch(e){}
 
     const inLines = stihiyasIn(rows, cols);
+    // Profile P2 — track combo cascades (≥3) for highestCascade + totalCascades.
+    try { if (typeof trackProfileCascade === 'function') trackProfileCascade(count); } catch (e) {}
     let mult = COMBO_MULT[Math.min(count, 4)] || 25;
     // 2026-04-27 — Block T.2 — Tower pact combo cap. QUICK/FORGE pacts cap
     // the combo multiplier at ×8 (default ×12 at 4 lines). Outside Tower
