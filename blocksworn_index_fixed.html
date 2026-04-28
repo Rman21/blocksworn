@@ -16898,18 +16898,22 @@ const FTUE_SCRIPTS = {
   // for Chronicle's lines — boss-style portrait + cyan glow per stylesheet.
   // 3 lines = ~6-8s at typewriter cadence — quick enough to keep first-launch
   // pace lively (per spec §4.4: "Battle starts in 60-90 seconds").
+  // 2026-04-28 follow-up: scrubbed Pyredrake-themed teasers ("dragons", "pyres",
+  // "Pyredrake stirs below") — the existing FTUE intro_dialog handles boss
+  // reveal cleanly; double-framing diluted the impact.
   chronicle_intro: [
-    { speakerId: 'pirate_warrior', text: 'Before the dragons. Before the pyres. There was the Codex.' },
+    { speakerId: 'pirate_warrior', text: 'Before the warband. Before the trials. There was the Codex.' },
     { speaker: 'CHRONICLE', speakerColor: '#5DCAFF', portraitKey: 'Boss_Chronicle',
-      text: 'I am the living memory of every warband that came before. Strike me. Learn the embers. I cannot be slain — only studied.' },
+      text: 'I am the living memory of every warband that came before. Strike me. Learn the cadence. I cannot be slain — only studied.' },
     { speakerId: 'pirate_warrior', text: 'A trial, then. The path opens after.' },
   ],
   // Stage 1 AAA+ — Chronicle outro on victory. The Codex "dissolves" and chains
   // narratively into the existing prologue (intro_dialog → pyredrake_fight).
+  // Stays abstract — lets the existing prologue introduce Pyredrake.
   chronicle_outro: [
     { speaker: 'CHRONICLE', speakerColor: '#5DCAFF', portraitKey: 'Boss_Chronicle',
-      text: 'You have learned the cadence of the embers. The trial fades. The world begins.' },
-    { speakerId: 'pirate_warrior', text: 'The Codex dissolves into the smoke. Pyredrake stirs below.' },
+      text: 'You have learned the cadence. The trial fades. The world begins.' },
+    { speakerId: 'pirate_warrior', text: 'The Codex dissolves into the smoke. Now the real fight.' },
   ],
   // Block 1.2 — intro before first battle
   intro: [
@@ -31318,10 +31322,10 @@ function showVictoryModal() {
     unlockBanner;
   const nextBox = document.getElementById('modalNextBoss');
   if (isChronicle) {
-    // 2026-04-28 — Stage 1 AAA+: Chronicle victory frames the Pyredrake fight as
-    // the next narrative beat (not a chapter boss yet — chapter-1 starts AFTER
-    // the prologue dialog plays). Cyan-tinted teaser to match the Codex theme.
-    nextBox.innerHTML = `<div style="font-size:11px;color:#5DCAFF;letter-spacing:1.5px;margin:10px 0">PROLOGUE BEGINS · PYREDRAKE AWAITS</div>`;
+    // 2026-04-28 — Stage 1 AAA+: Chronicle victory leaves Pyredrake unnamed —
+    // the existing prologue dialog (next FTUE beat) introduces him. Generic
+    // teaser keeps the Codex theme without spoiling the reveal.
+    nextBox.innerHTML = `<div style="font-size:11px;color:#5DCAFF;letter-spacing:1.5px;margin:10px 0">PROLOGUE BEGINS</div>`;
     document.getElementById('modalBtn').textContent = 'CONTINUE';
     document.getElementById('modalBtn').className = 'btn';
   } else if (isGrunt) {
