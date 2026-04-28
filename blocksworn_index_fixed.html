@@ -21143,6 +21143,9 @@ function goToTower() {
     document.getElementById('screenTower').classList.add('active');
   }
   renderTowerScreen();
+  // 2026-04-28 — Player Education Stage 12: one-time Tower welcome modal.
+  // No-op on subsequent visits (localStorage flag).
+  try { maybeShowTowerEducation(); } catch (e) { console.warn('maybeShowTowerEducation failed:', e); }
 }
 
 function renderTowerScreen() {
@@ -21502,6 +21505,126 @@ function closeBuffPicker() {
   if (typeof cb === 'function') setTimeout(cb, 250);
 }
 
+// 2026-04-28 — Player Education Stage 12 (BLOCKSWORN_PLAYER_EDUCATION.md §15).
+// Two one-time modals reveal Tower mode to first-time visitors:
+//   - maybeShowTowerEducation() — welcome + 3-gauntlet explanation, fires once
+//     on first goToTower() entry
+//   - maybeShowPactEducation()  — pact system primer, fires once just before
+//     the player's first showPactPicker() encounter, then chains the picker
+const TOWER_EDUCATION_KEY = 'blocksworn_tower_education_revealed';
+const PACT_EDUCATION_KEY  = 'blocksworn_pact_education_revealed';
+
+function maybeShowTowerEducation() {
+  try {
+    if (localStorage.getItem(TOWER_EDUCATION_KEY) === '1') return;
+  } catch (e) { return; }
+  let modal = document.getElementById('towerEducationModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'towerEducationModal';
+    modal.className = 'edu-modal';
+    document.body.appendChild(modal);
+  }
+  const dailyF  = (typeof TOWER_DAILY_FLOORS    !== 'undefined') ? TOWER_DAILY_FLOORS    : 10;
+  const weeklyF = (typeof TOWER_WEEKLY_FLOORS   !== 'undefined') ? TOWER_WEEKLY_FLOORS   : 25;
+  const seasF   = (typeof TOWER_SEASONAL_FLOORS !== 'undefined') ? TOWER_SEASONAL_FLOORS : 50;
+  const maxAtt  = (typeof TOWER_MAX_ATTEMPTS_PER_DAY !== 'undefined') ? TOWER_MAX_ATTEMPTS_PER_DAY : 5;
+  modal.innerHTML =
+    `<div class="edu-modal-box">
+      <div class="edu-modal-title">TOWER OF ENDLESS</div>
+      <div class="edu-modal-sub">CLIMB. FOREVER.</div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">⚔</div>
+        <div>
+          <span class="edu-row-name">DAILY GAUNTLET · ${dailyF} FLOORS</span>
+          <span class="edu-row-desc">Reset every day at 4 AM. Up to ${maxAtt} attempts. Retries available. ~30 min run. Gold + Sigils + Tower Hearts.</span>
+        </div>
+      </div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">★</div>
+        <div>
+          <span class="edu-row-name">WEEKLY GAUNTLET · ${weeklyF} FLOORS</span>
+          <span class="edu-row-desc">Sundays only. SINGLE attempt — no retries. Massive rewards for committed climbers.</span>
+        </div>
+      </div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">✦</div>
+        <div>
+          <span class="edu-row-name">SEASONAL TOWER · ${seasF} FLOORS</span>
+          <span class="edu-row-desc">Last days of the season. Single attempt. Mythic boss UROBOROS waits at F${seasF}. Top leaderboard rewards.</span>
+        </div>
+      </div>
+      <div class="edu-modal-footer">Each floor offers a PACT — power for a price. Climb high, plan deep.</div>
+      <button type="button" class="edu-modal-confirm" id="towerEducationConfirmBtn">GOT IT</button>
+    </div>`;
+  modal.classList.add('active');
+  const btn = modal.querySelector('#towerEducationConfirmBtn');
+  if (btn) {
+    btn.onclick = () => {
+      try { localStorage.setItem(TOWER_EDUCATION_KEY, '1'); } catch (e) {}
+      modal.classList.remove('active');
+    };
+  }
+}
+
+// Returns true if the modal was shown (caller should defer the pact picker
+// until the player dismisses the education). Returns false if already seen
+// or storage unavailable — caller proceeds normally.
+function maybeShowPactEducation(onContinue) {
+  try {
+    if (localStorage.getItem(PACT_EDUCATION_KEY) === '1') return false;
+  } catch (e) { return false; }
+  let modal = document.getElementById('pactEducationModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'pactEducationModal';
+    modal.className = 'edu-modal';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML =
+    `<div class="edu-modal-box">
+      <div class="edu-modal-title">PACT SYSTEM</div>
+      <div class="edu-modal-sub">POWER GAINED · COST PAID</div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">🎴</div>
+        <div>
+          <span class="edu-row-name">EACH FLOOR — PICK ONE</span>
+          <span class="edu-row-desc">Two random pacts offered before each floor. Skip is always available — no power, no cost.</span>
+        </div>
+      </div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">⚡</div>
+        <div>
+          <span class="edu-row-name">ACCEPT · TRADE-OFF</span>
+          <span class="edu-row-desc">Gain a power (e.g. +30% damage). Pay a cost (e.g. boss attacks every 3 turns instead of 5).</span>
+        </div>
+      </div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">∞</div>
+        <div>
+          <span class="edu-row-name">PACTS STACK · WHOLE RUN</span>
+          <span class="edu-row-desc">Once accepted, a pact stays for the rest of the run. By F10 you may have 10 pacts active.</span>
+        </div>
+      </div>
+      <div class="edu-modal-footer">Choose carefully — the pact stays for the entire run. Skip is fine for early floors.</div>
+      <button type="button" class="edu-modal-confirm" id="pactEducationConfirmBtn">SHOW ME THE PACTS</button>
+    </div>`;
+  modal.classList.add('active');
+  const btn = modal.querySelector('#pactEducationConfirmBtn');
+  if (btn) {
+    btn.onclick = () => {
+      try { localStorage.setItem(PACT_EDUCATION_KEY, '1'); } catch (e) {}
+      modal.classList.remove('active');
+      if (typeof onContinue === 'function') {
+        // Small delay so the dismissal feels resolved before the pact picker
+        // layers in. Mirrors the closePactPicker → setTimeout(cb, 250) pattern.
+        setTimeout(onContinue, 250);
+      }
+    };
+  }
+  return true;
+}
+
 // 2026-04-27 — Block T.2 — Pact picker modal. Shows 2 random pacts of the
 // appropriate tier for the upcoming floor + a SKIP option. On selection,
 // applies the pact and chains to the existing floor-clear modal.
@@ -21513,6 +21636,14 @@ function showPactPicker(nextFloor, onDone) {
   if (!offerings || offerings.length === 0) {
     if (typeof onDone === 'function') onDone();
     return;
+  }
+  // 2026-04-28 — Player Education Stage 12 part 2: on the player's first ever
+  // pact encounter, show the pact-system primer first. Education modal
+  // re-invokes showPactPicker with the same args once dismissed. Subsequent
+  // pacts skip this gate (localStorage flag).
+  if (typeof maybeShowPactEducation === 'function') {
+    const shown = maybeShowPactEducation(() => showPactPicker(nextFloor, onDone));
+    if (shown) return;
   }
   const modal = document.getElementById('towerPactModal');
   if (!modal) {
