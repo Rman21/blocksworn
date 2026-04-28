@@ -3507,6 +3507,157 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   margin-top: 2px;
 }
 
+/* ----- Journey tab (P3) ----- */
+.journey-chapter {
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.20);
+  border-radius: 12px;
+  padding: 12px;
+}
+.journey-chapter.done    { border-color: rgba(93,202,121,0.40); background: rgba(93,202,121,0.08); }
+.journey-chapter.current { border-color: var(--a-gold-300); background: rgba(255,213,61,0.10); box-shadow: 0 0 14px rgba(255,213,61,0.20); }
+.journey-chapter.locked  { opacity: 0.55; filter: grayscale(0.6); }
+.journey-chapter-head {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 8px; margin-bottom: 8px;
+}
+.journey-chapter-name {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.3px;
+  color: var(--a-gold-300);
+  font-weight: 800;
+}
+.journey-chapter-status {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #B8B5C4;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.journey-chapter.done .journey-chapter-status    { color: #5DCA79; }
+.journey-chapter.current .journey-chapter-status { color: var(--a-gold-300); }
+.journey-chapter.locked .journey-chapter-status  { color: #6E6B7B; }
+.journey-chapter-progress {
+  height: 6px;
+  background: rgba(0,0,0,0.55);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid rgba(255,213,61,0.20);
+}
+.journey-chapter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--a-gold-300), var(--a-gold-700));
+  transition: width 0.4s ease;
+}
+.journey-chapter.done .journey-chapter-fill { background: linear-gradient(90deg, #5DCA79, #2E8E4A); }
+.journey-chapter-meta {
+  font-size: 10px;
+  color: #8A88A0;
+  margin-top: 4px;
+  letter-spacing: 0.4px;
+}
+.journey-boss-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.journey-boss-row {
+  display: flex; align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.35);
+  border-radius: 6px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+}
+.journey-boss-row.done    { color: #5DCA79; }
+.journey-boss-row.current { color: var(--a-gold-300); background: rgba(255,213,61,0.10); }
+.journey-boss-row.pending { color: #6E6B7B; }
+.jb-icon { width: 16px; text-align: center; font-weight: 800; }
+.jb-name { flex: 1; font-weight: 700; }
+.jb-tag {
+  font-family: var(--a-font-display);
+  font-size: 8px; letter-spacing: 1.2px;
+  background: rgba(255,213,61,0.20);
+  color: var(--a-gold-300);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 800;
+}
+
+/* ----- Tower tab (P3) ----- */
+.tower-run-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 8px; align-items: center;
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.15);
+  border-radius: 6px;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.tower-run-row .tr-floor {
+  font-family: var(--a-font-num);
+  font-weight: 800;
+  color: var(--a-gold-300);
+  font-size: 13px;
+}
+.tower-run-row .tr-points { color: #FFFFFF; font-variant-numeric: tabular-nums; }
+.tower-run-row .tr-date   { color: #8A88A0; font-size: 10px; }
+.tower-ach-list { display: flex; flex-direction: column; gap: 6px; }
+.tower-ach-row {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  gap: 10px; align-items: center;
+  padding: 10px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.15);
+  border-radius: 8px;
+}
+.tower-ach-row.locked { opacity: 0.55; filter: grayscale(0.5); }
+.tower-ach-row.unlocked.ach-bronze { border-color: rgba(205,127,50,0.50); background: rgba(205,127,50,0.06); }
+.tower-ach-row.unlocked.ach-silver { border-color: rgba(192,192,192,0.55); background: rgba(192,192,192,0.06); }
+.tower-ach-row.unlocked.ach-gold   { border-color: rgba(255,213,61,0.60); background: rgba(255,213,61,0.10); box-shadow: 0 0 10px rgba(255,213,61,0.18); }
+.tower-ach-row.unlocked.ach-mythic { border-color: rgba(187,96,255,0.65); background: rgba(187,96,255,0.10); box-shadow: 0 0 12px rgba(187,96,255,0.25); }
+.tower-ach-row .ta-status { text-align: center; font-size: 18px; }
+.tower-ach-row .ta-name {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  color: #FFFFFF;
+  font-weight: 800;
+}
+.tower-ach-row .ta-desc {
+  font-size: 10px;
+  color: #B8B5C4;
+  margin-top: 2px;
+}
+.tower-ach-row .ta-title {
+  font-size: 9px;
+  color: var(--a-gold-300);
+  font-style: italic;
+  margin-top: 2px;
+  letter-spacing: 0.4px;
+}
+.tower-ach-row .ta-rarity {
+  font-family: var(--a-font-display);
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.45);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.tower-ach-row.ach-bronze .ta-rarity { color: #CD7F32; }
+.tower-ach-row.ach-silver .ta-rarity { color: #C0C0C0; }
+.tower-ach-row.ach-gold   .ta-rarity { color: var(--a-gold-300); }
+.tower-ach-row.ach-mythic .ta-rarity { color: #BB60FF; }
+
 /* ----- Avatar Picker modal ----- */
 .avatar-picker-box {
   max-width: 380px;
@@ -22635,6 +22786,127 @@ function trackProfileDayActive() {
   playerProfile.lastActiveDate = today;
   savePlayerProfile();
   addProfileXp(20); // daily login XP
+}
+
+// ===== P3 — Journey + Tower tab renderers =====
+function renderProfileTabJourney() {
+  if (typeof CHAPTERS !== 'object' || !Array.isArray(CHAPTERS)) {
+    return '<div class="profile-body-placeholder">Chapter data unavailable</div>';
+  }
+  const cur = (typeof currentChapter !== 'undefined') ? currentChapter : 1;
+  const ch1Done = (chapterProgress && (chapterProgress[1] || 0)) >= 5;
+  const ch2Done = (chapterProgress && (chapterProgress[2] || 0)) >= 5;
+  // Render each chapter with its boss list.
+  const chaptersHtml = CHAPTERS.map(ch => {
+    const done = (chapterProgress && (chapterProgress[ch.id] || 0)) || 0;
+    const total = (ch.bosses && ch.bosses.length) || 5;
+    const isComplete = done >= total;
+    const isCurrent = (ch.id === cur);
+    const ch2Locked = (ch.id === 2 && (typeof chapter2Unlocked === 'undefined' || !chapter2Unlocked) && !ch1Done);
+    const ch3Locked = (ch.id === 3 && (typeof chapter3Unlocked === 'undefined' || !chapter3Unlocked) && !ch2Done);
+    const isLocked = ch2Locked || ch3Locked;
+    const status = isComplete ? '✓ COMPLETE' : isLocked ? '🔒 LOCKED' : isCurrent ? '▶ IN PROGRESS' : '— UNCLAIMED';
+    const statusClass = isComplete ? 'done' : isLocked ? 'locked' : isCurrent ? 'current' : 'unclaimed';
+    const bossesHtml = (ch.bosses || []).map((b, i) => {
+      const bossDone = i < done;
+      const bossCurrent = (i === done) && !isLocked && !isComplete;
+      const cls = bossDone ? 'done' : bossCurrent ? 'current' : 'pending';
+      const icon = bossDone ? '✓' : bossCurrent ? '▶' : '·';
+      return '<div class="journey-boss-row ' + cls + '"><span class="jb-icon">' + icon + '</span>' +
+             '<span class="jb-name">' + (b && b.name ? b.name : '???') + '</span>' +
+             (bossCurrent ? '<span class="jb-tag">NEXT</span>' : '') +
+             '</div>';
+    }).join('');
+    return '<div class="journey-chapter ' + statusClass + '">' +
+      '<div class="journey-chapter-head">' +
+        '<div class="journey-chapter-name">CHAPTER ' + ch.id + ' · ' + (ch.name || '???').toUpperCase() + '</div>' +
+        '<div class="journey-chapter-status">' + status + '</div>' +
+      '</div>' +
+      '<div class="journey-chapter-progress"><div class="journey-chapter-fill" style="width:' + Math.min(100, Math.round((done / total) * 100)) + '%"></div></div>' +
+      '<div class="journey-chapter-meta">' + done + ' / ' + total + ' bosses defeated</div>' +
+      (isLocked ? '' : '<div class="journey-boss-list">' + bossesHtml + '</div>') +
+    '</div>';
+  }).join('');
+  return '<div class="profile-stats-grid">' + chaptersHtml + '</div>';
+}
+
+function renderProfileTabTower() {
+  const ts = typeof towerState === 'object' && towerState ? towerState : {};
+  const allTimeBest = ts.allTimeBest || 0;
+  const weeklyBest = ts.weeklyBest || 0;
+  const towerPoints = ts.towerPoints || 0;
+  const ascendedCount = (Array.isArray(ts.ascendedHeroes)) ? ts.ascendedHeroes.length : 0;
+  const t2Stones = ts.tier2Stones || 0;
+  const t3Stones = ts.tier3Stones || 0;
+  const towerHearts = ts.towerHearts || 0;
+  const sigilShards = ts.sigilShards || 0;
+  const runHistory = Array.isArray(ts.runHistory) ? ts.runHistory.slice(-5).reverse() : [];
+  // Achievements
+  const unlocked = new Set(Array.isArray(ts.unlockedAchievements) ? ts.unlockedAchievements : []);
+  const achList = (typeof TOWER_ACHIEVEMENTS === 'object' && Array.isArray(TOWER_ACHIEVEMENTS)) ? TOWER_ACHIEVEMENTS : [];
+  const card = (label, value, sub) =>
+    '<div class="stat-card">' +
+      '<div class="stat-label">' + label + '</div>' +
+      '<div class="stat-value">' + value + '</div>' +
+      (sub ? '<div class="stat-sub">' + sub + '</div>' : '') +
+    '</div>';
+  const runHistoryHtml = runHistory.length > 0
+    ? runHistory.map(r => {
+        const dt = r.date ? new Date(r.date).toLocaleDateString() : '—';
+        return '<div class="tower-run-row"><span class="tr-floor">F' + (r.floor || 0) + '</span><span class="tr-points">' + (r.points || 0) + ' pts</span><span class="tr-date">' + dt + '</span></div>';
+      }).join('')
+    : '<div class="profile-body-placeholder" style="padding:16px">No runs yet — complete a Tower floor to see history.</div>';
+  const achievementsHtml = achList.length > 0
+    ? achList.map(ach => {
+        const got = unlocked.has(ach.id);
+        return '<div class="tower-ach-row ' + (got ? 'unlocked' : 'locked') + ' ach-' + (ach.rarity || 'bronze') + '">' +
+          '<div class="ta-status">' + (got ? '✓' : '🔒') + '</div>' +
+          '<div class="ta-text">' +
+            '<div class="ta-name">' + ach.name + '</div>' +
+            '<div class="ta-desc">' + ach.desc + '</div>' +
+            (ach.title ? '<div class="ta-title">Title: ' + ach.title + '</div>' : '') +
+          '</div>' +
+          '<div class="ta-rarity">' + (ach.rarity || 'bronze').toUpperCase() + '</div>' +
+        '</div>';
+      }).join('')
+    : '';
+
+  return (
+    '<div class="profile-stats-grid">' +
+      '<div class="profile-stat-section">' +
+        '<div class="profile-stat-section-title">🗼 TOWER PROGRESS</div>' +
+        '<div class="profile-stat-row">' +
+          card('ALL-TIME BEST', 'F' + allTimeBest, allTimeBest >= 50 ? 'Seasonal-tier' : allTimeBest >= 25 ? 'Weekly-tier' : 'Daily-tier') +
+          card('WEEKLY BEST',   weeklyBest > 0 ? 'F' + weeklyBest : '—') +
+        '</div>' +
+        '<div class="profile-stat-row">' +
+          card('TOWER POINTS', towerPoints.toLocaleString()) +
+          card('ASCENDED',     ascendedCount + ' heroes', 'T2 ascensions') +
+        '</div>' +
+      '</div>' +
+      '<div class="profile-stat-section">' +
+        '<div class="profile-stat-section-title">💎 TOWER CURRENCIES</div>' +
+        '<div class="profile-stat-row">' +
+          card('⚡ T2 STONES', t2Stones.toLocaleString()) +
+          card('💠 T3 STONES', t3Stones.toLocaleString()) +
+        '</div>' +
+        '<div class="profile-stat-row">' +
+          card('♥ HEARTS',  towerHearts.toLocaleString()) +
+          card('SIGIL SHARDS', sigilShards.toLocaleString(), 'tower-only currency') +
+        '</div>' +
+      '</div>' +
+      '<div class="profile-stat-section">' +
+        '<div class="profile-stat-section-title">📜 RECENT RUNS (last 5)</div>' +
+        runHistoryHtml +
+      '</div>' +
+      (achievementsHtml ?
+        '<div class="profile-stat-section">' +
+          '<div class="profile-stat-section-title">🏆 TOWER ACHIEVEMENTS</div>' +
+          '<div class="tower-ach-list">' + achievementsHtml + '</div>' +
+        '</div>'
+       : '') +
+    '</div>'
+  );
 }
 
 // ===== P2 — Stats Dashboard renderer =====
