@@ -37189,6 +37189,17 @@ function _emblematizeSynergy(text) {
 function renderSynergyBar() {
   const el = document.getElementById('synergyBar');
   if (!el) return;
+  // 2026-04-28 — UX: hide the synergy pill bar post-FTUE to save battle
+  // screen space. Race-passive / captain-buff / signature-combo math still
+  // applies (mechanics live elsewhere — _signatureComboContext, dealDamage
+  // race buff, etc.) — only the display chips are suppressed. The bar stays
+  // visible during FTUE so the Phase 4 chronograph RACE beat ("3+ same-race
+  // heroes give a passive damage boost. See the badge above.") has a target
+  // to point at.
+  if (typeof isFtueComplete === 'function' && isFtueComplete()) {
+    el.innerHTML = '';
+    return;
+  }
   if (!activeSynergies || !activeSynergies.length) { el.innerHTML = ''; return; }
   // PHASE 3 polish: suppress race + stihiya pills when Tier 3 Signature Combo is active
   // for the same race+element. The signature pill is the headline; race/stihiya pills
