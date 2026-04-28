@@ -3658,6 +3658,47 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
 .tower-ach-row.ach-gold   .ta-rarity { color: var(--a-gold-300); }
 .tower-ach-row.ach-mythic .ta-rarity { color: #BB60FF; }
 
+/* ----- Title picker (P4) ----- */
+.title-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.title-pick {
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.20);
+  border-radius: 8px;
+  color: #FFFFFF;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.12s, border-color 0.15s;
+}
+.title-pick:hover, .title-pick:active { transform: scale(0.98); }
+.title-pick.active { box-shadow: 0 0 14px rgba(255,213,61,0.30); border-color: var(--a-gold-300); background: rgba(255,213,61,0.10); }
+.title-pick.ach-bronze { border-color: rgba(205,127,50,0.45); }
+.title-pick.ach-silver { border-color: rgba(192,192,192,0.50); }
+.title-pick.ach-gold   { border-color: rgba(255,213,61,0.55); }
+.title-pick.ach-mythic { border-color: rgba(187,96,255,0.60); background: rgba(187,96,255,0.08); }
+.title-pick .tp-name {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1px;
+  font-weight: 800;
+  color: #FFFFFF;
+}
+.title-pick .tp-rarity {
+  font-family: var(--a-font-display);
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #B8B5C4;
+  margin-top: 2px;
+}
+.title-pick.ach-bronze .tp-rarity { color: #CD7F32; }
+.title-pick.ach-silver .tp-rarity { color: #C0C0C0; }
+.title-pick.ach-gold   .tp-rarity { color: var(--a-gold-300); }
+.title-pick.ach-mythic .tp-rarity { color: #BB60FF; }
+
 /* ----- Avatar Picker modal ----- */
 .avatar-picker-box {
   max-width: 380px;
@@ -22637,10 +22678,14 @@ function renderProfileHeader() {
   const unameEl = document.getElementById('profileUsername');
   if (unameEl) unameEl.textContent = playerProfile.username || 'SUMMONER';
 
-  // Title (delegate to existing Tower title system for now)
+  // Title — P4 picker takes priority (selectedTitle stamped in playerProfile),
+  // else fall back to existing Tower title system.
   const titleEl = document.getElementById('profileTitle');
   let title = 'Warchief';
-  try { if (typeof getActiveTitle === 'function') title = getActiveTitle() || title; } catch (e) {}
+  try {
+    if (typeof getActiveProfileTitle === 'function') title = getActiveProfileTitle() || title;
+    else if (typeof getActiveTitle === 'function') title = getActiveTitle() || title;
+  } catch (e) {}
   if (titleEl) titleEl.textContent = title;
 
   // Banner tag (P5 fills)
@@ -22786,6 +22831,187 @@ function trackProfileDayActive() {
   playerProfile.lastActiveDate = today;
   savePlayerProfile();
   addProfileXp(20); // daily login XP
+}
+
+// ===== P4 — Achievements catalog + Title picker (2026-04-28) =====
+// Profile-tier achievements live in playerProfile.unlockedAchievementIds.
+// Tower achievements (existing TOWER_ACHIEVEMENTS in towerState) shown alongside
+// in the Tower tab. Profile achievements are checked via _checkProfileAchievements
+// after every relevant accumulator update.
+const PROFILE_ACHIEVEMENTS = [
+  // ----- Combat (5) -----
+  { id: 'first_blood',   cat: 'combat', name: 'FIRST BLOOD',          desc: 'Win your first battle',                  rarity: 'bronze', title: 'Combat Initiate',  check: p => (p.totalBattlesWon || 0) >= 1 },
+  { id: 'tactician',     cat: 'combat', name: 'TACTICIAN',            desc: 'Win 25 battles',                         rarity: 'silver', title: 'Tactician',         check: p => (p.totalBattlesWon || 0) >= 25 },
+  { id: 'general',       cat: 'combat', name: 'GENERAL',              desc: 'Win 100 battles',                        rarity: 'gold',   title: 'General',           check: p => (p.totalBattlesWon || 0) >= 100 },
+  { id: 'damage_5k',     cat: 'combat', name: 'DAMAGE DEALER',        desc: 'Deal 5,000 lifetime damage',             rarity: 'bronze',                            check: p => (p.totalDamageDealt || 0) >= 5000 },
+  { id: 'damage_100k',   cat: 'combat', name: 'WAR ENGINE',           desc: 'Deal 100,000 lifetime damage',           rarity: 'gold',   title: 'War Engine',        check: p => (p.totalDamageDealt || 0) >= 100000 },
+  // ----- Cascade (5) -----
+  { id: 'cascade_3',     cat: 'cascade', name: 'TRIPLE THREAT',        desc: 'Trigger a 3× cascade',                  rarity: 'bronze',                            check: p => (p.highestCascade || 0) >= 3 },
+  { id: 'cascade_4',     cat: 'cascade', name: 'GRANDMASTER',          desc: 'Trigger a 4× cascade',                  rarity: 'silver', title: 'Grandmaster',       check: p => (p.highestCascade || 0) >= 4 },
+  { id: 'cascade_5',     cat: 'cascade', name: 'CHAIN VIRTUOSO',       desc: 'Trigger a 5× cascade',                  rarity: 'gold',   title: 'Chain Virtuoso',    check: p => (p.highestCascade || 0) >= 5 },
+  { id: 'cascade_total', cat: 'cascade', name: 'CASCADE COLLECTOR',    desc: 'Trigger 100 total cascades',            rarity: 'silver',                            check: p => (p.totalCascades || 0) >= 100 },
+  { id: 'cascade_master',cat: 'cascade', name: 'CASCADE MASTER',       desc: 'Trigger 1,000 total cascades',          rarity: 'mythic', title: 'Cascade Master',    check: p => (p.totalCascades || 0) >= 1000 },
+  // ----- Heroes (6) -----
+  { id: 'hero_5',        cat: 'hero', name: 'WARBAND',                desc: 'Unlock 5 heroes',                        rarity: 'bronze',                            check: p => HERO_ROSTER.filter(h => h && h.unlocked && h.race !== 'clockwork').length >= 5 },
+  { id: 'hero_10',       cat: 'hero', name: 'LEGION',                 desc: 'Unlock 10 heroes',                       rarity: 'silver', title: 'Legionnaire',       check: p => HERO_ROSTER.filter(h => h && h.unlocked && h.race !== 'clockwork').length >= 10 },
+  { id: 'hero_25',       cat: 'hero', name: 'ROSTER COMPLETE',        desc: 'Unlock all 25 heroes',                   rarity: 'gold',   title: 'Roster Master',     check: p => HERO_ROSTER.filter(h => h && h.unlocked && h.race !== 'clockwork').length >= 25 },
+  { id: 'race_pirate',   cat: 'hero', name: 'PIRATE FLEET',           desc: 'Unlock all 5 Pirate heroes',             rarity: 'bronze',                            check: p => HERO_ROSTER.filter(h => h && h.race === 'pirate' && h.unlocked).length >= 5 },
+  { id: 'race_rock',     cat: 'hero', name: 'ROCK BAND COMPLETE',     desc: 'Unlock all 5 Rock Band heroes',          rarity: 'bronze',                            check: p => HERO_ROSTER.filter(h => h && h.race === 'rock' && h.unlocked).length >= 5 },
+  { id: 'ascend_1',      cat: 'hero', name: 'FIRST ASCENT',           desc: 'Ascend a hero to T2',                    rarity: 'silver', title: 'Ascendant',         check: p => towerState && Array.isArray(towerState.ascendedHeroes) && towerState.ascendedHeroes.length >= 1 },
+  // ----- Boss (5) -----
+  { id: 'boss_pyredrake',cat: 'boss', name: 'DRAGONSLAYER',           desc: 'Defeat Pyredrake (Boss 1)',              rarity: 'bronze',                            check: p => (chapterProgress && (chapterProgress[1] || 0)) >= 1 },
+  { id: 'ch1_clear',     cat: 'boss', name: 'ASHEN VICTOR',           desc: 'Clear Chapter 1 (Crypt Lich)',           rarity: 'silver', title: 'Ashen Victor',      check: p => (chapterProgress && (chapterProgress[1] || 0)) >= 5 },
+  { id: 'ch2_clear',     cat: 'boss', name: 'BLOOM TAMED',            desc: 'Clear Chapter 2',                        rarity: 'gold',   title: 'Bloom Tamer',       check: p => (chapterProgress && (chapterProgress[2] || 0)) >= 5 },
+  { id: 'ch3_clear',     cat: 'boss', name: 'VEIL PIERCER',           desc: 'Clear Chapter 3',                        rarity: 'mythic', title: 'Veil Piercer',      check: p => (chapterProgress && (chapterProgress[3] || 0)) >= 5 },
+  { id: 'all_chapters',  cat: 'boss', name: 'ALL CHAPTERS CLEARED',   desc: 'Clear every chapter',                    rarity: 'mythic', title: 'World Champion',    check: p => [1,2,3,4,5].every(n => (chapterProgress && (chapterProgress[n] || 0)) >= 5) },
+  // ----- Playtime (4) -----
+  { id: 'days_7',        cat: 'playtime', name: 'WEEK ONE',           desc: 'Active 7 days',                          rarity: 'bronze',                            check: p => (p.daysActive || 0) >= 7 },
+  { id: 'days_30',       cat: 'playtime', name: 'MONTHLY DEVOTEE',    desc: 'Active 30 days',                         rarity: 'silver', title: 'Devoted',           check: p => (p.daysActive || 0) >= 30 },
+  { id: 'days_100',      cat: 'playtime', name: 'CENTURION',          desc: 'Active 100 days',                        rarity: 'gold',   title: 'Centurion',         check: p => (p.daysActive || 0) >= 100 },
+  { id: 'days_365',      cat: 'playtime', name: 'YEAR ONE',           desc: 'Active 365 days',                        rarity: 'mythic', title: 'Architect',         check: p => (p.daysActive || 0) >= 365 },
+  // ----- Economy (5) -----
+  { id: 'gold_10k',      cat: 'economy', name: 'GOLD TOUCH',          desc: 'Hold 10,000 gold at once',               rarity: 'bronze',                            check: p => (typeof gold !== 'undefined' && gold >= 10000) },
+  { id: 'gem_500',       cat: 'economy', name: 'GEM HOARDER',         desc: 'Hold 500 gems at once',                  rarity: 'bronze',                            check: p => (typeof gems !== 'undefined' && gems >= 500) },
+  { id: 'gem_5000',      cat: 'economy', name: 'WHALE',               desc: 'Hold 5,000 gems at once',                rarity: 'gold',   title: 'Whale',             check: p => (typeof gems !== 'undefined' && gems >= 5000) },
+  { id: 'frags_500',     cat: 'economy', name: 'FRAGMENT MAGNATE',    desc: 'Collect 500 hero fragments total',       rarity: 'silver',                            check: p => (typeof heroFragments === 'object' && heroFragments) ? Object.values(heroFragments).reduce((a,b) => a + (b||0), 0) >= 500 : false },
+  { id: 'subscriber',    cat: 'economy', name: 'PATRON',              desc: 'Subscribe to Season Pass',               rarity: 'gold',   title: 'Patron',            check: p => typeof _isSeasonPassActive === 'function' && _isSeasonPassActive() },
+];
+
+function getProfileAchievement(id) { return PROFILE_ACHIEVEMENTS.find(a => a && a.id === id); }
+function isProfileAchievementUnlocked(id) {
+  return Array.isArray(playerProfile.unlockedAchievementIds) && playerProfile.unlockedAchievementIds.includes(id);
+}
+function _checkProfileAchievements() {
+  // Iterate every achievement, fire grant for newly-met conditions.
+  if (!Array.isArray(playerProfile.unlockedAchievementIds)) playerProfile.unlockedAchievementIds = [];
+  let newlyUnlocked = 0;
+  for (const ach of PROFILE_ACHIEVEMENTS) {
+    if (!ach || !ach.check) continue;
+    if (playerProfile.unlockedAchievementIds.includes(ach.id)) continue;
+    let met = false;
+    try { met = !!ach.check(playerProfile); } catch (e) {}
+    if (met) {
+      playerProfile.unlockedAchievementIds.push(ach.id);
+      newlyUnlocked++;
+      // Stagger flash banners so a player who hits multiple at once sees each.
+      const idx = newlyUnlocked;
+      setTimeout(() => {
+        try { flashText('🏆 ' + ach.name, ach.rarity === 'mythic' ? '#BB60FF' : ach.rarity === 'gold' ? '#FFD53D' : ach.rarity === 'silver' ? '#C0C0C0' : '#CD7F32'); } catch (e) {}
+      }, 800 + idx * 1100);
+    }
+  }
+  if (newlyUnlocked > 0) {
+    savePlayerProfile();
+    addProfileXp(newlyUnlocked * 25);
+  }
+  return newlyUnlocked;
+}
+
+// ----- Auto-check after every accumulator update (cheap — 30 boolean checks) -----
+// Wire into existing accumulator helpers by wrapping their save points.
+const _origTrackProfileBattleWon  = trackProfileBattleWon;
+trackProfileBattleWon  = function() { _origTrackProfileBattleWon();  try { _checkProfileAchievements(); } catch (e) {} };
+const _origTrackProfileCascade = trackProfileCascade;
+trackProfileCascade = function(c) { _origTrackProfileCascade(c); try { _checkProfileAchievements(); } catch (e) {} };
+const _origTrackProfileDayActive = trackProfileDayActive;
+trackProfileDayActive = function() { _origTrackProfileDayActive(); try { _checkProfileAchievements(); } catch (e) {} };
+
+// ----- Title picker (P4) — picks active title from unlocked achievements -----
+function getActiveProfileTitle() {
+  // Priority: explicit selectedTitle, else fallback to existing getActiveTitle.
+  if (playerProfile.selectedTitle) {
+    const ach = getProfileAchievement(playerProfile.selectedTitle);
+    if (ach && ach.title && playerProfile.unlockedAchievementIds.includes(ach.id)) return ach.title;
+  }
+  try { if (typeof getActiveTitle === 'function') return getActiveTitle() || 'Warchief'; } catch (e) {}
+  return 'Warchief';
+}
+function setActiveProfileTitle(achId) {
+  if (achId === null) { playerProfile.selectedTitle = null; savePlayerProfile(); return true; }
+  if (!isProfileAchievementUnlocked(achId)) return false;
+  const ach = getProfileAchievement(achId);
+  if (!ach || !ach.title) return false;
+  playerProfile.selectedTitle = achId;
+  savePlayerProfile();
+  return true;
+}
+
+// ----- Achievements tab renderer -----
+function renderProfileTabAchievements() {
+  const cats = [
+    { id: 'combat',   label: '⚔ COMBAT' },
+    { id: 'cascade',  label: '⚡ CASCADE' },
+    { id: 'hero',     label: '👤 HEROES' },
+    { id: 'boss',     label: '👹 BOSSES' },
+    { id: 'playtime', label: '⏱ PLAYTIME' },
+    { id: 'economy',  label: '💰 ECONOMY' },
+  ];
+  const unlocked = new Set(playerProfile.unlockedAchievementIds || []);
+  const total = PROFILE_ACHIEVEMENTS.length;
+  const got = unlocked.size;
+  const pct = total > 0 ? Math.round((got / total) * 100) : 0;
+  const titlesUnlocked = PROFILE_ACHIEVEMENTS.filter(a => a.title && unlocked.has(a.id));
+  // Title picker section
+  const activeId = playerProfile.selectedTitle;
+  const titlesHtml = titlesUnlocked.length > 0
+    ? '<div class="title-picker-grid">' +
+        '<button class="title-pick ' + (activeId === null ? 'active' : '') + '" onclick="setActiveProfileTitle(null); renderProfileHeader(); renderProfileTab(\'achievements\');">' +
+          '<div class="tp-name">DEFAULT</div>' +
+          '<div class="tp-rarity">Warchief</div>' +
+        '</button>' +
+        titlesUnlocked.map(a =>
+          '<button class="title-pick ach-' + (a.rarity || 'bronze') + ' ' + (activeId === a.id ? 'active' : '') + '" onclick="setActiveProfileTitle(\'' + a.id + '\'); renderProfileHeader(); renderProfileTab(\'achievements\');">' +
+            '<div class="tp-name">' + a.title + '</div>' +
+            '<div class="tp-rarity">' + (a.rarity || 'bronze').toUpperCase() + '</div>' +
+          '</button>'
+        ).join('') +
+      '</div>'
+    : '<div class="profile-body-placeholder">No titles unlocked yet — earn achievements to claim titles.</div>';
+  // Categories
+  const sections = cats.map(c => {
+    const inCat = PROFILE_ACHIEVEMENTS.filter(a => a.cat === c.id);
+    const rows = inCat.map(a => {
+      const got = unlocked.has(a.id);
+      return '<div class="tower-ach-row ' + (got ? 'unlocked' : 'locked') + ' ach-' + (a.rarity || 'bronze') + '">' +
+        '<div class="ta-status">' + (got ? '✓' : '🔒') + '</div>' +
+        '<div class="ta-text">' +
+          '<div class="ta-name">' + a.name + '</div>' +
+          '<div class="ta-desc">' + a.desc + '</div>' +
+          (a.title ? '<div class="ta-title">Title: ' + a.title + '</div>' : '') +
+        '</div>' +
+        '<div class="ta-rarity">' + (a.rarity || 'bronze').toUpperCase() + '</div>' +
+      '</div>';
+    }).join('');
+    return '<div class="profile-stat-section">' +
+      '<div class="profile-stat-section-title">' + c.label + '</div>' +
+      '<div class="tower-ach-list">' + rows + '</div>' +
+    '</div>';
+  }).join('');
+
+  return (
+    '<div class="profile-stats-grid">' +
+      '<div class="profile-stat-section">' +
+        '<div class="profile-stat-section-title">📈 PROGRESS</div>' +
+        '<div class="profile-stat-row">' +
+          '<div class="stat-card">' +
+            '<div class="stat-label">UNLOCKED</div>' +
+            '<div class="stat-value">' + got + ' / ' + total + '</div>' +
+            '<div class="stat-sub">' + pct + '% complete</div>' +
+          '</div>' +
+          '<div class="stat-card">' +
+            '<div class="stat-label">TITLES EARNED</div>' +
+            '<div class="stat-value">' + titlesUnlocked.length + '</div>' +
+            '<div class="stat-sub">tap below to equip</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="profile-stat-section">' +
+        '<div class="profile-stat-section-title">🏷 TITLE PICKER</div>' +
+        titlesHtml +
+      '</div>' +
+      sections +
+    '</div>'
+  );
 }
 
 // ===== P3 — Journey + Tower tab renderers =====
