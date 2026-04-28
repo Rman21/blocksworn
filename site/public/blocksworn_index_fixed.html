@@ -10488,6 +10488,109 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   from { opacity: 0; transform: scale(0.9); }
   to   { opacity: 1; transform: scale(1); }
 }
+/* 2026-04-28 — Player Education Stage 9 (BLOCKSWORN_PLAYER_EDUCATION.md §12).
+   World Map reveal layered into the existing Crypt Lich aftermath cinematic.
+   After the 3 poetic lines + Chapter 2 banner, 4 region cards slide in
+   staggered (Chapter 1 cleared / Chapter 2 NEW / Tower / Daily Quests).
+   Each card is color-themed; the NEW card pulses with violet glow to draw
+   attention; cleared card has a gold check chip. Total cinematic is ~8.4s
+   from start to CTA — adds ~2s vs the previous 6.4s flow. */
+.crypt-aftermath .cla-regions {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(94%, 460px);
+  opacity: 0;
+  animation: claLineEnter 0.7s ease-out 5.6s forwards;
+}
+.crypt-aftermath .cla-region {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 14px;
+  background: linear-gradient(180deg, rgba(255, 213, 61, 0.06), rgba(0, 0, 0, 0.40));
+  border: 1px solid rgba(255, 213, 61, 0.22);
+  border-radius: 10px;
+  text-align: left;
+  opacity: 0;
+  transform: translateX(-14px);
+}
+.crypt-aftermath .cla-region:nth-child(1) { animation: claRegionSlide 0.7s ease-out 5.8s forwards; }
+.crypt-aftermath .cla-region:nth-child(2) { animation: claRegionSlide 0.7s ease-out 6.2s forwards; }
+.crypt-aftermath .cla-region:nth-child(3) { animation: claRegionSlide 0.7s ease-out 6.6s forwards; }
+.crypt-aftermath .cla-region:nth-child(4) { animation: claRegionSlide 0.7s ease-out 7.0s forwards; }
+.crypt-aftermath .cla-region.is-new {
+  border-color: rgba(187, 96, 255, 0.7);
+  background: linear-gradient(180deg, rgba(155, 89, 214, 0.20), rgba(0, 0, 0, 0.42));
+}
+.crypt-aftermath .cla-region.is-new::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 0 0 rgba(187, 96, 255, 0);
+  animation: claRegionPulse 2.4s ease-in-out 7.4s infinite;
+}
+.crypt-aftermath .cla-region {
+  position: relative;
+}
+.crypt-aftermath .cla-region-icon {
+  flex-shrink: 0;
+  width: 32px;
+  font-size: 22px;
+  text-align: center;
+  line-height: 1;
+  filter: drop-shadow(0 0 10px currentColor);
+}
+.crypt-aftermath .cla-region-info { flex: 1; min-width: 0; }
+.crypt-aftermath .cla-region-name {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  margin-bottom: 2px;
+}
+.crypt-aftermath .cla-region-desc {
+  font-size: 11px;
+  color: #B8B0D0;
+  letter-spacing: 0.4px;
+  line-height: 1.3;
+}
+.crypt-aftermath .cla-region-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  border-radius: 12px;
+  font-family: var(--a-font-display, 'Cinzel', serif);
+}
+.crypt-aftermath .cla-region.is-cleared .cla-region-badge {
+  color: #FFD53D;
+  background: rgba(255, 213, 61, 0.16);
+  border: 1px solid rgba(255, 213, 61, 0.35);
+}
+.crypt-aftermath .cla-region.is-new .cla-region-badge {
+  color: #F0E0FF;
+  background: rgba(155, 89, 214, 0.42);
+  border: 1px solid rgba(187, 96, 255, 0.70);
+  text-shadow: 0 0 8px #BB60FF;
+}
+.crypt-aftermath .cla-region:not(.is-cleared):not(.is-new) .cla-region-badge {
+  color: #C8C5D4;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+@keyframes claRegionSlide {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes claRegionPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(187, 96, 255, 0); }
+  50%      { box-shadow: 0 0 24px rgba(187, 96, 255, 0.45); }
+}
 .crypt-aftermath .cla-cta {
   margin-top: 22px;
   padding: 12px 32px;
@@ -10500,7 +10603,7 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   box-shadow: 0 8px 24px rgba(155, 89, 214, 0.55), 0 0 18px rgba(255, 184, 74, 0.45);
   opacity: 0;
   transition: filter 0.18s ease, transform 0.12s ease;
-  animation: claLineEnter 0.8s ease-out 6.4s forwards;
+  animation: claLineEnter 0.8s ease-out 8.0s forwards;
 }
 .crypt-aftermath .cla-cta:hover  { filter: brightness(1.08); }
 .crypt-aftermath .cla-cta:active { transform: scale(0.97); }
@@ -10512,10 +10615,13 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .crypt-aftermath .cla-line-2,
   .crypt-aftermath .cla-line-3,
   .crypt-aftermath .cla-banner,
+  .crypt-aftermath .cla-regions,
+  .crypt-aftermath .cla-region,
   .crypt-aftermath .cla-cta {
     animation-duration: 0.4s !important;
     animation-timing-function: linear !important;
   }
+  .crypt-aftermath .cla-region.is-new::after { animation: none !important; }
 }
 
 /* ===== PHASE 5b BLOCK 7 — Battery (Heliotron) charge meter UI ===== */
@@ -13018,6 +13124,44 @@ button.season-tier-claim:active {
     <div class="cla-line cla-line-2" id="claLine2">But something else has risen.</div>
     <div class="cla-line cla-line-3" id="claLine3">Welcome, Summoner — to what comes next.</div>
     <div class="cla-banner" id="claBanner">CHAPTER 2 — BLOOM OF MADNESS</div>
+    <!-- 2026-04-28 — Stage 9 World Map reveal. Four regions slide in
+         staggered after the chapter banner: Ch1 cleared (gold check),
+         Ch2 NEW (violet pulse), Tower Endless (amber spire),
+         Daily Quests (cyan calendar). Color-coded for instant scan. -->
+    <div class="cla-regions" id="claRegions">
+      <div class="cla-region is-cleared">
+        <div class="cla-region-icon" style="color:#FFD53D">✓</div>
+        <div class="cla-region-info">
+          <div class="cla-region-name" style="color:#FFD53D">ASHEN DOMINION</div>
+          <div class="cla-region-desc">Chapter 1 · Five elemental lords laid low</div>
+        </div>
+        <div class="cla-region-badge">CLEARED</div>
+      </div>
+      <div class="cla-region is-new">
+        <div class="cla-region-icon" style="color:#BB60FF">★</div>
+        <div class="cla-region-info">
+          <div class="cla-region-name" style="color:#F0E0FF">BLOOM OF MADNESS</div>
+          <div class="cla-region-desc">Chapter 2 · Five archetypes await your warband</div>
+        </div>
+        <div class="cla-region-badge">NEW</div>
+      </div>
+      <div class="cla-region">
+        <div class="cla-region-icon" style="color:#FFAA00">🗼</div>
+        <div class="cla-region-info">
+          <div class="cla-region-name" style="color:#FFAA00">TOWER OF ENDLESS</div>
+          <div class="cla-region-desc">Daily / Weekly / Seasonal climbs · Uroboros at F50</div>
+        </div>
+        <div class="cla-region-badge">ENDLESS</div>
+      </div>
+      <div class="cla-region">
+        <div class="cla-region-icon" style="color:#5DCAFF">📅</div>
+        <div class="cla-region-info">
+          <div class="cla-region-name" style="color:#5DCAFF">DAILY QUESTS</div>
+          <div class="cla-region-desc">Battle Pass XP · daily login · streak rewards</div>
+        </div>
+        <div class="cla-region-badge">DAILY</div>
+      </div>
+    </div>
     <button class="cla-cta" id="claCta" type="button" onclick="_dismissCryptLichAftermath()">ENTER THE WORLD</button>
   </div>
 </div>
