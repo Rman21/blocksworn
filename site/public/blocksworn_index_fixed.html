@@ -7285,6 +7285,15 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 /* Mobile-first constraint: entire app never exceeds 420px even on wide desktop */
 .screen { display: none; width: 100%; max-width: 448px; margin: 0 auto; min-height: 100vh; box-sizing: border-box; overflow-y: auto; overflow-x: hidden; position: relative; -webkit-overflow-scrolling: touch; }
 .screen.active { display: block; }
+/* 2026-04-28 — Mobile drag fix: on touch devices the battle screen must NOT
+   scroll, otherwise piece-drag gestures starting from the tray near the
+   bottom edge get hijacked by the browser as a vertical scroll and the piece
+   "sticks" mid-air. The grid + tray already declare touch-action: none, but
+   touches that drift to surrounding screen area would still trigger scroll.
+   Force the entire battle screen non-scrollable + non-scroll-touch-action.
+   Other screens (heroes, tower, season) keep the auto/scroll behavior because
+   their content legitimately requires scrolling. */
+#screenBattle.active { overflow: hidden !important; touch-action: none; min-height: 100dvh; }
 .game { 
   width: 100%; max-width: 420px; 
   display: flex; flex-direction: column; gap: 8px; 
