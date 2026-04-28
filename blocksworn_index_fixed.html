@@ -39987,8 +39987,23 @@ const _RACE_BULLET = {
 // long banner the first time a race-passive procs in a battle, and a normal
 // flash on subsequent procs. Use from race-passive trigger sites.
 let racePassiveFirstProcSeen = {};
+// 2026-04-28 — UX cleanup: silence the noisy race-passive banners that don't
+// communicate actionable info to the player. Mechanics still fire — only the
+// banner is suppressed. Kept loud:
+//   pirate2 PLUNDER  · gold-drop info
+//   rock3   ENCORE   · once-per-battle big moment
+//   shark3  BLOODHUNT · execute-window unlock
+//   crocodile2 DEATH ROLL · revive celebration
+//   spark3  STATIC FIELD · rare AoE proc with visual effect
+// Silenced (this set):
+//   pirate3 DOUBLE COMBO · pure RNG, no player agency
+//   rock2   CASCADE BONUS · per-cascade noise on every umbra clear
+//   shark2  SWIM THROUGH  · silent end-of-turn void dissolve
+//   crocodile3 IRON HIDE · per-turn shield grant, repeats forever
+const _SILENT_RACE_PASSIVE_KEYS = new Set(['pirate3', 'rock2', 'shark2', 'crocodile3']);
 function flashRacePassiveOnce(key, msg, color) {
   if (typeof flashText !== 'function') return;
+  if (_SILENT_RACE_PASSIVE_KEYS.has(key)) return;
   if (!racePassiveFirstProcSeen[key]) {
     racePassiveFirstProcSeen[key] = true;
     try { flashText('★ ' + msg + ' UNLOCKED', color); } catch (e) {}
