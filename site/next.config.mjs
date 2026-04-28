@@ -1,15 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Allow external image sources (game assets on rman21.github.io)
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'rman21.github.io',
-      },
-    ],
-  },
   // Day-2 shipped hero ids as `croc_*`; Day-4 corrected to canonical
   // `crocodile_*` (matches game's HERO_ROSTER). Permanent redirect for any
   // shared/indexed Day-2 URLs.

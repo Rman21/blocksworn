@@ -23,7 +23,7 @@ export function Footer() {
             </h3>
             <ul className="space-y-2 text-sm text-text-muted">
               <li><Link href="/about" className="hover:text-gold-300 transition-colors">About</Link></li>
-              <li><a href="https://github.com/Rman21/blocksworn" target="_blank" rel="noopener" className="hover:text-gold-300 transition-colors">GitHub</a></li>
+              <li><Link href="/news" className="hover:text-gold-300 transition-colors">News</Link></li>
             </ul>
           </div>
           <div>
