@@ -16537,6 +16537,21 @@ function advanceFtue(nextBeat) {
   }
   ftueBeat = nextBeat;
   saveFtueToStorage();
+  // 2026-04-28 — Drop stale dialog/flash state at every FTUE transition.
+  // Three leak sources, all from the previous beat's combat dialogs:
+  //   (a) _dialogDeferredQueue — flashText/flashHeroTrigger calls deferred while
+  //       a dialog was active. After the dialog ended they would fire — and
+  //       could replay Pyredrake-era ability buff banners during grunt_outro.
+  //   (b) _pendingDialogRequest — single-slot queue used by playDialogScript
+  //       when called while another dialog is active. A queued pyredrake_intro
+  //       boss voice line could surface later, after Grunt's defeat.
+  //   (c) Boss-voice once-per-battle flags — defensively reset so a delayed
+  //       midfight/death proc from setTimeout can't double-fire.
+  try {
+    if (typeof _dialogDeferredQueue !== 'undefined') _dialogDeferredQueue.length = 0;
+    if (typeof _pendingDialogRequest !== 'undefined') _pendingDialogRequest = null;
+    if (typeof resetBossVoiceFlags === 'function') resetBossVoiceFlags();
+  } catch (e) {}
   // PHASE 4 HOTFIX #1 — force-dismiss any active chronograph on FSM transition
   // so a beat queued via setTimeout during the previous beat (e.g. CHARGE
   // setTimeout from a final cells-cleared cascade) can't bleed into the next
@@ -29047,6 +29062,18 @@ function injectEmblemStyles() {
 function startBossBattle() {
   // Profile P2 — track every battle started (incl. retries / Tower floors).
   try { if (typeof trackProfileBattlePlayed === 'function') trackProfileBattlePlayed(); } catch (e) {}
+  // 2026-04-28 — Drop stale dialog/flash state at battle start. Same trio of
+  // leak sources documented in advanceFtue's clear: deferred flash queue,
+  // single-slot pending-dialog request, and boss-voice once-per-battle flags.
+  // Without these clears, ability/buff banners that arrived during a previous
+  // battle's voice-intro / midfight / defeat dialogs survived and fired during
+  // the NEXT battle's outro chain — looking like Pyredrake text replayed after
+  // Ember Grunt's defeat.
+  try {
+    if (typeof _dialogDeferredQueue !== 'undefined') _dialogDeferredQueue.length = 0;
+    if (typeof _pendingDialogRequest !== 'undefined') _pendingDialogRequest = null;
+    if (typeof resetBossVoiceFlags === 'function') resetBossVoiceFlags();
+  } catch (e) {}
   // V3.0 Phase 4: show one-time tutorial toast carousel on first battle.
   // PHASE 4 BLOCK 1 — carousel is gated to NON-FTUE inside maybeShowBattleTutorial
   // because the FTUE Pyredrake fight uses the chronograph (deeper, contextual)
