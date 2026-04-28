@@ -1,7 +1,14 @@
 # Technical Debt Ledger
 
-Файл отслеживает временные компромиссы внутри Phase 1 reduction.
+Файл отслеживает временные компромиссы по всему проекту.
 Каждая запись должна иметь explicit resolution target.
+
+**Numbering schemes** (исторически разъехались — неймспейсы независимые):
+- `DEBT-NNN` — Phase 1 reduction + последующие phases (исходный счётчик)
+- `Block 6.5 DEBT-N` — Chapter 3 follow-ups (отдельная секция ниже)
+- `TOWER-DEBT-N` — Tower system follow-ups (отдельная секция ниже)
+
+**Last sync with source:** 2026-04-28 — verified via grep of all `DEBT-` markers in `blocksworn_index_fixed.html`.
 
 ## DEBT-001 · Phase 1 Task 1.3 · Artifact/Modifier stubs
 **Introduced:** 2026-04-24 · commit ec4f253
@@ -120,28 +127,32 @@ narrator identity полностью под новую 3-faction структу�
 
 ## DEBT-012 · Phase 1 Task 1.9 · Orphan Ch2/Ch3 DIALOG_LINES entries
 **Introduced:** 2026-04-25 · observed during Task #1.9 regression audit
-**What:** 44 dialog data entries в `DIALOG_LINES` для Chapter 2 (TIDAL LEVIATHAN /
-VERDANT COLOSSUS / SERAPH JUDICATOR / WRAITH OF CHAINS / EMBERBEARD) и Chapter 3
-(PYRESPIRE / GLACIAL MONARCH / STONEMAGUS / SUNFORGED / VOIDFANG) bosses осталось
-после Task #1.5 chapter trim. Каждый boss has intro + 1-2 phase + defeat dialog
-entries. Все они reference `portraitKey: 'Boss_6'..'Boss_15'` — assets
-which were removed in Task #1.5.
+**Status update (2026-04-28):** Описание ниже ссылается на **удалённый pre-Phase-5
+roster** (TIDAL LEVIATHAN/COLOSSUS/SERAPH/WRAITH/EMBERBEARD для Ch2 и
+PYRESPIRE/MONARCH/STONEMAGUS/SUNFORGED/VOIDFANG для Ch3). Реальный шиппнутый
+roster: Ch2 — VEROTHIRA / GEARHEART / URSARO / TIDESPIRE / HELIOTRON; Ch3 —
+TWILIGHT VESSEL / STORMSHEPHERD / VOIDPRIESTESS / ROOT-OF-NOTHING / ARCHIVAL
+ETERNAL. Phase 5 (5b) шиппнулся со своим roster и не делал generic «DIALOG_LINES
+cleanup» pass — orphan строки старого roster всё ещё лежат мёртвым кодом
+(grep по старым ids = **63 hits на 2026-04-28**). **Low-priority dead text data**,
+no trigger path активирует их в gameplay.
 
-**Why deferred:** Functionally inert — DIALOG_LINES lookups happen via dialog id,
-and никакой trigger path не активирует Ch2/Ch3 dialog ids в current Ch1-only
-gameplay. ASSETS lookup для Boss_6..15 portrait keys возвращает undefined →
-dialog player handles missing portraits gracefully. ~50 lines / ~5KB of dead
-text data.
+**What (исторический контекст):** 44 dialog data entries в `DIALOG_LINES` для
+бывших Ch2 (TIDAL LEVIATHAN / VERDANT COLOSSUS / SERAPH JUDICATOR / WRAITH OF
+CHAINS / EMBERBEARD) и бывших Ch3 (PYRESPIRE / GLACIAL MONARCH / STONEMAGUS /
+SUNFORGED / VOIDFANG) bosses. Reference `portraitKey: 'Boss_6'..'Boss_15'` —
+assets removed в Task #1.5.
 
-**Resolution plan:** Phase 5 (Onboarding Rebuild) — Creative Director переписывает
-все DIALOG_LINES под new 15-hero / 5-boss roster. Orphan Ch2/Ch3 entries
-naturally removed в этом процессе.
+**Why deferred:** Functionally inert. DIALOG_LINES lookups идут по dialog id,
+ни один trigger path не активирует эти ids. ASSETS lookup для Boss_6..15
+возвращает undefined → dialog player handles missing portraits gracefully.
+~50 lines / ~5KB мёртвого текста.
 
-**Action now:** none. Documented for traceability. Cleanup grep pattern for
-Phase 5 verification:
+**Resolution plan:** generic cleanup pass — точечно удалить 44 orphan entries.
+Cleanup grep pattern:
 ```bash
-grep -cE "leviathan_|colossus_|seraph_|wraith_|emberbeard_|pyrespire_|monarch_|stone_|sunforged_|voidfang_" blocksworn_index_fixed.html
-# Expected post-Phase-5: 0
+grep -cE "leviathan_|colossus_|seraph_|wraith_|emberbeard_|pyrespire_|monarch_|stonemagus_|sunforged_|voidfang_" blocksworn_index_fixed.html
+# Currently: 63. Expected post-cleanup: 0.
 ```
 
 ## DEBT-011 · Phase 1 Task 1.8 · FTUE splash cards full-width
@@ -169,21 +180,27 @@ rules:
 
 ## DEBT-010 · Phase 1 Task 1.7 · Season system retained as dead code
 **Introduced:** 2026-04-25 · Task #1.7
-**What:** Season system (`goToSeason()`, `screenSeason` HTML, related CSS and
-localStorage keys) сохранён в коде но недоступен через UI:
+**Resolved:** 2026-04-28 · Player Education Stage 13 work (Option A taken)
+
+**What was the debt:** Season system (`goToSeason()`, `screenSeason` HTML, related
+CSS and localStorage keys) сохранён в коде но недоступен через UI:
 - Drawer SEASON button удалён в Task #1.7
 - Underlying system inert (no trigger path)
 
-**Why:** Scenario A focus (MVP без monetization) не требует Season, но Phase 7+
-(post-launch LTV) потенциально вернёт Season Pass. Удаление entire system =
-double work в Phase 7.
+**Why deferred:** Scenario A focus (MVP без monetization) не требовал Season.
+Удаление entire system = double work в Phase 7.
 
-**Resolution plan:**
-- Option A (Phase 7+ needed): restore drawer SEASON button
-- Option B (deprecated post-launch): full removal as Phase 6 Launch Prep task
+**Resolution:** Phase C+ shipped полную subscription/premium economy
+(`seasonPassSub`, $4.99/mo, 50 tiers с free+premium tracks, 2 warning notifications,
+console dev tools). System is fully alive. Player Education Stage 13
+(BLOCKSWORN_PLAYER_EDUCATION.md §16) restored the permanent drawer entry as
+`#seasonBtn` (✦ BATTLE PASS, alongside DAILY) with FTUE-gated visibility via
+`updateSeasonButtonVisibility()` wired into the menu-refresh path. Stage 13
+intro modal `maybeShowBattlePassEducation()` fires once when player reaches
+Ch1 cleared OR 3+ T2 ascensions, with CTA → goToSeason().
 
-**Action now:** none. Dead code annotated in source with `DEBT-010` comment at
-`goToSeason()` function declaration.
+The `// DEBT-010` comment at `goToSeason()` declaration is stale — left in place
+to avoid touching merged code; future cleanup pass can remove.
 
 ## DEBT-009 · Phase 1 Task 1.6 · Vivid class-name aliases retained
 **Introduced:** 2026-04-25 · Task #1.6
@@ -420,10 +437,152 @@ may further consolidate fill paths.
 verifies primary line-clear fill works; legacy procs may not contribute to
 ult-readiness until 4.2 rewire.
 
-**Verification:**
+**Verification (2026-04-28):**
 ```bash
-# Sites bumping legacy element pool (should equal pre-4.1 count, ≈12-15):
 grep -cE "ultCharges\[" blocksworn_index_fixed.html
-# Per-hero callsites (should be > 0 after 4.1):
+# → 15 hits (matches "≈12-15" expectation — STILL OPEN)
 grep -cE "heroCharges\[" blocksworn_index_fixed.html
+# → 12 hits (>0 — 4.1 primary path live)
 ```
+
+> **ID collision note:** В исходниках 8 строк помечены `// PHASE 4 BLOCK 2 —
+> DEBT-014 FSM REWORK` (FTUE_TRANSITIONS table, `ftueIs()` helper). Это **другой
+> debt** — refactor FTUE state machine, который был зарешён в Phase 4 Block 2.
+> Кто-то переиспользовал id. Резолюция этого второго debt-а вынесена ниже как
+> отдельная запись **DEBT-015**. Код-комменты не трогаем чтобы не разъезжать
+> с merge-history.
+
+## DEBT-015 · Phase 4 Block 2 · FTUE state-machine refactor
+**Introduced:** до 2026-04-26 (legacy: ad-hoc `ftueBeat === 'X'` checks по всему файлу)
+**Resolved:** 2026-04-26 · Phase 4 Block 2 (commit history)
+
+**What was the debt:** FTUE state machine управлялся через разрозненные
+`ftueBeat === '...'` строковые сравнения, без явной таблицы переходов.
+Опечатки в beat names → silent fall-through. Невозможно было аудитить
+"какие переходы legal".
+
+**Resolution:**
+- `FTUE_TRANSITIONS` table — explicit prev→next edges. `advanceFtue()` warns
+  on invalid edges (still permitted for back-compat: `skipFtue`, `resetFtue`,
+  idempotent `routeByFtue` re-entry).
+- `ftueIs(beat)` helper — single-source predicate, accepts string или array.
+  Defensively returns false для unknown beats (typo never silently passes).
+- `FtueState` namespace — read-only debug view, queryable via `__ftueDebug()`
+  для triage.
+
+**Note:** В коде эта работа помечена `DEBT-014 FSM REWORK` (8 сайтов,
+e.g. L16192, L16209, L16270). Id переиспользован по ошибке — настоящий
+DEBT-014 (element-pool dead writes) описан выше и всё ещё открыт. Не
+правлю комменты в коде чтобы не плодить merge-конфликты.
+
+## DEBT-016 · V2.0 Stage 5 Block 5.6 · Per-hero free-Encore token + Tank-specific Encore window
+**Introduced:** 2026-04-27 (Block B1 KEYCRYPT/THUNDERBEAT T2/T3 mechanics)
+**What:**
+- KEYCRYPT spec mentions "every squad hero gets one free Encore" mechanic. v1
+  codebase has only board-state extension on MENDING template (umbra clears get
+  +20% damage), не per-hero token tracker.
+- THUNDERBEAT spec mentions Tank-specific "3-placement encore window" (umbra
+  clear gets +50 free Rhythm bonus during window). Только squad-wide Encore
+  через NIGHTLORD ULT (`encoreActive` flag) реализован.
+
+**Why deferred:** Требует per-hero token tracker + `fireHero` double-fire path
+с recursion guard. Out of scope для Block B1.
+
+**Resolution plan:** dedicated MGD task — design per-hero encore token state +
+non-recursive double-fire dispatch.
+
+**Code refs:** L33746, L33761.
+
+## DEBT-017 · V2.0 Stage 5 Block 5.6 · ULT placement-refund mechanic missing
+**Introduced:** 2026-04-27 (Bulwark BULWARK/CHARGED AEGIS implementation)
+**What:** Spec [Frost × Tank] cell ULT для BULWARK: «refunds 1 placement to
+the player». В v1 codebase **нет placement-refund mechanism**. Реализация
+fallback’ит на +3 shields (parity с IRONBELLY CHARGED AEGIS shape).
+
+**Why deferred:** Требует новую механику в core placement loop — добавить
+"refund" способность на placement counter. Не существует в v1, нет точки
+расширения.
+
+**Resolution plan:** core-loop task — добавить `refundPlacements(n)` API в
+placement system, переписать BULWARK fire/ult на новый API.
+
+**Code refs:** L33901, L33996.
+
+## DEBT-019 · Phase 0 Block B3 · Squad slot card-flip animation deferred
+**Introduced:** 2026-04-25 (Block B3 SQUAD_MAX storage + boss-defeat unlock)
+**What:** Block B3 unlock celebration overlay использует existing `flashText`
+toast + `chapterCompleteModal` pattern для hero unlock visualization. Полная
+card-flip animation (per design intent) deferred to Block B4 polish.
+
+**Severity:** Cosmetic only. Unlock логика работает, новый герой появляется
+в слоте. Просто без юмового флипа — статичная toast-а.
+
+**Resolution plan:** Block B4 polish — implement card-flip animation
+(CSS 3D transform + sequenced fadeIn/Out).
+
+**Code refs:** L14454.
+
+---
+
+## Block 6.5 (Chapter 3) follow-ups
+
+> **Namespace note:** Эти записи в исходниках помечены `Block 6.5 DEBT-N` где N
+> = 3..10. Это **отдельный счётчик** от основного DEBT-NNN — не путать с
+> DEBT-003..010 выше. Все open. Введены при шиппинге Chapter 3 (VEIL OF
+> FORGOTTEN GODS) 27 апр.
+
+### Block 6.5 DEBT-3 · Stormshepherd storm cells
+**What:** Storm cells персистятся как `{r, c, turnsLeft = 2}`. Текущая
+реализация tracking-only — нет визуального индикатора оставшихся ходов на
+cell-е.
+**Code ref:** L25806.
+
+### Block 6.5 DEBT-4 · Root-of-Nothing wither neighbor-clear escape
+**What:** Wither effect от Root-of-Nothing должен иметь "neighbor-clear escape"
+условие (если соседняя клетка cleared в тот же turn — wither снимается).
+Реализация частичная.
+**Code ref:** L28907.
+
+### Block 6.5 DEBT-5 · Tank/Warrior role-specific seal mechanics
+**What:** Seal mechanics `tank_halved` (Tank dmg ×0.5) + `warrior_blocked`
+(Warrior dmg ×0.5) — реализованы как dual-element pact synergies, но без
+полной интеграции в seal pool (см. DEBT-6).
+**Code ref:** L30113.
+
+### Block 6.5 DEBT-6 · Archival Eternal seal pool
+**What:** Spec §2.6 описывает 7 seal mechanics для Archival Eternal. В коде
+реализованы 4: `charge_frozen`, `element_drops_random`, `placement_costs_hp`,
+`captain_inverted`. Остальные 3 — pending.
+**Code refs:** L25103, L25925, L28362, L28811, L30013.
+
+### Block 6.5 DEBT-7 · "Forgotten Names" mythic portrait frame
+**What:** Cosmetic mythic portrait frame для Tier 3 ascended heroes. Toggle-only
+реализация (включается/выключается per hero), но frame asset (border SVG/PNG)
+— placeholder.
+**Code refs:** L6768, L15173, L15249, L19539.
+
+### Block 6.5 DEBT-9 · Cosmic Memorial для defeated Ch3 bosses
+**What:** Profile section отображает "ethereal mini" представления побеждённых
+Ch3 боссов как memorial. Layout + render pipeline на месте, но visual polish
+(particle effect, glow) — placeholder.
+**Code refs:** L6715, L12310, L37557.
+
+### Block 6.5 DEBT-10 · Dual-element pact synergies (Tower)
+**What:** Tower pact selection активирует synergy bonuses для dual-element
+комбо (per spec §2.7). Runtime calc реализован, но **balance-numbers** не
+финализированы (текущие значения placeholder).
+**Code refs:** L20023, L20087, L20102, L30119.
+
+---
+
+## Tower system follow-ups
+
+### TOWER-DEBT-4 · Seasonal hero card drop · leaderboard-tier scaling
+**Introduced:** 2026-04-27 (Block H.2 — seasonal Tower hero card drop, spec §12)
+**What:** Spec §12 описывает scaling card drops по leaderboard rank ("5–25 top
+ranks"). Текущая реализация single-player local — flat 5 cards для всех
+("Participation" tier).
+**Why deferred:** Требует backend leaderboard system который ещё не шиппнулся.
+**Resolution plan:** когда leaderboard ships → branch on rank в
+`onTowerSeasonalComplete()` для tier-aware drop counts.
+**Code ref:** L20781.
