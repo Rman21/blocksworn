@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blocksworm — Block Puzzle RPG</title>
+<meta name="description" content="Clear lines, summon legends. Block-puzzle RPG with elemental heroes.">
+<meta name="theme-color" content="#0A0A1A">
+<!-- iOS PWA meta -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Blocksworm">
+<!-- Open Graph (for social sharing) -->
+<meta property="og:title" content="Blocksworm — Block Puzzle RPG">
+<meta property="og:description" content="Clear lines, summon legends.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://blocksworm.com/">
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    background: #0A0A1A;
+    color: #E4E1F0;
+    font-family: -apple-system, system-ui, sans-serif;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .splash {
+    text-align: center;
+    animation: fadeIn 0.4s ease-out;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .splash h1 {
+    font-family: 'Cinzel', 'Trajan Pro', serif;
+    font-size: 28px;
+    letter-spacing: 6px;
+    color: #FFD53D;
+    margin: 0 0 6px;
+    text-shadow: 0 0 20px rgba(255, 213, 61, 0.4);
+  }
+  .splash p {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #8A88A0;
+    margin: 0 0 20px;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    margin: 0 auto;
+    border: 3px solid rgba(255, 213, 61, 0.20);
+    border-top-color: #FFD53D;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+<!-- Auto-redirect to the game shell. Falls back to a tap-link if JS disabled. -->
+<script>
+  // Preserve any query string + hash so deep-links keep working.
+  const tail = (location.search || '') + (location.hash || '');
+  location.replace('blocksworn_index_fixed.html' + tail);
+</script>
+</head>
+<body>
+<div class="splash">
+  <h1>BLOCKSWORM</h1>
+  <p>CLEAR LINES · SUMMON LEGENDS</p>
+  <div class="spinner"></div>
+  <noscript>
+    <p style="margin-top:20px"><a href="blocksworn_index_fixed.html" style="color:#FFD53D">Tap to enter</a></p>
+  </noscript>
+</div>
+</body>
+</html>
