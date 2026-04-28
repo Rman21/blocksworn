@@ -6966,12 +6966,14 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   50%      { box-shadow: 0 4px 22px rgba(255,184,74,0.9), 0 0 32px rgba(255,213,61,0.8); }
 }
 
-/* 2026-04-28 — Anti-Deadlock post-battle education modal (Player Education Stage 14,
-   spec §17.2 step 4). Single-shot per install via blocksworn_ad_education_revealed.
-   Layered above victory/defeat modal (z-index 10020 > .modal=100) — player dismisses
-   education first, then sees rewards. Mirrors .tank-mode-modal styling. */
-.ad-education-modal { display: none; }
-.ad-education-modal.active {
+/* 2026-04-28 — Shared post-action education modal (Player Education spec §17.2,
+   §14.2, §16.2…). Single-shot per install via per-modal localStorage flag.
+   Layered above victory/defeat/detail modals (z-index 10020 > .modal=100).
+   Used by AD-deadlock reveal (Stage 14), Tier system reveal (Stage 11), and
+   future stages (Battle Pass, Tower welcome, etc.). Mirrors .tank-mode-modal
+   visual language. */
+.edu-modal { display: none; }
+.edu-modal.active {
   display: flex;
   position: fixed; inset: 0;
   background: rgba(5,3,8,0.88);
@@ -6981,7 +6983,7 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   justify-content: center;
   padding: 20px;
 }
-.ad-education-box {
+.edu-modal-box {
   width: min(94vw, 420px);
   background: linear-gradient(180deg, #1A1429, #0A0612);
   border: 2px solid var(--a-gold-500, #FFAA00);
@@ -6989,8 +6991,10 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   padding: 22px 20px;
   text-align: center;
   color: #FFFFFF;
+  max-height: 92vh;
+  overflow-y: auto;
 }
-.ad-education-title {
+.edu-modal-title {
   font-family: var(--a-font-display, sans-serif);
   font-size: 16px;
   letter-spacing: 2px;
@@ -6998,13 +7002,13 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   margin-bottom: 6px;
   text-shadow: 0 0 6px rgba(255,213,61,0.6);
 }
-.ad-education-sub {
+.edu-modal-sub {
   font-size: 11px;
   letter-spacing: 1.5px;
   color: #9A98A4;
   margin-bottom: 16px;
 }
-.ad-education-row {
+.edu-modal-row {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -7015,14 +7019,18 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   border: 1px solid rgba(255,213,61,0.25);
   border-radius: 8px;
 }
-.ad-education-row .ad-row-icon {
+.edu-modal-row.is-current {
+  border-color: var(--a-gold-300, #FFD53D);
+  background: linear-gradient(180deg, rgba(255,213,61,0.18), rgba(0,0,0,0.30));
+}
+.edu-modal-row .edu-row-icon {
   flex-shrink: 0;
   width: 28px;
   font-size: 18px;
   text-align: center;
   line-height: 1.4;
 }
-.ad-education-row .ad-row-name {
+.edu-modal-row .edu-row-name {
   display: block;
   font-family: var(--a-font-display, sans-serif);
   font-size: 12px;
@@ -7030,19 +7038,19 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   color: var(--a-gold-300, #FFD53D);
   margin-bottom: 2px;
 }
-.ad-education-row .ad-row-desc {
+.edu-modal-row .edu-row-desc {
   display: block;
   font-size: 11px;
   color: #C8C5D4;
   line-height: 1.4;
 }
-.ad-education-footer {
+.edu-modal-footer {
   font-size: 11px;
   color: #9A98A4;
   margin: 14px 4px 12px;
   line-height: 1.5;
 }
-.ad-education-confirm {
+.edu-modal-confirm {
   display: block;
   width: 100%;
   margin-top: 4px;
@@ -7057,7 +7065,7 @@ body.cosmetic-forgotten-names .v-hero-card::after {
   cursor: pointer;
   transition: transform 0.15s;
 }
-.ad-education-confirm:active { transform: scale(0.98); }
+.edu-modal-confirm:active { transform: scale(0.98); }
 
 /* 2026-04-27 — Audio A.3 settings UI (per BLOCKSWORN_AUDIO_SOUND.md §11.1). */
 .info-audio-section {
@@ -13839,6 +13847,69 @@ function getHeroAscensionMult(hero) {
   return isHeroAscended(hero.id) ? TIER2_DAMAGE_BONUS : 1.0;
 }
 
+// 2026-04-28 — Player Education Stage 11 (BLOCKSWORN_PLAYER_EDUCATION.md §14.2).
+// One-time modal showing the full Tier 1 → 2 → 3 → Mythic roadmap, fired right
+// after the player's first successful ascension. Uses shared .edu-modal styling
+// (sibling of maybeShowAntiDeadlockEducation). Single-shot per install via the
+// blocksworn_tier_education_revealed flag.
+const TIER_EDUCATION_KEY = 'blocksworn_tier_education_revealed';
+
+function maybeShowTierEducation() {
+  try {
+    if (localStorage.getItem(TIER_EDUCATION_KEY) === '1') return;
+  } catch (e) { return; }
+  let modal = document.getElementById('tierEducationModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'tierEducationModal';
+    modal.className = 'edu-modal';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML =
+    `<div class="edu-modal-box">
+      <div class="edu-modal-title">THE TIER SYSTEM</div>
+      <div class="edu-modal-sub">YOUR ASCENSION ROADMAP</div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">◇</div>
+        <div>
+          <span class="edu-row-name">TIER 1 — STANDARD</span>
+          <span class="edu-row-desc">Default hero. Base abilities, levels 1–10.</span>
+        </div>
+      </div>
+      <div class="edu-modal-row is-current">
+        <div class="edu-row-icon">⚡</div>
+        <div>
+          <span class="edu-row-name">TIER 2 — ASCENDED · JUST UNLOCKED</span>
+          <span class="edu-row-desc">${TIER2_CARDS_COST} Hero Cards + 1 T2 Stone + ${TIER2_GOLD_COST} gold + ${TIER2_ESSENCE_COST} essence. +20% damage permanent.</span>
+        </div>
+      </div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">★</div>
+        <div>
+          <span class="edu-row-name">TIER 3 — DEEP ASCENDED</span>
+          <span class="edu-row-desc">+10 more Cards (15 total) + 1 T3 Stone. Powerful new passive. Late-game goal.</span>
+        </div>
+      </div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">✦</div>
+        <div>
+          <span class="edu-row-name">MYTHIC — TRANSCENDENT</span>
+          <span class="edu-row-desc">+25 more Cards (35 total). Single hero per save — IRREVERSIBLE. Replaces base ULT. Endgame goal.</span>
+        </div>
+      </div>
+      <div class="edu-modal-footer">TIP: don't ascend everyone to Tier 2 immediately. Save Hero Cards for FAVORITES — heroes you'll take all the way to Tier 3 and beyond.</div>
+      <button type="button" class="edu-modal-confirm" id="tierEducationConfirmBtn">GOT IT</button>
+    </div>`;
+  modal.classList.add('active');
+  const btn = modal.querySelector('#tierEducationConfirmBtn');
+  if (btn) {
+    btn.onclick = () => {
+      try { localStorage.setItem(TIER_EDUCATION_KEY, '1'); } catch (e) {}
+      modal.classList.remove('active');
+    };
+  }
+}
+
 // 2026-04-27 — Block H.9 — Per-hero T2 ability runtime hooks (HERO_COMPENDIUM §8.4).
 // Each entry maps a hero id to its T2 ability mechanical bonuses. Combat sites
 // read these via _t2Bonus(heroId, key) — returns the bonus value if T2-ascended
@@ -18427,36 +18498,36 @@ function maybeShowAntiDeadlockEducation() {
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'adEducationModal';
-    modal.className = 'ad-education-modal';
+    modal.className = 'edu-modal';
     document.body.appendChild(modal);
   }
   modal.innerHTML =
-    `<div class="ad-education-box">
-      <div class="ad-education-title">ANTI-DEADLOCK SYSTEMS</div>
-      <div class="ad-education-sub">WHEN BOARDS FILL UP, THE GAME HAS YOUR BACK</div>
-      <div class="ad-education-row">
-        <div class="ad-row-icon">⚡</div>
+    `<div class="edu-modal-box">
+      <div class="edu-modal-title">ANTI-DEADLOCK SYSTEMS</div>
+      <div class="edu-modal-sub">WHEN BOARDS FILL UP, THE GAME HAS YOUR BACK</div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">⚡</div>
         <div>
-          <span class="ad-row-name">HUNTER EMERGENCY</span>
-          <span class="ad-row-desc">Hunter gets +50% ULT charge boost when stuck. Auto-triggered, once per battle.</span>
+          <span class="edu-row-name">HUNTER EMERGENCY</span>
+          <span class="edu-row-desc">Hunter gets +50% ULT charge boost when stuck. Auto-triggered, once per battle.</span>
         </div>
       </div>
-      <div class="ad-education-row">
-        <div class="ad-row-icon">🛡</div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">🛡</div>
         <div>
-          <span class="ad-row-name">TANK ULT EMERGENCY</span>
-          <span class="ad-row-desc">When tank fires, choose Emergency Mode to clear the bottom row + standard ULT. Once per battle.</span>
+          <span class="edu-row-name">TANK ULT EMERGENCY</span>
+          <span class="edu-row-desc">When tank fires, choose Emergency Mode to clear the bottom row + standard ULT. Once per battle.</span>
         </div>
       </div>
-      <div class="ad-education-row">
-        <div class="ad-row-icon">🌈</div>
+      <div class="edu-modal-row">
+        <div class="edu-row-icon">🌈</div>
         <div>
-          <span class="ad-row-name">RAINBOW SQUAD</span>
-          <span class="ad-row-desc">Mix all 5 roles (Warrior + Mage + Hunter + Tank + Captain) for +15% starting ULT charge.</span>
+          <span class="edu-row-name">RAINBOW SQUAD</span>
+          <span class="edu-row-desc">Mix all 5 roles (Warrior + Mage + Hunter + Tank + Captain) for +15% starting ULT charge.</span>
         </div>
       </div>
-      <div class="ad-education-footer">Smart squad design = never softlock. Mix roles for safety.</div>
-      <button type="button" class="ad-education-confirm" id="adEducationConfirmBtn">GOT IT</button>
+      <div class="edu-modal-footer">Smart squad design = never softlock. Mix roles for safety.</div>
+      <button type="button" class="edu-modal-confirm" id="adEducationConfirmBtn">GOT IT</button>
     </div>`;
   modal.classList.add('active');
   const btn = modal.querySelector('#adEducationConfirmBtn');
@@ -39732,6 +39803,10 @@ function onTryAscend() {
     try { openHeroDetail(detailHeroId); } catch (e) {}
     // Refresh roster cards (T2 badge added to ascended)
     try { if (typeof vRenderRoster === 'function') vRenderRoster(); } catch (e) {}
+    // 2026-04-28 — Player Education Stage 11: one-time tier system roadmap modal
+    // on the player's first ascension. Delayed slightly so the flashText burst
+    // plays before the modal layers on top.
+    try { setTimeout(() => maybeShowTierEducation(), 1600); } catch (e) {}
   }
 }
 
