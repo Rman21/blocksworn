@@ -8035,7 +8035,28 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 
 /* ===== FX ===== */
 .fx-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 50; overflow: hidden; }
-.hero-flash { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 26px; font-weight: 800; letter-spacing: 3px; opacity: 0; white-space: nowrap; text-align: center; }
+/* 2026-04-28 — AAA+ typography pass on flashText overlay. Previous version used
+   white-space: nowrap which let long ability text overflow off-screen and the
+   single-layer text-shadow blurred the glyphs against busy battle backgrounds.
+   Now: max-width cap (90vw / 480px), allow wrap with balanced line breaks,
+   layered shadow stack (sharp 1px outline → dark 6px halo → soft 16px glow)
+   for crisp readability on any background. */
+.hero-flash {
+  position: absolute;
+  top: 40%; left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(90vw, 480px);
+  padding: 6px 18px;
+  font-family: var(--a-font-display, 'Cinzel', 'Georgia', serif);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  line-height: 1.2;
+  opacity: 0;
+  white-space: normal;
+  text-align: center;
+  text-wrap: balance;
+}
 .hero-flash.active { animation: heroFlash 1.3s ease-out forwards; }
 /* HOTFIX B4 — flashText escalation. Cap-moment banners (INFERNO, SHATTER VOLLEY,
    ENCORE-OF-ENCORE, FLOOD MENDING, DEEP TIDE, PHOENIX REBORN) get bigger font +
@@ -8043,9 +8064,9 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
    the static larger size without the dramatic pulse. */
 .hero-flash.big.active {
   font-size: 42px;
-  letter-spacing: 4px;
+  letter-spacing: 3.5px;
   font-weight: 900;
-  filter: drop-shadow(0 0 12px currentColor);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9)) drop-shadow(0 0 12px currentColor);
   animation: heroFlashBig 1.6s ease-out forwards;
 }
 @keyframes heroFlashBig {
@@ -31137,7 +31158,9 @@ async function onBossDefeated() {
   // sequence, so bossesDefeated should stay at 0 even if Math.max budged it.
   // Beat advance after the same 1400ms animation window as Pyredrake/Grunt.
   if (ftueBeat === 'chronicle_fight' && currentBoss && currentBoss._isTrainingDummy) {
-    try { flashText('TRAINING COMPLETE', '#5DCAFF'); } catch(e){}
+    // force: true bypasses the Chronicle-tutorial suppression — this is the
+    // one essential milestone flash the player should see during the dummy fight.
+    try { flashText('TRAINING COMPLETE', '#5DCAFF', { force: true }); } catch(e){}
     bossesDefeated = 0;
     chapterProgress[1] = 0;
     setTimeout(() => { try { advanceFtue('chronicle_won'); } catch(e){ console.warn(e); } }, 1400);
@@ -36903,6 +36926,10 @@ function flashHero(hero) {
 }
 
 function flashCombo(text) {
+  // 2026-04-28 — Stage 1 silence: combo banners suppressed during Chronicle.
+  // The Chronograph cascade beat in pyredrake_fight teaches what combos mean —
+  // until then, raw "×3 / ×4" floats are confusing.
+  if (typeof ftueBeat !== 'undefined' && ftueBeat === 'chronicle_fight') return;
   const el = document.getElementById('comboFlash');
   el.textContent = text;
   el.classList.remove('active'); void el.offsetWidth; el.classList.add('active');
@@ -36940,13 +36967,28 @@ function _flushDeferredQueueAfterDialog() {
   });
 }
 
-function flashText(text, color) {
-  if (_isDialogActive()) { _deferDuringDialog(() => flashText(text, color)); return; }
+function flashText(text, color, opts) {
+  // 2026-04-28 — Player Education Stage 1 silence: during the Chronicle tutorial
+  // the player has not yet been taught what ULT/race/proc text means. Suppress
+  // all non-essential flashes until the existing Chronograph beats during
+  // pyredrake_fight teach the mechanics. Pass opts.force to bypass — used for
+  // tutorial milestones (e.g. TRAINING COMPLETE).
+  opts = opts || {};
+  if (!opts.force && typeof ftueBeat !== 'undefined' && ftueBeat === 'chronicle_fight') return;
+  if (_isDialogActive()) { _deferDuringDialog(() => flashText(text, color, opts)); return; }
   const el = document.getElementById('heroFlash');
   if (!el) return;
   el.innerHTML = text;
   el.style.color = color;
-  el.style.textShadow = `0 0 20px ${color}`;
+  // 2026-04-28 — AAA+ readability: layered shadow stack (sharp inner outline →
+  // dark halo against busy battle backgrounds → soft outer glow in element color).
+  // Replaces the previous single 0 0 20px ${color} which blurred against complex
+  // grids and turned long ability text into colored mush.
+  el.style.textShadow =
+    `0 0 1px ${color}, ` +
+    `0 0 6px rgba(0,0,0,0.9), ` +
+    `0 2px 4px rgba(0,0,0,0.85), ` +
+    `0 0 18px ${color}`;
   // Escalation heuristic — big banner if explicit '!' or large multiplier present.
   const _isCap = /!|ULT|×([4-9]|\d{2,})/.test(text);
   el.classList.toggle('big', _isCap);
@@ -36975,12 +37017,18 @@ function flashText(text, color) {
 // Format: [HERO NAME] — [ABILITY NAME]!
 // Hero name in element color, ability name in bone white (#E8E6DF)
 function flashHeroTrigger(heroName, abilityName, color) {
+  // 2026-04-28 — Stage 1 silence: hero-trigger banners suppressed during the
+  // Chronicle dummy fight. Player learns hero/ability mapping later via the
+  // ULT Chronograph beat in pyredrake_fight.
+  if (typeof ftueBeat !== 'undefined' && ftueBeat === 'chronicle_fight') return;
   if (_isDialogActive()) { _deferDuringDialog(() => flashHeroTrigger(heroName, abilityName, color)); return; }
   const el = document.getElementById('heroFlash');
   if (!el) return;
-  el.innerHTML = `<span style="color:${color};text-shadow:0 0 20px ${color}">${heroName}</span>` +
+  // 2026-04-28 — AAA+ readability pass on the hero-name span. Layered shadow
+  // (sharp inner outline → dark halo → soft glow) instead of single 0 0 20px.
+  el.innerHTML = `<span style="color:${color};text-shadow:0 0 1px ${color}, 0 0 6px rgba(0,0,0,0.9), 0 2px 4px rgba(0,0,0,0.85), 0 0 18px ${color}">${heroName}</span>` +
                  `<span style="color:#E8E6DF;margin:0 8px;">—</span>` +
-                 `<span style="color:#E8E6DF">${abilityName}!</span>`;
+                 `<span style="color:#E8E6DF;text-shadow:0 0 6px rgba(0,0,0,0.9), 0 2px 4px rgba(0,0,0,0.85)">${abilityName}!</span>`;
   el.style.color = '';
   el.style.textShadow = '';
   el.classList.remove('active'); void el.offsetWidth; el.classList.add('active');
