@@ -31414,6 +31414,14 @@ function showVictoryModal() {
   // 2026-04-28 — Player Education Stage 14: one-time AD-systems explainer if
   // deadlock fired this battle. No-op otherwise.
   try { maybeShowAntiDeadlockEducation(); } catch(e){ console.warn('maybeShowAntiDeadlockEducation (victory) failed:', e); }
+  // 2026-04-28 — Player Education Failure Recovery: victory clears the
+  // per-boss defeat streak so the "STUCK?" modal won't fire again until the
+  // player accumulates 3 fresh consecutive defeats on the same boss.
+  try {
+    if (currentBoss && currentBoss.name && !currentBoss._isFtueOnly && !currentBoss._isTowerBattle) {
+      resetBossDefeatStreak(currentBoss.name);
+    }
+  } catch (e) { console.warn('resetBossDefeatStreak failed:', e); }
 }
 
 function showDefeatModal() {
@@ -31473,7 +31481,125 @@ function _showDefeatModalBody() {
   // deadlock fired this battle. Especially valuable on defeat — board-fill loss
   // is the most common deadlock cause and the moment player most needs to know.
   try { maybeShowAntiDeadlockEducation(); } catch(e){ console.warn('maybeShowAntiDeadlockEducation (defeat) failed:', e); }
+  // 2026-04-28 — Player Education Failure Recovery (BLOCKSWORN_PLAYER_EDUCATION.md
+  // §22.2). Track per-boss consecutive-defeat streak; on every 3rd defeat fire
+  // the "STUCK? LET'S REGROUP" modal with strategic tips. Streak resets on
+  // victory. Anti-rage-quit support — keeps stuck players engaged instead of
+  // bouncing. Gated: never during FTUE (guided fights already), never in
+  // Tower (its retry-cost system handles repeat losses differently).
+  try {
+    if (currentBoss && currentBoss.name && !currentBoss._isFtueOnly && !currentBoss._isTowerBattle) {
+      const streak = recordBossDefeat(currentBoss.name);
+      // Delay 1200ms so the defeat modal animation settles before the recovery
+      // overlay layers on top. Mirrors the AD-education timing pattern.
+      setTimeout(() => {
+        try { maybeShowFailureRecovery(currentBoss.name, streak); }
+        catch (e) { console.warn('maybeShowFailureRecovery failed:', e); }
+      }, 1200);
+    }
+  } catch (e) { console.warn('failure recovery hook failed:', e); }
 }
+
+// ===== 2026-04-28 — PLAYER EDUCATION · FAILURE RECOVERY (Stage spec §22.2) =====
+// Tracks per-boss consecutive defeat streak. Modal fires at 3, 6, 9... defeats
+// with strategic tips for the stuck player. Streak resets on victory. The
+// trio of tips covers the three highest-impact comeback paths (rainbow squad,
+// cascade for damage, ascend favorites) — all earnable F2P, no spend gates.
+const FAILURE_RECOVERY_KEY = 'blocksworn_defeat_streak';
+const FAILURE_RECOVERY_THRESHOLD = 3;
+
+let defeatStreak = {};
+
+function loadDefeatStreak() {
+  try {
+    const raw = localStorage.getItem(FAILURE_RECOVERY_KEY);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === 'object') defeatStreak = obj;
+    }
+  } catch (e) { defeatStreak = {}; }
+}
+function saveDefeatStreak() {
+  try { localStorage.setItem(FAILURE_RECOVERY_KEY, JSON.stringify(defeatStreak)); } catch (e) {}
+}
+function recordBossDefeat(bossName) {
+  if (!bossName) return 0;
+  defeatStreak[bossName] = (defeatStreak[bossName] || 0) + 1;
+  saveDefeatStreak();
+  return defeatStreak[bossName];
+}
+function resetBossDefeatStreak(bossName) {
+  if (!bossName) return;
+  if (defeatStreak[bossName]) {
+    delete defeatStreak[bossName];
+    saveDefeatStreak();
+  }
+}
+
+const FAILURE_RECOVERY_TIPS = [
+  { icon: '🌈', name: 'RAINBOW SQUAD',
+    desc: 'Mix all 5 roles (Warrior + Hunter + Mage + Tank + Captain) for +15% starting ULT charge and anti-deadlock immunity.' },
+  { icon: '⚡', name: 'CASCADE FOR DAMAGE',
+    desc: 'Build 6+ charged cells of one element, then fire your Hunter ULT — INFERNO mass detonation hits 3× normal damage.' },
+  { icon: '⚔', name: 'ASCEND YOUR FAVORITES',
+    desc: 'Tier 2 ascension grants +20% damage permanent. 5 hero cards + 1 T2 Stone — earnable through play.' },
+];
+
+function maybeShowFailureRecovery(bossName, streak) {
+  if (!bossName) return;
+  // Belt-and-braces FTUE gate (also checked at the call site)
+  if (typeof isFtueActive === 'function' && isFtueActive()) return;
+  if (streak < FAILURE_RECOVERY_THRESHOLD) return;
+  // Fire only on multiples of THRESHOLD (3, 6, 9...) so the player isn't
+  // spammed every consecutive defeat.
+  if (streak % FAILURE_RECOVERY_THRESHOLD !== 0) return;
+  let modal = document.getElementById('failureRecoveryModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'failureRecoveryModal';
+    modal.className = 'edu-modal';
+    document.body.appendChild(modal);
+  }
+  const tipRows = FAILURE_RECOVERY_TIPS.map(t =>
+    `<div class="edu-modal-row">
+      <div class="edu-row-icon">${t.icon}</div>
+      <div>
+        <span class="edu-row-name">${t.name}</span>
+        <span class="edu-row-desc">${t.desc}</span>
+      </div>
+    </div>`
+  ).join('');
+  modal.innerHTML =
+    `<div class="edu-modal-box">
+      <div class="edu-modal-title">STUCK? LET'S REGROUP.</div>
+      <div class="edu-modal-sub">${bossName} · ${streak} ATTEMPTS</div>
+      ${tipRows}
+      <div class="edu-modal-footer">Every fall teaches the next stand.</div>
+      <button type="button" class="edu-modal-confirm" id="failureRecoveryRetryBtn">TRY AGAIN</button>
+      <button type="button" class="edu-modal-secondary" id="failureRecoverySquadBtn">CHANGE SQUAD</button>
+    </div>`;
+  modal.classList.add('active');
+  const close = () => modal.classList.remove('active');
+  const retryBtn = modal.querySelector('#failureRecoveryRetryBtn');
+  const squadBtn = modal.querySelector('#failureRecoverySquadBtn');
+  if (retryBtn) {
+    // Just close — the existing defeat modal's TRY AGAIN button handles retry.
+    retryBtn.onclick = close;
+  }
+  if (squadBtn) {
+    // Close both this modal and the defeat modal, then route to menu so the
+    // player can change squad before retrying.
+    squadBtn.onclick = () => {
+      close();
+      try { document.getElementById('modal').classList.remove('active'); } catch (e) {}
+      try { goToMenu(); } catch (e) {}
+    };
+  }
+}
+
+loadDefeatStreak();
+// ===== END FAILURE RECOVERY =====
+
 
 function injectMenuButton() {
   let menuBtn = document.getElementById('modalMenuBtn');
