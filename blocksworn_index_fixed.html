@@ -17258,6 +17258,15 @@ function startChronicleFtueBattle() {
   startBossBattle();
 }
 
+// 2026-04-28 — Explicit window exports for Stage 1 dev/test path. Defensive: in
+// Vercel preview some browser extensions (SES from crypto wallets) freeze the
+// global object before the game script runs, which silently strips top-level
+// function declarations from `window`. Direct assignment survives that.
+if (typeof window !== 'undefined') {
+  window.CHRONICLE = CHRONICLE;
+  window.startChronicleFtueBattle = startChronicleFtueBattle;
+}
+
 // Finalize FTUE — called on transition into 'complete'. Guarantees all unlocked
 // heroes are revealed (safety backfill), routes to menu, then plays the final
 // coda dialog with a short delay so menu render settles first.
