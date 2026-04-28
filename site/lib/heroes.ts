@@ -23,23 +23,18 @@ const STIH_COLOR = {
 } as const;
 
 // Game serves portraits inline as data: URIs from blocksworn_index_fixed.html.
-// For the marketing site we'd need to either inline (huge bundle) OR fetch
-// at runtime. P0: use placeholder stihiya-color SVGs; P1 (later): export
-// portraits as JPGs into /public/heroes/{id}.jpg via a one-time script.
-const PLACEHOLDER = (color: string, label: string) =>
-  `data:image/svg+xml;utf8,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280">
-      <defs>
-        <radialGradient id="g" cx="50%" cy="40%" r="60%">
-          <stop offset="0%" stop-color="${color}" stop-opacity="0.6"/>
-          <stop offset="100%" stop-color="${color}" stop-opacity="0.05"/>
-        </radialGradient>
-      </defs>
-      <rect width="280" height="280" fill="#12121E"/>
-      <rect width="280" height="280" fill="url(#g)"/>
-      <text x="50%" y="55%" text-anchor="middle" font-family="Cinzel, serif" font-size="32" font-weight="900" fill="${color}" letter-spacing="4">${label}</text>
-    </svg>`
-  )}`;
+// For the marketing site we'd need to either inline (huge bundle) OR fetch at
+// runtime. P0: use a single static placeholder SVG file (in /public/) — Day 4
+// will export real JPGs from game's data: URIs into /public/heroes/{id}.jpg
+// via a build-time script.
+//
+// Earlier version generated a per-hero SVG via template literals + data URIs —
+// that was too tricky for Next.js 15 SSG (failed at "Generating static pages
+// 17/35" without a clear error). Static URL is safer.
+//
+// Args ignored for now; kept as fn so the call-site shape stays stable when
+// real portraits land in Day 4.
+const PLACEHOLDER = (_color: string, _label: string) => '/hero-placeholder.svg';
 
 export const HEROES: HeroMeta[] = [
   // PIRATES
