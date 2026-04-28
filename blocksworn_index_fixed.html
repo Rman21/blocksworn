@@ -3658,6 +3658,150 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
 .tower-ach-row.ach-gold   .ta-rarity { color: var(--a-gold-300); }
 .tower-ach-row.ach-mythic .ta-rarity { color: #BB60FF; }
 
+/* ----- Social tab (P6) ----- */
+.social-fc-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(0,0,0,0.30));
+  border: 1px solid rgba(255,213,61,0.40);
+  border-radius: 10px;
+}
+.social-fc-value {
+  flex: 1;
+  font-family: var(--a-font-num);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: var(--a-gold-300);
+  text-align: center;
+}
+.social-fc-copy { padding: 8px 14px !important; font-size: 11px !important; }
+.social-fc-hint {
+  font-size: 10px;
+  color: #8A88A0;
+  text-align: center;
+  margin-top: 8px;
+  letter-spacing: 0.4px;
+}
+.add-friend-row {
+  display: flex; gap: 6px;
+}
+.add-friend-row input {
+  flex: 1;
+  padding: 10px 12px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,213,61,0.45);
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-family: var(--a-font-num);
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-align: center;
+  text-transform: uppercase;
+  outline: none;
+}
+.add-friend-row input:focus { border-color: var(--a-gold-300); box-shadow: 0 0 8px rgba(255,213,61,0.30); }
+.add-friend-row .btn { padding: 10px 14px !important; font-size: 11px !important; }
+.add-friend-error {
+  font-size: 10px;
+  color: #E85D4A;
+  text-align: center;
+  margin-top: 6px;
+  min-height: 12px;
+  letter-spacing: 0.4px;
+}
+.social-claim-btn {
+  width: 100%;
+  margin-bottom: 10px;
+  font-size: 11px !important;
+  padding: 10px !important;
+  background: linear-gradient(180deg, rgba(255,213,61,0.20), rgba(0,0,0,0.40)) !important;
+  color: var(--a-gold-300) !important;
+  border: 1px solid var(--a-gold-300) !important;
+}
+.friends-list { display: flex; flex-direction: column; gap: 6px; }
+.friend-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.18);
+  border-radius: 8px;
+}
+.fr-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--a-gold-300), var(--a-gold-700));
+  color: #12121E;
+  font-family: var(--a-font-display);
+  font-size: 16px;
+  font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.fr-info { flex: 1; min-width: 0; }
+.fr-name {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #FFFFFF;
+  font-weight: 800;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fr-meta {
+  font-size: 9px;
+  color: #B8B5C4;
+  letter-spacing: 0.4px;
+}
+.fr-action {
+  width: 32px; height: 32px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,213,61,0.30);
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: #E4E1F0;
+  transition: background 0.15s;
+}
+.fr-action:hover, .fr-action:active { background: rgba(255,213,61,0.15); }
+.fr-action.remove { border-color: rgba(232,93,74,0.40); color: #E85D4A; }
+.fr-action.remove:hover { background: rgba(232,93,74,0.15); }
+.lb-list { display: flex; flex-direction: column; gap: 4px; }
+.lb-row {
+  display: grid;
+  grid-template-columns: 40px 1fr 60px;
+  gap: 8px; align-items: center;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.15);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.lb-row.you {
+  background: rgba(255,213,61,0.12);
+  border-color: var(--a-gold-300);
+  box-shadow: 0 0 8px rgba(255,213,61,0.20);
+}
+.lb-rank {
+  font-family: var(--a-font-num);
+  font-weight: 800;
+  color: var(--a-gold-300);
+  font-size: 12px;
+}
+.lb-name {
+  color: #FFFFFF;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lb-row.you .lb-name { color: var(--a-gold-300); }
+.lb-floor {
+  font-family: var(--a-font-num);
+  font-weight: 800;
+  color: #5DCA79;
+  text-align: right;
+}
+
 /* ----- Customization picker (P5) — reuses avatar modal shell ----- */
 .customization-picker-grid {
   display: flex;
@@ -22929,6 +23073,163 @@ function trackProfileDayActive() {
   playerProfile.lastActiveDate = today;
   savePlayerProfile();
   addProfileXp(20); // daily login XP
+}
+
+// ===== P6 — Mock Social tab (Firebase-ready architecture) =====
+// All data flows through BackendProvider so Phase G-Social just flips
+// ACTIVE = 'firebase' and fills in IAP_PROVIDERS.firebase TODOs.
+
+let _socialFriendsCache = null;
+let _socialLeaderboardCache = null;
+
+async function refreshSocialData() {
+  try {
+    _socialFriendsCache = await BackendProvider.getFriendList();
+    const lb = await BackendProvider.getLeaderboard((seasonState && seasonState.seasonId) || 1);
+    _socialLeaderboardCache = (lb && lb.board) || [];
+  } catch (e) { console.warn('refreshSocialData failed:', e); }
+}
+
+async function addFriendByCode() {
+  const inputEl = document.getElementById('addFriendInput');
+  const errEl   = document.getElementById('addFriendError');
+  if (!inputEl) return;
+  const raw = (inputEl.value || '').trim().toUpperCase();
+  // Validate format: BLO-XXXX-XXXX (alphanumeric, no confusing chars)
+  if (!/^BLO-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(raw)) {
+    if (errEl) errEl.textContent = 'Format: BLO-XXXX-XXXX';
+    return;
+  }
+  if (raw === playerProfile.friendCode) {
+    if (errEl) errEl.textContent = 'Cannot add yourself';
+    return;
+  }
+  try {
+    const result = await BackendProvider.addFriend(raw);
+    if (!result || !result.ok) {
+      if (errEl) errEl.textContent = result && result.error === 'already_added' ? 'Already added' : 'Failed to add';
+      return;
+    }
+    inputEl.value = '';
+    if (errEl) errEl.textContent = '';
+    try { flashText('★ FRIEND ADDED', '#5DCA79'); } catch (e) {}
+    await refreshSocialData();
+    profileTab('social');
+  } catch (e) {
+    if (errEl) errEl.textContent = 'Backend unavailable';
+  }
+}
+
+async function sendFriendGift(friendUid) {
+  try {
+    const result = await BackendProvider.sendGift(friendUid);
+    if (!result || !result.ok) {
+      const msg = (result && result.error === 'already_sent_today') ? 'Already sent today' : 'Failed to send';
+      try { flashText(msg, '#A8A5B8'); } catch (e) {}
+      return;
+    }
+    try { flashText('🎁 GIFT SENT', '#FFD53D'); } catch (e) {}
+    profileTab('social');
+  } catch (e) { try { flashText('Backend unavailable', '#E85D4A'); } catch (e2) {} }
+}
+
+async function removeFriendConfirm(friendUid, friendName) {
+  if (!confirm('Remove ' + (friendName || 'friend') + ' from your list?')) return;
+  try {
+    await BackendProvider.removeFriend(friendUid);
+    try { flashText('Removed', '#A8A5B8'); } catch (e) {}
+    await refreshSocialData();
+    profileTab('social');
+  } catch (e) {}
+}
+
+async function claimFriendGifts() {
+  try {
+    const result = await BackendProvider.claimPendingGifts();
+    if (!result || !result.ok) return;
+    const gifts = result.gifts || [];
+    if (gifts.length === 0) { try { flashText('No pending gifts', '#A8A5B8'); } catch (e) {} return; }
+    let totalGold = 0;
+    for (const g of gifts) {
+      if (g.reward && g.reward.gold) { addGold(g.reward.gold); totalGold += g.reward.gold; }
+    }
+    if (totalGold > 0) { try { flashText('🎁 +' + totalGold + ' GOLD from friends', '#FFD53D'); } catch (e) {} }
+    profileTab('social');
+  } catch (e) {}
+}
+
+function renderProfileTabSocial() {
+  // Lazy-load on first render of this tab.
+  if (_socialFriendsCache === null) {
+    refreshSocialData().then(() => { try { profileTab('social'); } catch (e) {} });
+    return '<div class="profile-body-placeholder">Loading social data…</div>';
+  }
+  const friends = _socialFriendsCache || [];
+  const board = _socialLeaderboardCache || [];
+
+  const fcSection =
+    '<div class="profile-stat-section">' +
+      '<div class="profile-stat-section-title">🆔 YOUR FRIEND CODE</div>' +
+      '<div class="social-fc-card">' +
+        '<div class="social-fc-value">' + (playerProfile.friendCode || '—') + '</div>' +
+        '<button class="btn social-fc-copy" onclick="copyFriendCode()">📋 COPY</button>' +
+      '</div>' +
+      '<div class="social-fc-hint">Share this with friends so they can add you.</div>' +
+    '</div>';
+
+  const addSection =
+    '<div class="profile-stat-section">' +
+      '<div class="profile-stat-section-title">➕ ADD FRIEND</div>' +
+      '<div class="add-friend-row">' +
+        '<input type="text" id="addFriendInput" maxlength="14" placeholder="BLO-XXXX-XXXX" autocomplete="off" autocapitalize="characters"/>' +
+        '<button class="btn pack-reveal-claim" onclick="addFriendByCode()">ADD</button>' +
+      '</div>' +
+      '<div class="add-friend-error" id="addFriendError"></div>' +
+    '</div>';
+
+  const friendsHtml = friends.length === 0
+    ? '<div class="profile-body-placeholder" style="padding:20px">No friends yet — share your code or add someone above.</div>'
+    : friends.map(f =>
+        '<div class="friend-row">' +
+          '<div class="fr-avatar">' + (f.username ? f.username.charAt(0) : '?') + '</div>' +
+          '<div class="fr-info">' +
+            '<div class="fr-name">' + (f.username || 'PLAYER') + '</div>' +
+            '<div class="fr-meta">' + (f.title || 'Newcomer') + ' · F' + (f.towerFloor || 0) + '</div>' +
+          '</div>' +
+          '<button class="fr-action gift" onclick="sendFriendGift(\'' + f.uid + '\')" aria-label="Send gift">🎁</button>' +
+          '<button class="fr-action remove" onclick="removeFriendConfirm(\'' + f.uid + '\', \'' + (f.username || '').replace(/[\\\'\\"]/g,'') + '\')" aria-label="Remove">✕</button>' +
+        '</div>'
+      ).join('');
+  const friendsSection =
+    '<div class="profile-stat-section">' +
+      '<div class="profile-stat-section-title">👥 FRIENDS · ' + friends.length + '</div>' +
+      '<button class="btn social-claim-btn" onclick="claimFriendGifts()">CLAIM PENDING GIFTS</button>' +
+      '<div class="friends-list">' + friendsHtml + '</div>' +
+    '</div>';
+
+  const lbHtml = board.length === 0
+    ? '<div class="profile-body-placeholder">Leaderboard unavailable</div>'
+    : '<div class="lb-list">' +
+        board.map(row =>
+          '<div class="lb-row ' + (row.isYou ? 'you' : '') + '">' +
+            '<span class="lb-rank">#' + row.rank + '</span>' +
+            '<span class="lb-name">' + (row.username || 'PLAYER') + (row.isYou ? ' (YOU)' : '') + '</span>' +
+            '<span class="lb-floor">F' + (row.floor || 0) + '</span>' +
+          '</div>'
+        ).join('') +
+      '</div>';
+  const lbSection =
+    '<div class="profile-stat-section">' +
+      '<div class="profile-stat-section-title">🏆 TOWER LEADERBOARD · SEASON ' + ((seasonState && seasonState.seasonId) || 1) + '</div>' +
+      lbHtml +
+    '</div>';
+
+  // Phase G-Social hint
+  const phaseHint = (BackendProvider.ACTIVE === 'mock')
+    ? '<div class="profile-body-placeholder" style="padding:12px;font-size:10px">⚙ Mock backend active. Real friends/leaderboard unlock when Firebase config lands (Phase G-Social).</div>'
+    : '';
+
+  return '<div class="profile-stats-grid">' + fcSection + addSection + friendsSection + lbSection + phaseHint + '</div>';
 }
 
 // ===== P5 — Customization: Backgrounds + Banner tags + Roster tab =====
