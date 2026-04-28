@@ -3232,6 +3232,168 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   color: #B8B5C4;
   white-space: nowrap;
 }
+/* ----- Banner action row (friend code + edit profile) ----- */
+.profile-banner-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+.profile-fc-chip {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,213,61,0.35);
+  border-radius: 8px;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-family: var(--a-font-num);
+  transition: background 0.15s, border-color 0.15s;
+  min-width: 0;
+}
+.profile-fc-chip:hover, .profile-fc-chip:active {
+  background: rgba(0,0,0,0.55);
+  border-color: var(--a-gold-300);
+}
+.profile-fc-chip .fc-label {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: #8A88A0;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.profile-fc-chip .fc-value {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--a-gold-300);
+  letter-spacing: 0.5px;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile-fc-chip .fc-copy {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.profile-edit-btn {
+  padding: 8px 14px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.20), rgba(0,0,0,0.40));
+  border: 1px solid var(--a-gold-300);
+  border-radius: 8px;
+  color: var(--a-gold-300);
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.12s;
+  flex-shrink: 0;
+}
+.profile-edit-btn:hover, .profile-edit-btn:active {
+  background: rgba(255,213,61,0.30);
+  transform: scale(0.98);
+}
+
+/* ----- Edit Profile bottom sheet ----- */
+.edit-profile-box {
+  max-width: 380px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.edit-profile-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 4px;
+}
+.edit-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 12px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.25);
+  border-radius: 10px;
+  color: #E4E1F0;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
+}
+.edit-profile-row:hover, .edit-profile-row:active {
+  background: rgba(255,213,61,0.08);
+  border-color: rgba(255,213,61,0.50);
+}
+.edit-profile-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.edit-profile-row .ep-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  width: 26px;
+  text-align: center;
+}
+.edit-profile-row .ep-text { flex: 1; min-width: 0; }
+.edit-profile-row .ep-label {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.3px;
+  color: var(--a-gold-300);
+  font-weight: 700;
+}
+.edit-profile-row .ep-value {
+  font-size: 11px;
+  color: #FFFFFF;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.edit-profile-row .ep-soon {
+  font-size: 9px;
+  color: #6E6B7B;
+  letter-spacing: 0.5px;
+  font-style: italic;
+}
+.edit-profile-row .ep-chev {
+  font-size: 18px;
+  color: #8A88A0;
+  flex-shrink: 0;
+}
+
+/* ----- Avatar pick cell tier/level badge (P1 polish) ----- */
+.avatar-pick-cell .lvl-badge {
+  position: absolute;
+  bottom: 2px; left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  background: rgba(0,0,0,0.80);
+  border: 1px solid var(--a-gold-300);
+  border-radius: 8px;
+  font-family: var(--a-font-num);
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  color: var(--a-gold-300);
+  font-weight: 800;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.avatar-pick-cell .ascended-mark {
+  position: absolute;
+  top: 2px; right: 2px;
+  font-size: 12px;
+  color: #FFD53D;
+  text-shadow: 0 0 6px rgba(255,213,61,0.8);
+  pointer-events: none;
+}
+
 /* ----- Tab navigation (horizontal scroll on mobile) ----- */
 .profile-tabs {
   display: flex;
@@ -11737,6 +11899,15 @@ button.season-tier-claim:active {
           </div>
         </div>
       </div>
+      <!-- Friend code + Edit Profile actions -->
+      <div class="profile-banner-actions">
+        <button class="profile-fc-chip" onclick="copyFriendCode()" aria-label="Copy friend code">
+          <span class="fc-label">FRIEND CODE</span>
+          <span class="fc-value" id="profileFriendCode">BLO-XXXX-XXXX</span>
+          <span class="fc-copy">📋</span>
+        </button>
+        <button class="profile-edit-btn" onclick="openEditProfile()">EDIT PROFILE</button>
+      </div>
     </div>
 
     <!-- Tab navigation (horizontal scroll on narrow screens) -->
@@ -11762,6 +11933,15 @@ button.season-tier-claim:active {
     <button class="detail-close" onclick="closeAvatarPicker()">×</button>
     <div class="modal-title">CHOOSE AVATAR</div>
     <div class="avatar-picker-grid" id="avatarPickerGrid"></div>
+  </div>
+</div>
+
+<!-- Edit Profile bottom sheet (P1) — full edit menu with all customization rows -->
+<div class="modal" id="editProfileSheet" onclick="if(event.target===this) closeEditProfile()">
+  <div class="modal-box edit-profile-box">
+    <button class="detail-close" onclick="closeEditProfile()">×</button>
+    <div class="modal-title">EDIT PROFILE</div>
+    <div class="edit-profile-rows" id="editProfileRows"></div>
   </div>
 </div>
 
@@ -22278,6 +22458,71 @@ function renderProfileHeader() {
   // Background
   const banner = document.getElementById('profileBanner');
   if (banner) banner.setAttribute('data-bg', playerProfile.selectedBackgroundId || 'default');
+
+  // Friend code (P1) — display in banner action row
+  const fcEl = document.getElementById('profileFriendCode');
+  if (fcEl) fcEl.textContent = playerProfile.friendCode || 'BLO-XXXX-XXXX';
+}
+
+// ===== Edit Profile bottom sheet (P1) =====
+function openEditProfile() {
+  const sheet = document.getElementById('editProfileSheet');
+  const rows  = document.getElementById('editProfileRows');
+  if (!sheet || !rows) return;
+  // Resolve current display values
+  const avHeroId = playerProfile.avatarHeroId
+    || (typeof leaderHeroId !== 'undefined' && leaderHeroId)
+    || (Array.isArray(activeSquad) && activeSquad[0])
+    || ((HERO_ROSTER.find(h => h && h.unlocked) || {}).id);
+  const avHero = avHeroId ? HERO_ROSTER.find(h => h.id === avHeroId) : null;
+  const titleNow = (typeof getActiveTitle === 'function' ? getActiveTitle() : null) || 'Warchief';
+  const bgLabels = { default: 'Default', ch1: 'Chapter 1 (Ashen)', ch2: 'Chapter 2 (Bloom)' };
+  const bgNow    = bgLabels[playerProfile.selectedBackgroundId] || 'Default';
+  const bannerNow = playerProfile.selectedBannerId || '— none —';
+  rows.innerHTML =
+    _epRow('👤', 'Avatar',     avHero ? avHero.name : 'NONE',         "closeEditProfile(); openAvatarPicker();") +
+    _epRow('✎',  'Username',   playerProfile.username || 'SUMMONER',   "closeEditProfile(); openUsernameEditor();") +
+    _epRow('🏷', 'Title',      titleNow,                               "closeEditProfile(); flashText('Title picker coming in P4', '#A8A5B8');", true) +
+    _epRow('🖼', 'Background', bgNow,                                  "closeEditProfile(); flashText('Background gallery coming in P5', '#A8A5B8');", true) +
+    _epRow('🏁', 'Banner Tag', bannerNow,                              "closeEditProfile(); flashText('Banner gallery coming in P5', '#A8A5B8');", true);
+  sheet.classList.add('active');
+}
+function _epRow(icon, label, value, onclick, isSoon) {
+  return '<button class="edit-profile-row" ' + (isSoon ? 'disabled style="opacity:0.55"' : '') + ' onclick="' + onclick + '">' +
+    '<span class="ep-icon">' + icon + '</span>' +
+    '<span class="ep-text">' +
+      '<span class="ep-label">' + label + '</span>' +
+      '<span class="ep-value">' + value + (isSoon ? ' <span class="ep-soon">· coming soon</span>' : '') + '</span>' +
+    '</span>' +
+    '<span class="ep-chev">›</span>' +
+  '</button>';
+}
+function closeEditProfile() {
+  const sheet = document.getElementById('editProfileSheet');
+  if (sheet) sheet.classList.remove('active');
+}
+function copyFriendCode() {
+  const code = playerProfile.friendCode || '';
+  if (!code) { try { flashText('No friend code yet', '#E85D4A'); } catch (e) {} return; }
+  // Try modern clipboard API; fallback to textarea trick.
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(
+        () => { try { flashText('★ COPIED ' + code, '#FFD53D'); } catch (e) {} },
+        () => _fallbackCopy(code)
+      );
+      return;
+    }
+  } catch (e) {}
+  _fallbackCopy(code);
+}
+function _fallbackCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    try { flashText('★ COPIED ' + text, '#FFD53D'); } catch (e) {}
+  } catch (e) { try { flashText('Copy failed', '#E85D4A'); } catch (e2) {} }
 }
 
 // XP curve per spec §3.7. P2 may fine-tune.
@@ -22312,24 +22557,55 @@ function renderProfileTab(tab) {
   else                              body.innerHTML = placeholder('Unknown tab', '?');
 }
 
-// ===== Avatar Picker (P0 wire-up; P1 polishes the grid) =====
+// ===== Avatar Picker (P1 — tier/level badges + locked unlock hint) =====
 function openAvatarPicker() {
   const modal = document.getElementById('avatarPickerModal');
   const grid  = document.getElementById('avatarPickerGrid');
   if (!modal || !grid) return;
   grid.innerHTML = '';
   const heroes = HERO_ROSTER.filter(h => h && h.race !== 'clockwork');
+  // Sort: unlocked first (by level desc), then locked
+  heroes.sort((a, b) => {
+    if (!!a.unlocked !== !!b.unlocked) return a.unlocked ? -1 : 1;
+    const al = (typeof heroLevels === 'object' && heroLevels && heroLevels[a.id]) || 1;
+    const bl = (typeof heroLevels === 'object' && heroLevels && heroLevels[b.id]) || 1;
+    return bl - al;
+  });
   heroes.forEach(h => {
     const isUnlocked = !!h.unlocked;
-    const isActive = (playerProfile.avatarHeroId === h.id);
+    const isActive   = (playerProfile.avatarHeroId === h.id);
+    const lvl        = (typeof heroLevels === 'object' && heroLevels && heroLevels[h.id]) || 1;
+    const ascended   = !!(towerState && Array.isArray(towerState.ascendedHeroes) && towerState.ascendedHeroes.includes(h.id));
     const cell = document.createElement('button');
     cell.className = 'avatar-pick-cell' + (isActive ? ' active' : '') + (isUnlocked ? '' : ' locked');
-    if (isUnlocked) cell.onclick = () => selectAvatar(h.id);
+    cell.onclick = () => isUnlocked ? selectAvatar(h.id) : _showLockedAvatarHint(h);
     const src = (typeof ASSETS !== 'undefined' && ASSETS[h.img]) || '';
-    cell.innerHTML = '<img src="' + src + '" alt="' + h.name + '"/>';
+    let inner = '<img src="' + src + '" alt="' + h.name + '"/>';
+    if (isUnlocked) {
+      inner += '<span class="lvl-badge">LV ' + lvl + '</span>';
+      if (ascended) inner += '<span class="ascended-mark">★</span>';
+    }
+    cell.innerHTML = inner;
     grid.appendChild(cell);
   });
   modal.classList.add('active');
+}
+function _showLockedAvatarHint(h) {
+  // Find which boss unlocks this hero (BOSS_UNLOCKS reverse lookup)
+  let unlockBossNum = null;
+  try {
+    if (typeof BOSS_UNLOCKS === 'object') {
+      for (const bn in BOSS_UNLOCKS) {
+        if (Array.isArray(BOSS_UNLOCKS[bn]) && BOSS_UNLOCKS[bn].includes(h.id)) {
+          unlockBossNum = bn; break;
+        }
+      }
+    }
+  } catch (e) {}
+  const hint = unlockBossNum
+    ? 'Defeat Boss ' + unlockBossNum + ' to unlock ' + h.name
+    : h.name + ' — locked';
+  try { flashText(hint, '#A8A5B8'); } catch (e) {}
 }
 function closeAvatarPicker() {
   const modal = document.getElementById('avatarPickerModal');
