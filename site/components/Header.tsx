@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { href: '/', label: 'HOME' },
   { href: '/play', label: 'PLAY' },
   { href: '/heroes', label: 'HEROES' },
+  { href: '/bosses', label: 'BOSSES' },
   { href: '/leaderboard', label: 'LEADERBOARD' },
   { href: '/about', label: 'ABOUT' },
 ];
