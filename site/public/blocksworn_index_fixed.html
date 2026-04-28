@@ -29393,6 +29393,23 @@ function startBossBattle() {
       }
     }
   } catch (e) { console.warn('boss intro hook failed:', e); }
+  // 2026-04-28 — Player Education Stages 5/7/8: per-boss progressive teaching.
+  // Fires when player first enters Boss 2 / 3 / 4 in Chapter 1 (one boss-entry
+  // per modal). Delayed 1500ms so battle UI settles before the overlay layers
+  // on top. Self-gates: skip during FTUE + Tower (handled by _eduBattleGate).
+  try {
+    if (currentBoss && !currentBoss._isFtueOnly && !currentBoss._isTowerBattle && currentChapter === 1) {
+      // Boss indices in Ch1: 0=Pyredrake, 1=Abyssal Tyrant, 2=Grovewarden,
+      // 3=Solar Phoenix, 4=Crypt Lich. We teach mechanics on entry to 1/2/3.
+      if (currentBossIdx === 1 && typeof maybeShowElementEducation === 'function') {
+        setTimeout(maybeShowElementEducation, 1500);
+      } else if (currentBossIdx === 2 && typeof maybeShowMageEducation === 'function') {
+        setTimeout(maybeShowMageEducation, 1500);
+      } else if (currentBossIdx === 3 && typeof maybeShowCaptainEducation === 'function') {
+        setTimeout(maybeShowCaptainEducation, 1500);
+      }
+    }
+  } catch (e) { console.warn('mechanics education hook failed:', e); }
 }
 
 function newPieces() {
@@ -31599,6 +31616,151 @@ function maybeShowFailureRecovery(bossName, streak) {
 
 loadDefeatStreak();
 // ===== END FAILURE RECOVERY =====
+
+// ===== 2026-04-28 — PLAYER EDUCATION · MECHANICS POP-UPS (Stages 5-8) =====
+// Per BLOCKSWORN_PLAYER_EDUCATION.md §8-11. Four single-shot modals teach
+// progressively-revealed combat mechanics at the moments they first matter:
+//   Stage 5 — ELEMENT mechanics (before Boss 2 / Abyssal Tyrant — Tide)
+//   Stage 6 — CASCADE / INFERNO mass detonation (first cascade ≥ 3)
+//   Stage 7 — MAGE / ENCORE system (before Boss 3 / Grovewarden)
+//   Stage 8 — CAPTAIN dual buff deep dive (before Boss 4 / Solar Phoenix)
+// All gated: skip during FTUE, skip Tower battles. Each has its own
+// blocksworn_*_education_revealed localStorage flag — single-shot per install.
+const ELEMENT_EDUCATION_KEY = 'blocksworn_element_education_revealed';
+const CASCADE_EDUCATION_KEY = 'blocksworn_cascade_education_revealed';
+const MAGE_EDUCATION_KEY    = 'blocksworn_mage_education_revealed';
+const CAPTAIN_EDUCATION_KEY = 'blocksworn_captain_education_revealed';
+
+// Generic builder so all 4 modals share rendering — slightly less code than
+// per-modal copy/paste of the .edu-modal-* HTML scaffold. opts:
+//   id     — DOM id of the modal element (must be unique per stage)
+//   title, sub, footer  — strings
+//   rows   — array of { icon, name, desc }
+//   key    — localStorage flag key. Set to '1' on dismiss; never re-shows.
+function _showEduMechanicsModal(opts) {
+  let modal = document.getElementById(opts.id);
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = opts.id;
+    modal.className = 'edu-modal';
+    document.body.appendChild(modal);
+  }
+  const rows = (opts.rows || []).map(r =>
+    `<div class="edu-modal-row${r.current ? ' is-current' : ''}">
+      <div class="edu-row-icon">${r.icon}</div>
+      <div>
+        <span class="edu-row-name">${r.name}</span>
+        <span class="edu-row-desc">${r.desc}</span>
+      </div>
+    </div>`
+  ).join('');
+  modal.innerHTML =
+    `<div class="edu-modal-box">
+      <div class="edu-modal-title">${opts.title}</div>
+      <div class="edu-modal-sub">${opts.sub || ''}</div>
+      ${rows}
+      <div class="edu-modal-footer">${opts.footer || ''}</div>
+      <button type="button" class="edu-modal-confirm" data-edu-confirm>GOT IT</button>
+    </div>`;
+  modal.classList.add('active');
+  const btn = modal.querySelector('[data-edu-confirm]');
+  if (btn) {
+    btn.onclick = () => {
+      try { localStorage.setItem(opts.key, '1'); } catch (e) {}
+      modal.classList.remove('active');
+    };
+  }
+}
+
+function _eduBattleGate() {
+  // Common gate: skip during FTUE (mechanics there are taught via Chronograph
+  // beats), skip Tower (random-boss flow doesn't fit progressive teaching).
+  if (typeof isFtueActive === 'function' && isFtueActive()) return false;
+  if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle) return false;
+  return true;
+}
+
+function maybeShowElementEducation() {
+  if (!_eduBattleGate()) return;
+  try { if (localStorage.getItem(ELEMENT_EDUCATION_KEY) === '1') return; } catch (e) { return; }
+  _showEduMechanicsModal({
+    id: 'elementEducationModal',
+    key: ELEMENT_EDUCATION_KEY,
+    title: 'ELEMENTS · COMBAT FOUNDATION',
+    sub: 'EACH ELEMENT HAS A BASE VERB',
+    rows: [
+      { icon: '🔥', name: 'EMBER · BURNS',     desc: 'Pirate burst damage. Charged cells detonate in INFERNO chains.' },
+      { icon: '❄', name: 'TIDE · FREEZES',     desc: 'Shark chain damage. Freezes the boss\'s attack windup.' },
+      { icon: '🌍', name: 'GROVE · ABSORBS',   desc: 'Crocodile defense + bloom regen. Accumulates damage over time.' },
+      { icon: '🌑', name: 'UMBRA · ECHOES',    desc: 'Rock Band encore chains. Each clear adds stack.' },
+      { icon: '☀', name: 'SOLAR · SHIELDS',    desc: 'Spark shield-to-damage conversion. Sustains long fights.' },
+    ],
+    footer: 'Match boss element for advantage. Captain ULT boosts your element drops.',
+  });
+}
+
+function maybeShowCascadeEducation() {
+  if (!_eduBattleGate()) return;
+  try { if (localStorage.getItem(CASCADE_EDUCATION_KEY) === '1') return; } catch (e) { return; }
+  _showEduMechanicsModal({
+    id: 'cascadeEducationModal',
+    key: CASCADE_EDUCATION_KEY,
+    title: 'CASCADE × 3',
+    sub: 'COMBOS MULTIPLY YOUR DAMAGE',
+    rows: [
+      { icon: '⚡', name: 'EACH LEVEL = +DAMAGE', desc: '×3 = 1.3× · ×6 = 1.6× · ×8 = 2× · ×12 = 3× (mythic cap)' },
+      { icon: '💥', name: 'INFERNO · MASS DETONATE', desc: 'Hunter ULT with 6+ ember cells charged = entire field detonates at once.' },
+      { icon: '⏳', name: 'BUILD BEFORE FIRING',  desc: 'Save Hunter for 6+ cells stacked. Premature ULT = wasted potential.' },
+    ],
+    footer: 'Cascades are your biggest single damage move. Plan placements to chain them.',
+  });
+}
+
+function maybeShowMageEducation() {
+  if (!_eduBattleGate()) return;
+  try { if (localStorage.getItem(MAGE_EDUCATION_KEY) === '1') return; } catch (e) { return; }
+  // Detect player's mage element to tailor the row order. Defaults to generic
+  // if no mage in squad (fallback — modal still informative).
+  const mage = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK))
+    ? HERO_DECK.find(h => h && h.newRole === 'mage') : null;
+  const mageEl = (mage && mage.stihiya) || null;
+  _showEduMechanicsModal({
+    id: 'mageEducationModal',
+    key: MAGE_EDUCATION_KEY,
+    title: 'MAGE SYSTEM',
+    sub: 'AMPLIFIERS / CHAINS / MENDING',
+    rows: [
+      { icon: '🔥', name: 'BLOOM (Ember Mage)',
+        desc: 'Fire EMBERHAND → next INFERNO is +50% damage for 3 placements.',
+        current: mageEl === 'ember' },
+      { icon: '🌑', name: 'ENCORE (Umbra Mage)',
+        desc: 'Each umbra ULT triggers a free echo: KEYCRYPT amp → SHRIEK detonate = repeat 50%.',
+        current: mageEl === 'umbra' },
+      { icon: '✨', name: 'MENDING (any)',
+        desc: 'Mage ULT heals + grants +1 ULT charge to all squad members.' },
+    ],
+    footer: 'Time it right: fire Mage → place 3 → fire Hunter for massive damage.',
+  });
+}
+
+function maybeShowCaptainEducation() {
+  if (!_eduBattleGate()) return;
+  try { if (localStorage.getItem(CAPTAIN_EDUCATION_KEY) === '1') return; } catch (e) { return; }
+  _showEduMechanicsModal({
+    id: 'captainEducationModal',
+    key: CAPTAIN_EDUCATION_KEY,
+    title: 'CAPTAIN · DUAL BUFF',
+    sub: 'TWO BUFFS AT ONCE',
+    rows: [
+      { icon: '⚔', name: 'RACE BUFF · SCALES WITH SQUAD', desc: '1 same race = +5% · 2 = +15% · 3+ = +30% damage to your race.' },
+      { icon: '✦', name: 'ELEMENT BUFF · DROP BOOST', desc: '+25% drops of your captain\'s element while their buff is active.' },
+      { icon: '🏆', name: 'RACE-PURE · FULL PASSIVE', desc: '5 of same race + Captain = race-passive activates (e.g. Pirates +30% gold + double cascade chance).' },
+    ],
+    footer: 'Captains are the keystone — race-pure squads multiply their value.',
+  });
+}
+// ===== END MECHANICS POP-UPS =====
+
 
 
 function injectMenuButton() {
@@ -35958,6 +36120,18 @@ async function afterPlacement(piece) {
     const CLEAR_LABELS = { 1: 'CLEAR!', 2: 'DOUBLE!', 3: 'TRIPLE!', 4: 'QUADRUPLE!' };
     const label = CLEAR_LABELS[count] || 'MASTERFUL!';
     flashCombo(label);
+    // 2026-04-28 — Player Education Stage 6: first time the player triggers a
+    // ≥3-line cascade (TRIPLE+), explain combo math + INFERNO mass detonate.
+    // Single-shot via blocksworn_cascade_education_revealed. Self-gates on
+    // FTUE / Tower via _eduBattleGate. Delayed 600ms so the cascade animation
+    // finishes before the overlay layers on top.
+    if (count >= 3) {
+      try {
+        if (typeof maybeShowCascadeEducation === 'function') {
+          setTimeout(maybeShowCascadeEducation, 600);
+        }
+      } catch (e) {}
+    }
     if (count >= 3 && hp < currentMaxHP) hp++;
     // V2.0 Stage 3 (Block 3.1): STRIKE FORCE RELENTLESS — combo ≥ 2 line clear grants
     // +1 ULT charge to a random striker (warrior/hunter) hero's stihiya.
