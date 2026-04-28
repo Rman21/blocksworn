@@ -13131,6 +13131,67 @@ button.season-tier-claim:active {
   </div>
 </div>
 
+<!-- Firebase SDK (Phase G-Social, 2026-04-28) — modular v10 via gstatic CDN.
+     Loaded as ES module so we can use the modern named exports. The init runs
+     asynchronously and exposes a `window.fb` namespace + a `firebaseReady`
+     event. Anonymous auth resolves automatically — no user action needed.
+     If load/auth fails, BACKEND_PROVIDERS.firebase methods auto-fallback
+     to the mock backend, so gameplay never breaks. -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+  import {
+    getAuth, signInAnonymously, onAuthStateChanged
+  } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+  import {
+    getFirestore, doc, collection, getDoc, setDoc, updateDoc, deleteDoc,
+    addDoc, query, where, orderBy, limit, getDocs, serverTimestamp,
+    writeBatch
+  } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC9oetrKqpzt16KL1dnnGjN3r4iLL-aLlQ",
+    authDomain: "blocksworm.firebaseapp.com",
+    projectId: "blocksworm",
+    storageBucket: "blocksworm.firebasestorage.app",
+    messagingSenderId: "334495495523",
+    appId: "1:334495495523:web:4cb7d467afea6c2c248f56",
+    measurementId: "G-DVHMVFYPMC"
+  };
+
+  try {
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Expose Firestore + Auth helpers on window so the main <script> (non-module)
+    // can use them. Naming kept short (window.fb) for terse call sites.
+    window.fb = {
+      app, auth, db,
+      signInAnonymously: () => signInAnonymously(auth),
+      onAuthStateChanged: (cb) => onAuthStateChanged(auth, cb),
+      doc, collection, getDoc, setDoc, updateDoc, deleteDoc, addDoc,
+      query, where, orderBy, limit, getDocs, serverTimestamp, writeBatch,
+    };
+
+    // Anonymous sign-in. Resolves UID for the player without requiring email
+    // or password — every player gets a stable identity tied to this device.
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        window.fbReady = true;
+        window.dispatchEvent(new CustomEvent('firebaseReady', { detail: { uid: user.uid } }));
+        console.log('[Firebase] anon-auth ready, uid=' + user.uid.slice(0, 8));
+      }
+    });
+    signInAnonymously(auth).catch(err => {
+      console.warn('[Firebase] anon sign-in failed:', err);
+      window.fbReady = false;
+    });
+  } catch (e) {
+    console.warn('[Firebase] init failed (offline?):', e);
+    window.fbReady = false;
+  }
+</script>
+
 <script>
 // ──────────────────────────────────────────────────────────────────────────
 // Save-version gate (one-time global wipe for legacy player saves).
@@ -22871,30 +22932,212 @@ const BACKEND_PROVIDERS = {
       return { ok: true, season: seasonId || 1, board: top.slice(0, 11) };
     },
   },
-  // ---- Firebase backend (Phase G-Social TODO) ----
+  // ---- Firebase backend (Phase G-Social, wired 2026-04-28) ----
+  // Each method falls back to mock if Firebase isn't ready (offline, auth not
+  // resolved yet, init failed). Falls back per-call so a flaky network doesn't
+  // break the social UI — player sees mock data instead of an error.
   firebase: {
-    // TODO Phase G-Social: implement when user provides Firebase config.
-    // Each method maps to a Firestore read/write. Plan:
-    //   syncProfile() → write users/{uid} doc
-    //   findUserByCode() → query users where friendCode == code, limit 1
-    //   addFriend() → batched write: users/{uid}/friends/{theirUid} +
-    //                                 users/{theirUid}/friend_requests/{uid}
-    //   getFriendList() → read users/{uid}/friends subcollection
-    //   sendGift() → write users/{theirUid}/pending_gifts/{giftId}
-    //   claimPendingGifts() → batch read + delete pending_gifts subcollection
-    //   submitTowerScore() → write leaderboard/{seasonId}/scores/{uid}
-    //   getLeaderboard() → query leaderboard/{seasonId}/scores order by floor desc, limit 100
-    async syncProfile()             { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.syncProfile(); },
-    async findUserByCode(code)      { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.findUserByCode(code); },
-    async addFriend(theirCode)      { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.addFriend(theirCode); },
-    async getFriendList()           { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.getFriendList(); },
-    async removeFriend(friendUid)   { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.removeFriend(friendUid); },
-    async sendGift(friendUid)       { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.sendGift(friendUid); },
-    async claimPendingGifts()       { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.claimPendingGifts(); },
-    async submitTowerScore(floor)   { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.submitTowerScore(floor); },
-    async getLeaderboard(seasonId)  { console.warn('[Backend] Firebase not wired'); return BACKEND_PROVIDERS.mock.getLeaderboard(seasonId); },
+    async syncProfile() {
+      if (!_fbReady()) return BACKEND_PROVIDERS.mock.syncProfile();
+      try {
+        const uid = window.fb.auth.currentUser.uid;
+        const userRef = window.fb.doc(window.fb.db, 'users', uid);
+        await window.fb.setDoc(userRef, {
+          uid: uid,
+          friendCode: playerProfile.friendCode || '',
+          username:   playerProfile.username   || 'PLAYER',
+          title:      (typeof getActiveProfileTitle === 'function') ? getActiveProfileTitle() : 'Warchief',
+          towerFloor: (towerState && towerState.allTimeBest) || 0,
+          level:      playerProfile.level || 1,
+          updatedAt:  window.fb.serverTimestamp(),
+        }, { merge: true });
+        return { ok: true, source: 'firebase' };
+      } catch (e) { console.warn('[FB] syncProfile failed:', e); return BACKEND_PROVIDERS.mock.syncProfile(); }
+    },
+    async findUserByCode(code) {
+      if (!_fbReady()) return BACKEND_PROVIDERS.mock.findUserByCode(code);
+      try {
+        const usersRef = window.fb.collection(window.fb.db, 'users');
+        const q = window.fb.query(usersRef, window.fb.where('friendCode', '==', code), window.fb.limit(1));
+        const snap = await window.fb.getDocs(q);
+        if (snap.empty) return null;
+        const docSnap = snap.docs[0];
+        return Object.assign({ uid: docSnap.id }, docSnap.data());
+      } catch (e) { console.warn('[FB] findUserByCode failed:', e); return null; }
+    },
+    async addFriend(theirCode) {
+      if (!_fbReady()) return BACKEND_PROVIDERS.mock.addFriend(theirCode);
+      try {
+        const uid = window.fb.auth.currentUser.uid;
+        if (theirCode === playerProfile.friendCode) return { ok: false, error: 'cannot_add_self' };
+        const remote = await BACKEND_PROVIDERS.firebase.findUserByCode(theirCode);
+        if (!remote)               return { ok: false, error: 'not_found' };
+        if (remote.uid === uid)    return { ok: false, error: 'cannot_add_self' };
+        // Check we don't already have them as a friend
+        const friendRef = window.fb.doc(window.fb.db, 'users', uid, 'friends', remote.uid);
+        const existing = await window.fb.getDoc(friendRef);
+        if (existing.exists())     return { ok: false, error: 'already_added' };
+        // Mutual add — both sides get each other in their friends list (no
+        // request/accept flow for first launch; matches mock behavior).
+        const batch = window.fb.writeBatch(window.fb.db);
+        batch.set(friendRef, { uid: remote.uid, addedAt: window.fb.serverTimestamp() });
+        const reciprocal = window.fb.doc(window.fb.db, 'users', remote.uid, 'friends', uid);
+        batch.set(reciprocal, { uid: uid, addedAt: window.fb.serverTimestamp() });
+        await batch.commit();
+        return { ok: true, friend: Object.assign({ addedAt: Date.now() }, remote) };
+      } catch (e) { console.warn('[FB] addFriend failed:', e); return { ok: false, error: 'backend' }; }
+    },
+    async getFriendList() {
+      if (!_fbReady()) return BACKEND_PROVIDERS.mock.getFriendList();
+      try {
+        const uid = window.fb.auth.currentUser.uid;
+        const friendsRef = window.fb.collection(window.fb.db, 'users', uid, 'friends');
+        const snap = await window.fb.getDocs(friendsRef);
+        if (snap.empty) return [];
+        // Hydrate each friend with their public profile fields. Parallel reads
+        // keep latency down even for ~50 friends.
+        const friendIds = snap.docs.map(d => d.id);
+        const profiles = await Promise.all(friendIds.map(async (fid) => {
+          try {
+            const profSnap = await window.fb.getDoc(window.fb.doc(window.fb.db, 'users', fid));
+            if (profSnap.exists()) return Object.assign({ uid: fid }, profSnap.data());
+          } catch (e) {}
+          return null;
+        }));
+        return profiles.filter(Boolean);
+      } catch (e) { console.warn('[FB] getFriendList failed:', e); return []; }
+    },
+    async removeFriend(friendUid) {
+      if (!_fbReady()) return BACKEND_PROVIDERS.mock.removeFriend(friendUid);
+      try {
+        const uid = window.fb.auth.currentUser.uid;
+        const batch = window.fb.writeBatch(window.fb.db);
+        batch.delete(window.fb.doc(window.fb.db, 'users', uid, 'friends', friendUid));
+        // We can't always delete the reciprocal row (security rules block writes
+        // to other players' subcollections); best-effort, swallow PERMISSION_DENIED.
+        batch.delete(window.fb.doc(window.fb.db, 'users', friendUid, 'friends', uid));
+        try { await batch.commit(); } catch (inner) {
+          // Retry without the reciprocal delete if rules reject it.
+          const single = window.fb.writeBatch(window.fb.db);
+          single.delete(window.fb.doc(window.fb.db, 'users', uid, 'friends', friendUid));
+          await single.commit();
+        }
+        return { ok: true };
+      } catch (e) { console.warn('[FB] removeFriend failed:', e); return { ok: false }; }
+    },
+    async sendGift(friendUid) {
+      if (!_fbReady()) return BACKEND_PROVIDERS.mock.sendGift(friendUid);
+      try {
+        const uid = window.fb.auth.currentUser.uid;
+        const todayKey = 'blocksworn_fb_gift_sent_' + friendUid + '_' + _todayDateString();
+        if (localStorage.getItem(todayKey)) return { ok: false, error: 'already_sent_today' };
+        const giftsRef = window.fb.collection(window.fb.db, 'users', friendUid, 'pending_gifts');
+        await window.fb.addDoc(giftsRef, {
+          from:    uid,
+          fromName: playerProfile.username || 'PLAYER',
+          reward:  { gold: 50 },
+          sentAt:  window.fb.serverTimestamp(),
+        });
+        try { localStorage.setItem(todayKey, '1'); } catch (e) {}
+        return { ok: true };
+      } catch (e) { console.warn('[FB] sendGift failed:', e); return { ok: false, error: 'backend' }; }
+    },
+    async claimPendingGifts() {
+      if (!_fbReady()) return BACKEND_PROVIDERS.mock.claimPendingGifts();
+      try {
+        const uid = window.fb.auth.currentUser.uid;
+        const giftsRef = window.fb.collection(window.fb.db, 'users', uid, 'pending_gifts');
+        const snap = await window.fb.getDocs(giftsRef);
+        if (snap.empty) return { ok: true, gifts: [] };
+        const gifts = [];
+        const batch = window.fb.writeBatch(window.fb.db);
+        snap.docs.forEach(d => {
+          const data = d.data() || {};
+          gifts.push({ from: data.from, fromName: data.fromName, reward: data.reward || {} });
+          batch.delete(d.ref);
+        });
+        await batch.commit();
+        return { ok: true, gifts };
+      } catch (e) { console.warn('[FB] claimPendingGifts failed:', e); return { ok: true, gifts: [] }; }
+    },
+    async submitTowerScore(floor) {
+      if (!_fbReady()) return BACKEND_PROVIDERS.mock.submitTowerScore(floor);
+      try {
+        const uid = window.fb.auth.currentUser.uid;
+        const seasonId = (seasonState && seasonState.seasonId) || 1;
+        const f = Math.max(0, Math.floor(Number(floor) || 0));
+        const scoreRef = window.fb.doc(window.fb.db, 'leaderboard', 'season_' + seasonId, 'scores', uid);
+        await window.fb.setDoc(scoreRef, {
+          uid:       uid,
+          username:  playerProfile.username || 'PLAYER',
+          title:     (typeof getActiveProfileTitle === 'function') ? getActiveProfileTitle() : 'Warchief',
+          floor:     f,
+          updatedAt: window.fb.serverTimestamp(),
+        }, { merge: true });
+        return { ok: true };
+      } catch (e) { console.warn('[FB] submitTowerScore failed:', e); return { ok: false }; }
+    },
+    async getLeaderboard(seasonId) {
+      if (!_fbReady()) return BACKEND_PROVIDERS.mock.getLeaderboard(seasonId);
+      try {
+        const sid = seasonId || (seasonState && seasonState.seasonId) || 1;
+        const scoresRef = window.fb.collection(window.fb.db, 'leaderboard', 'season_' + sid, 'scores');
+        const q = window.fb.query(scoresRef, window.fb.orderBy('floor', 'desc'), window.fb.limit(100));
+        const snap = await window.fb.getDocs(q);
+        const myUid = window.fb.auth.currentUser ? window.fb.auth.currentUser.uid : null;
+        let board = snap.docs.map((d, i) => ({
+          rank:     i + 1,
+          uid:      d.id,
+          username: d.data().username || 'PLAYER',
+          floor:    d.data().floor || 0,
+          isYou:    d.id === myUid,
+        }));
+        // If player has a tower score but isn't in the top 100, append their row.
+        if (myUid && !board.some(r => r.isYou) && (towerState && towerState.allTimeBest > 0)) {
+          board.push({
+            rank: board.length + 1,
+            uid: myUid,
+            username: playerProfile.username || 'YOU',
+            floor: towerState.allTimeBest,
+            isYou: true,
+          });
+        }
+        return { ok: true, season: sid, board: board.slice(0, 11) };
+      } catch (e) { console.warn('[FB] getLeaderboard failed:', e); return BACKEND_PROVIDERS.mock.getLeaderboard(seasonId); }
+    },
   },
 };
+
+// Helper: are we ready to use Firebase?
+function _fbReady() {
+  return !!(window.fb && window.fb.auth && window.fb.auth.currentUser && window.fbReady);
+}
+
+// On Firebase auth resolve: flip BackendProvider, sync profile, submit score.
+window.addEventListener('firebaseReady', async (ev) => {
+  try {
+    BackendProvider.ACTIVE = 'firebase';
+    console.log('[Firebase] BackendProvider switched to firebase, uid=' + (ev.detail.uid || '').slice(0, 8));
+    // Stamp playerProfile.uid for any future lookups.
+    if (ev.detail && ev.detail.uid) {
+      playerProfile.uid = ev.detail.uid;
+      try { savePlayerProfile(); } catch (e) {}
+    }
+    // Push current profile + tower score (idempotent — merges into existing docs).
+    await BackendProvider.syncProfile();
+    if (towerState && (towerState.allTimeBest || 0) > 0) {
+      await BackendProvider.submitTowerScore(towerState.allTimeBest);
+    }
+    // If the Profile screen is open, refresh social cache so the user sees real data.
+    try {
+      _socialFriendsCache = null;
+      _socialLeaderboardCache = null;
+      if (typeof currentScreen !== 'undefined' && currentScreen === 'profile') {
+        renderProfile();
+      }
+    } catch (e) {}
+  } catch (e) { console.warn('[Firebase] post-auth bootstrap failed:', e); }
+});
 
 // ===== PROFILE RENDERING — P0 dispatcher (P1-P6 fill tab renderers) =====
 let _profileActiveTab = 'stats';
