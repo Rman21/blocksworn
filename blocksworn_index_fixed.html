@@ -12002,6 +12002,80 @@ button.season-tier-claim:active {
   cursor: not-allowed;
   filter: grayscale(0.5);
 }
+/* 2026-04-29 — T3 + Mythic ascension buttons + badges. T3 uses an amber→
+   violet gradient that visually progresses from T2's purple-only. Mythic
+   uses tri-stop violet→ember→gold + 20px halo + slow glow pulse so it
+   reads as the endgame commitment moment. Both buttons sit on their own
+   rows below the T2 button (HTML order). */
+.btn-ascend-t3 {
+  background: linear-gradient(135deg, #FFB84A 0%, #BB60FF 100%);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+  font-weight: 800;
+  letter-spacing: 1px;
+  box-shadow: 0 0 14px rgba(187,96,255,0.45);
+  transition: filter 0.15s, transform 0.12s;
+}
+.btn-ascend-t3:hover  { filter: brightness(1.12); }
+.btn-ascend-t3:active { transform: scale(0.97); }
+.btn-ascend-t3:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(0.4); }
+.btn-ascend-mythic {
+  background: linear-gradient(135deg, #BB60FF 0%, #FF5A3A 50%, #FFD53D 100%);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.5);
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  box-shadow: 0 0 22px rgba(255,90,58,0.55), 0 0 8px rgba(255,213,61,0.65);
+  transition: filter 0.15s, transform 0.12s;
+  animation: mythicBtnPulse 2.6s ease-in-out infinite;
+}
+.btn-ascend-mythic:hover  { filter: brightness(1.10); }
+.btn-ascend-mythic:active { transform: scale(0.96); }
+.btn-ascend-mythic:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+  animation: none;
+}
+@keyframes mythicBtnPulse {
+  0%, 100% { box-shadow: 0 0 22px rgba(255,90,58,0.55), 0 0 8px rgba(255,213,61,0.65); }
+  50%      { box-shadow: 0 0 32px rgba(255,90,58,0.85), 0 0 14px rgba(255,213,61,0.95); }
+}
+.detail-t3-badge {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 4px 12px;
+  background: linear-gradient(135deg, rgba(255,184,74,0.25), rgba(187,96,255,0.30));
+  border: 1px solid rgba(187,96,255,0.7);
+  border-radius: 14px;
+  color: #F0E0FF;
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-shadow: 0 0 8px rgba(187,96,255,0.6);
+}
+.detail-mythic-badge {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 4px 14px;
+  background: linear-gradient(135deg, rgba(187,96,255,0.30), rgba(255,90,58,0.35), rgba(255,213,61,0.30));
+  border: 1.5px solid rgba(255,90,58,0.8);
+  border-radius: 14px;
+  color: #FFE9D0;
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(255,90,58,0.85), 0 0 18px rgba(255,213,61,0.5);
+  animation: mythicBadgePulse 3s ease-in-out infinite;
+}
+@keyframes mythicBadgePulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-ascend-mythic, .detail-mythic-badge { animation: none; }
+}
 .detail-abilities {
   margin: 12px 0;
   font-size: 11px; line-height: 1.55; color: #A8A5B8;
@@ -13483,6 +13557,12 @@ button.season-tier-claim:active {
     </div>
     <!-- ASCEND TO T2 — separate row when applicable (cards + stone + gold + essence) -->
     <button class="btn btn-ascend detail-ascend-btn" id="detailAscendBtn" onclick="onTryAscend()" style="display:none;">⚡ ASCEND TO T2</button>
+    <!-- 2026-04-29 — T3 / Mythic ascension buttons. T3 shows after T2 done.
+         Mythic shows after T3 done; gated single-slot per save. -->
+    <div class="detail-t3-badge" id="detailT3Badge" style="display:none;">★ T3 DEEP ASCENDED</div>
+    <div class="detail-mythic-badge" id="detailMythicBadge" style="display:none;">✦ MYTHIC TRANSCENDENT</div>
+    <button class="btn btn-ascend-t3 detail-ascend-t3-btn" id="detailAscendT3Btn" onclick="onTryAscendT3()" style="display:none;">★ ASCEND TO T3</button>
+    <button class="btn btn-ascend-mythic detail-ascend-mythic-btn" id="detailAscendMythicBtn" onclick="onTryAscendMythic()" style="display:none;">✦ MYTHIC ASCENSION</button>
 
     <!-- Legacy 4-tier XP UPGRADES (engine system) — hidden per spec §1.1, state preserved in code -->
     <div class="detail-tiers" id="detailTiers" style="display:none;"></div>
@@ -14100,11 +14180,144 @@ function ascendHero(heroId) {
   saveTowerState();
   return true;
 }
-// Combat hook helper — returns 1.20 for ascended heroes, 1.0 otherwise.
+// Combat hook helper — multiplicative T2 × T3 × Mythic damage stack.
+// T2 alone = 1.20×, T3 stacked = 1.44×, Mythic stacked = 1.872× (+87%).
 // Read from inside dealDamage damage stack.
 function getHeroAscensionMult(hero) {
   if (!hero || !hero.id) return 1.0;
-  return isHeroAscended(hero.id) ? TIER2_DAMAGE_BONUS : 1.0;
+  let mult = 1.0;
+  if (isHeroAscended(hero.id))   mult *= TIER2_DAMAGE_BONUS;
+  if (typeof isHeroAscendedT3 === 'function' && isHeroAscendedT3(hero.id))   mult *= TIER3_DAMAGE_BONUS;
+  if (typeof isHeroMythic     === 'function' && isHeroMythic(hero.id))       mult *= MYTHIC_DAMAGE_BONUS;
+  return mult;
+}
+
+// ==========================================================================
+// 2026-04-29 — Tier 3 + Mythic ascension flows.
+// Per BLOCKSWORN_HERO_COMPENDIUM.md §9-10 + BLOCKSWORN_META_PROGRESSION.md.
+//   Tier 3   — additional 10 hero cards (15 total cumulative) + 1 T3 stone +
+//              500g + 10 essence. Stacks multiplicatively with T2 → 1.44×.
+//              Gated: hero must already be T2-ascended.
+//   Mythic   — additional 25 hero cards (35 total) + 1 Legendary Stone +
+//              1000g + 20 essence. Stacks on T2×T3 → 1.872× (+87%).
+//              Gated: hero must already be T3-ascended. SINGLE hero per
+//              save (irreversible). Player commits one favorite forever.
+// Per-hero unique T3 passive / Mythic ULT replacement is content-author task
+// (HERO_T3_RUNTIME / HERO_MYTHIC_ULTS) — deferred. This commit ships the
+// flow + multiplier; per-hero abilities slot in via the same runtime hooks
+// already used for T2 (HERO_T2_RUNTIME).
+// ==========================================================================
+const TIER3_ASCEND_COST     = 1;      // T3 stones per ascension
+const TIER3_CARDS_COST      = 10;     // additional fragments (15 total w/ T2)
+const TIER3_GOLD_COST       = 500;
+const TIER3_ESSENCE_COST    = 10;
+const TIER3_DAMAGE_BONUS    = 1.20;   // multiplicative on top of T2
+
+const MYTHIC_ASCEND_COST    = 1;      // legendary stones per ascension
+const MYTHIC_CARDS_COST     = 25;     // additional fragments (35 total w/ T2+T3)
+const MYTHIC_GOLD_COST      = 1000;
+const MYTHIC_ESSENCE_COST   = 20;
+const MYTHIC_DAMAGE_BONUS   = 1.30;   // multiplicative on top of T2 × T3
+
+function isHeroAscendedT3(heroId) {
+  return towerState && Array.isArray(towerState.tier3Ascended) && towerState.tier3Ascended.includes(heroId);
+}
+function isHeroMythic(heroId) {
+  return towerState && towerState.mythicHero === heroId;
+}
+function getMythicHeroId() {
+  return (towerState && towerState.mythicHero) || null;
+}
+
+function getT3Missing(heroId) {
+  if (!heroId) return [{ type: 'unknown', have: 0, need: 1 }];
+  if (!isHeroAscended(heroId)) return [{ type: 'requires_t2', have: 0, need: 1 }];
+  if (isHeroAscendedT3(heroId)) return [{ type: 'already_t3', have: 1, need: 0 }];
+  const hero = HERO_ROSTER.find(h => h.id === heroId);
+  if (!hero) return [{ type: 'unknown', have: 0, need: 1 }];
+  const missing = [];
+  const stones = (towerState && towerState.tier3Stones) || 0;
+  const cards  = (typeof getHeroFragments === 'function') ? getHeroFragments(heroId) : 0;
+  const goldAvail = (typeof gold !== 'undefined') ? (gold || 0) : 0;
+  const essAvail  = (typeof essences !== 'undefined' && essences && hero.stihiya)
+                  ? (essences[hero.stihiya] || 0) : 0;
+  if (stones    < TIER3_ASCEND_COST)  missing.push({ type: 'stone',   have: stones,    need: TIER3_ASCEND_COST });
+  if (cards     < TIER3_CARDS_COST)   missing.push({ type: 'cards',   have: cards,     need: TIER3_CARDS_COST });
+  if (goldAvail < TIER3_GOLD_COST)    missing.push({ type: 'gold',    have: goldAvail, need: TIER3_GOLD_COST });
+  if (essAvail  < TIER3_ESSENCE_COST) missing.push({ type: 'essence', have: essAvail,  need: TIER3_ESSENCE_COST, stihiya: hero.stihiya });
+  return missing.length ? missing : null;
+}
+function canAscendT3(heroId) { return getT3Missing(heroId) === null; }
+function ascendHeroT3(heroId) {
+  if (!canAscendT3(heroId)) return false;
+  const hero = HERO_ROSTER.find(h => h.id === heroId);
+  if (!hero) return false;
+  towerState.tier3Stones -= TIER3_ASCEND_COST;
+  if (typeof heroFragments === 'object') {
+    heroFragments[heroId] = Math.max(0, (heroFragments[heroId] || 0) - TIER3_CARDS_COST);
+    try { if (typeof saveHeroFragmentsToStorage === 'function') saveHeroFragmentsToStorage(); } catch (e) {}
+  }
+  if (typeof gold !== 'undefined') {
+    gold = Math.max(0, gold - TIER3_GOLD_COST);
+    try { if (typeof saveGoldToStorage === 'function') saveGoldToStorage(); } catch (e) {}
+    try { if (typeof renderResourceBar === 'function') renderResourceBar(); } catch (e) {}
+  }
+  if (typeof essences === 'object' && hero.stihiya) {
+    essences[hero.stihiya] = Math.max(0, (essences[hero.stihiya] || 0) - TIER3_ESSENCE_COST);
+    try { if (typeof saveProgress === 'function') saveProgress(); } catch (e) {}
+  }
+  if (!Array.isArray(towerState.tier3Ascended)) towerState.tier3Ascended = [];
+  towerState.tier3Ascended.push(heroId);
+  saveTowerState();
+  return true;
+}
+
+function getMythicMissing(heroId) {
+  if (!heroId) return [{ type: 'unknown', have: 0, need: 1 }];
+  if (!isHeroAscendedT3(heroId)) return [{ type: 'requires_t3', have: 0, need: 1 }];
+  if (isHeroMythic(heroId)) return [{ type: 'already_mythic', have: 1, need: 0 }];
+  // SINGLE hero per save — refuse if another is already mythic.
+  const otherMythic = getMythicHeroId();
+  if (otherMythic && otherMythic !== heroId) {
+    return [{ type: 'mythic_taken', have: 0, need: 1, byHero: otherMythic }];
+  }
+  const hero = HERO_ROSTER.find(h => h.id === heroId);
+  if (!hero) return [{ type: 'unknown', have: 0, need: 1 }];
+  const missing = [];
+  const stones = (towerState && towerState.legendaryStones) || 0;
+  const cards  = (typeof getHeroFragments === 'function') ? getHeroFragments(heroId) : 0;
+  const goldAvail = (typeof gold !== 'undefined') ? (gold || 0) : 0;
+  const essAvail  = (typeof essences !== 'undefined' && essences && hero.stihiya)
+                  ? (essences[hero.stihiya] || 0) : 0;
+  if (stones    < MYTHIC_ASCEND_COST)  missing.push({ type: 'legendary', have: stones,    need: MYTHIC_ASCEND_COST });
+  if (cards     < MYTHIC_CARDS_COST)   missing.push({ type: 'cards',     have: cards,     need: MYTHIC_CARDS_COST });
+  if (goldAvail < MYTHIC_GOLD_COST)    missing.push({ type: 'gold',      have: goldAvail, need: MYTHIC_GOLD_COST });
+  if (essAvail  < MYTHIC_ESSENCE_COST) missing.push({ type: 'essence',   have: essAvail,  need: MYTHIC_ESSENCE_COST, stihiya: hero.stihiya });
+  return missing.length ? missing : null;
+}
+function canAscendMythic(heroId) { return getMythicMissing(heroId) === null; }
+function ascendHeroMythic(heroId) {
+  if (!canAscendMythic(heroId)) return false;
+  const hero = HERO_ROSTER.find(h => h.id === heroId);
+  if (!hero) return false;
+  towerState.legendaryStones = Math.max(0, (towerState.legendaryStones || 0) - MYTHIC_ASCEND_COST);
+  if (typeof heroFragments === 'object') {
+    heroFragments[heroId] = Math.max(0, (heroFragments[heroId] || 0) - MYTHIC_CARDS_COST);
+    try { if (typeof saveHeroFragmentsToStorage === 'function') saveHeroFragmentsToStorage(); } catch (e) {}
+  }
+  if (typeof gold !== 'undefined') {
+    gold = Math.max(0, gold - MYTHIC_GOLD_COST);
+    try { if (typeof saveGoldToStorage === 'function') saveGoldToStorage(); } catch (e) {}
+    try { if (typeof renderResourceBar === 'function') renderResourceBar(); } catch (e) {}
+  }
+  if (typeof essences === 'object' && hero.stihiya) {
+    essences[hero.stihiya] = Math.max(0, (essences[hero.stihiya] || 0) - MYTHIC_ESSENCE_COST);
+    try { if (typeof saveProgress === 'function') saveProgress(); } catch (e) {}
+  }
+  // Single-slot commit: store the chosen mythic hero id at the towerState root.
+  towerState.mythicHero = heroId;
+  saveTowerState();
+  return true;
 }
 
 // 2026-04-28 — Player Education Stage 11 (BLOCKSWORN_PLAYER_EDUCATION.md §14.2).
@@ -40945,6 +41158,95 @@ function openHeroDetail(heroId) {
       }
     }
   } catch (e) { console.warn('Tier 2 detail render failed:', e); }
+  // 2026-04-29 — T3 + Mythic ascension UI surfaces. T3 button shows after T2
+  // is done (gated by isHeroAscended); Mythic button shows after T3 is done
+  // (gated by isHeroAscendedT3) AND no other hero already holds the single
+  // mythic slot. Cost chips mirror the T2 pattern for visual consistency.
+  try {
+    const t3Badge = document.getElementById('detailT3Badge');
+    const t3Btn   = document.getElementById('detailAscendT3Btn');
+    const mBadge  = document.getElementById('detailMythicBadge');
+    const mBtn    = document.getElementById('detailAscendMythicBtn');
+    const isT2  = (typeof isHeroAscended    === 'function') && isHeroAscended(heroId);
+    const isT3  = (typeof isHeroAscendedT3  === 'function') && isHeroAscendedT3(heroId);
+    const isMy  = (typeof isHeroMythic      === 'function') && isHeroMythic(heroId);
+    const otherMythic = (typeof getMythicHeroId === 'function') ? getMythicHeroId() : null;
+    const mythicTaken = !!(otherMythic && otherMythic !== heroId);
+    // T3 badge / button
+    if (t3Badge) t3Badge.style.display = isT3 ? '' : 'none';
+    if (t3Btn) {
+      if (!isT2) {
+        // Hero hasn't reached T2 yet — hide T3 button entirely.
+        t3Btn.style.display = 'none';
+      } else if (isT3) {
+        // Already T3 — show inert reminder.
+        t3Btn.style.display = '';
+        t3Btn.innerHTML = '★ ALREADY T3';
+        t3Btn.disabled = true;
+      } else {
+        // T2-ascended, T3 available — render cost chips.
+        t3Btn.style.display = '';
+        const stones = (towerState && towerState.tier3Stones) || 0;
+        const cards  = (typeof getHeroFragments === 'function') ? getHeroFragments(heroId) : 0;
+        const goldA  = (typeof gold !== 'undefined') ? (gold || 0) : 0;
+        const essA   = (typeof essences === 'object' && hero.stihiya) ? (essences[hero.stihiya] || 0) : 0;
+        const sOK = stones >= TIER3_ASCEND_COST;
+        const cOK = cards  >= TIER3_CARDS_COST;
+        const gOK = goldA  >= TIER3_GOLD_COST;
+        const eOK = essA   >= TIER3_ESSENCE_COST;
+        const canT3 = sOK && cOK && gOK && eOK;
+        const chip = (label, have, need, ok) =>
+          `<span style="display:inline-block;padding:2px 7px;margin:0 3px;border-radius:8px;` +
+          `background:${ok ? 'rgba(93,202,121,0.25)' : 'rgba(232,93,74,0.25)'};` +
+          `border:1px solid ${ok ? '#5DCA79' : '#E85D4A'};` +
+          `font-size:10px;color:${ok ? '#5DCA79' : '#E85D4A'};">${label} ${have}/${need}</span>`;
+        t3Btn.innerHTML = '★ ASCEND TO T3<br>' +
+          chip('🃏 CARDS', cards, TIER3_CARDS_COST, cOK) +
+          chip('💠 STONE', stones, TIER3_ASCEND_COST, sOK) +
+          chip('💰 GOLD',  goldA,  TIER3_GOLD_COST,  gOK) +
+          chip('🌟 ' + (hero.stihiya || '').toUpperCase().slice(0,4), essA, TIER3_ESSENCE_COST, eOK);
+        t3Btn.disabled = !canT3;
+      }
+    }
+    // Mythic badge / button
+    if (mBadge) mBadge.style.display = isMy ? '' : 'none';
+    if (mBtn) {
+      if (!isT3) {
+        mBtn.style.display = 'none';
+      } else if (isMy) {
+        mBtn.style.display = '';
+        mBtn.innerHTML = '✦ MYTHIC TRANSCENDENT';
+        mBtn.disabled = true;
+      } else if (mythicTaken) {
+        // Another hero is already mythic — single-slot rule blocks this one.
+        mBtn.style.display = '';
+        mBtn.innerHTML = '✦ MYTHIC SLOT TAKEN';
+        mBtn.disabled = true;
+      } else {
+        mBtn.style.display = '';
+        const lstones = (towerState && towerState.legendaryStones) || 0;
+        const cards   = (typeof getHeroFragments === 'function') ? getHeroFragments(heroId) : 0;
+        const goldA   = (typeof gold !== 'undefined') ? (gold || 0) : 0;
+        const essA    = (typeof essences === 'object' && hero.stihiya) ? (essences[hero.stihiya] || 0) : 0;
+        const sOK = lstones >= MYTHIC_ASCEND_COST;
+        const cOK = cards   >= MYTHIC_CARDS_COST;
+        const gOK = goldA   >= MYTHIC_GOLD_COST;
+        const eOK = essA    >= MYTHIC_ESSENCE_COST;
+        const canM = sOK && cOK && gOK && eOK;
+        const chip = (label, have, need, ok) =>
+          `<span style="display:inline-block;padding:2px 7px;margin:0 3px;border-radius:8px;` +
+          `background:${ok ? 'rgba(93,202,121,0.25)' : 'rgba(232,93,74,0.25)'};` +
+          `border:1px solid ${ok ? '#5DCA79' : '#E85D4A'};` +
+          `font-size:10px;color:${ok ? '#5DCA79' : '#E85D4A'};">${label} ${have}/${need}</span>`;
+        mBtn.innerHTML = '✦ MYTHIC ASCENSION<br>' +
+          chip('🃏 CARDS',  cards,   MYTHIC_CARDS_COST,  cOK) +
+          chip('✨ LEGEND', lstones, MYTHIC_ASCEND_COST, sOK) +
+          chip('💰 GOLD',   goldA,   MYTHIC_GOLD_COST,   gOK) +
+          chip('🌟 ' + (hero.stihiya || '').toUpperCase().slice(0,4), essA, MYTHIC_ESSENCE_COST, eOK);
+        mBtn.disabled = !canM;
+      }
+    }
+  } catch (e) { console.warn('Tier 3 / Mythic detail render failed:', e); }
   // Show
   document.getElementById('heroDetailModal').classList.add('active');
   // 2026-04-27 — Spec §1.1 single-scroll layout: tabs removed. vHeroTab call
@@ -41252,6 +41554,94 @@ function onTryAscend() {
     // on the player's first ascension. Delayed slightly so the flashText burst
     // plays before the modal layers on top.
     try { setTimeout(() => maybeShowTierEducation(), 1600); } catch (e) {}
+  }
+}
+
+// 2026-04-29 — T3 ascension handler. Mirrors onTryAscend (T2) — surfaces
+// per-requirement chips on miss, runs confirm + ascend on success.
+function onTryAscendT3() {
+  if (!detailHeroId) return;
+  const hero = HERO_ROSTER.find(h => h.id === detailHeroId);
+  if (!hero) return;
+  const missing = (typeof getT3Missing === 'function') ? getT3Missing(detailHeroId) : null;
+  if (missing && missing.length) {
+    if (missing[0].type === 'requires_t2') {
+      try { showToast('Ascend to T2 first.'); } catch (e) {}
+      return;
+    }
+    const labels = { stone: 'T3 Stone', cards: 'Hero Cards', gold: 'Gold', essence: (hero.stihiya || 'element') + ' essence' };
+    const reasons = missing.map(m => `${labels[m.type] || m.type}: ${m.have}/${m.need}`).join('\n  • ');
+    try { showToast('Need:\n  • ' + reasons); } catch (e) { try { alert('Need:\n  • ' + reasons); } catch (e2) {} }
+    return;
+  }
+  const ok = confirm(
+    `Ascend ${hero.name} to Tier 3?\n\n` +
+    `Cost (per spec §9):\n` +
+    `  • ${TIER3_CARDS_COST} ${hero.name} Hero Cards\n` +
+    `  • ${TIER3_ASCEND_COST} Tier 3 Stone\n` +
+    `  • ${TIER3_GOLD_COST} gold\n` +
+    `  • ${TIER3_ESSENCE_COST} ${hero.stihiya} essence\n\n` +
+    `Effect: +20% additional damage (T2 × T3 = 1.44× total)\n\n` +
+    `This is FINAL — no un-ascend.`
+  );
+  if (!ok) return;
+  if (ascendHeroT3(detailHeroId)) {
+    try {
+      flashText('★ ' + hero.name + ' DEEP ASCENDED', '#BB60FF');
+      setTimeout(() => flashText('TIER 3 · 1.44× DAMAGE', '#BB60FF'), 1100);
+      vibrate([120, 60, 120, 60, 250]);
+    } catch (e) {}
+    try { openHeroDetail(detailHeroId); } catch (e) {}
+    try { if (typeof vRenderRoster === 'function') vRenderRoster(); } catch (e) {}
+  }
+}
+
+// 2026-04-29 — Mythic ascension handler. Single-slot per save — irreversible
+// commitment. The confirm prompt explicitly warns the player.
+function onTryAscendMythic() {
+  if (!detailHeroId) return;
+  const hero = HERO_ROSTER.find(h => h.id === detailHeroId);
+  if (!hero) return;
+  const missing = (typeof getMythicMissing === 'function') ? getMythicMissing(detailHeroId) : null;
+  if (missing && missing.length) {
+    if (missing[0].type === 'requires_t3') {
+      try { showToast('Ascend to T3 first.'); } catch (e) {}
+      return;
+    }
+    if (missing[0].type === 'mythic_taken') {
+      const otherId = missing[0].byHero;
+      const other = HERO_ROSTER.find(h => h.id === otherId);
+      const otherName = other ? other.name : otherId;
+      try { showToast(`MYTHIC slot already taken by ${otherName}.\nOnly one Mythic per save.`); } catch (e) {}
+      return;
+    }
+    const labels = { legendary: 'Legendary Stone', cards: 'Hero Cards', gold: 'Gold', essence: (hero.stihiya || 'element') + ' essence' };
+    const reasons = missing.map(m => `${labels[m.type] || m.type}: ${m.have}/${m.need}`).join('\n  • ');
+    try { showToast('Need:\n  • ' + reasons); } catch (e) { try { alert('Need:\n  • ' + reasons); } catch (e2) {} }
+    return;
+  }
+  const ok = confirm(
+    `MYTHIC ASCENSION — ${hero.name}\n\n` +
+    `Cost (per spec §10):\n` +
+    `  • ${MYTHIC_CARDS_COST} ${hero.name} Hero Cards\n` +
+    `  • ${MYTHIC_ASCEND_COST} LEGENDARY Stone (rarest resource in the game)\n` +
+    `  • ${MYTHIC_GOLD_COST} gold\n` +
+    `  • ${MYTHIC_ESSENCE_COST} ${hero.stihiya} essence\n\n` +
+    `Effect: +30% additional damage (T2 × T3 × Mythic = 1.872×, +87%)\n\n` +
+    `⚠ ONE MYTHIC PER SAVE — IRREVERSIBLE.\n` +
+    `${hero.name} becomes your legendary champion forever.\n\n` +
+    `Continue?`
+  );
+  if (!ok) return;
+  if (ascendHeroMythic(detailHeroId)) {
+    try {
+      flashText('✦ ' + hero.name + ' TRANSCENDS', '#FF5A3A');
+      setTimeout(() => flashText('MYTHIC · 1.872× DAMAGE', '#FFD53D'), 1100);
+      setTimeout(() => flashText('★ LEGENDARY CHAMPION ★', '#BB60FF'), 2200);
+      vibrate([200, 80, 200, 80, 200, 80, 400]);
+    } catch (e) {}
+    try { openHeroDetail(detailHeroId); } catch (e) {}
+    try { if (typeof vRenderRoster === 'function') vRenderRoster(); } catch (e) {}
   }
 }
 
