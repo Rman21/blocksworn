@@ -1534,7 +1534,11 @@
 
 .a-roster-grid .v-hero-card .a-hero-equipped {
   position: absolute;
-  top: 30px; right: 6px;
+  /* 2026-04-29 — was top:30 right:6, but that aligned with the COM rarity
+   * badge at top:30 left:6 and the two pills together formed a visible
+   * horizontal stripe across the card. Stack below COM on the left side
+   * so the right edge stays clear (only race emblem at top:6). */
+  top: 52px; left: 6px;
   padding: 2px 5px;
   background: linear-gradient(180deg, var(--a-grove), var(--a-grove-dk, #2d7a18));
   border: 1px solid rgba(255,255,255,0.3);
