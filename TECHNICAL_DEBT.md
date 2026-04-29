@@ -584,11 +584,21 @@ spec-correct hooks:
 "📜 ARCHIVE HEAL +N"). До этого Phase 3 просто давала 3 seal per turn без
 healing-stack давления.
 
-### Block 6.5 DEBT-7 · "Forgotten Names" mythic portrait frame
-**What:** Cosmetic mythic portrait frame для Tier 3 ascended heroes. Toggle-only
-реализация (включается/выключается per hero), но frame asset (border SVG/PNG)
-— placeholder.
-**Code refs:** L6768, L15173, L15249, L19539.
+### ~~Block 6.5 DEBT-7~~ · "Forgotten Names" mythic frame — RESOLVED 2026-04-29
+**Spec §2.7:** Cosmetic mythic portrait frame for the *Voice of the
+Forgotten* title (Chapter 3 finale).
+**Resolution:** No bespoke SVG/PNG asset shipped — used a polished CSS-only
+treatment that reads as intentional mythic cosmetic:
+  • Triple concentric ring stack (gold ⇒ umbra ⇒ gold) plus outer purple
+    bloom + gold halo, layered into a single 6-stop `box-shadow`.
+  • `forgottenNamesBreathe` keyframes modulate ring + bloom intensity
+    (4.8s ease-in-out loop) for a living-cosmic feel.
+  • `::after` `✦` marker upgraded with multi-layer text-shadow
+    (gold + umbra at three radii) and a separate shimmer animation.
+  • Selector specificity bumped to include `.a-roster-grid .v-hero-card`
+    + `.in-squad` so the frame wins against the base roster grid styles.
+A real bespoke asset can swap in later by replacing the static `box-shadow`
+with `border-image: url(...)` — call sites unchanged.
 
 ### Block 6.5 DEBT-9 · Cosmic Memorial для defeated Ch3 bosses
 **What:** Profile section отображает "ethereal mini" представления побеждённых

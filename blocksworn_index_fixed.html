@@ -6835,31 +6835,73 @@ body.shop-locked [onclick*="goToShop"] {
    Auto-applied to all .hero-card / .v-hero-card portraits when the player has
    the voice_forgotten title selected (Chapter 3 finale cosmetic per spec §2.7).
    Pure cosmetic — never affects gameplay. Frame uses umbra/solar duality glow
-   to evoke the "DUAL SHIFT" mythos central to the chapter. */
+   to evoke the "DUAL SHIFT" mythos central to the chapter.
+   2026-04-29 — Polished from the SVG-asset placeholder to a premium CSS-only
+   treatment: triple concentric ring (gold–umbra–gold) + breathing-glow
+   animation, layered text-shadow on the ✦ marker for cosmic feel. Reads as
+   intentional mythic cosmetic without needing a custom border asset. */
+/* Selector specificity tightened (2026-04-29) so the cosmetic frame wins
+ * against `.a-roster-grid .v-hero-card.in-squad` (3-class specificity).
+ * Without the .a-roster-grid prefix the breath animation + triple ring
+ * silently lost on every card the player had in their active squad. */
 body.cosmetic-forgotten-names .hero-card,
-body.cosmetic-forgotten-names .v-hero-card {
-  border-color: rgba(192,106,223,0.85) !important;
+body.cosmetic-forgotten-names .v-hero-card,
+body.cosmetic-forgotten-names .a-roster-grid .v-hero-card,
+body.cosmetic-forgotten-names .a-roster-grid .v-hero-card.in-squad {
+  border-color: transparent !important;
+  /* Static base box-shadow stamps the cosmic ring even when the breathe
+   * animation isn't actively keyframed (browsers can pause animations on
+   * occluded screens). The keyframes below modulate the same stack — both
+   * rules use `!important` so the stihiya / in-squad shadows from the base
+   * roster grid stylesheet don't win on specificity. */
   box-shadow:
-    0 0 0 1px rgba(255,213,61,0.35),
-    0 0 14px rgba(192,106,223,0.55),
-    inset 0 0 10px rgba(255,213,61,0.15) !important;
+    0 0 0 1px rgba(255, 213, 61, 0.75),
+    0 0 0 3px rgba(192, 106, 223, 0.55),
+    0 0 0 4px rgba(255, 213, 61, 0.20),
+    0 0 16px rgba(192, 106, 223, 0.55),
+    0 0 30px rgba(255, 213, 61, 0.14),
+    inset 0 0 14px rgba(192, 106, 223, 0.16) !important;
   position: relative;
+  animation: forgottenNamesBreathe 4.8s ease-in-out infinite;
+}
+@keyframes forgottenNamesBreathe {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 213, 61, 0.75),
+      0 0 0 3px rgba(192, 106, 223, 0.55),
+      0 0 0 4px rgba(255, 213, 61, 0.20),
+      0 0 16px rgba(192, 106, 223, 0.55),
+      0 0 30px rgba(255, 213, 61, 0.14),
+      inset 0 0 14px rgba(192, 106, 223, 0.16);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 213, 61, 1.0),
+      0 0 0 3px rgba(192, 106, 223, 0.85),
+      0 0 0 4px rgba(255, 213, 61, 0.40),
+      0 0 24px rgba(192, 106, 223, 0.95),
+      0 0 48px rgba(255, 213, 61, 0.26),
+      inset 0 0 20px rgba(192, 106, 223, 0.30);
+  }
 }
 body.cosmetic-forgotten-names .hero-card::after,
 body.cosmetic-forgotten-names .v-hero-card::after {
   content: '✦';
   position: absolute;
   top: 4px; left: 6px;
-  font-size: 11px;
-  color: rgba(255,213,61,0.95);
-  text-shadow: 0 0 6px rgba(192,106,223,0.95);
+  font-size: 13px;
+  color: rgba(255, 240, 180, 1);
+  text-shadow:
+    0 0 4px rgba(255, 213, 61, 0.95),
+    0 0 10px rgba(192, 106, 223, 0.85),
+    0 0 18px rgba(192, 106, 223, 0.55);
   pointer-events: none;
   z-index: 4;
   animation: forgottenNamesShimmer 3.2s ease-in-out infinite;
 }
 @keyframes forgottenNamesShimmer {
-  0%, 100% { opacity: 0.6; transform: scale(1.0); }
-  50%      { opacity: 1.0; transform: scale(1.15); }
+  0%, 100% { opacity: 0.7; transform: scale(1.0); }
+  50%      { opacity: 1.0; transform: scale(1.18); }
 }
 
 /* 2026-04-27 — Anti-Deadlock System styles (BLOCKSWORN_ANTI_DEADLOCK.md). */
