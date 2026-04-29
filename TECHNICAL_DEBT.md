@@ -539,11 +539,20 @@ storm-боссе и крепит `.storm-turns` chip в правый верхн�
 клетки с числом оставшихся ходов. `turnsLeft <= 1` → `.urgent` модификатор
 (красный pulsing chip — игрок видит "осталось 1 ход до интенсификации").
 
-### Block 6.5 DEBT-4 · Root-of-Nothing wither neighbor-clear escape
-**What:** Wither effect от Root-of-Nothing должен иметь "neighbor-clear escape"
-условие (если соседняя клетка cleared в тот же turn — wither снимается).
-Реализация частичная.
-**Code ref:** L28907.
+### ~~Block 6.5 DEBT-4~~ · Root-of-Nothing wither escape — RESOLVED 2026-04-29
+**Spec §2.5:** "Player must STRATEGICALLY clear neighbors to break wither
+stack OR use ULTs to reset" + Phase 3 acceleration "cells wither faster
+(1 turn instead of 3)".
+**Resolution:**
+1. Neighbor-clear escape — already shipped; no change here.
+2. **ULT-reset escape** — `ultRoleDispatch()` now clears ALL standing
+   `witherCells` after the cast (gated on `_ch3BossId === 'root'`).
+   Placed AFTER the Encore re-run block so a single ULT cast doesn't
+   double-clear on the umbra Encore replay.
+3. **Phase 3 acceleration** — `tickChapter3Boss()` now branches
+   `witherAgeThreshold = (phase >= 3) ? 1 : 3`, so withers begin healing
+   the boss the turn after they spawn at 33-0% HP (vs. 3 turns at higher
+   phases).
 
 ### Block 6.5 DEBT-5 · Tank/Warrior role-specific seal mechanics
 **What:** Seal mechanics `tank_halved` (Tank dmg ×0.5) + `warrior_blocked`
