@@ -15810,6 +15810,52 @@ function _hasFounderBadge() {
   try { return localStorage.getItem(FOUNDER_BADGE_KEY) === 'true'; } catch (e) { return false; }
 }
 
+// 2026-04-29 — First Purchase Bonus per BLOCKSWORN_MONETIZATION.md §10.3.
+// Idempotent grant — fires once across the entire install. Returns true if
+// granted, false if already done. Call from every paid-IAP entry point so
+// the player gets the celebration regardless of which purchase was first.
+//
+// Spec breakdown:
+//   ✓ +50% bonus on the first item itself — handled per-entry
+//     (purchaseGemPack already does totalGems × 1.5 inline; other purchases
+//      keep their base contents unchanged — the 1-week buff + hero card +
+//      founder badge are the bonus itself for non-gem-pack first purchases)
+//   ✓ Permanent profile cosmetic ("Founder badge") — FOUNDER_BADGE_KEY
+//   ✓ 1-week 24h Buff active free                  — MEGA_BUFF_KEY 7-day
+//   ✓ 1 random Hero Card                          — dropRandomHeroCards
+const FIRST_PURCHASE_FREE_BUFF_MS = 7 * 24 * 60 * 60 * 1000;  // 7 days
+function _grantFirstPurchaseBonus() {
+  if (_isFirstPurchaseDone()) return false;
+  _markFirstPurchaseDone();
+  // 1-week Mega Buff (free) — overrides any active shorter buff with the
+  // longer 7-day expiry. Defensive write in case MEGA_BUFF_KEY isn't yet
+  // declared (load order quirk).
+  try {
+    const until = Date.now() + FIRST_PURCHASE_FREE_BUFF_MS;
+    if (typeof MEGA_BUFF_KEY !== 'undefined') {
+      const cur = parseInt(localStorage.getItem(MEGA_BUFF_KEY) || '0', 10);
+      if (until > cur) localStorage.setItem(MEGA_BUFF_KEY, String(until));
+    } else {
+      localStorage.setItem('blocksworn_mega_buff_until', String(until));
+    }
+  } catch (e) { console.warn('first-purchase 7-day buff activation failed:', e); }
+  // 1 random Hero Card (silent — flashText sequence below carries the celebration)
+  try {
+    if (typeof dropRandomHeroCards === 'function') {
+      dropRandomHeroCards(1, { silent: true });
+    }
+  } catch (e) { console.warn('first-purchase hero card grant failed:', e); }
+  // Three-stage celebration sequence — staggered so each banner gets eye-time.
+  try {
+    flashText('★ FIRST PURCHASE THANK YOU', '#FFD53D');
+    setTimeout(() => { try { flashText('★ FOUNDER BADGE EARNED', '#FFB84A'); } catch (e) {} }, 1100);
+    setTimeout(() => { try { flashText('★ 7-DAY MEGA BUFF ACTIVE', '#FFAA00'); } catch (e) {} }, 2200);
+    setTimeout(() => { try { flashText('★ +1 HERO CARD', '#FFD53D'); } catch (e) {} }, 3300);
+  } catch (e) {}
+  try { vibrate([100, 50, 100, 50, 100, 50, 200]); } catch (e) {}
+  return true;
+}
+
 // Gold→Gems conversion gate — once per 24h.
 function _goldToGemsAvailable() {
   try {
@@ -15871,16 +15917,10 @@ function purchaseGemPack(packId) {
   addGems(totalGems);
   flashText('+' + totalGems + ' 💎 GEMS', pack.glow);
   try { vibrate([60, 40, 60, 40, 100]); } catch (e) {}
-  if (isFirst) {
-    _markFirstPurchaseDone();
-    // Spec §10.3 First-Purchase Bonus also: 1 random Hero Card.
-    try {
-      if (typeof dropRandomHeroCards === 'function') {
-        dropRandomHeroCards(1, { silent: true });
-      }
-    } catch (e) { console.warn('First-purchase hero card grant failed:', e); }
-    setTimeout(function () { try { flashText('★ FOUNDER BADGE EARNED', '#FFD53D'); } catch (e) {} }, 800);
-  }
+  // First-Purchase Bonus: 1 hero card + 7-day Mega Buff + Founder badge +
+  // celebration banner sequence. The +50% gem bonus above is the gem-pack-
+  // specific component of "+50% bonus on first item purchased" (spec §10.3).
+  try { _grantFirstPurchaseBonus(); } catch (e) { console.warn('first purchase bonus failed:', e); }
   renderShopPacks();
 }
 
@@ -15978,6 +16018,7 @@ function _grantBigPackContents() {
   _addTier2Stones(PACK_BIG_T2_STONES);
   _onRareDropResetPity();
   showPackRevealModal({ kind: 'big', dropped, t2: PACK_BIG_T2_STONES });
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   return true;
 }
 
@@ -16009,6 +16050,7 @@ function buyPremiumPack() {
                         t2: PACK_PREMIUM_T2_STONES, t3,
                         gold: PACK_PREMIUM_GOLD_BONUS,
                         essence: PACK_PREMIUM_ESSENCE_BONUS, stihiya: randStih });
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   return true;
 }
 
@@ -16040,6 +16082,7 @@ function buyUltimatePack() {
                         gold: PACK_ULTIMATE_GOLD_BONUS,
                         essence: PACK_ULTIMATE_ESSENCE_BONUS, stihiya: randStih,
                         dropBoostDays: PACK_ULTIMATE_DROP_BOOST_DAYS });
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   return true;
 }
 
@@ -22545,6 +22588,7 @@ function purchasePremiumPass() {
   seasonState.premiumUnlocked = true;
   saveSeasonState();
   try { flashText('✦ PREMIUM PASS ACTIVATED ✦', '#FFD53D'); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
   try { renderSeasonScreen(); } catch (e) {}
   try { if (typeof renderResourceBar === 'function') renderResourceBar(); } catch (e) {}
@@ -22851,6 +22895,7 @@ function buyRaceLaunchBundle(race) {
   _markRaceBundlePurchased(race);
   try { flashText('★ ' + label + ' BUNDLE', '#FFD53D'); } catch (e) {}
   try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   renderShopPacks();
   return true;
 }
@@ -22890,6 +22935,7 @@ function buyEndgameKit() {
   try { localStorage.setItem(ENDGAME_KIT_KEY, String(seasonState.seasonId || 1)); } catch (e) {}
   try { flashText('★★★ ULTIMATE KIT ★★★', '#BB60FF'); } catch (e) {}
   try { vibrate([200, 100, 200, 100, 300]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   renderShopPacks();
   return true;
 }
@@ -22922,6 +22968,7 @@ function buyRapidAscensionPack() {
   }
   try { flashText('★ RAPID ASCENSION PACK', '#FFD53D'); } catch (e) {}
   try { vibrate([100, 60, 100, 60, 150]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   renderShopPacks();
   return true;
 }
@@ -22952,6 +22999,7 @@ function buySquadPowerPack() {
   }
   try { flashText('★ SQUAD POWER PACK', '#FFD53D'); } catch (e) {}
   try { vibrate([100, 60, 100, 60, 150]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   renderShopPacks();
   return true;
 }
@@ -23008,6 +23056,7 @@ function buyWeeklyOffer() {
   _markWeeklyOfferPurchased(offer.id);
   try { flashText('★ ' + offer.label, offer.glow || '#FFD53D'); } catch (e) {}
   try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   renderShopPacks();
   return true;
 }
@@ -23098,6 +23147,7 @@ function buyMegaBuff() {
   try { localStorage.setItem(MEGA_BUFF_KEY, String(until)); } catch (e) {}
   try { flashText('★ 24h MEGA BUFF ACTIVE', '#FFAA00'); } catch (e) {}
   try { vibrate([120, 60, 120]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   renderShopPacks();
   return true;
 }
@@ -23147,6 +23197,7 @@ function buySquadLevelBoost() {
   try { localStorage.setItem(SQUAD_BOOST_KEY, String(Date.now())); } catch (e) {}
   try { flashText('★ SQUAD +' + SQUAD_BOOST_LEVELS + ' LEVEL', '#5DCA79'); } catch (e) {}
   try { vibrate([100, 60, 100, 60, 150]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   renderShopPacks();
   return true;
 }
@@ -23195,6 +23246,7 @@ function buyDailyGift() {
   try { localStorage.setItem(DAILY_GIFT_KEY, _todayDateString()); } catch (e) {}
   try { flashText('★ ' + gift.label, '#FFD53D'); } catch (e) {}
   try { vibrate([100, 60, 100]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
   renderShopPacks();
   return true;
 }
@@ -23990,6 +24042,15 @@ function renderProfileHeader() {
   try {
     if (typeof getActiveProfileTitle === 'function') title = getActiveProfileTitle() || title;
     else if (typeof getActiveTitle === 'function') title = getActiveTitle() || title;
+  } catch (e) {}
+  // 2026-04-29 — First Purchase Bonus (spec §10.3) Founder badge prefix.
+  // Permanent profile cosmetic — visible across all profile renders for any
+  // player who has completed at least one IAP. Stays in front of any other
+  // title source so it always reads first.
+  try {
+    if (typeof _hasFounderBadge === 'function' && _hasFounderBadge()) {
+      title = '★ FOUNDER · ' + title;
+    }
   } catch (e) {}
   if (titleEl) titleEl.textContent = title;
 
