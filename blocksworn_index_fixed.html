@@ -14717,6 +14717,35 @@ const HERO_T2_RUNTIME = {
   spark_captain:  { dominionAscendant: true },
 };
 
+// 2026-04-29 — Per-hero T3 + Mythic amplification tables (Pirates pilot).
+// Closes the deferred bullet from the T3/Mythic flow PR: per-hero unique
+// progressions slot into the same _t2Bonus* lookup ladder by tier.
+//
+// Pilot scope: pirates only (5 heroes). Other races still progress via the
+// global TIER3/MYTHIC damage multipliers but lack mechanic amplifications.
+//
+// Numerical philosophy: T3 ≈ 1.5× the T2 effect (where the key is numeric);
+// Mythic ≈ 2× the T2 effect. Mage window/mult, hunter cap, tank ult-cells,
+// warrior ember-spawn — each scales independently per spec §9.2 templates.
+// Captain T2 uses a flag (`dominionAscendant`) rather than a numeric key, so
+// T3/Mythic can't amplify it via this table — captain unique progression
+// requires a new flag/key (deferred — fine for pilot).
+const HERO_T3_RUNTIME = {
+  pirate_warrior: { passiveEmberOnPlace: 2 },                            // FORGE → DEEP FORGE — 1 → 2 charged spawns/place
+  pirate_mage:    { mageWindow: 6, mageMult: 2.0 },                      // BLOOM ETERNAL — wider amp window + +25% mult
+  pirate_hunter:  { hunterCapBonus: 2 },                                 // SECOND VOLLEY — INFERNO cap +2 (was +1)
+  pirate_tank:    { ironbellyCounterAny: true, ultCellsBonus: 3 },       // DEEP IRON — counter on any element + +1 cell
+  pirate_captain: { dominionAscendant: true },                           // pilot limitation: flag stays — Mythic adds new keys
+};
+
+const HERO_MYTHIC_RUNTIME = {
+  pirate_warrior: { passiveEmberOnPlace: 3 },                            // 3 charged spawns/place — triple of T2
+  pirate_mage:    { mageWindow: 7, mageMult: 2.5 },                      // VERDANT IMMORTAL pilot — full per-spec width + +75% mult vs T2
+  pirate_hunter:  { hunterCapBonus: 3 },                                 // VOLLEY OF EMBERS pilot — INFERNO cap +3 (cap-busting)
+  pirate_tank:    { ironbellyCounterAny: true, ultCellsBonus: 4 },       // FORGE OF FORTITUDE pilot — +1 cell again + counter-any
+  pirate_captain: { dominionAscendant: true },                           // see T3 note
+};
+
 // Returns the T2 bonus value for the given hero+key, or null if not ascended
 // or hero not in active deck. Used by individual mechanic sites.
 function _t2Bonus(heroId, key) {
@@ -14729,12 +14758,22 @@ function _t2Bonus(heroId, key) {
   if (!cfg) return null;
   return (cfg[key] !== undefined) ? cfg[key] : null;
 }
-// Convenience: any hero of the given role, race, or id ascended in HERO_DECK
-// returns their T2 bonus value, else null. Used when the bonus is squad-scoped
-// (e.g., RIFFBLADE Encore Master aura affects rock heroes when RIFFBLADE present).
+// 2026-04-29 — Progressive tier ladder. Returns the highest-tier value the
+// hero is currently ascended to (Mythic > T3 > T2). Call sites that already
+// read `_t2BonusInDeck(heroId, key)` automatically pick up T3/Mythic
+// amplifications — no per-site refactor needed. Falls through to T2 if the
+// higher tiers don't override the key (e.g., captain `dominionAscendant`).
 function _t2BonusInDeck(heroId, key) {
   if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return null;
   if (!HERO_DECK.some(h => h && h.id === heroId)) return null;
+  if (typeof isHeroMythic === 'function' && isHeroMythic(heroId)) {
+    const m = HERO_MYTHIC_RUNTIME && HERO_MYTHIC_RUNTIME[heroId];
+    if (m && m[key] !== undefined) return m[key];
+  }
+  if (typeof isHeroAscendedT3 === 'function' && isHeroAscendedT3(heroId)) {
+    const t3 = HERO_T3_RUNTIME && HERO_T3_RUNTIME[heroId];
+    if (t3 && t3[key] !== undefined) return t3[key];
+  }
   return _t2Bonus(heroId, key);
 }
 
