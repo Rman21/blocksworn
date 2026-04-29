@@ -5794,12 +5794,14 @@ body.shop-locked [onclick*="goToShop"] {
   background: rgba(255,184,74,0.12) !important;
   border-color: var(--a-gold-300) !important;
 }
+/* 2026-04-29 — DEBT-002 close: removed `.ach-wrap`, `.codex-wrap`,
+   `.arena-wrap` selectors — no DOM elements with those classes exist
+   after Phase 1 reduction. The `> div[class$="-wrap"]` attribute
+   selector still catches any future *-wrap container, so the explicit
+   trio was pure noise. */
 .v-secondary > div[class$="-wrap"],
 .v-secondary .dailies-wrap,
-.v-secondary .ach-wrap,
-.v-secondary .codex-wrap,
 .v-secondary .tower-wrap,
-.v-secondary .arena-wrap,
 .v-secondary .event-wrap,
 .v-secondary .awaken-wrap,
 .v-secondary .season-wrap {
@@ -20040,44 +20042,18 @@ const BOSS_PHASES = {
     { threshold: 50, effects: ['enrage', 'voidBoost:1', 'dialog:lich_p2'] },
     { threshold: 20, effects: ['spawnBurst', 'spawnBurst', 'dialog:lich_p3'] },
   ],
-  // ==== Chapter 2 ====
-  'TIDAL LEVIATHAN':  [
-    { threshold: 66, effects: ['cleanse', 'voidBoost:1', 'dialog:leviathan_p2'] },
-    { threshold: 33, effects: ['enrage', 'voidBoost:2', 'dialog:leviathan_p3'] },
-  ],
-  'VERDANT COLOSSUS': [
-    { threshold: 50, effects: ['voidBoost:2', 'healPartial:8', 'dialog:colossus_p2'] },
-  ],
-  'SERAPH JUDICATOR': [
-    { threshold: 66, effects: ['enrage', 'dialog:seraph_p2'] },
-    { threshold: 25, effects: ['spawnBurst', 'voidBoost:2', 'dialog:seraph_p3'] },
-  ],
-  'WRAITH OF CHAINS': [
-    { threshold: 50, effects: ['cleanse', 'spawnBurst', 'dialog:wraith_p2'] },
-  ],
-  'EMBERBEARD':       [
-    { threshold: 66, effects: ['voidBoost:1', 'dialog:emberbeard_p2'] },
-    { threshold: 33, effects: ['enrage', 'voidBoost:2', 'dialog:emberbeard_p3'] },
-  ],
-  // ==== Chapter 3 ====
-  'PYRESPIRE':        [
-    { threshold: 75, effects: ['voidBoost:1', 'dialog:pyrespire_p2'] },
-    { threshold: 40, effects: ['enrage', 'spawnBurst', 'dialog:pyrespire_p3'] },
-  ],
-  'GLACIAL MONARCH':  [
-    { threshold: 66, effects: ['cleanse', 'voidBoost:2', 'dialog:monarch_p2'] },
-    { threshold: 25, effects: ['enrage', 'voidBoost:1', 'dialog:monarch_p3'] },
-  ],
-  'STONEMAGUS':       [
-    { threshold: 50, effects: ['voidBoost:2', 'healPartial:10', 'dialog:stone_p2'] },
-    { threshold: 20, effects: ['enrage', 'spawnBurst', 'dialog:stone_p3'] },
-  ],
-  'SUNFORGED':        [
-    { threshold: 50, effects: ['voidBoost:2', 'dialog:sunforged_p2'] },
-    { threshold: 20, effects: ['enrage', 'spawnBurst', 'dialog:sunforged_p3'] },
-  ],
-  // VOIDFANG: Block 6.3 overrides with 3-phase bespoke script. Placeholder keeps
-  // non-Voidfang runs functional if Block 6.3 is skipped or lazy-loads.
+  // 2026-04-29 — DEBT-012 close: removed Chapter 2 + Chapter 3 entries for
+  // the pre-Phase-5 boss roster (TIDAL LEVIATHAN, VERDANT COLOSSUS, SERAPH
+  // JUDICATOR, WRAITH OF CHAINS, EMBERBEARD, PYRESPIRE, GLACIAL MONARCH,
+  // STONEMAGUS, SUNFORGED). Those bosses were never shipped — Phase 5b
+  // replaced them with VEROTHIRA / GEARHEART / URSARO / TIDESPIRE /
+  // HELIOTRON (Ch2) and TWILIGHT VESSEL / VOIDPRIESTESS / STORMSHEPHERD /
+  // ROOT-OF-NOTHING / ARCHIVAL ETERNAL (Ch3), each with its own bespoke
+  // archetype tick (`tickChapter2Archetype` / `tickChapter3Boss`). The
+  // shipped Ch2/Ch3 bosses don't read BOSS_PHASES at all; the old entries
+  // were dead data referencing dead `dialog:xxx_pN` keys.
+  // VOIDFANG kept as Tower-side fallback (Block 6.3 overrides with a
+  // bespoke script; placeholder protects lazy-load paths).
   'VOIDFANG': [
     { threshold: 66, effects: ['voidBoost:1'] },
   ],
@@ -20377,27 +20353,13 @@ const DIALOG_LINES = {
   'phoenix_defeat':     { speaker: 'SOLAR PHOENIX',   speakerColor: '#E8B84A', portraitKey: 'Boss_4', text: "My last ember… yours to carry." },
   'lich_defeat':        { speaker: 'CRYPT LICH',      speakerColor: '#9B59D6', portraitKey: 'Boss_5', text: "Dust returns to dust. My crown… yours." },
 
-  // ==== Chapter 2 — intros ====
-  'leviathan_intro':    { speaker: 'TIDAL LEVIATHAN',  speakerColor: '#3FA9FF', portraitKey: 'Boss_6',  text: "The pearl-court sends a reckoning. Swim or sink." },
-  'colossus_intro':     { speaker: 'VERDANT COLOSSUS', speakerColor: '#6DE07A', portraitKey: 'Boss_7',  text: "Stone wakes. Forest judges. You are measured — and found wanting." },
-  'seraph_intro':       { speaker: 'SERAPH JUDICATOR', speakerColor: '#FFD74A', portraitKey: 'Boss_8',  text: "The codex names you heretic. The trial begins." },
-  'wraith_intro':       { speaker: 'WRAITH OF CHAINS', speakerColor: '#A84AE8', portraitKey: 'Boss_9',  text: "Every oath I broke binds me here. Every oath you keep frees me… to consume you." },
-  'emberbeard_intro':   { speaker: 'EMBERBEARD',       speakerColor: '#FF6A2D', portraitKey: 'Boss_10', text: "Chart and cannon. Coin and corpse. Which are you, warchief?" },
-  // ==== Chapter 2 — phases ====
-  'leviathan_p2':       { speaker: 'TIDAL LEVIATHAN',  speakerColor: '#3FA9FF', portraitKey: 'Boss_6',  text: "The depths answer my call. Drown with me." },
-  'leviathan_p3':       { speaker: 'TIDAL LEVIATHAN',  speakerColor: '#3FA9FF', portraitKey: 'Boss_6',  text: "I AM the tide. The shore does not return what it takes." },
-  'colossus_p2':        { speaker: 'VERDANT COLOSSUS', speakerColor: '#6DE07A', portraitKey: 'Boss_7',  text: "The forest mends. The forest remembers." },
-  'seraph_p2':          { speaker: 'SERAPH JUDICATOR', speakerColor: '#FFD74A', portraitKey: 'Boss_8',  text: "Judgment intensifies. The codex inscribes your fall." },
-  'seraph_p3':          { speaker: 'SERAPH JUDICATOR', speakerColor: '#FFD74A', portraitKey: 'Boss_8',  text: "The final verse — sunfire upon the unworthy!" },
-  'wraith_p2':          { speaker: 'WRAITH OF CHAINS', speakerColor: '#A84AE8', portraitKey: 'Boss_9',  text: "More chains. More oaths. More of you." },
-  'emberbeard_p2':      { speaker: 'EMBERBEARD',       speakerColor: '#FF6A2D', portraitKey: 'Boss_10', text: "A fair prize. I'll take your crown and the ship beneath it." },
-  'emberbeard_p3':      { speaker: 'EMBERBEARD',       speakerColor: '#FF6A2D', portraitKey: 'Boss_10', text: "Cannons hot! No quarter, no mercy!" },
-  // ==== Chapter 2 — defeats ====
-  'leviathan_defeat':   { speaker: 'TIDAL LEVIATHAN',  speakerColor: '#3FA9FF', portraitKey: 'Boss_6',  text: "The pearl-court… bows. Take the deep." },
-  'colossus_defeat':    { speaker: 'VERDANT COLOSSUS', speakerColor: '#6DE07A', portraitKey: 'Boss_7',  text: "The forest… accepts… a new keeper." },
-  'seraph_defeat':      { speaker: 'SERAPH JUDICATOR', speakerColor: '#FFD74A', portraitKey: 'Boss_8',  text: "The codex is rewritten. You are its author now." },
-  'wraith_defeat':      { speaker: 'WRAITH OF CHAINS', speakerColor: '#A84AE8', portraitKey: 'Boss_9',  text: "I am free. Use these chains wisely, warchief." },
-  'emberbeard_defeat':  { speaker: 'EMBERBEARD',       speakerColor: '#FF6A2D', portraitKey: 'Boss_10', text: "A fair duel. The fleet is yours — until someone stronger takes it." },
+  // 2026-04-29 — DEBT-012 close: removed orphan Chapter 2 dialog entries
+  // (intros + phase + defeats) for the pre-Phase-5 boss roster
+  // (TIDAL LEVIATHAN / VERDANT COLOSSUS / SERAPH JUDICATOR /
+  // WRAITH OF CHAINS / EMBERBEARD). Those bosses were never shipped;
+  // their Boss_6..10 portrait slots were swapped to the shipped roster
+  // (VEROTHIRA / GEARHEART / URSARO / TIDESPIRE / HELIOTRON), which
+  // uses bespoke dialog ids. The pre-Phase-5 ids were never reachable.
 
   // ==== Chapter 3 (VEIL OF FORGOTTEN GODS) — intros ====
   // Tone: mystical, melancholic, wistful. Bosses are not evil — they are EMPTY.
@@ -20447,24 +20409,20 @@ const BOSS_DIALOG_MAP = {
   'GROVEWARDEN':       'grovewarden',
   'SOLAR PHOENIX':     'phoenix',
   'CRYPT LICH':        'lich',
-  'TIDAL LEVIATHAN':   'leviathan',
-  'VERDANT COLOSSUS':  'colossus',
-  'SERAPH JUDICATOR':  'seraph',
-  'WRAITH OF CHAINS':  'wraith',
-  'EMBERBEARD':        'emberbeard',
   // 2026-04-27 — Chapter 3 (VEIL OF FORGOTTEN GODS) — boss → dialog prefix.
   'TWILIGHT VESSEL':   'twilight',
   'STORMSHEPHERD':     'storm',
   'VOIDPRIESTESS':     'priestess',
   'ROOT-OF-NOTHING':   'root',
   'ARCHIVAL ETERNAL':  'archival',
-  // Legacy Chapter 3 placeholder names (for any pre-rebrand dialogs that
-  // might still reference the old roster). Safe to keep — never resolve in
-  // current CHAPTERS data so these are dormant lookups.
-  'PYRESPIRE':         'pyrespire',
-  'GLACIAL MONARCH':   'monarch',
-  'STONEMAGUS':        'stone',
-  'SUNFORGED':         'sunforged',
+  // 2026-04-29 — DEBT-012 close: removed pre-Phase-5 placeholder mappings
+  // (TIDAL LEVIATHAN / VERDANT COLOSSUS / SERAPH JUDICATOR / WRAITH OF
+  // CHAINS / EMBERBEARD / PYRESPIRE / GLACIAL MONARCH / STONEMAGUS /
+  // SUNFORGED). Those names never resolved against shipped CHAPTERS data.
+  // Shipped Ch2 roster (VEROTHIRA / GEARHEART / URSARO / TIDESPIRE /
+  // HELIOTRON) uses BOSS_VOICES + bespoke phase scripts instead of this
+  // prefix table — adding them here would create dead lookups.
+  // VOIDFANG kept — it's an active Tower boss (id `voidfang`).
   'VOIDFANG':          'voidfang',
 };
 function getBossDialogPrefix(bossName) {

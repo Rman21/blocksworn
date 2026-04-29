@@ -31,18 +31,15 @@
 - Task #1.7 должна удалить call-sites в paid packs / monetization path
 - Task #1.9 (regression) должна verify: `grep -cE "MODIFIERS|activeModifiers|artifactsOwned|addArtifact|rollBossArtifactDrop|grantRandomT3Artifact|grantRandomArtifactAtTier|getRewardMultiplier"` = 0
 
-## DEBT-002 · Phase 1 Task 1.3 · Dead CSS selectors
-**Introduced:** 2026-04-24 · commit ec4f253
-**What:** Следующие CSS selectors упоминаются в shared `.v-secondary` rules но больше не имеют matching DOM элементов:
-- `.ach-wrap`
-- `.codex-wrap`
-- `.arena-wrap`
-
-**Why:** Находятся внутри общих rules которые также применяются к сохраняемым элементам. Хирургическое удаление потребует CSS refactoring.
-
-**Resolution plan:**
-- Task #1.6 (Vivid removal) всё равно будет trogать .v-secondary rules — удалить там же
-- Если не в 1.6 — в Task #1.9 финальный cleanup pass
+## ~~DEBT-002~~ · Phase 1 Task 1.3 · Dead CSS selectors — RESOLVED 2026-04-29
+**What was the debt:** `.ach-wrap`, `.codex-wrap`, `.arena-wrap` mentioned in
+shared `.v-secondary` rules but no DOM elements with those classes existed
+post Phase 1 reduction.
+**Resolution:** Removed the three dead selectors from the `.v-secondary`
+shared rule block. The surviving siblings (`.dailies-wrap`, `.tower-wrap`,
+`.event-wrap`, `.awaken-wrap`, `.season-wrap`) still apply correctly, and
+the `> div[class$="-wrap"]` attribute selector catches any future *-wrap
+container so the explicit trio was pure noise.
 
 ## DEBT-003 · Phase 1 Task 1.1 · Heroes fire/fireDelta asymmetry
 **Introduced:** 2026-04-24 · baseline observation
@@ -125,7 +122,24 @@ narrator identity полностью под новую 3-faction структу�
 
 **Resolution:** Task #1.5 deleted both `BOSS_HERO_REWARDS[2]` and `BOSS_HERO_REWARDS[3]` entirely along with the Ch2/Ch3 CHAPTERS entries. Only `BOSS_HERO_REWARDS[1]` (Chapter 1, 2 hero grants) remains.
 
-## DEBT-012 · Phase 1 Task 1.9 · Orphan Ch2/Ch3 DIALOG_LINES entries
+## ~~DEBT-012~~ · Orphan Ch2/Ch3 DIALOG_LINES entries — RESOLVED 2026-04-29
+**Resolution (2026-04-29):** Removed dead `BOSS_PHASES` Ch2 + Ch3 sections,
+13 orphan `DIALOG_LINES` entries (5 intros + 5 defeats + 3 `_p2` survivors),
+and 9 entries from `BOSS_DIALOG_MAP` for the pre-Phase-5 roster (TIDAL
+LEVIATHAN / VERDANT COLOSSUS / SERAPH JUDICATOR / WRAITH OF CHAINS /
+EMBERBEARD / PYRESPIRE / GLACIAL MONARCH / STONEMAGUS / SUNFORGED). Also
+trimmed the matching `dialog:xxx_pN` references inside BOSS_PHASES.
+VOIDFANG kept — active Tower boss (id `voidfang`). Game still parses,
+all key functions defined, orphan key lookup returns `undefined` (no
+trigger paths affected).
+
+Pre-cleanup grep `leviathan_|colossus_|seraph_|wraith_|emberbeard_|
+pyrespire_|monarch_|stonemagus_|sunforged_` → 26 hits. Post-cleanup → 0
+(8 hits remain but they're all inside the cleanup-doc comments).
+
+---
+
+## DEBT-012 (historical) · Phase 1 Task 1.9 · Orphan Ch2/Ch3 DIALOG_LINES entries
 **Introduced:** 2026-04-25 · observed during Task #1.9 regression audit
 **Status update (2026-04-28):** Описание ниже ссылается на **удалённый pre-Phase-5
 roster** (TIDAL LEVIATHAN/COLOSSUS/SERAPH/WRAITH/EMBERBEARD для Ch2 и
