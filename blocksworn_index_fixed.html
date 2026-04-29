@@ -15849,7 +15849,20 @@ function showPackRevealModal(opts) {
       const chest = document.getElementById('packChestIcon');
       if (chest) chest.classList.add('opening');
     } catch (e) {}
+    // 2026-04-29 — Pack-open SFX (spec §12.2 "chest opening + treasure clatter").
+    // playPackOpen exists in the audio system (low thud + bright sparkle).
+    try { if (typeof playPackOpen === 'function') playPackOpen(); } catch (e) {}
   }, 50);
+  // 2026-04-29 — Per-card flip SFX, scheduled to match the staggered reveal
+  // animation (animation-delay = 0.6 + i * cardStagger). Subtle 660Hz square
+  // tone — won't compete with chest thud.
+  try {
+    if (typeof playCardFlip === 'function') {
+      dropped.forEach((_, i) => {
+        setTimeout(() => { try { playCardFlip(); } catch (e) {} }, (0.6 + i * cardStagger) * 1000);
+      });
+    }
+  } catch (e) {}
   try { vibrate([100, 60, 100, 60, 200]); } catch (e) {}
 }
 
@@ -21120,17 +21133,35 @@ function startTowerRun() {
   }
   // 2026-04-27 — Every Tower attempt costs gold (was FREE for first; now 250).
   // Cost ladder per TOWER_RETRY_GOLD_COST: 250 / 500 / 1000 / 2000 / 5000.
+  // 2026-04-29 — Subscribers (Season Pass) get SEASON_PASS_SUB_RETRIES (2)
+  // FREE retries per day per BLOCKSWORN_MONETIZATION.md §4.5. First N
+  // attempts skip the gold cost entirely; the (N+1)th and beyond use the
+  // standard cost ladder. attemptsToday is incremented in launchTowerFloor
+  // after battle init — so attemptsToday=0 here means this is the player's
+  // first attempt of the day.
   {
-    const cost = TOWER_RETRY_GOLD_COST[towerState.attemptsToday] || 5000;
-    if ((typeof gold !== 'number') || gold < cost) {
+    const subActive = (typeof _isSeasonPassActive === 'function') && _isSeasonPassActive();
+    const subFreeRetriesLeft = subActive
+      ? Math.max(0, (typeof SEASON_PASS_SUB_RETRIES === 'number' ? SEASON_PASS_SUB_RETRIES : 2) - towerState.attemptsToday)
+      : 0;
+    const isFreeSubRetry = subFreeRetriesLeft > 0;
+    const cost = isFreeSubRetry ? 0 : (TOWER_RETRY_GOLD_COST[towerState.attemptsToday] || 5000);
+    if (cost > 0 && ((typeof gold !== 'number') || gold < cost)) {
       showToast(`Not enough gold (need ${cost})`);
       return;
     }
-    const label = towerState.attemptsToday === 0
-      ? `Tower entry costs ${cost} gold. Continue?`
-      : `Retry costs ${cost} gold. Continue?`;
+    let label;
+    if (isFreeSubRetry) {
+      label = `★ FREE SUBSCRIBER RETRY (${subFreeRetriesLeft} left today). Continue?`;
+    } else {
+      label = towerState.attemptsToday === 0
+        ? `Tower entry costs ${cost} gold. Continue?`
+        : `Retry costs ${cost} gold. Continue?`;
+    }
     if (!confirm(label)) return;
-    try { addGold(-cost); } catch (e) {}
+    if (cost > 0) {
+      try { addGold(-cost); } catch (e) {}
+    }
   }
   // 2026-04-27 HOTFIX — DEFER attempt commit. Old code incremented attempts
   // here, so any failure between this point and actual battle start (boss
@@ -22282,7 +22313,11 @@ if (typeof window !== 'undefined') {
 // buying pass late in season still unlocks everything earned so far.
 
 const SEASON_KEY            = 'blocksworn_season_state';
-const SEASON_LENGTH_DAYS    = 30;
+// 2026-04-29 — Bumped 30 → 60 per BLOCKSWORN_MONETIZATION.md §4.1.
+// Spec calls for 60-day season cycle aligned with Tower seasonal cycle.
+// Existing rotations roll naturally — checkSeasonRotation reads this constant
+// at runtime so the in-flight season just runs longer the first time.
+const SEASON_LENGTH_DAYS    = 60;
 const SEASON_TIER_XP_BASE   = 500;
 const SEASON_TIER_XP_STEP   = 150;
 // 2026-04-29 — Bumped 50 → 100 per BLOCKSWORN_MONETIZATION.md §4.2.
@@ -22545,8 +22580,16 @@ function getSeasonTierProgress() {
 
 // Grant XP. Flashes "TIER UP" if crosses a tier boundary.
 function addSeasonXP(amount) {
-  const a = Math.floor(Number(amount));
+  let a = Math.floor(Number(amount));
   if (!Number.isFinite(a) || a <= 0) return;
+  // 2026-04-29 — Premium track 24h XP boost per BLOCKSWORN_MONETIZATION.md §4.4.
+  // Spec promises "+24h XP boost active throughout season" for premium pass
+  // holders — interpreted as a continuous XP-rate multiplier while premium
+  // is owned. +50% rate matches the Mega Buff fragment-drop multiplier so
+  // the player intuits the boost effect consistently across systems.
+  if (seasonState && seasonState.premiumUnlocked) {
+    a = Math.floor(a * 1.5);
+  }
   const prevTier = getCurrentSeasonTier();
   seasonState.xp += a;
   saveSeasonState();
@@ -23353,11 +23396,40 @@ function _adsWatchedToday() {
 function _incrementAdsWatched() {
   const next = _adsWatchedToday() + 1;
   try { localStorage.setItem(ADS_WATCHED_KEY, JSON.stringify({ date: _todayDateString(), count: next })); } catch (e) {}
+  // 2026-04-29 — Mirror the daily count into the ISO-week bucket so the
+  // weekly cap (spec §9.3 — 30 ads per week) is enforced alongside the
+  // daily cap. Resets whenever _getISOWeek() rolls over (every Monday).
+  try {
+    const wk = (typeof _getISOWeek === 'function') ? _getISOWeek() : 0;
+    const raw = localStorage.getItem(ADS_WEEKLY_KEY);
+    let cur = 0;
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && obj.week === wk) cur = obj.count || 0;
+    }
+    localStorage.setItem(ADS_WEEKLY_KEY, JSON.stringify({ week: wk, count: cur + 1 }));
+  } catch (e) {}
 }
 function _adsCap() {
   return _isSeasonPassActive() ? ADS_DAILY_CAP_SUB : ADS_DAILY_CAP_FREE;
 }
 function _adsRemaining() { return Math.max(0, _adsCap() - _adsWatchedToday()); }
+// 2026-04-29 — Weekly ad cap per BLOCKSWORN_MONETIZATION.md §9.3 (30 ads max
+// per week). Prevents ad-watching from becoming a primary monetization
+// replacement. Subscribers / whales already get higher daily caps; the
+// weekly ceiling applies to all tiers equally.
+const ADS_WEEKLY_CAP = 30;
+const ADS_WEEKLY_KEY = 'blocksworn_ads_watched_week';
+function _adsWatchedThisWeek() {
+  try {
+    const raw = localStorage.getItem(ADS_WEEKLY_KEY);
+    if (!raw) return 0;
+    const obj = JSON.parse(raw);
+    const wk = (typeof _getISOWeek === 'function') ? _getISOWeek() : 0;
+    if (obj.week !== wk) return 0;
+    return obj.count || 0;
+  } catch (e) { return 0; }
+}
 
 // Reward types: 'gold', 'card', 'essence' — plug in more later.
 const AD_REWARDS = {
@@ -23374,6 +23446,13 @@ const AD_REWARDS = {
 function watchRewardedAd(rewardType) {
   if (_adsWatchedToday() >= _adsCap()) {
     try { flashText('AD CAP REACHED — RESETS TOMORROW', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  // 2026-04-29 — Weekly cap (spec §9.3 — 30/week). Daily cap fires its own
+  // reset-tomorrow toast above; weekly cap fires its own toast distinguishing
+  // the two so the player knows they need to wait until Monday, not just 4 AM.
+  if (_adsWatchedThisWeek() >= ADS_WEEKLY_CAP) {
+    try { flashText('WEEKLY AD CAP — RESETS MONDAY', '#A8A5B8'); } catch (e) {}
     return false;
   }
   const r = AD_REWARDS[rewardType];
