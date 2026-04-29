@@ -27691,12 +27691,27 @@ function tickChapter3Boss() {
     _ch3State.seals = _ch3State.seals
       .map(s => ({ id: s.id, turns: s.turns - 1 }))
       .filter(s => s.turns > 0);
+    let sealsAppliedThisTurn = 0;
     for (let i = 0; i < phase; i++) {
       const choices = sealPool.filter(p => !_ch3State.seals.some(s => s.id === p));
       if (choices.length === 0) break;
       const pick = choices[Math.floor(Math.random() * choices.length)];
       _ch3State.seals.push({ id: pick, turns: 2 });
+      sealsAppliedThisTurn++;
       try { flashText('📜 SEAL: ' + pick.replace(/_/g, ' ').toUpperCase(), '#E8D88A'); } catch (e) {}
+    }
+    // 2026-04-29 — Block 6.5 DEBT-6 — Phase 3 seal-stack heal. Spec §2.6:
+    // "Phase 3 (33-0%): 3 seals per turn AND boss heals 2% HP per seal applied;
+    //  defeat boss before seal-stacking overwhelms."
+    // Heal scales with seals actually pushed this tick (the inner loop bails
+    // when the pool is exhausted, so no double-counting against unfilled slots).
+    if (phase >= 3 && sealsAppliedThisTurn > 0) {
+      const sealHeal = Math.floor(bossMaxHP * 0.02 * sealsAppliedThisTurn);
+      if (sealHeal > 0) {
+        bossHP = Math.min(bossMaxHP, bossHP + sealHeal);
+        try { flashText('📜 ARCHIVE HEAL +' + sealHeal, '#E8D88A'); } catch (e) {}
+        try { renderBossHP(); } catch (e) {}
+      }
     }
   }
 }
