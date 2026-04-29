@@ -21400,35 +21400,39 @@ const PACTS = [
     apply: (s) => { s.damageMult *= 2.25; s.bossHpMult *= 2.00; s.ultCostMult *= 1.50; } },
   // 2026-04-27 — Block 6.5 DEBT-10: Dual-element pact synergies (spec §2.7).
   // Each gives a passive runtime bonus only when the squad contains heroes of
-  // BOTH listed elements. Bonus is folded via _pactDualElementMult() into
-  // _multStack alongside _pactDamageMult. Cost is unconditional.
-  // Tier 3 placement (between T3 strong and T4 dangerous) — modest reward gated
-  // on team comp, encouraging two-element synergy builds.
+  // BOTH listed elements. Bonus folds via _pactDualElementMult() into _multStack.
+  // 2026-04-29 — Balance pass per spec §5.3 (T3 range ±40-60%):
+  //   reward 1.40→1.50 (+50%, mid T3, in line with INFERNO)
+  //   cost   1.20→1.25 (+25% HP, mild — reward is conditional on squad comp)
+  // Effective damage-per-HP when satisfied: 1.50/1.25 = 1.20× — better than
+  // INFERNO's 1.50/1.35=1.11× to reward squad-comp diversity. When the squad
+  // lacks the pair, dual gives only the +25% HP cost — strictly worse than
+  // unconditional T3 picks. Healthy build-identity tension.
   { id: 'pact_pyretide',   tier: 3, name: 'THE PYRETIDE PACT',
-    power: '+40% damage when squad has Ember + Tide heroes',
-    cost:  'Bosses gain +20% HP',
-    dualElements: ['ember','tide'], dualBonus: 1.40,
-    apply: (s) => { s.bossHpMult *= 1.20; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['ember','tide'], mult:1.40 }); } },
+    power: '+50% damage when squad has Ember + Tide heroes',
+    cost:  'Bosses gain +25% HP',
+    dualElements: ['ember','tide'], dualBonus: 1.50,
+    apply: (s) => { s.bossHpMult *= 1.25; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['ember','tide'], mult:1.50 }); } },
   { id: 'pact_tideroot',   tier: 3, name: 'THE TIDEROOT PACT',
-    power: '+40% damage when squad has Tide + Grove heroes',
-    cost:  'Bosses gain +20% HP',
-    dualElements: ['tide','grove'], dualBonus: 1.40,
-    apply: (s) => { s.bossHpMult *= 1.20; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['tide','grove'], mult:1.40 }); } },
+    power: '+50% damage when squad has Tide + Grove heroes',
+    cost:  'Bosses gain +25% HP',
+    dualElements: ['tide','grove'], dualBonus: 1.50,
+    apply: (s) => { s.bossHpMult *= 1.25; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['tide','grove'], mult:1.50 }); } },
   { id: 'pact_sunbloom',   tier: 3, name: 'THE SUNBLOOM PACT',
-    power: '+40% damage when squad has Grove + Solar heroes',
-    cost:  'Bosses gain +20% HP',
-    dualElements: ['grove','solar'], dualBonus: 1.40,
-    apply: (s) => { s.bossHpMult *= 1.20; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['grove','solar'], mult:1.40 }); } },
+    power: '+50% damage when squad has Grove + Solar heroes',
+    cost:  'Bosses gain +25% HP',
+    dualElements: ['grove','solar'], dualBonus: 1.50,
+    apply: (s) => { s.bossHpMult *= 1.25; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['grove','solar'], mult:1.50 }); } },
   { id: 'pact_eclipse',    tier: 3, name: 'THE ECLIPSE PACT',
-    power: '+40% damage when squad has Solar + Umbra heroes',
-    cost:  'Bosses gain +20% HP',
-    dualElements: ['solar','umbra'], dualBonus: 1.40,
-    apply: (s) => { s.bossHpMult *= 1.20; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['solar','umbra'], mult:1.40 }); } },
+    power: '+50% damage when squad has Solar + Umbra heroes',
+    cost:  'Bosses gain +25% HP',
+    dualElements: ['solar','umbra'], dualBonus: 1.50,
+    apply: (s) => { s.bossHpMult *= 1.25; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['solar','umbra'], mult:1.50 }); } },
   { id: 'pact_emberdusk',  tier: 3, name: 'THE EMBERDUSK PACT',
-    power: '+40% damage when squad has Umbra + Ember heroes',
-    cost:  'Bosses gain +20% HP',
-    dualElements: ['umbra','ember'], dualBonus: 1.40,
-    apply: (s) => { s.bossHpMult *= 1.20; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['umbra','ember'], mult:1.40 }); } },
+    power: '+50% damage when squad has Umbra + Ember heroes',
+    cost:  'Bosses gain +25% HP',
+    dualElements: ['umbra','ember'], dualBonus: 1.50,
+    apply: (s) => { s.bossHpMult *= 1.25; if (Array.isArray(s.dualBonuses)) s.dualBonuses.push({ pair:['umbra','ember'], mult:1.50 }); } },
 ];
 
 // 2026-04-27 — Block T.4 — Mode-aware floor → pact tier mapper. Daily caps

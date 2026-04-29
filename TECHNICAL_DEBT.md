@@ -585,11 +585,16 @@ Ch3 боссов как memorial. Layout + render pipeline на месте, но
 (particle effect, glow) — placeholder.
 **Code refs:** L6715, L12310, L37557.
 
-### Block 6.5 DEBT-10 · Dual-element pact synergies (Tower)
-**What:** Tower pact selection активирует synergy bonuses для dual-element
-комбо (per spec §2.7). Runtime calc реализован, но **balance-numbers** не
-финализированы (текущие значения placeholder).
-**Code refs:** L20023, L20087, L20102, L30119.
+### ~~Block 6.5 DEBT-10~~ · Dual-element pact synergies — RESOLVED 2026-04-29
+**Spec:** Tower pact §5.3 T3 range ±40-60%, §2.7 dual-element synergies.
+**Resolution:** Numbers tuned to mid-T3 from placeholders.
+  reward 1.40 → 1.50 (+50% damage when squad has both elements)
+  cost   1.20 → 1.25 (+25% boss HP)
+Effective damage-per-HP when satisfied = 1.50/1.25 = 1.20× (vs. INFERNO's
+unconditional 1.50/1.35 = 1.11×). Dual rewards squad-comp diversity; INFERNO
+rewards numbers. Healthy build-identity tension. All 5 pacts (Pyretide /
+Tideroot / Sunbloom / Eclipse / Emberdusk) tuned to identical baselines —
+per-pair differentiation deferred to a content-design pass.
 
 ---
 
