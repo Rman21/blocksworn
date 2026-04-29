@@ -600,11 +600,22 @@ treatment that reads as intentional mythic cosmetic:
 A real bespoke asset can swap in later by replacing the static `box-shadow`
 with `border-image: url(...)` — call sites unchanged.
 
-### Block 6.5 DEBT-9 · Cosmic Memorial для defeated Ch3 bosses
-**What:** Profile section отображает "ethereal mini" представления побеждённых
-Ch3 боссов как memorial. Layout + render pipeline на месте, но visual polish
-(particle effect, glow) — placeholder.
-**Code refs:** L6715, L12310, L37557.
+### ~~Block 6.5 DEBT-9~~ · Cosmic Memorial polish — RESOLVED 2026-04-29
+**Spec §2.7 / §12.3:** Defeated Ch3 boss "ethereal mini" portraits as a
+home-hub cosmic memorial — pure cosmetic, no gameplay.
+**Resolution:** Polished from the placeholder visual to a layered cosmic
+treatment, all CSS-only:
+  • Strip backdrop now has umbra + gold radial gradients + inset purple
+    glow (was a flat purple linear gradient).
+  • Ghost portraits 32px → 36px with double-layer drop-shadow halo.
+  • New `::before` particle dust — three radial sparkles drifting upward
+    inside the portrait via `memorialDust` 3.6s loop. Pure CSS.
+  • `::after` aura now breathes opacity 0.45→1.0 on a 3.2s loop.
+  • Float keyframe adds a slight `scale(1.05)` to mate with the breath.
+  • Header label gets a layered text-shadow (gold + double umbra) so it
+    reads as "memorial" instead of "section header".
+A bespoke particle sprite asset can swap in later by replacing the
+`::before` background-images — the timing + drift logic stays.
 
 ### ~~Block 6.5 DEBT-10~~ · Dual-element pact synergies — RESOLVED 2026-04-29
 **Spec:** Tower pact §5.3 T3 range ±40-60%, §2.7 dual-element synergies.
