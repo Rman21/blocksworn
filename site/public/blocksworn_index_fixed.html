@@ -14269,6 +14269,14 @@ function ascendHeroT3(heroId) {
   if (!Array.isArray(towerState.tier3Ascended)) towerState.tier3Ascended = [];
   towerState.tier3Ascended.push(heroId);
   saveTowerState();
+  // 2026-04-29 — Celebration baked into the ascend function so console-driven
+  // tests see the cinematic too. UI handler (onTryAscendT3) used to own this
+  // alone — moved here for visibility across all entry points.
+  try {
+    flashText('★ ' + hero.name + ' DEEP ASCENDED', '#BB60FF');
+    setTimeout(() => { try { flashText('TIER 3 · 1.44× DAMAGE', '#BB60FF'); } catch (e) {} }, 1100);
+    vibrate([120, 60, 120, 60, 250]);
+  } catch (e) {}
   return true;
 }
 
@@ -14317,6 +14325,15 @@ function ascendHeroMythic(heroId) {
   // Single-slot commit: store the chosen mythic hero id at the towerState root.
   towerState.mythicHero = heroId;
   saveTowerState();
+  // 2026-04-29 — 3-stage cinematic + heavy haptic baked in so console-driven
+  // tests see the celebration. UI handler (onTryAscendMythic) used to own
+  // this alone — moved here for visibility across all entry points.
+  try {
+    flashText('✦ ' + hero.name + ' TRANSCENDS', '#FF5A3A');
+    setTimeout(() => { try { flashText('MYTHIC · 1.872× DAMAGE', '#FFD53D'); } catch (e) {} }, 1100);
+    setTimeout(() => { try { flashText('★ LEGENDARY CHAMPION ★', '#BB60FF'); } catch (e) {} }, 2200);
+    vibrate([200, 80, 200, 80, 200, 80, 400]);
+  } catch (e) {}
   return true;
 }
 
@@ -41586,11 +41603,8 @@ function onTryAscendT3() {
   );
   if (!ok) return;
   if (ascendHeroT3(detailHeroId)) {
-    try {
-      flashText('★ ' + hero.name + ' DEEP ASCENDED', '#BB60FF');
-      setTimeout(() => flashText('TIER 3 · 1.44× DAMAGE', '#BB60FF'), 1100);
-      vibrate([120, 60, 120, 60, 250]);
-    } catch (e) {}
+    // Cinematic + haptic now fire inside ascendHeroT3 itself so console
+    // tests see the celebration too. Just refresh UI here.
     try { openHeroDetail(detailHeroId); } catch (e) {}
     try { if (typeof vRenderRoster === 'function') vRenderRoster(); } catch (e) {}
   }
@@ -41634,12 +41648,8 @@ function onTryAscendMythic() {
   );
   if (!ok) return;
   if (ascendHeroMythic(detailHeroId)) {
-    try {
-      flashText('✦ ' + hero.name + ' TRANSCENDS', '#FF5A3A');
-      setTimeout(() => flashText('MYTHIC · 1.872× DAMAGE', '#FFD53D'), 1100);
-      setTimeout(() => flashText('★ LEGENDARY CHAMPION ★', '#BB60FF'), 2200);
-      vibrate([200, 80, 200, 80, 200, 80, 400]);
-    } catch (e) {}
+    // Cinematic + haptic now fire inside ascendHeroMythic itself so console
+    // tests see the celebration too. Just refresh UI here.
     try { openHeroDetail(detailHeroId); } catch (e) {}
     try { if (typeof vRenderRoster === 'function') vRenderRoster(); } catch (e) {}
   }
