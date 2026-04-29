@@ -577,12 +577,15 @@ Ch3 боссов как memorial. Layout + render pipeline на месте, но
 
 ## Tower system follow-ups
 
-### TOWER-DEBT-4 · Seasonal hero card drop · leaderboard-tier scaling
+### ~~TOWER-DEBT-4~~ · Seasonal hero card drop · leaderboard-tier scaling — RESOLVED 2026-04-29
 **Introduced:** 2026-04-27 (Block H.2 — seasonal Tower hero card drop, spec §12)
-**What:** Spec §12 описывает scaling card drops по leaderboard rank ("5–25 top
-ranks"). Текущая реализация single-player local — flat 5 cards для всех
-("Participation" tier).
-**Why deferred:** Требует backend leaderboard system который ещё не шиппнулся.
-**Resolution plan:** когда leaderboard ships → branch on rank в
-`onTowerSeasonalComplete()` для tier-aware drop counts.
-**Code ref:** L20781.
+**Resolution:** Backend leaderboard shipped 2026-04-28 (Phase G-Social). Added
+`BackendProvider.getMyLeaderboardRank(seasonId)` (mock + Firebase). On seasonal
+clear, `_awardSeasonalRankBonus()` submits the player's best, fetches rank,
+and drops bonus cards by tier:
+  - Top 1     → +20 (25 total) "TOWER GOD"
+  - Top 10    → +15 (20 total) "TITAN"
+  - Top 100   → +10 (15 total) "ELITE"
+  - Top 1000  →  +5 (10 total) "VETERAN"
+  - Outside   →   0 (5 baseline — participation only)
+Best-effort: any backend failure leaves the 5-card baseline intact.

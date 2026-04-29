@@ -21731,20 +21731,59 @@ function onTowerWeeklyComplete(clearedFloor) {
   }, 3400);
 }
 
+// 2026-04-29 — TOWER-DEBT-4 — Tiered hero card bonus by leaderboard rank.
+// Spec §12 says seasonal clears drop 5-25 hero cards depending on rank. We
+// drop 5 baseline immediately (in onTowerSeasonalComplete) and resolve the
+// bonus async after submitting the player's current best. Tier table:
+//   Top 1     → +20 (25 total) "TOWER GOD"
+//   Top 10    → +15 (20 total) "TITAN"
+//   Top 100   → +10 (15 total) "ELITE"
+//   Top 1000  →  +5 (10 total) "VETERAN"
+//   Outside   →   0 (5 total — participation only)
+// Best-effort: any backend failure leaves player with the 5-card baseline.
+async function _awardSeasonalRankBonus(clearedFloor) {
+  try {
+    const seasonId = (seasonState && seasonState.seasonId) || 1;
+    // Push the player's all-time best so the rank query reflects this run.
+    const best = (towerState && towerState.allTimeBest) || clearedFloor || 0;
+    if (best > 0) {
+      try { await BackendProvider.submitTowerScore(best); } catch (e) {}
+    }
+    const res = await BackendProvider.getMyLeaderboardRank(seasonId);
+    if (!res || !res.ok || !res.rank) return;
+    const rank = res.rank;
+    let bonus = 0, label = '';
+    if      (rank <= 1)    { bonus = 20; label = 'TOWER GOD · TOP 1'; }
+    else if (rank <= 10)   { bonus = 15; label = 'TITAN · TOP 10'; }
+    else if (rank <= 100)  { bonus = 10; label = 'ELITE · TOP 100'; }
+    else if (rank <= 1000) { bonus = 5;  label = 'VETERAN · TOP 1000'; }
+    if (bonus <= 0) return;
+    try { dropRandomHeroCards(bonus, { silent: true }); } catch (e) {}
+    // Banner cascade — fire after the existing celebration finishes (~3.4s).
+    setTimeout(() => {
+      try { flashText('★ ' + label, '#FFD53D'); } catch (e) {}
+      setTimeout(() => { try { flashText('+' + bonus + ' BONUS HERO CARDS', '#FFD53D'); } catch (e) {} }, 1100);
+      try { vibrate([180, 80, 180, 80, 280]); } catch (e) {}
+    }, 3500);
+  } catch (e) { console.warn('TOWER-DEBT-4 rank bonus failed:', e); }
+}
+
 // 2026-04-27 — Block T.4 — Seasonal Tower completion (spec §2.3).
 // Reward bundle: 1000 gold (top tier sim) + 50 Sigils + 10 Hearts.
-// Leaderboard tiers (Top 1 / Top 10 / etc.) deferred — single-player local
-// implementation gives "Participation" tier flat: 50 gold + 5 Hearts.
-// HOTFIX HOOK: when leaderboard system ships, branch on rank for higher tier.
+// 2026-04-29 — TOWER-DEBT-4 resolved: rank-tier bonus hero cards (HERO_COMPENDIUM
+// §12: "5-25 top ranks"). Base 5 fires immediately so offline still rewards;
+// async rank lookup adds 5/10/15/20 bonus for Top1000/100/10/1 with own banner.
 function onTowerSeasonalComplete(clearedFloor) {
   const bonusGold = 1000 + 20 * clearedFloor;
   try { addGold(bonusGold); } catch (e) {}
   towerState.sigilShards += 50;
   towerState.towerHearts += 10;
-  // 2026-04-27 — Block H.2 — seasonal Tower hero card drop (§12: "5-25 top ranks").
-  // Single-player local: flat 5 cards for participation tier (leaderboard scaling
-  // deferred per TOWER-DEBT-4).
+  // Block H.2 — base seasonal hero cards (participation tier, 5).
   try { dropRandomHeroCards(5); } catch (e) { console.warn('H.2 seasonal card drop failed:', e); }
+  // TOWER-DEBT-4 — rank-tier bonus. Submit current best, then look up rank,
+  // then drop bonus cards. Best-effort: any failure leaves player with the
+  // 5-card participation drop above.
+  try { _awardSeasonalRankBonus(clearedFloor); } catch (e) {}
   // Mark this season's clear
   towerState.seasonalClearedKey = towerState.seasonalKey;
   towerState.seasonalRunStarted = false;
@@ -24104,6 +24143,7 @@ const BackendProvider = {
   // Leaderboard.
   async submitTowerScore(floor)   { return BACKEND_PROVIDERS[this.ACTIVE].submitTowerScore(floor); },
   async getLeaderboard(seasonId)  { return BACKEND_PROVIDERS[this.ACTIVE].getLeaderboard(seasonId); },
+  async getMyLeaderboardRank(seasonId) { return BACKEND_PROVIDERS[this.ACTIVE].getMyLeaderboardRank(seasonId); },
 };
 
 const BACKEND_PROVIDERS = {
@@ -24169,6 +24209,13 @@ const BACKEND_PROVIDERS = {
     async submitTowerScore(floor) {
       // Local-only — towerState already tracks personal bests.
       return { ok: true, rank: 'mock' };
+    },
+    async getMyLeaderboardRank(seasonId) {
+      // Mock: derive rank from synthetic top-10 + player slot.
+      const lb = await this.getLeaderboard(seasonId);
+      const board = (lb && lb.board) || [];
+      const me = board.find(r => r.isYou);
+      return me ? { ok: true, rank: me.rank, source: 'mock' } : { ok: false };
     },
     async getLeaderboard(seasonId) {
       // Synthetic top 10 + player slot.
@@ -24374,6 +24421,21 @@ const BACKEND_PROVIDERS = {
         }
         return { ok: true, season: sid, board: board.slice(0, 11) };
       } catch (e) { console.warn('[FB] getLeaderboard failed:', e); return BACKEND_PROVIDERS.mock.getLeaderboard(seasonId); }
+    },
+    async getMyLeaderboardRank(seasonId) {
+      // Bounded query: top 1000 → find self. If not in top 1000, return rank=null.
+      // Used by TOWER-DEBT-4 fix to scale seasonal hero card drops by rank.
+      if (!_fbReady()) return BACKEND_PROVIDERS.mock.getMyLeaderboardRank(seasonId);
+      try {
+        const sid = seasonId || (seasonState && seasonState.seasonId) || 1;
+        const myUid = window.fb.auth.currentUser.uid;
+        const scoresRef = window.fb.collection(window.fb.db, 'leaderboard', 'season_' + sid, 'scores');
+        const q = window.fb.query(scoresRef, window.fb.orderBy('floor', 'desc'), window.fb.limit(1000));
+        const snap = await window.fb.getDocs(q);
+        let rank = null;
+        snap.docs.forEach((d, i) => { if (d.id === myUid) rank = i + 1; });
+        return rank ? { ok: true, rank, source: 'firebase' } : { ok: false };
+      } catch (e) { console.warn('[FB] getMyLeaderboardRank failed:', e); return { ok: false }; }
     },
   },
 };
