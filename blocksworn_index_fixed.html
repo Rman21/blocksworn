@@ -19354,6 +19354,16 @@ function showHunterEmergencyVisual(hunter) {
 // Spec §8.1 — Deadlock notification banner. Fires once per battle when first detected.
 function showDeadlockNotification() {
   if (_deadlockNotifiedThisBattle) return;
+  // 2026-04-29 — Suppress when defeat is already inbound. afterPlacement
+  // sets hp=0 if noMoreMoves() returns true (board jammed), and the regular
+  // showDefeatModal will fire next. Showing "DEADLOCK DETECTED · recovery
+  // available" alongside an immediate defeat modal was confusing — the
+  // recovery message is a lie when the player has no moves left.
+  try {
+    if (typeof gameEnded !== 'undefined' && gameEnded) return;
+    if (typeof hp !== 'undefined' && hp <= 0) return;
+    if (typeof noMoreMoves === 'function' && noMoreMoves()) return;
+  } catch (e) {}
   _deadlockNotifiedThisBattle = true;
   let notif = document.getElementById('deadlockNotification');
   if (!notif) {
