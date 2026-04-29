@@ -13460,7 +13460,56 @@ button.season-tier-claim:active {
         <div class="cla-region-badge">DAILY</div>
       </div>
     </div>
-    <button class="cla-cta" id="claCta" type="button" onclick="_dismissCryptLichAftermath()">ENTER THE WORLD</button>
+    <button class="cla-cta" id="claCta" type="button" onclick="_dismissCryptLichAftermath()">ENTER THE TOWER</button>
+  </div>
+</div>
+
+<!-- 2026-04-29 — HELIOTRON AFTERMATH cinematic (Ch2 → Ch3 transition).
+     Mirrors cryptLichAftermath structure; reuses .crypt-aftermath / .cla-*
+     CSS classes for animations + layout. Ch3 content: VEIL OF FORGOTTEN
+     GODS announcement + Forgotten Pack (T2 ascension stones) reveal. -->
+<div id="heliotronAftermath" class="crypt-aftermath hidden" aria-hidden="true">
+  <div class="cla-bg"></div>
+  <div class="cla-content">
+    <div class="cla-line cla-line-1">The bloom has wilted.</div>
+    <div class="cla-line cla-line-2">Older voices stir from beneath.</div>
+    <div class="cla-line cla-line-3">What was forgotten now remembers — and watches you.</div>
+    <div class="cla-banner">CHAPTER 3 — VEIL OF FORGOTTEN GODS</div>
+    <div class="cla-regions">
+      <div class="cla-region is-cleared">
+        <div class="cla-region-icon" style="color:#FFD53D">✓</div>
+        <div class="cla-region-info">
+          <div class="cla-region-name" style="color:#FFD53D">BLOOM OF MADNESS</div>
+          <div class="cla-region-desc">Chapter 2 · Five archetypes broken</div>
+        </div>
+        <div class="cla-region-badge">CLEARED</div>
+      </div>
+      <div class="cla-region is-new">
+        <div class="cla-region-icon" style="color:#BB60FF">★</div>
+        <div class="cla-region-info">
+          <div class="cla-region-name" style="color:#F0E0FF">VEIL OF FORGOTTEN GODS</div>
+          <div class="cla-region-desc">Chapter 3 · Ancient sealers + dual-element trials</div>
+        </div>
+        <div class="cla-region-badge">NEW</div>
+      </div>
+      <div class="cla-region">
+        <div class="cla-region-icon" style="color:#A88AC8">⚡</div>
+        <div class="cla-region-info">
+          <div class="cla-region-name" style="color:#A88AC8">FORGOTTEN PACK</div>
+          <div class="cla-region-desc">Tier 2 Ascension Stones · empower your warband</div>
+        </div>
+        <div class="cla-region-badge">REWARD</div>
+      </div>
+      <div class="cla-region">
+        <div class="cla-region-icon" style="color:#FFAA00">🗼</div>
+        <div class="cla-region-info">
+          <div class="cla-region-name" style="color:#FFAA00">TOWER OF ENDLESS</div>
+          <div class="cla-region-desc">Daily / Weekly / Seasonal climbs · Uroboros at F50</div>
+        </div>
+        <div class="cla-region-badge">ENDLESS</div>
+      </div>
+    </div>
+    <button class="cla-cta" id="haCta" type="button" onclick="_dismissHeliotronAftermath()">ENTER THE VEIL</button>
   </div>
 </div>
 
@@ -13602,19 +13651,10 @@ button.season-tier-claim:active {
 <!-- ============ Task #1.5 · CHAPTER COMPLETE MODAL ============ -->
 <!-- Fired from the CRYPT LICH (Boss_5) win flow. Two CTAs:
      - ENTER TOWER: transition into Tower mode (sets hasCompletedChapter1 = true)
-     - REPLAY CHAPTER: reset Ch1 boss-defeat counter and return to menu. -->
-<div id="chapterCompleteModal" class="modal hidden" style="z-index:9500">
-  <div class="modal-box chapter-complete-box">
-    <div class="chapter-complete-title">CHAPTER COMPLETE</div>
-    <div class="chapter-complete-subtitle">YOU HAVE DEFEATED</div>
-    <div class="chapter-complete-chapter">THE ASHEN DOMINION</div>
-    <div class="chapter-complete-message">The Tower awaits.</div>
-    <div class="chapter-complete-actions">
-      <button class="a-btn-cta" onclick="enterTowerFromChapterComplete()">ENTER TOWER</button>
-      <button class="a-btn-ghost" onclick="replayChapterFromChapterComplete()">REPLAY CHAPTER</button>
-    </div>
-  </div>
-</div>
+<!-- 2026-04-29 — chapterCompleteModal removed. The Crypt Lich aftermath
+     cinematic is the celebratory beat now; its CTA routes directly to
+     the Tower. REPLAY CHAPTER is gone (cluttered the post-Ch1 moment;
+     players can return to Ch1 via the chapter selector if they want). -->
 
 <!-- ============ V3.0 BLOCK 2.1 · FLOOR SELECTOR OVERLAY ============ -->
 <!-- Opens when player taps a reachable boss emblem post-FTUE. Shows the 3
@@ -15160,50 +15200,41 @@ function applyBossDefeatProgression(bossNumber) {
       try {
         if (typeof showCryptLichAftermathCinematic === 'function') {
           showCryptLichAftermathCinematic(() => {
-            // 2026-04-27 HOTFIX — after dismiss, AUTO-SWITCH the player to
-            // Chapter 2 instead of leaving them on a now-cleared Chapter 1
-            // menu. switchChapter(2) sets currentChapter=2, rebinds BOSSES
-            // to Chapter 2's roster, resets selectedBossIdx, then renderMenu.
-            // Roman saw "Chapter 2 doesn't auto-launch after Lich" — this is it.
+            // 2026-04-29 — Cinematic dismissal now routes the player into the
+            // Tower (instead of auto-switching to Chapter 2). Tower is the
+            // earned beat-1 reward; Chapter 2 stays unlocked but reachable on
+            // the player's terms via the chapter selector.
             try {
-              if (typeof switchChapter === 'function') {
-                switchChapter(2);
-              } else if (typeof setChapter === 'function') {
-                setChapter(2);
-                if (typeof renderMenu === 'function') renderMenu();
-              }
-            } catch (e) { console.warn('auto-switch to Chapter 2 failed:', e); }
+              if (typeof goToTower === 'function') goToTower();
+            } catch (e) { console.warn('post-cinematic goToTower failed:', e); }
           });
         }
       } catch (e) { console.warn('Crypt Lich aftermath cinematic failed:', e); }
     }, cinematicDelay);
   }
-  // 2026-04-27 — Chapter 3 unlock + auto-switch on HELIOTRON defeat (boss 10).
-  // Mirrors Crypt Lich → Chapter 2 pattern (no dedicated cinematic in v1; uses
-  // chapter_2_outro + chapter_3_intro dialog chain). Idempotent via flag.
+  // 2026-04-29 — Chapter 3 unlock cinematic on HELIOTRON defeat (boss 10).
+  // Switched from the v1 chapter_2_outro / chapter_3_intro dialog chain to a
+  // dedicated cinematic mirroring the Crypt Lich → Chapter 2 transition.
   if (bossNumber === 10 && !chapter3Unlocked) {
     chapter3Unlocked = true;
     try { saveProgress(); } catch (e) {}
     const c3Delay = (squadBumped ? 1500 : 250) + 2200;
     setTimeout(() => {
       try {
-        if (typeof playDialog === 'function') {
-          playDialog('chapter_2_outro', () => {
-            playDialog('chapter_3_intro', () => {
-              try {
-                if (typeof switchChapter === 'function') switchChapter(3);
-                else if (typeof setChapter === 'function') {
-                  setChapter(3);
-                  if (typeof renderMenu === 'function') renderMenu();
-                }
-              } catch (e) { console.warn('auto-switch to Chapter 3 failed:', e); }
-            });
+        if (typeof showHeliotronAftermathCinematic === 'function') {
+          showHeliotronAftermathCinematic(() => {
+            try {
+              if (typeof switchChapter === 'function') switchChapter(3);
+              else if (typeof setChapter === 'function') {
+                setChapter(3);
+                if (typeof renderMenu === 'function') renderMenu();
+              }
+            } catch (e) { console.warn('auto-switch to Chapter 3 failed:', e); }
           });
-        } else {
-          // Fallback — just switch chapter directly
-          if (typeof switchChapter === 'function') switchChapter(3);
+        } else if (typeof switchChapter === 'function') {
+          switchChapter(3);  // fallback
         }
-      } catch (e) { console.warn('Chapter 3 unlock chain failed:', e); }
+      } catch (e) { console.warn('Heliotron aftermath cinematic failed:', e); }
     }, c3Delay);
   }
   // 2026-04-27 — Chapter 3 finale: Archival Eternal (boss 15) → THE FORGOTTEN
@@ -15610,7 +15641,53 @@ if (typeof window !== 'undefined') {
         if (bg) bg.addEventListener('click', _dismissCryptLichAftermath);
       }
     } catch (e) {}
+    try {
+      const overlay2 = document.getElementById('heliotronAftermath');
+      if (overlay2) {
+        const bg2 = overlay2.querySelector('.cla-bg');
+        if (bg2) bg2.addEventListener('click', _dismissHeliotronAftermath);
+      }
+    } catch (e) {}
   });
+}
+
+// 2026-04-29 — HELIOTRON AFTERMATH cinematic (Chapter 2 → Chapter 3 transition).
+// Mirrors the Crypt Lich pattern (showCryptLichAftermathCinematic) — same
+// CSS animation reuse, same idempotent restart-via-reflow trick, same
+// callback-on-dismiss contract. Triggered ONCE on first HELIOTRON (Boss 10)
+// defeat by the chapter3Unlocked false→true transition in
+// applyBossDefeatProgression. Replaces the v1 chapter_2_outro / chapter_3_intro
+// dialog chain with a parity-feel cinematic.
+let _heliotronAftermathDismissCb = null;
+
+function showHeliotronAftermathCinematic(onDismiss) {
+  const overlay = document.getElementById('heliotronAftermath');
+  if (!overlay) {
+    if (typeof onDismiss === 'function') { try { onDismiss(); } catch (e) {} }
+    return;
+  }
+  _heliotronAftermathDismissCb = (typeof onDismiss === 'function') ? onDismiss : null;
+  overlay.classList.remove('show');
+  overlay.classList.remove('hidden');
+  void overlay.offsetWidth;  // reflow → restart CSS animations
+  overlay.classList.add('show');
+  overlay.setAttribute('aria-hidden', 'false');
+  try { vibrate([100, 60, 200, 80, 200, 100, 400]); } catch (e) {}
+  try { speakNarrator('chapterUnlocked'); } catch (e) {}
+}
+
+function _dismissHeliotronAftermath() {
+  const overlay = document.getElementById('heliotronAftermath');
+  if (!overlay) return;
+  overlay.classList.remove('show');
+  overlay.setAttribute('aria-hidden', 'true');
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+    if (_heliotronAftermathDismissCb) {
+      try { _heliotronAftermathDismissCb(); } catch (e) { console.warn('Heliotron aftermath dismiss callback failed:', e); }
+      _heliotronAftermathDismissCb = null;
+    }
+  }, 620);
 }
 
 // ===== PHASE 4 BLOCK 1 — FTUE CHRONOGRAPH (interactive coachmarks) =====
@@ -21563,38 +21640,11 @@ function hasCompletedChapter1() {
   try { return localStorage.getItem('blocksworn_chapter_1_complete') === 'true'; } catch (e) { return false; }
 }
 
-// Task #1.5: Chapter Complete modal — fires after CRYPT LICH (Boss_5) defeat.
-// Two CTAs: ENTER TOWER (primary) or REPLAY CHAPTER (reset boss counter, keep unlocks).
-function showChapterCompleteModal() {
-  const modal = document.getElementById('chapterCompleteModal');
-  if (modal) modal.classList.remove('hidden');
-}
-function enterTowerFromChapterComplete() {
-  const modal = document.getElementById('chapterCompleteModal');
-  if (modal) modal.classList.add('hidden');
-  if (typeof goToTower === 'function') goToTower();
-}
-function replayChapterFromChapterComplete() {
-  const modal = document.getElementById('chapterCompleteModal');
-  if (modal) modal.classList.add('hidden');
-  // Reset Chapter 1 boss-defeat state — preserve unlocks, gold, hero progression.
-  // The flag stays set (player has already completed Ch1 once — Tower remains unlocked).
-  try {
-    if (typeof chapterProgress !== 'undefined') chapterProgress[1] = 0;
-    if (typeof bossesDefeated !== 'undefined') bossesDefeated = 0;
-    if (typeof currentBossIdx !== 'undefined') currentBossIdx = 0;
-    if (typeof selectedBossIdx !== 'undefined') selectedBossIdx = null;
-    if (typeof saveProgress === 'function') saveProgress();
-    // Task #1.8: defensive — flag is preserved (chapter_1_complete stays true) so
-    // Tower stays unlocked, but call anyway to keep visual state in sync.
-    if (typeof updateTowerNavButton === 'function') updateTowerNavButton();
-    if (typeof goToMenu === 'function') goToMenu();
-  } catch (e) { console.warn('[replayChapterFromChapterComplete] failed:', e); }
-}
+// 2026-04-29 — chapterCompleteModal + REPLAY CHAPTER flow removed. The
+// Crypt Lich aftermath cinematic (cryptLichAftermath) is now the only
+// post-Ch1 ceremony, and its CTA routes the player straight to the Tower.
+// Players who want to replay Ch1 use the chapter selector from the menu.
 if (typeof window !== 'undefined') {
-  window.showChapterCompleteModal = showChapterCompleteModal;
-  window.enterTowerFromChapterComplete = enterTowerFromChapterComplete;
-  window.replayChapterFromChapterComplete = replayChapterFromChapterComplete;
   window.hasCompletedChapter1 = hasCompletedChapter1;
 }
 
@@ -32259,16 +32309,14 @@ async function onBossDefeated() {
   let justUnlockedChapter3 = false;
 
   // Task #1.5: Chapter 1 COMPLETE flow — fires after CRYPT LICH (final Ch1 boss) defeat.
-  // Sets the hasCompletedChapter1 flag (used by Tower gating + bottom-nav Tower button)
-  // and surfaces the Chapter Complete modal with ENTER TOWER / REPLAY CHAPTER CTAs.
+  // Sets the hasCompletedChapter1 flag (used by Tower gating + bottom-nav Tower button).
+  // 2026-04-29 — chapterCompleteModal + REPLAY CHAPTER removed; the Crypt Lich
+  // aftermath cinematic (fired separately via applyBossDefeatProgression) is
+  // the post-Ch1 ceremony, and its CTA routes to the Tower.
   if (currentChapter === 1 && bossesDefeated >= BOSSES.length && !hasCompletedChapter1()) {
     try { localStorage.setItem('blocksworn_chapter_1_complete', 'true'); } catch (e) {}
     // Task #1.8: refresh Tower nav button to drop the lock badge.
     try { if (typeof updateTowerNavButton === 'function') updateTowerNavButton(); } catch (e) {}
-    // Defer modal ~1.5s so the core victory flow (flash + animation + victory modal) reads first.
-    setTimeout(() => {
-      try { showChapterCompleteModal(); } catch (e) { console.warn('[chapter-complete modal] failed:', e); }
-    }, 1500);
   }
   // V3.0 Phase 2 Block 2.2: floor-specific bonuses. Applied BEFORE _lastReward snapshot
   // so the victory modal can display the final totals via existing readout paths.
