@@ -13024,13 +13024,15 @@ button.season-tier-claim:active {
       <div class="a-hub-rewards-items" id="vBossRewardsItems"></div>
     </div>
 
-    <!-- 2026-04-27 — Block 6.5 DEBT-9: Cosmic Memorial. Defeated Chapter 3
-         bosses appear as ethereal cosmetic guides on the home screen per
-         spec §2.7. Pure cosmetic per §12.3 — never affects gameplay. -->
-    <div class="a-hub-memorial" id="vCosmicMemorial" style="display:none;">
-      <span class="a-hub-memorial-lbl">COSMIC MEMORIAL</span>
-      <div class="a-hub-memorial-strip" id="vMemorialStrip"></div>
-    </div>
+    <!-- 2026-04-29 polish v0.1 Track B (Roman: remove): Cosmic Memorial
+         removed from the home hub. The block was carrying lore-implied
+         importance without on-screen explanation, drawing the eye away
+         from the actual primary CTA (Battle / Boss). Spec §2.7 still
+         describes the feature; if revived, it relocates to Profile or
+         Heroes screen rather than the home eye-path. CSS rules
+         (.a-hub-memorial*) and the renderer (vRenderCosmicMemorial)
+         stay in place — call sites guard on a missing #vCosmicMemorial
+         element via early-return so they no-op cleanly. -->
 
     <!-- Squad -->
     <div class="a-hub-squad" id="vSquadDock">
