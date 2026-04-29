@@ -7937,6 +7937,32 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   opacity: 0.30;
   filter: grayscale(0.75) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
 }
+/* 2026-04-29 polish v0.1 Track C.4 (option a): single digital HP readout.
+ * Overrides the .hp span sizing rule (22×22 + font-size:0) since we now
+ * render text, not an icon. Pulses red when HP drops to 25% or below. */
+.hp .hp-digital {
+  width: auto !important;
+  height: auto !important;
+  background: none !important;
+  font-size: 18px !important;
+  font-weight: 800;
+  color: #FF8B7A;
+  text-shadow:
+    0 0 6px rgba(255, 90, 74, 0.55),
+    0 1px 2px rgba(0, 0, 0, 0.6);
+  filter: none !important;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  margin-right: 4px;
+}
+.hp .hp-digital.low {
+  color: #FF4D3D;
+  animation: hpDigitalPulse 1s ease-in-out infinite;
+}
+@keyframes hpDigitalPulse {
+  0%, 100% { text-shadow: 0 0 6px rgba(255, 77, 61, 0.55), 0 1px 2px rgba(0, 0, 0, 0.6); }
+  50%      { text-shadow: 0 0 12px rgba(255, 77, 61, 1.0),  0 1px 2px rgba(0, 0, 0, 0.6); }
+}
 .hp .shield {
   /* sizing inherited from .hp span (22×22 + bg-image) — only override
      icon source + add gentle pulse so shields read as alive. */
@@ -38680,7 +38706,13 @@ function renderDeck() {
       roleBadge.textContent = h.roleIcon;
     }
     card.appendChild(roleBadge);
-    if (h.role === 'weaver') {
+    // 2026-04-29 polish v0.1 Track C.3: weaver-period badge (`4/12` etc.)
+    // hidden per Roman. Read as cryptic on mages/captains during battle —
+    // the actual auto-fire happens visibly via the periodic flash + cell
+    // proc, so the numeric countdown was redundant cognitive load.
+    // Logic preserved (placementCount % period drives the auto-fire);
+    // only the on-card readout is suppressed.
+    if (false && h.role === 'weaver') {
       const badge = document.createElement('div');
       badge.className = 'hero-badge';
       const period = getEffectivePeriod(h);
@@ -38906,14 +38938,16 @@ let _audioPrevShieldCount = 0;
 function renderHP() {
   const el = document.getElementById('hp');
   el.innerHTML = '';
-  // 2026-04-27 — replace CSS-gradient pseudo-icons with image icons from
-  // /assets/other game emblems. .lost class still dims spent slots.
-  for (let i = 0; i < currentMaxHP; i++) {
-    const h = document.createElement('span');
-    h.className = 'hp-pip';
-    if (i >= hp) h.classList.add('lost');
-    el.appendChild(h);
-  }
+  // 2026-04-29 polish v0.1 Track C.4 (option a per Roman): replaced the 18
+  // individual heart-pip row with a single digital "❤ N" readout. Easier
+  // to read at a glance from across a phone screen, and reclaims the
+  // horizontal space that 18 pips ate. Shields keep their per-pip visuals
+  // since shield-count is a tactical resource the player counts directly.
+  const num = document.createElement('span');
+  num.className = 'hp-digital';
+  if (hp <= Math.ceil(currentMaxHP * 0.25)) num.classList.add('low');
+  num.textContent = '❤ ' + hp;
+  el.appendChild(num);
   for (let i = 0; i < shieldCount; i++) {
     const s = document.createElement('span');
     s.className = 'shield';
