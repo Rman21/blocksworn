@@ -27643,8 +27643,12 @@ function tickChapter3Boss() {
   // Wither N random cells per turn (N = phase). Withered cells are
   // permanent void_grove that cannot be cleared. Boss heals 5% HP per
   // wither standing 3+ turns (capped at +15% per tick).
+  // 2026-04-29 — Block 6.5 DEBT-4 — Phase 3 acceleration. Spec §2.5:
+  // at 33-0% HP, "cells wither faster (1 turn instead of 3)" — withers
+  // start healing immediately on turn 1 instead of needing 3-turn aging.
   if (_ch3BossId === 'root') {
     const witherCount = phase;
+    const witherAgeThreshold = (phase >= 3) ? 1 : 3;
     const empties = [];
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
       if (grid[r][c] === null) empties.push([r, c]);
@@ -27655,11 +27659,11 @@ function tickChapter3Boss() {
       grid[r][c] = 'void_grove';
       _ch3State.witherCells.push({ r, c, age: 0 });
     }
-    // Age existing withers; heal boss for any 3+ turn standing wither.
+    // Age existing withers; heal boss for any wither past the phase-aware threshold.
     let healCount = 0;
     _ch3State.witherCells.forEach(w => {
       w.age++;
-      if (w.age >= 3 && grid[w.r] && grid[w.r][w.c] === 'void_grove') healCount++;
+      if (w.age >= witherAgeThreshold && grid[w.r] && grid[w.r][w.c] === 'void_grove') healCount++;
     });
     if (healCount > 0) {
       const healAmt = Math.floor(bossMaxHP * 0.05 * Math.min(3, healCount));
@@ -34313,6 +34317,29 @@ async function ultRoleDispatch() {
       }
       onUmbraUltFired(hero);
     }
+    // 2026-04-29 — Block 6.5 DEBT-4 — Root-of-Nothing wither ULT-reset.
+    // Spec §2.5: "Player must STRATEGICALLY clear neighbors to break wither
+    // stack OR use ULTs to reset". Each ULT cast clears ALL standing withers
+    // (placement-driven row/col clears already handle the neighbor escape).
+    // Runs once per ULT — placed AFTER the Encore re-run block so it doesn't
+    // double-fire when Encore re-casts the ULT.
+    try {
+      if (typeof _ch3BossId !== 'undefined' && _ch3BossId === 'root'
+          && _ch3State && Array.isArray(_ch3State.witherCells) && _ch3State.witherCells.length > 0) {
+        let cleared = 0;
+        for (const w of _ch3State.witherCells) {
+          if (grid[w.r] && grid[w.r][w.c] === 'void_grove') {
+            grid[w.r][w.c] = null;
+            cleared++;
+          }
+        }
+        if (cleared > 0) {
+          _ch3State.witherCells = [];
+          try { flashText('🌱 ULT RESET · WITHER ×' + cleared, '#A8D89C'); } catch (e) {}
+          try { render(); } catch (e) {}
+        }
+      }
+    } catch (e) {}
   } finally {
     // Stage 5 Block 5.1: restore firing-hero pointer to previous state (supports nested fires if any)
     _currentFiringHero = _prevFiringHero;
