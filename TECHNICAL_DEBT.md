@@ -531,11 +531,13 @@ card-flip animation (per design intent) deferred to Block B4 polish.
 > DEBT-003..010 выше. Все open. Введены при шиппинге Chapter 3 (VEIL OF
 > FORGOTTEN GODS) 27 апр.
 
-### Block 6.5 DEBT-3 · Stormshepherd storm cells
-**What:** Storm cells персистятся как `{r, c, turnsLeft = 2}`. Текущая
-реализация tracking-only — нет визуального индикатора оставшихся ходов на
-cell-е.
-**Code ref:** L25806.
+### ~~Block 6.5 DEBT-3~~ · Stormshepherd storm cells — RESOLVED 2026-04-29
+**What:** Storm cells персистятся как `{r, c, turnsLeft = 2}` — tracking
+existed, но визуальный индикатор отсутствовал.
+**Resolution:** `renderGrid()` теперь читает `_ch3State.stormCells` при ch3 +
+storm-боссе и крепит `.storm-turns` chip в правый верхний угол каждой void-
+клетки с числом оставшихся ходов. `turnsLeft <= 1` → `.urgent` модификатор
+(красный pulsing chip — игрок видит "осталось 1 ход до интенсификации").
 
 ### Block 6.5 DEBT-4 · Root-of-Nothing wither neighbor-clear escape
 **What:** Wither effect от Root-of-Nothing должен иметь "neighbor-clear escape"
