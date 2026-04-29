@@ -7149,6 +7149,108 @@ body.cosmetic-forgotten-names .v-hero-card::after {
 }
 .edu-modal-secondary:active { transform: scale(0.98); color: #C8C5D4; }
 
+/* 2026-04-29 — Player Education Stage 15 — Race-Pure Challenges UI.
+ * Reuses .edu-modal* infrastructure for the modal frame. Tiles show
+ * status (locked/available/cleared) per challenge with a tap-to-launch
+ * affordance on available rows. */
+.a-race-pure-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 24px);
+  margin: 8px 12px 4px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(255,213,61,0.18), rgba(192,106,223,0.18));
+  border: 1px solid rgba(255,213,61,0.55);
+  border-radius: 10px;
+  color: var(--a-gold-300, #FFD53D);
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(255,213,61,0.30);
+  transition: transform 0.15s ease-out, box-shadow 0.2s ease-out;
+}
+.a-race-pure-entry:active { transform: scale(0.98); }
+.a-race-pure-entry:hover  { box-shadow: 0 0 18px rgba(255,213,61,0.50); }
+.a-race-pure-entry-icon {
+  font-size: 14px;
+  text-shadow: 0 0 6px rgba(255,213,61,0.8);
+}
+.a-race-pure-entry-text { flex: 1; text-align: center; }
+.a-race-pure-entry-count {
+  padding: 2px 8px;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,213,61,0.4);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 1px;
+}
+/* Modal-specific row treatment */
+.race-pure-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 10px 12px;
+  margin: 6px 0;
+  background: linear-gradient(180deg, rgba(255,213,61,0.06), rgba(0,0,0,0.30));
+  border: 1px solid rgba(255,213,61,0.25);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.race-pure-row.cleared {
+  border-color: rgba(122,236,74,0.55);
+  background: linear-gradient(180deg, rgba(122,236,74,0.10), rgba(0,0,0,0.30));
+}
+.race-pure-row.locked {
+  border-color: rgba(110,107,123,0.40);
+  background: linear-gradient(180deg, rgba(60,55,75,0.18), rgba(0,0,0,0.30));
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+.race-pure-row.available:active { transform: scale(0.98); }
+.race-pure-row .rp-icon {
+  flex-shrink: 0;
+  width: 32px;
+  font-size: 22px;
+  text-align: center;
+}
+.race-pure-row .rp-meta { flex: 1; min-width: 0; }
+.race-pure-row .rp-title {
+  display: block;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.race-pure-row.cleared .rp-title { color: #7AEC4A; }
+.race-pure-row.locked  .rp-title { color: #9A98A4; }
+.race-pure-row .rp-sub {
+  display: block;
+  font-size: 10.5px;
+  color: #C8C5D4;
+  letter-spacing: 0.5px;
+}
+.race-pure-row .rp-status {
+  flex-shrink: 0;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+.race-pure-row.cleared   .rp-status { background: rgba(122,236,74,0.30); color: #7AEC4A; border: 1px solid rgba(122,236,74,0.6); }
+.race-pure-row.available .rp-status { background: rgba(255,213,61,0.30); color: var(--a-gold-300, #FFD53D); border: 1px solid rgba(255,213,61,0.6); }
+.race-pure-row.locked    .rp-status { background: rgba(60,55,75,0.45); color: #9A98A4; border: 1px solid rgba(110,107,123,0.5); }
+
 /* 2026-04-27 — Audio A.3 settings UI (per BLOCKSWORN_AUDIO_SOUND.md §11.1). */
 .info-audio-section {
   margin-bottom: 16px;
@@ -12875,6 +12977,17 @@ button.season-tier-claim:active {
       </div>
       <div class="v-squad-strip-slots a-hub-squad-slots" id="vSquadSlots"></div>
     </div>
+
+    <!-- 2026-04-29 — Player Education Stage 15 — Race-Pure entry banner.
+         Hidden until Chapter 1 completes; renders progress (cleared/5).
+         Click → opens the Race-Pure Challenges modal. -->
+    <button type="button" class="a-race-pure-entry" id="aRacePureEntry"
+            style="display:none" onclick="openRacePureModal()"
+            aria-label="Race-Pure Challenges">
+      <span class="a-race-pure-entry-icon">★</span>
+      <span class="a-race-pure-entry-text">RACE-PURE CHALLENGES</span>
+      <span class="a-race-pure-entry-count" id="aRacePureEntryCount">0/5</span>
+    </button>
 
     <div class="v-synergy-row a-synergy-row" id="vSynergyRow"></div>
 
@@ -20448,6 +20561,8 @@ const TOWER_ACHIEVEMENTS = [
   { id: 'crown_breaker',   name: 'CROWN BREAKER',     title: 'Crown Breaker',     desc: 'Defeat UROBOROS at Seasonal F50',                  rarity: 'mythic' },
   // 2026-04-27 — Chapter 3 (VEIL OF FORGOTTEN GODS) finale title (spec §2.7).
   { id: 'voice_forgotten', name: 'VOICE OF THE FORGOTTEN', title: 'Voice of the Forgotten', desc: 'Defeat ARCHIVAL ETERNAL — clear Chapter 3', rarity: 'mythic' },
+  // 2026-04-29 — Player Education Stage 15 (BLOCKSWORN_PLAYER_EDUCATION.md §18).
+  { id: 'race_master',     name: 'RACE MASTER',       title: 'Race Master',       desc: 'Clear all 5 Race-Pure Challenges (Ch1 bosses)',    rarity: 'mythic' },
 ];
 function unlockTowerAchievement(id) {
   if (!Array.isArray(towerState.unlockedAchievements)) towerState.unlockedAchievements = [];
@@ -20510,8 +20625,180 @@ function markPactSeen(pactId) {
   }
 }
 
-// 2026-04-27 — Block T.8 — Tower boss roster (spec §6). 10 unique tower
-// bosses + 1 mythic (Uroboros). Each maps to one of the existing engine
+// ──────────────────────────────────────────────────────────────────────────
+// 2026-04-29 — Player Education Stage 15 — Race-Pure Challenges
+// (BLOCKSWORN_PLAYER_EDUCATION.md §18).
+//
+// Five special battles, each pairing one race with the same-element Ch1 boss.
+// Constraints: squad must be all-same-race (5 heroes); boss HP ×1.20.
+// Rewards: 2× gold + 2× essence + completion flag. Race Master achievement
+// fires when all 5 are cleared.
+//
+// Trigger: Chapter 1 complete. (3-star alternative trigger from spec dropped —
+// no 3-star system shipped; building one would be XL out-of-scope.)
+// ──────────────────────────────────────────────────────────────────────────
+const RACE_PURE_HP_MULT     = 1.20;
+const RACE_PURE_REWARD_MULT = 2.0;
+const RACE_PURE_CHALLENGES = [
+  { race: 'pirate',    bossIdx: 0, label: 'PIRATES',    bossName: 'PYREDRAKE',       element: 'ember' },
+  { race: 'shark',     bossIdx: 1, label: 'SHARKS',     bossName: 'ABYSSAL TYRANT',  element: 'tide'  },
+  { race: 'crocodile', bossIdx: 2, label: 'CROCODILES', bossName: 'GROVEWARDEN',     element: 'grove' },
+  { race: 'spark',     bossIdx: 3, label: 'SPARK',      bossName: 'SOLAR PHOENIX',   element: 'solar' },
+  { race: 'rock',      bossIdx: 4, label: 'ROCKS',      bossName: 'CRYPT LICH',      element: 'umbra' },
+];
+const RACE_PURE_CLEARED_KEY = 'blocksworn_race_pure_cleared';
+let racePureCleared = new Set();
+let _currentRacePureRace = null;
+function loadRacePureCleared() {
+  try {
+    const raw = localStorage.getItem(RACE_PURE_CLEARED_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) racePureCleared = new Set(arr);
+    }
+  } catch (e) { console.warn('loadRacePureCleared:', e); }
+}
+function saveRacePureCleared() {
+  try { localStorage.setItem(RACE_PURE_CLEARED_KEY, JSON.stringify(Array.from(racePureCleared))); }
+  catch (e) { console.warn('saveRacePureCleared:', e); }
+}
+function isRacePureCleared(raceId) { return racePureCleared.has(raceId); }
+function isRacePureUnlocked() {
+  try { return typeof hasCompletedChapter1 === 'function' && hasCompletedChapter1(); }
+  catch (e) { return false; }
+}
+// Race-pure availability per challenge: requires all 5 heroes of that race
+// to be unlocked + revealed. Returns 'cleared' / 'available' / 'locked'.
+function getRacePureStatus(raceId) {
+  if (isRacePureCleared(raceId)) return 'cleared';
+  try {
+    const raceHeroes = HERO_ROSTER.filter(h => h && h.race === raceId);
+    if (raceHeroes.length < 5) return 'locked';
+    const allReady = raceHeroes.every(h => h.unlocked === false || revealedHeroes.has(h.id));
+    return allReady ? 'available' : 'locked';
+  } catch (e) { return 'locked'; }
+}
+function getRacePureSquad(raceId) {
+  return HERO_ROSTER.filter(h => h && h.race === raceId).slice(0, 5).map(h => h.id);
+}
+// Mark a race-pure challenge cleared. Idempotent. Fires Race Master
+// achievement on the 5th unique clear.
+function markRacePureCleared(raceId) {
+  if (!raceId) return false;
+  if (racePureCleared.has(raceId)) return false;
+  racePureCleared.add(raceId);
+  saveRacePureCleared();
+  if (racePureCleared.size >= RACE_PURE_CHALLENGES.length) {
+    try { unlockTowerAchievement('race_master'); } catch (e) {}
+  }
+  return true;
+}
+// Battle launch entrypoint: forces squad to the race's 5 heroes, sets boss,
+// flags the run as race-pure, and routes through the standard battle flow.
+function startRacePureChallenge(raceId) {
+  const cfg = RACE_PURE_CHALLENGES.find(c => c.race === raceId);
+  if (!cfg) return false;
+  if (getRacePureStatus(raceId) !== 'available') {
+    try { flashText('CHALLENGE NOT AVAILABLE', '#E85D4A'); } catch (e) {}
+    return false;
+  }
+  // Force squad to the 5 heroes of this race. Players can reset their
+  // pre-challenge squad via the squad selector after.
+  try {
+    const squad = getRacePureSquad(raceId);
+    if (squad.length < 5) { flashText('RACE INCOMPLETE', '#E85D4A'); return false; }
+    activeSquad.length = 0;
+    squad.forEach(id => activeSquad.push(id));
+    try { saveActiveSquadToStorage(); } catch (e) {}
+  } catch (e) { console.warn('race-pure squad force failed:', e); return false; }
+  _currentRacePureRace = raceId;
+  selectedBossIdx       = cfg.bossIdx;
+  currentChapter        = 1;
+  // Banner cascade: telegraphed challenge ID + tagline before battle starts.
+  try {
+    flashText('★ RACE-PURE CHALLENGE', '#FFD53D');
+    setTimeout(() => { try { flashText(cfg.label + ' vs ' + cfg.bossName, '#FFD53D'); } catch (e) {} }, 900);
+    setTimeout(() => { try { flashText('+20% HP · ×2 REWARDS', '#FFAA00'); } catch (e) {} }, 1800);
+  } catch (e) {}
+  // Defer battle start so banners read before the screen flips.
+  setTimeout(() => {
+    try { startBattleFromMenu(); } catch (e) { console.warn('race-pure startBattle failed:', e); _currentRacePureRace = null; }
+  }, 2400);
+  return true;
+}
+
+// Element emoji helper for modal tile icons (matches the roster-card glyphs).
+const _RACE_PURE_ELEMENT_ICON = { ember: '🔥', tide: '💧', grove: '🌿', solar: '☀', umbra: '🌙' };
+
+// Refresh the screenSelect entry button: visibility + progress count. Called
+// from vRenderRoster + on Ch1 completion + after each race-pure clear.
+function updateRacePureEntry() {
+  try {
+    const btn = document.getElementById('aRacePureEntry');
+    if (!btn) return;
+    if (!isRacePureUnlocked()) { btn.style.display = 'none'; return; }
+    btn.style.display = 'flex';
+    const cnt = document.getElementById('aRacePureEntryCount');
+    if (cnt) cnt.textContent = racePureCleared.size + '/' + RACE_PURE_CHALLENGES.length;
+  } catch (e) {}
+}
+
+// Open the Race-Pure Challenges modal. Reuses the .edu-modal frame; the
+// modal element is reused if already in the DOM (per Battle Pass / Tower
+// education pattern).
+function openRacePureModal() {
+  let modal = document.getElementById('racePureModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'racePureModal';
+    modal.className = 'edu-modal';
+    document.body.appendChild(modal);
+  }
+  renderRacePureModal(modal);
+  modal.classList.add('active');
+}
+function closeRacePureModal() {
+  const modal = document.getElementById('racePureModal');
+  if (modal) modal.classList.remove('active');
+}
+function renderRacePureModal(modal) {
+  const cleared = racePureCleared.size;
+  const total   = RACE_PURE_CHALLENGES.length;
+  const rows = RACE_PURE_CHALLENGES.map(cfg => {
+    const status = getRacePureStatus(cfg.race);
+    const icon   = _RACE_PURE_ELEMENT_ICON[cfg.element] || '★';
+    const statusLabel = status === 'cleared' ? '✓ CLEAR'
+                      : status === 'available' ? 'START'
+                      : 'LOCKED';
+    const sub = status === 'locked'
+      ? 'Unlock all 5 ' + cfg.label.toLowerCase() + ' heroes first.'
+      : 'vs ' + cfg.bossName + ' · +20% HP · ×2 LOOT';
+    const onclick = status === 'available'
+      ? `closeRacePureModal(); startRacePureChallenge('${cfg.race}');`
+      : '';
+    return `
+      <div class="race-pure-row ${status}" ${onclick ? `onclick="${onclick}"` : ''}>
+        <div class="rp-icon">${icon}</div>
+        <div class="rp-meta">
+          <span class="rp-title">${cfg.label}</span>
+          <span class="rp-sub">${sub}</span>
+        </div>
+        <div class="rp-status">${statusLabel}</div>
+      </div>`;
+  }).join('');
+  modal.innerHTML = `
+    <div class="edu-modal-box">
+      <div class="edu-modal-title">★ RACE-PURE CHALLENGES</div>
+      <div class="edu-modal-sub">Cleared ${cleared} / ${total} · Race Master rewards full clear</div>
+      ${rows}
+      <div class="edu-modal-footer">
+        Each challenge forces your squad to one race vs the matching Ch1 boss.
+        Boss is hardier (+20% HP) but loot is doubled. Cosmetic title unlocks at 5/5.
+      </div>
+      <button type="button" class="edu-modal-secondary" onclick="closeRacePureModal()">CLOSE</button>
+    </div>`;
+}
+
 // archetypes for v1 (custom mechanics RAGE LOCK / DEVOUR / SOLAR DECREE /
 // MIRROR MATCH / etc. per spec §6.1-6.11 deferred to a follow-up block —
 // existing archetype profile drives behaviour for v1).
@@ -21138,6 +21425,8 @@ function loadTowerState() {
   } catch (e) { console.warn('loadTowerState:', e); }
 }
 loadTowerState();
+// 2026-04-29 — Race-Pure Challenge cleared set (Player Education Stage 15).
+loadRacePureCleared();
 // Apply cosmetic frames on initial load (re-applied on title change too).
 try {
   if (document.readyState === 'loading') {
@@ -29949,6 +30238,12 @@ function startBossBattle() {
   // persists across battles unless explicitly removed).
   try { if (typeof clearVoidfangTints === 'function') clearVoidfangTints(); } catch (e) {}
   bossMaxHP = currentBoss.hp;
+  // 2026-04-29 — Race-Pure Challenge HP boost (Player Education Stage 15).
+  // Only applies to story Ch1 bosses (FTUE / Tower / Grunt skip via the same
+  // _isFtueOnly + _isTowerBattle gates that protect other branches above).
+  if (_currentRacePureRace && !(currentBoss && (currentBoss._isFtueOnly || currentBoss._isTowerBattle))) {
+    bossMaxHP = Math.ceil(bossMaxHP * RACE_PURE_HP_MULT);
+  }
   // Block B3: per-battle voice flag reset + intro line (1.5s after battle start so
   // squad-pop animation completes). FTUE-only Pyredrake skips voice lines (it has
   // its own intro dialog flow); real boss kills get the voice. Tower battles also
@@ -32010,6 +32305,31 @@ async function onBossDefeated() {
   };
   // V3.0 Block 0.3: gold reward on win (flat +100 per victory; no modifier multiplier yet)
   awardWinGold();
+  // 2026-04-29 — Race-Pure Challenge bonus rewards (Player Education Stage 15).
+  // Spec §18.2 promises 2× normal — implement as a SECOND identical reward
+  // pass on top of the standard awards above (gold + matching essence). Mark
+  // the race cleared, fire celebration cascade, and clear the run flag.
+  if (_currentRacePureRace) {
+    const _race = _currentRacePureRace;
+    _currentRacePureRace = null;
+    try { addGold(GOLD_PER_WIN); } catch (e) {}
+    try {
+      const bonus = Math.ceil(BOSS_REWARD * (typeof getRewardMultiplier === 'function' ? getRewardMultiplier() : 1));
+      essences[rewardStihiya] = (essences[rewardStihiya] || 0) + bonus;
+    } catch (e) {}
+    try { markRacePureCleared(_race); } catch (e) {}
+    try {
+      setTimeout(() => { try { flashText('★ RACE-PURE VICTORY', '#FFD53D'); } catch (e) {} }, 1100);
+      const cfg = RACE_PURE_CHALLENGES.find(c => c.race === _race);
+      const lbl = cfg ? cfg.label : _race.toUpperCase();
+      setTimeout(() => { try { flashText(lbl + ' CLEAR · ×2 LOOT', '#FFAA00'); } catch (e) {} }, 2200);
+      const remaining = RACE_PURE_CHALLENGES.length - racePureCleared.size;
+      if (remaining > 0) {
+        setTimeout(() => { try { flashText(remaining + ' CHALLENGE' + (remaining===1?'':'S') + ' LEFT', '#FFAA00'); } catch (e) {} }, 3300);
+      }
+      vibrate([180, 80, 180, 80, 280]);
+    } catch (e) {}
+  }
   // V3.0 Phase 1 Block 1.1: FTUE Pyredrake reward — guaranteed ORC RING T1 drop.
   // Runs AFTER awardWinGold + essence/artifact logic above so the normal rewards
   // still apply and this just piles on a guaranteed extra artifact. No Thara
@@ -32291,6 +32611,9 @@ function showVictoryModal() {
 
 function showDefeatModal() {
   gameEnded = true;
+  // 2026-04-29 — Race-Pure: clear run flag on defeat so the next attempt
+  // starts clean (player may retry from the modal).
+  try { _currentRacePureRace = null; } catch (e) {}
   // 2026-04-27 — Audio A.2.7: defeat tone (per spec §4.1).
   // SFX descend first (~1.2s), then defeat.mp3 fades in for reflective music.
   try { if (typeof playDefeat === 'function') playDefeat(); } catch(e){}
@@ -39233,6 +39556,9 @@ function returnToMenuFromBattle() {
     if (!confirm('Return to menu? Current battle progress will be lost.')) return;
   }
   gameEnded = true;
+  // 2026-04-29 — Race-Pure run flag must clear on retreat so the next battle
+  // doesn't inherit the +20% HP / ×2 loot envelope from an abandoned challenge.
+  try { _currentRacePureRace = null; } catch (e) {}
   document.getElementById('modal').classList.remove('active');
   goToMenu();
 }
@@ -40147,6 +40473,8 @@ function vRenderRoster() {
     if (ownedEl) ownedEl.textContent = String(HERO_ROSTER.filter(h => !h.unlocked || revealedHeroes.has(h.id)).length);
     if (totalEl) totalEl.textContent = String(HERO_ROSTER.length);
   } catch(_){}
+  // 2026-04-29 — Refresh Race-Pure entry button visibility + count.
+  try { updateRacePureEntry(); } catch(_){}
   // 1) apply mode+value filter
   let pool = HERO_ROSTER.filter(h => {
     if (vFilter.mode === 'fav')   return favorites.has(h.id);
