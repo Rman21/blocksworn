@@ -4208,15 +4208,19 @@ body.shop-locked [onclick*="goToShop"] {
   min-height: 60px;
 }
 .pack-card {
-  width: 88px;
-  padding: 8px;
-  background: rgba(0,0,0,0.55);
+  width: 96px;
+  padding: 10px 6px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.75));
   border: 2px solid var(--a-gold-500);
-  border-radius: 8px;
+  border-radius: 10px;
   text-align: center;
   opacity: 0;
   transform: rotateY(180deg) scale(0.6);
   animation: packCardFlip 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  /* 2026-04-29 — overflow:hidden contains meta + portrait rendering inside the
+     card boundary; prior version let text leak right of the card on Safari. */
+  overflow: hidden;
+  box-sizing: border-box;
 }
 @keyframes packCardFlip {
   0%   { opacity: 0; transform: rotateY(180deg) scale(0.6); }
@@ -4224,24 +4228,43 @@ body.shop-locked [onclick*="goToShop"] {
   100% { opacity: 1; transform: rotateY(0deg) scale(1); }
 }
 .pack-card-portrait {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  margin: 0 auto 4px;
+  margin: 0 auto 6px;
   overflow: hidden;
-  background: rgba(0,0,0,0.4);
+  background: radial-gradient(circle, rgba(255,213,61,0.10), rgba(0,0,0,0.4));
+  border: 1.5px solid currentColor;
+  box-shadow: 0 0 8px currentColor;
 }
-.pack-card-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.pack-card-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Hide broken portraits cleanly so the fallback gradient + element border
+   carry the visual identity instead of a broken-image icon. */
+.pack-card-portrait img:not([src]),
+.pack-card-portrait img[src=""] { display: none; }
 .pack-card-name {
   font-family: var(--a-font-display);
   font-size: 10px;
   color: var(--a-gold-300);
   letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pack-card-meta {
   font-size: 9px;
   color: #9A98A4;
-  margin-top: 2px;
+  margin-top: 3px;
+  letter-spacing: 0.5px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pack-reveal-claim {
   margin-top: 16px;
