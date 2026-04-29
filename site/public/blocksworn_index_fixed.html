@@ -13101,14 +13101,17 @@ button.season-tier-claim:active {
       <div class="v-squad-strip-slots a-hub-squad-slots" id="vSquadSlots"></div>
     </div>
 
-    <!-- 2026-04-29 — Player Education Stage 15 — Race-Pure entry banner.
+    <!-- 2026-04-29 — Player Education Stage 15 — All-One-Race entry banner.
          Hidden until Chapter 1 completes; renders progress (cleared/5).
-         Click → opens the Race-Pure Challenges modal. -->
+         Click → opens the All-One-Race Bonuses modal.
+         2026-04-29 polish v0.1 Track A.1: renamed "RACE-PURE CHALLENGES"
+         (cringe in EN per mass-market plan) → "ALL-ONE-RACE BONUSES".
+         CSS class names (.a-race-pure-*) kept as architectural hooks. -->
     <button type="button" class="a-race-pure-entry" id="aRacePureEntry"
             style="display:none" onclick="openRacePureModal()"
-            aria-label="Race-Pure Challenges">
+            aria-label="All-One-Race Bonuses">
       <span class="a-race-pure-entry-icon">★</span>
-      <span class="a-race-pure-entry-text">RACE-PURE CHALLENGES</span>
+      <span class="a-race-pure-entry-text">ALL-ONE-RACE BONUSES</span>
       <span class="a-race-pure-entry-count" id="aRacePureEntryCount">0/5</span>
     </button>
 
@@ -19052,7 +19055,7 @@ const DAILY_MISSION_POOL = [
   { id: 'level_up_any',       description: 'Level up any hero once',                   eventType: 'hero_leveled',       target: 1,  reward: { gold: 300 } },
   { id: 'blocks_placed_50',   description: 'Place 50 blocks in battles',               eventType: 'block_placed',       target: 50, reward: { gold: 300 } },
   { id: 'combo_8',            description: 'Reach a combo of 8× in one battle',        eventType: 'combo_achieved',     target: 1,  targetMatch: { minCombo: 8 }, reward: { gems: 25 } },
-  { id: 'squad_2_same_stihiya', description: 'Win with 2+ same-stihiya heroes',        eventType: 'battle_won_squad',   target: 1,  targetMatch: { sameStihiyaCount: 2 }, reward: { gold: 500 } },
+  { id: 'squad_2_same_stihiya', description: 'Win with 2+ same-element heroes',        eventType: 'battle_won_squad',   target: 1,  targetMatch: { sameStihiyaCount: 2 }, reward: { gold: 500 } },
   { id: 'fragments_any_10',   description: 'Earn 10 hero fragments',                   eventType: 'fragments_gained',   target: 10, reward: { gold: 400 } },
 ];
 
@@ -19856,7 +19859,7 @@ const WEEKLY_MISSION_POOL = [
   { id: 'weekly_fragments_100',    description: 'Earn 100 hero fragments',                         eventType: 'fragments_gained',   target: 100, reward: { gold: 3000, gems: 100 } },
   { id: 'weekly_perfect_3',        description: 'Clear 3 battles without taking damage',           eventType: 'battle_won_perfect', target: 3,   reward: { gems: 200, t2ArtifactRandom: true } },
   { id: 'weekly_chapter_advance',  description: 'Clear 10 floors of any type',                     eventType: 'floor_cleared',      target: 10,  reward: { gold: 3500, gems: 75 } },
-  { id: 'weekly_essences_all',     description: 'Earn 300 total essences (any stihiya)',           eventType: 'essence_gained',     target: 300, reward: { gold: 2000, gems: 150 } },
+  { id: 'weekly_essences_all',     description: 'Earn 300 total essences (any element)',          eventType: 'essence_gained',     target: 300, reward: { gold: 2000, gems: 150 } },
 ];
 
 // ISO-week Monday. getDay(): 0 = Sunday, 1 = Monday, …, 6 = Saturday.
@@ -20784,7 +20787,7 @@ const TOWER_ACHIEVEMENTS = [
   // 2026-04-27 — Chapter 3 (VEIL OF FORGOTTEN GODS) finale title (spec §2.7).
   { id: 'voice_forgotten', name: 'VOICE OF THE FORGOTTEN', title: 'Voice of the Forgotten', desc: 'Defeat ARCHIVAL ETERNAL — clear Chapter 3', rarity: 'mythic' },
   // 2026-04-29 — Player Education Stage 15 (BLOCKSWORN_PLAYER_EDUCATION.md §18).
-  { id: 'race_master',     name: 'RACE MASTER',       title: 'Race Master',       desc: 'Clear all 5 Race-Pure Challenges (Ch1 bosses)',    rarity: 'mythic' },
+  { id: 'race_master',     name: 'RACE MASTER',       title: 'Race Master',       desc: 'Clear all 5 All-One-Race Challenges (Ch1 bosses)', rarity: 'mythic' },
 ];
 function unlockTowerAchievement(id) {
   if (!Array.isArray(towerState.unlockedAchievements)) towerState.unlockedAchievements = [];
@@ -20938,7 +20941,7 @@ function startRacePureChallenge(raceId) {
   currentChapter        = 1;
   // Banner cascade: telegraphed challenge ID + tagline before battle starts.
   try {
-    flashText('★ RACE-PURE CHALLENGE', '#FFD53D');
+    flashText('★ ALL-ONE-RACE CHALLENGE', '#FFD53D');
     setTimeout(() => { try { flashText(cfg.label + ' vs ' + cfg.bossName, '#FFD53D'); } catch (e) {} }, 900);
     setTimeout(() => { try { flashText('+20% HP · ×2 REWARDS', '#FFAA00'); } catch (e) {} }, 1800);
   } catch (e) {}
@@ -21010,7 +21013,7 @@ function renderRacePureModal(modal) {
   }).join('');
   modal.innerHTML = `
     <div class="edu-modal-box">
-      <div class="edu-modal-title">★ RACE-PURE CHALLENGES</div>
+      <div class="edu-modal-title">★ ALL-ONE-RACE BONUSES</div>
       <div class="edu-modal-sub">Cleared ${cleared} / ${total} · Race Master rewards full clear</div>
       ${rows}
       <div class="edu-modal-footer">
@@ -25865,7 +25868,7 @@ function renderProfileTabStats() {
           card('GEMS',     (typeof gems !== 'undefined' ? gems : 0).toLocaleString()) +
         '</div>' +
         '<div class="profile-stat-row">' +
-          card('ESSENCE TOTAL', totalEssence.toLocaleString(), 'across 5 stihiyas') +
+          card('ESSENCE TOTAL', totalEssence.toLocaleString(), 'across 5 elements') +
           card('T2 / T3 STONES', ((towerState && towerState.tier2Stones) || 0) + ' / ' + ((towerState && towerState.tier3Stones) || 0)) +
         '</div>' +
       '</div>' +
@@ -27797,8 +27800,16 @@ function tickChapter3Boss() {
       _ch3State.stormCells.push({ r, c, turnsLeft: 2 });
     }
     if (picks.length > 0) {
-      const stormName = stormTypes[Math.floor(Math.random() * 3)];
-      try { flashText('⚡ ' + stormName + ' ×' + picks.length + ' · 2 turns to defuse', '#9CC8DE'); } catch (e) {}
+      const stormIdx = Math.floor(Math.random() * 3);
+      const stormName = stormTypes[stormIdx];
+      // 2026-04-29 polish v0.1 Track A.1: clearer banner copy. The
+      // previous "× N · 2 turns to defuse" read as raw shorthand; new
+      // wording tells the player what's about to happen + how to stop
+      // it. The per-cell turn-counter chip (DEBT-3) shows the same
+      // timer visually on each storm cell.
+      const _stopHint = ['clear the cells to stop it', 'clear the cells to stop it', 'clear the cells to stop it'][stormIdx];
+      const _label = picks.length > 1 ? stormName + ' ×' + picks.length : stormName;
+      try { flashText('⚠ ' + _label + ' in 2 turns — ' + _stopHint, '#9CC8DE'); } catch (e) {}
       try { render(); } catch (e) {}
     }
   }
@@ -33361,9 +33372,15 @@ function vShowAttackTelegraph(opts) {
     if (kind === 'aoe') {
       const arch = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.archetype)
         ? currentBoss.archetype : null;
-      label = (arch && ARCHETYPE_TELEGRAPH_LABEL[arch]) || '⚠ AOE INCOMING';
+      // 2026-04-29 polish v0.1 Track A.1: less jargon. "AOE" is a tabletop
+      // /MMO acronym — most mass-market mobile players don't know it.
+      // "AREA ATTACK" is direct and self-explanatory. Per-archetype labels
+      // (BERSERKER STRIKE / SOLAR LINE / etc.) are evocative enough on
+      // their own and stay as-is. "TARGETED" gets a turn-count suffix for
+      // parity with the AOE fallback.
+      label = (arch && ARCHETYPE_TELEGRAPH_LABEL[arch]) || '⚠ AREA ATTACK';
     } else {
-      label = '⚠ TARGETED';
+      label = '⚠ TARGETED ATTACK';
     }
     warn.innerHTML = `${label}<span class="attack-warning-countdown">${turnsUntil}</span>`;
     warn.classList.add('active');
@@ -40397,7 +40414,7 @@ function vDecorateDefeatModal() {
     const counter = stihiya ? (_V_COUNTER_STIHIYA[stihiya] || 'SYNERGY') : 'SYNERGY';
     tip.innerHTML = stihiya
       ? `💡 Try a squad with <b>3× ${counter}</b> to counter this <b>${stihiya.toUpperCase()}</b> boss.`
-      : `💡 Try a different element composition — 3× of one stihiya unlocks bonuses.`;
+      : `💡 Try a different element composition — 3× of one element unlocks bonuses.`;
     stats.parentNode.insertBefore(tip, stats.nextSibling);
   }
 }
