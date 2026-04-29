@@ -21687,14 +21687,17 @@ function onTowerFloorClear() {
 // gauntlet length). Awards completion bundle, streak bump, ends run.
 // 2026-04-27 — Block T.4 — Weekly Gauntlet completion (spec §2.2).
 // Reward bundle: 500 gold + 25 Sigils + 5 fragments (= 1 full Heart) + badge.
+// 2026-04-29 — HERO_COMPENDIUM §12 L965: "Tower Weekly Champion: 1 stone" (T2).
 function onTowerWeeklyComplete(clearedFloor) {
   const bonusGold = 500 + 10 * clearedFloor;
   try { addGold(bonusGold); } catch (e) {}
   towerState.sigilShards += 25;
   towerState.towerHeartFragments += TOWER_FRAGMENTS_PER_HEART;  // = 1 full heart
-  // 2026-04-27 — Block H.2 — weekly gauntlet hero card drop (§12: "1-3 cards").
+  // Block H.2 — weekly gauntlet hero card drop (§12: "1-3 cards").
   // Mid-tier reward: 2 cards flat for participation.
   try { dropRandomHeroCards(2); } catch (e) { console.warn('H.2 weekly card drop failed:', e); }
+  // 2026-04-29 — Spec §12: Weekly Champion → 1 T2 ascension stone.
+  towerState.tier2Stones = (towerState.tier2Stones || 0) + 1;
   while (towerState.towerHeartFragments >= TOWER_FRAGMENTS_PER_HEART) {
     towerState.towerHeartFragments -= TOWER_FRAGMENTS_PER_HEART;
     towerState.towerHearts += 1;
@@ -21712,7 +21715,7 @@ function onTowerWeeklyComplete(clearedFloor) {
   try {
     flashText('🏆 WEEKLY CHAMPION', '#FFD53D');
     setTimeout(() => flashText(
-      `+${bonusGold}💰 · +25◈ · +1♥ · BADGE`,
+      `+${bonusGold}💰 · +25◈ · +1♥ · +1 T2 STONE`,
       '#FFD53D'
     ), 1100);
     setTimeout(() => flashText(
