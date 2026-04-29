@@ -8182,6 +8182,42 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   50%     { box-shadow: inset 0 0 14px rgba(220,150,255,1), 0 0 18px rgba(155,89,214,0.95); filter: brightness(1.35); }
 }
 .cell.preview-valid { background: rgba(107,79,187,0.4); border: 1px solid #6B4FBB; }
+/* 2026-04-29 — Block 6.5 DEBT-3 — Stormshepherd storm-cell turn indicator.
+ * Tracking already exists in _ch3State.stormCells {r,c,turnsLeft}; this
+ * surfaces the timer to the player so they can prioritise defusing soon-to-
+ * intensify cells. turnsLeft=2 → neutral cyan chip; turnsLeft=1 → red pulse
+ * (one turn left to clear before the cell intensifies and chips HP). */
+.cell .storm-turns {
+  position: absolute;
+  top: 1px; right: 2px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #B6E5FF;
+  border: 1px solid #5AAEF0;
+  font-family: var(--a-font-num, monospace);
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 11px;
+  text-align: center;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.7);
+  z-index: 4;
+  box-shadow: 0 0 4px rgba(90,174,240,0.55);
+  pointer-events: none;
+}
+.cell .storm-turns.urgent {
+  color: #FFD0CC;
+  border-color: #FF5A4A;
+  background: rgba(50, 4, 0, 0.85);
+  box-shadow: 0 0 6px rgba(255,90,74,0.75);
+  animation: stormTurnsPulse 0.8s ease-in-out infinite;
+}
+@keyframes stormTurnsPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(255,90,74,0.55); transform: scale(1); }
+  50%      { box-shadow: 0 0 8px rgba(255,140,110,0.95); transform: scale(1.12); }
+}
 .cell.preview-invalid { background: rgba(232,93,74,0.2); border: 1px solid rgba(232,93,74,0.6); }
 .cell.clearing { animation: clearFlash 0.45s ease-out forwards; }
 .cell.burning { animation: burnFlash 0.55s ease-out forwards; }
@@ -38400,6 +38436,22 @@ function markFired(id) {
 function renderGrid() {
   const el = document.getElementById('grid');
   el.innerHTML = '';
+  // 2026-04-29 — Block 6.5 DEBT-3: build a quick lookup of storm-cell timers
+  // so the per-cell render loop below can attach a turnsLeft chip to each
+  // active storm void without iterating the array per cell. Stormshepherd-
+  // exclusive — the array is empty for every other boss/encounter.
+  const _stormTimers = (() => {
+    const m = Object.create(null);
+    try {
+      if (currentChapter === 3 && _ch3BossId === 'storm'
+          && Array.isArray(_ch3State && _ch3State.stormCells)) {
+        for (const s of _ch3State.stormCells) {
+          if (s && Number.isFinite(s.turnsLeft)) m[s.r + '_' + s.c] = s.turnsLeft;
+        }
+      }
+    } catch (e) {}
+    return m;
+  })();
   for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
     const d = document.createElement('div');
     d.className = 'cell';
@@ -38408,6 +38460,14 @@ function renderGrid() {
     if (v) {
       if (v.startsWith('void_')) {
         d.classList.add('filled', 'void-' + v.slice(5));
+        // Attach storm-turns chip if this void is a Stormshepherd storm cell.
+        if (Object.prototype.hasOwnProperty.call(_stormTimers, key)) {
+          const turns = _stormTimers[key];
+          const chip = document.createElement('div');
+          chip.className = 'storm-turns' + (turns <= 1 ? ' urgent' : '');
+          chip.textContent = String(turns);
+          d.appendChild(chip);
+        }
       } else {
         d.classList.add('filled', v);
         // V2.0 Block 1.1: ember charged marker (survives re-renders)
