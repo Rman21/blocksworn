@@ -1486,18 +1486,19 @@
 .a-roster-grid .v-hero-card.umbra::after { content: '🌙'; background: var(--a-umbra); }
 
 /* Rarity badge — Arena look */
+/* 2026-04-29 polish v0.1 Track A: dropped the 3-letter glyph (COM/RAR/etc.).
+ * Badge is now a colored dot/chip — rarity is conveyed by the background
+ * color alone (legendary still gets gold gradient + glow, mythic gets
+ * umbra×fire halo). Fixed size keeps it visible without text. */
 .a-roster-grid .v-hero-card .v-rarity-badge {
   position: absolute;
   top: 6px; right: 6px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: var(--a-font-display);
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.4);
   z-index: 5;
-  line-height: 1.2;
 }
 .a-roster-grid .v-hero-card .v-rarity-badge.common    { background: var(--a-rarity-common); color: #1a0f08; }
 .a-roster-grid .v-hero-card .v-rarity-badge.rare      { background: var(--a-rarity-rare); color: #08304a; }
@@ -13501,7 +13502,11 @@ button.season-tier-claim:active {
     </div>
     <div class="season-progress-card">
       <div class="season-progress-top">
-        <div class="season-tier-label">TIER <span id="seasonCurrentTier">0</span></div>
+        <!-- 2026-04-29 polish v0.1 Track A: Battle Pass header
+             "TIER 4" → "Level 4 of 50" — tier in the Tower context means
+             pact strength, in the Heroes context means ascension. Calling
+             the BP track "Level" disambiguates. -->
+        <div class="season-tier-label">Level <span id="seasonCurrentTier">0</span> of <span id="seasonTierTotal">50</span></div>
         <div class="season-premium-status" id="seasonPremiumStatus">FREE TRACK</div>
       </div>
       <div class="season-progress-bar">
@@ -22560,7 +22565,7 @@ function renderTowerScreen() {
     const totalCount = (typeof TOWER_ACHIEVEMENTS !== 'undefined') ? TOWER_ACHIEVEMENTS.length : 0;
     titleBanner = `<div class="tower-title-banner" onclick="openAchievementsModal()">
       ${t ? `<div class="ttitle-name">「 ${t} 」</div>` : '<div class="ttitle-name ttitle-empty">No title selected</div>'}
-      <div class="ttitle-meta">★ ${unlockedCount}/${totalCount} achievements ▸</div>
+      <div class="ttitle-meta">★ ${unlockedCount} of ${totalCount} achievements ▸</div>
     </div>`;
   } catch (e) {}
   // 2026-04-27 — Block T.6 — Active buff indicator. Sits above the theme
@@ -26231,14 +26236,19 @@ function renderSeasonScreen() {
   const premStatus = document.getElementById('seasonPremiumStatus');
   if (xpDisp) xpDisp.textContent = String(seasonState.xp);
   if (tierDisp) tierDisp.textContent = String(curTier);
+  // 2026-04-29 polish v0.1 Track A: pair with the new "Level N of M" header.
+  const tierTotalEl = document.getElementById('seasonTierTotal');
+  if (tierTotalEl) tierTotalEl.textContent = String(SEASON_TIER_COUNT);
   if (progFill) progFill.style.width = Math.round(prog * 100) + '%';
   if (progText) {
     if (curTier >= SEASON_TIER_COUNT) {
-      progText.textContent = 'MAX TIER REACHED';
+      progText.textContent = 'MAX LEVEL REACHED';
     } else {
       const fromTotal = getTotalXPForTier(curTier);
       const toTotal   = getTotalXPForTier(curTier + 1);
-      progText.textContent = `${seasonState.xp - fromTotal} / ${toTotal - fromTotal} XP to T${curTier + 1}`;
+      // 2026-04-29 polish v0.1 Track A: friendlier wording — "T5" jargon
+      // → "Level 5".
+      progText.textContent = `${seasonState.xp - fromTotal} / ${toTotal - fromTotal} XP to Level ${curTier + 1}`;
     }
   }
   if (seasonIdEl) seasonIdEl.textContent = String(seasonState.seasonId || 1);
@@ -29531,11 +29541,14 @@ function calcSynergyState(heroes) {
       if (eff.rhythmSection)    state.rhythmSectionActive = true;
       if (eff.encore)           state.encoreActive = true;
       if (eff.amplifier)        state.amplifierActive = true;
-      state.active.push(`${count}× ${label}: ${eff.desc}`);
+      // 2026-04-29 polish v0.1 Track A: synergy chip format from
+      // "5× SHARK: +1HP" → "5 sharks → +1 HP" — reads as natural
+      // English, not jargon. All 5 race names pluralise with +s.
+      state.active.push(`${count} ${label.toLowerCase()}s → ${eff.desc}`);
     } else if (tier > 0) {
       // Unknown race (shouldn't happen given data), fallback to minimal HP bonus
       state.maxHP += 1;
-      state.active.push(`${count}× ${label}: +1 HP`);
+      state.active.push(`${count} ${label.toLowerCase()}s → +1 HP`);
     }
     // Base race-affinity spawn boost (Math.max so race-config's +spawnWeight isn't overwritten)
     const s = RACE_TO_STIHIYA[race];
@@ -29654,20 +29667,22 @@ function calcSynergyState(heroes) {
     state.active.push('🌟 ' + _bestCombo.name + ' +' + _pctSig + '%');
   }
   // Stihiya synergies — V18.8: passiveDmgMult is NOW ADDITIVE so it stacks with race synergies
+  // 2026-04-29 polish v0.1 Track A: chip format "5× UMBRA: −6 ULT" →
+  // "5 umbra heroes → −6 ULT" — element name reads as a noun, not a tag.
   for (const [stihiya, count] of Object.entries(state.stihiyaCount)) {
     const label = stihiya.toUpperCase();
     if (count >= 5) {
       state.ultThreshold[stihiya] = Math.max(4, state.ultThreshold[stihiya] - 6);
       state.passiveDmgMult[stihiya] += 0.50;
       state.startCharges[stihiya] = Math.max(state.startCharges[stihiya], Math.floor(state.ultThreshold[stihiya] * 0.3));
-      state.active.push(`5× ${label}: −6 ULT · +50% dmg · 30% start`);
+      state.active.push(`5 ${label} heroes → −6 ULT · +50% dmg · 30% start`);
     } else if (count >= 3) {
       state.ultThreshold[stihiya] = Math.max(4, state.ultThreshold[stihiya] - 4);
       state.passiveDmgMult[stihiya] += 0.20;
-      state.active.push(`${count}× ${label}: −4 ULT · +20% dmg`);
+      state.active.push(`${count} ${label} heroes → −4 ULT · +20% dmg`);
     } else if (count >= 2) {
       state.ultThreshold[stihiya] = Math.max(4, state.ultThreshold[stihiya] - 2);
-      state.active.push(`${count}× ${label}: −2 ULT`);
+      state.active.push(`${count} ${label} heroes → −2 ULT`);
     }
   }
   // V2.0 Block 2.1: DUAL SYNERGIES — cross-race bonuses when 2+ of each listed race are present
@@ -40969,11 +40984,17 @@ function vRenderRoster() {
       im.src = ASSETS[h.img]; im.alt = h.name;
       card.appendChild(im);
     }
-    // Rarity badge (top-right) — hidden when card has fav-star.active via CSS
+    // Rarity badge (top-right) — hidden when card has fav-star.active via CSS.
+    // 2026-04-29 polish v0.1 Track A: drop the 3-letter glyph (`COM` /
+    // `RAR` / `EPI` / `LEG` / `MYT`) — first-time players just saw `COM` and
+    // wondered if it was an abbreviation for something they should know.
+    // The badge keeps its rarity-themed background colour, so the visual
+    // distinction is preserved without adding a jargon layer. Tooltip via
+    // `title` for players who do want to read the rarity name.
     const rar = document.createElement('div');
     const rarity = vHeroRarity(h);
     rar.className = `v-rarity-badge ${rarity}`;
-    rar.textContent = rarity.substring(0,3);
+    rar.title = rarity.charAt(0).toUpperCase() + rarity.slice(1);
     card.appendChild(rar);
     // Favorite star (overlaps rarity — CSS hides rarity when active)
     const fav = document.createElement('button');
@@ -41864,7 +41885,9 @@ function renderHeroDetailStats(hero) {
   const dmgPct = Math.round((bonuses.dmgBonus || 0) * 100);
   const hpPlus = bonuses.hpBonus || 0;
   const ultPct = (bonuses.ultBonus || 0) * 100;
-  const chargeLabel = hero.period ? `period ${hero.period}` : 'combo-driven';
+  // 2026-04-29 polish v0.1 Track A: friendlier copy. "combo-driven" reads
+  // as developer shorthand; "builds on combos" is direct action language.
+  const chargeLabel = hero.period ? `every ${hero.period} placements` : 'builds on combos';
   const bar = (label, value, fillPct) =>
     `<div class="detail-stat-row">
        <span class="label">${label}</span>
