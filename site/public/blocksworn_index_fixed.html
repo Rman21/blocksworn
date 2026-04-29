@@ -14736,7 +14736,7 @@ function maybeShowTierEducation() {
         <div class="edu-row-icon">⚡</div>
         <div>
           <span class="edu-row-name">TIER 2 — ASCENDED · JUST UNLOCKED</span>
-          <span class="edu-row-desc">${TIER2_CARDS_COST} Hero Cards + 1 T2 Stone + ${TIER2_GOLD_COST} gold + ${TIER2_ESSENCE_COST} essence. +20% damage permanent.</span>
+          <span class="edu-row-desc">${TIER2_CARDS_COST} Hero Cards + 1 T2 Stone + ${TIER2_GOLD_COST} gold + ${TIER2_ESSENCE_COST} shards. +20% damage permanent.</span>
         </div>
       </div>
       <div class="edu-modal-row">
@@ -15498,7 +15498,7 @@ function applyBossDefeatProgression(bossNumber) {
           // Celebratory banner sequence (staggered)
           try { flashText('🌌 THE FORGOTTEN PACK', '#A88AC8'); } catch (e) {}
           setTimeout(() => { try { flashText('+500💰 · +5♥ · +15 cards · +3 ascension', '#FFD53D'); } catch (e) {} }, 1100);
-          setTimeout(() => { try { flashText('+250 element essences', '#5DCA79'); } catch (e) {} }, 2200);
+          setTimeout(() => { try { flashText('+250 element shards', '#5DCA79'); } catch (e) {} }, 2200);
           try { vibrate([200, 80, 200, 80, 300, 80, 400]); } catch (e) {}
         }
         // Always play outro dialog (idempotent flag is on the reward, not the dialog)
@@ -16498,7 +16498,7 @@ function showPackRevealModal(opts) {
   if (opts.t2 > 0)            bonusItems.push('⚡ T2 STONE × ' + opts.t2);
   if (opts.t3 > 0)            bonusItems.push('💠 T3 STONE × ' + opts.t3);
   if (opts.gold > 0)          bonusItems.push('💰 ' + opts.gold + ' GOLD');
-  if (opts.essence > 0)       bonusItems.push('✦ ' + opts.essence + ' ' + (opts.stihiya || '').toUpperCase() + ' ESSENCE');
+  if (opts.essence > 0)       bonusItems.push('✦ ' + opts.essence + ' ' + (opts.stihiya || '').toUpperCase() + ' SHARDS');
   if (opts.dropBoostDays > 0) bonusItems.push('🎯 ' + opts.dropBoostDays + 'd PREMIUM DROP RATE');
   const bonusHtml = bonusItems.length
     ? '<div class="pack-reveal-bonus">' + bonusItems.map(b => '<span>' + b + '</span>').join('') + '</div>'
@@ -17051,7 +17051,7 @@ function renderShopPacks() {
     const daysLeft = _daysLeftInWeek();
     const contents = wOffer.race
       ? (wOffer.cards + ' ' + _PACK_RACE_LABELS[wOffer.race] + ' cards · ' + wOffer.t2 + ' ⚡ T2 · ' + wOffer.gold + '💰')
-      : ('BP Premium · ' + wOffer.essence + ' essence · ' + wOffer.cards + ' cards');
+      : ('BP Premium · ' + wOffer.essence + ' shards · ' + wOffer.cards + ' cards');
     if (wPurchased) {
       weeklyOfferHtml =
         '<div class="shop-weekly-offer purchased">' +
@@ -17081,17 +17081,17 @@ function renderShopPacks() {
   const adsLeft       = (typeof _adsRemaining === 'function') ? _adsRemaining() : 0;
   const adsCap        = (typeof _adsCap === 'function') ? _adsCap() : 5;
   const buffActiveBanner = buffActive
-    ? '<div class="shop-buff-banner"><span class="icon">⚡</span><span class="text"><strong>24h MEGA BUFF ACTIVE</strong><br>+25% gold · +50% Hero Cards · +25% essence · ' + buffHrs + 'h remaining</span></div>'
+    ? '<div class="shop-buff-banner"><span class="icon">⚡</span><span class="text"><strong>24h MEGA BUFF ACTIVE</strong><br>+25% gold · +50% Hero Cards · +25% shards · ' + buffHrs + 'h remaining</span></div>'
     : '';
   const megaBuffHtml = buffActive
     ? '<button class="shop-conv shop-conv-buff" disabled>' +
         '<div class="shop-conv-title">⚡ 24h MEGA BUFF</div>' +
-        '<div class="shop-conv-contents">+25% gold · +50% Hero Cards · +25% essence</div>' +
+        '<div class="shop-conv-contents">+25% gold · +50% Hero Cards · +25% shards</div>' +
         '<div class="shop-conv-cost">ACTIVE · ' + buffHrs + 'h LEFT</div>' +
       '</button>'
     : '<button class="shop-conv shop-conv-buff" onclick="buyMegaBuff()">' +
         '<div class="shop-conv-title">⚡ 24h MEGA BUFF</div>' +
-        '<div class="shop-conv-contents">+25% gold · +50% Hero Cards · +25% essence · 24h</div>' +
+        '<div class="shop-conv-contents">+25% gold · +50% Hero Cards · +25% shards · 24h</div>' +
         '<div class="shop-conv-cost">$' + MEGA_BUFF_USD.toFixed(2) + ' / ' + MEGA_BUFF_GEMS + '💎</div>' +
       '</button>';
   const squadBoostHtml = squadAvail
@@ -17150,13 +17150,13 @@ function renderShopPacks() {
   const squadBundleHtml =
     '<button class="shop-bundle shop-bundle-squad" onclick="buySquadPowerPack()">' +
       '<div class="shop-bundle-title">⚔ SQUAD POWER PACK</div>' +
-      '<div class="shop-bundle-contents">' + SQUAD_POWER_T2 + ' ⚡ T2 · ' + SQUAD_POWER_CARDS + ' cards · ' + (SQUAD_POWER_ESSENCE_PER * 5) + ' essence · ' + SQUAD_POWER_GOLD + '💰</div>' +
+      '<div class="shop-bundle-contents">' + SQUAD_POWER_T2 + ' ⚡ T2 · ' + SQUAD_POWER_CARDS + ' cards · ' + (SQUAD_POWER_ESSENCE_PER * 5) + ' shards · ' + SQUAD_POWER_GOLD + '💰</div>' +
       '<div class="shop-bundle-cost">$' + SQUAD_POWER_USD.toFixed(2) + ' / ' + SQUAD_POWER_GEMS + '💎</div>' +
     '</button>';
   const rapidBundleHtml =
     '<button class="shop-bundle shop-bundle-rapid" onclick="buyRapidAscensionPack()">' +
       '<div class="shop-bundle-title">⚡ RAPID ASCENSION PACK</div>' +
-      '<div class="shop-bundle-contents">' + RAPID_ASCENSION_T2 + ' ⚡ T2 · ' + RAPID_ASCENSION_T3 + ' 💠 T3 · ' + RAPID_ASCENSION_CARDS + ' cards · ' + (RAPID_ASCENSION_ESSENCE_PER * 5) + ' essence · ' + RAPID_ASCENSION_GOLD + '💰</div>' +
+      '<div class="shop-bundle-contents">' + RAPID_ASCENSION_T2 + ' ⚡ T2 · ' + RAPID_ASCENSION_T3 + ' 💠 T3 · ' + RAPID_ASCENSION_CARDS + ' cards · ' + (RAPID_ASCENSION_ESSENCE_PER * 5) + ' shards · ' + RAPID_ASCENSION_GOLD + '💰</div>' +
       '<div class="shop-bundle-cost">$' + RAPID_ASCENSION_USD.toFixed(2) + ' / ' + RAPID_ASCENSION_GEMS + '💎</div>' +
     '</button>';
   const endgameBundleHtml =
@@ -18405,7 +18405,7 @@ const DUNGEON_FLOORS = [
     modifiers: ['bloodlust'],
     rewardMultiplier: 1.75,
     color: '#FFD53D',
-    desc: '+50% boss HP. Earn more essences.',
+    desc: '+50% boss HP. Earn more shards.',
   },
   {
     id: 3,
@@ -19134,7 +19134,7 @@ const DAILY_MISSION_POOL = [
   { id: 'line_clears_20',     description: 'Achieve 20 total line clears in battles', eventType: 'line_clear',         target: 20, reward: { gold: 400 } },
   { id: 'ults_5',             description: 'Fire 5 hero ultimates',                    eventType: 'ult_fired',          target: 5,  reward: { gems: 20 } },
   { id: 'floor2_clear',       description: 'Clear a Floor 2 (Confrontation)',         eventType: 'floor_cleared_mode', target: 1,  targetMatch: { floorId: 2 }, reward: { gold: 400 } },
-  { id: 'ember_essence_30',   description: 'Earn 30 ember essence',                    eventType: 'essence_gained',     target: 30, targetMatch: { stihiya: 'ember' }, reward: { gold: 300, gems: 10 } },
+  { id: 'ember_essence_30',   description: 'Earn 30 ember shards',                     eventType: 'essence_gained',     target: 30, targetMatch: { stihiya: 'ember' }, reward: { gold: 300, gems: 10 } },
   { id: 'level_up_any',       description: 'Level up any hero once',                   eventType: 'hero_leveled',       target: 1,  reward: { gold: 300 } },
   { id: 'blocks_placed_50',   description: 'Place 50 blocks in battles',               eventType: 'block_placed',       target: 50, reward: { gold: 300 } },
   { id: 'combo_8',            description: 'Reach a combo of 8× in one battle',        eventType: 'combo_achieved',     target: 1,  targetMatch: { minCombo: 8 }, reward: { gems: 25 } },
@@ -19942,7 +19942,7 @@ const WEEKLY_MISSION_POOL = [
   { id: 'weekly_fragments_100',    description: 'Earn 100 hero fragments',                         eventType: 'fragments_gained',   target: 100, reward: { gold: 3000, gems: 100 } },
   { id: 'weekly_perfect_3',        description: 'Clear 3 battles without taking damage',           eventType: 'battle_won_perfect', target: 3,   reward: { gems: 200, t2ArtifactRandom: true } },
   { id: 'weekly_chapter_advance',  description: 'Clear 10 floors of any type',                     eventType: 'floor_cleared',      target: 10,  reward: { gold: 3500, gems: 75 } },
-  { id: 'weekly_essences_all',     description: 'Earn 300 total essences (any element)',          eventType: 'essence_gained',     target: 300, reward: { gold: 2000, gems: 150 } },
+  { id: 'weekly_essences_all',     description: 'Earn 300 total shards (any element)',           eventType: 'essence_gained',     target: 300, reward: { gold: 2000, gems: 150 } },
 ];
 
 // ISO-week Monday. getDay(): 0 = Sunday, 1 = Monday, …, 6 = Saturday.
@@ -23093,7 +23093,7 @@ const TOWER_SHOP_ITEMS = [
   { id: 'tp_gold_1k',    label: '💰 1,000 GOLD',             cost: 50,  grant: () => addGold(1000) },
   { id: 'tp_gold_5k',    label: '💰 5,000 GOLD',             cost: 200, grant: () => addGold(5000) },
   { id: 'tp_gems_20',    label: '💎 20 GEMS',                cost: 100, grant: () => addGems(20) },
-  { id: 'tp_essence_50', label: '🔮 50 ESSENCE × ALL',       cost: 75,  grant: () => {
+  { id: 'tp_essence_50', label: '🔮 50 SHARDS × ALL',        cost: 75,  grant: () => {
       ['ember','tide','grove','solar','umbra'].forEach(s => { essences[s] = (essences[s] || 0) + 50; });
       try { saveProgress(); } catch (e) {}
     }
@@ -23872,7 +23872,7 @@ function buyRaceLaunchBundle(race) {
     '• All ' + raceHeroes.length + ' ' + label + ' heroes UNLOCKED\n' +
     '• Captain pre-leveled to LV' + RACE_BUNDLE_CAPTAIN_LV + '\n' +
     '• ' + cardsTotal + ' ' + label + ' hero cards\n' +
-    '• ' + RACE_BUNDLE_ESSENCE + ' ' + stih.toUpperCase() + ' essence\n\n' +
+    '• ' + RACE_BUNDLE_ESSENCE + ' ' + stih.toUpperCase() + ' shards\n\n' +
     'Skip 5-8 days of progression.\n\n' +
     '(Mock IAP — no real charge in dev build)';
   if (!confirm(msg)) return false;
@@ -23953,7 +23953,7 @@ function buyRapidAscensionPack() {
     '• ' + RAPID_ASCENSION_T2 + ' Tier 2 Stones ⚡\n' +
     '• ' + RAPID_ASCENSION_T3 + ' Tier 3 Stone 💠\n' +
     '• ' + RAPID_ASCENSION_CARDS + ' Hero Cards\n' +
-    '• ' + (RAPID_ASCENSION_ESSENCE_PER * 5) + ' essence (mixed)\n' +
+    '• ' + (RAPID_ASCENSION_ESSENCE_PER * 5) + ' shards (mixed)\n' +
     '• ' + RAPID_ASCENSION_GOLD + ' gold\n\n' +
     'Skip 6-8 weeks of normal play.\n\n' +
     '(Mock IAP — no real charge in dev build)';
@@ -23985,7 +23985,7 @@ function buySquadPowerPack() {
     'SQUAD POWER PACK\n$' + SQUAD_POWER_USD.toFixed(2) + ' / ' + SQUAD_POWER_GEMS + '💎\n\n' +
     '• ' + SQUAD_POWER_T2 + ' Tier 2 Stones ⚡\n' +
     '• ' + SQUAD_POWER_CARDS + ' Hero Cards\n' +
-    '• ' + (SQUAD_POWER_ESSENCE_PER * 5) + ' essence (mixed)\n' +
+    '• ' + (SQUAD_POWER_ESSENCE_PER * 5) + ' shards (mixed)\n' +
     '• ' + SQUAD_POWER_GOLD + ' gold\n\n' +
     'Skip 3-4 weeks of normal play.\n\n' +
     '(Mock IAP — no real charge in dev build)';
@@ -24029,7 +24029,7 @@ function buyWeeklyOffer() {
   } else {
     msg = offer.label + '\n$' + offer.priceUSD.toFixed(2) + ' / ' + offer.priceGems + '💎\n\n' +
           '• Battle Pass Premium activated\n' +
-          '• ' + offer.essence + ' essence (mixed)\n' +
+          '• ' + offer.essence + ' shards (mixed)\n' +
           '• ' + offer.cards + ' Hero Cards\n\n' +
           'Available ' + _daysLeftInWeek() + ' more day' + (_daysLeftInWeek() === 1 ? '' : 's') + ' · no pressure\n' +
           '(Mock IAP — no real charge in dev build)';
@@ -24142,7 +24142,7 @@ function buyMegaBuff() {
     '24h MEGA BUFF\n$' + MEGA_BUFF_USD.toFixed(2) + ' / ' + MEGA_BUFF_GEMS + '💎\n\n' +
     '• +25% gold from all sources\n' +
     '• +50% Hero Card drops\n' +
-    '• +25% essence drops\n' +
+    '• +25% shards drops\n' +
     '• Active for 24 hours\n\n' +
     '(Mock IAP — no real charge in dev build)';
   if (!confirm(msg)) return false;
@@ -24226,7 +24226,7 @@ function buyDailyGift() {
   if (gift.gold)    parts.push('• ' + gift.gold + ' gold');
   if (gift.gems)    parts.push('• ' + gift.gems + ' 💎 gems');
   if (gift.cards)   parts.push('• ' + gift.cards + ' Hero Cards');
-  if (gift.essence) parts.push('• ' + gift.essence + ' essence (mixed)');
+  if (gift.essence) parts.push('• ' + gift.essence + ' shards (mixed)');
   if (gift.t2)      parts.push('• ' + gift.t2 + ' ⚡ T2 stone');
   const msg =
     gift.label + '\n$' + DAILY_GIFT_USD.toFixed(2) + ' / ' + DAILY_GIFT_GEMS + '💎\n\n' +
@@ -24309,7 +24309,7 @@ function _adsWatchedThisWeek() {
 const AD_REWARDS = {
   gold:    { label: '+200 gold',         apply: function () { addGold(200); flashText('+200 💰', '#FFD53D'); } },
   card:    { label: '1 Hero Card',       apply: function () { dropRandomHeroCards(1, { silent: false }); } },
-  essence: { label: '5 random essence',  apply: function () {
+  essence: { label: '5 random shards',   apply: function () {
     const stihs = ['ember','tide','grove','solar','umbra'];
     const s = stihs[Math.floor(Math.random()*stihs.length)];
     if (essences) { essences[s] = (essences[s] || 0) + 5; try { saveProgress(); } catch (e) {} }
@@ -25966,7 +25966,7 @@ function renderProfileTabStats() {
           card('GEMS',     (typeof gems !== 'undefined' ? gems : 0).toLocaleString()) +
         '</div>' +
         '<div class="profile-stat-row">' +
-          card('ESSENCE TOTAL', totalEssence.toLocaleString(), 'across 5 elements') +
+          card('SHARDS TOTAL', totalEssence.toLocaleString(), 'across 5 elements') +
           card('T2 / T3 STONES', ((towerState && towerState.tier2Stones) || 0) + ' / ' + ((towerState && towerState.tier3Stones) || 0)) +
         '</div>' +
       '</div>' +
@@ -26458,7 +26458,7 @@ function maybeShowBattlePassEducation() {
         <div class="edu-row-icon">◇</div>
         <div>
           <span class="edu-row-name">FREE TRACK</span>
-          <span class="edu-row-desc">Gold, gems, random essence, cosmetic banners on T10 / T25 / T50. Fully earnable through play.</span>
+          <span class="edu-row-desc">Gold, gems, random shards, cosmetic banners on T10 / T25 / T50. Fully earnable through play.</span>
         </div>
       </div>
       <div class="edu-modal-row">
@@ -29198,7 +29198,7 @@ const RACE_SYNERGY = {
     2: { hp: 1, spawnWeight: { ember: 1 },
          desc: '+1 HP · more 🔥 cells spawn' },
     3: { hp: 1, spawnWeight: { ember: 1.5 }, dmgMult: 0.10, plunder: true,
-         desc: '+1HP · +10% dmg · 🔥 flood · PLUNDER (bonus essence drops)' },
+         desc: '+1HP · +10% dmg · 🔥 flood · PLUNDER (bonus shards drops)' },
     5: { hp: 2, shields: 1,
          spawnWeight: { ember: 2.5 },
          passiveMult: { ember: 0.15 },
@@ -32490,7 +32490,7 @@ async function onBossDefeated() {
         const s = STIHIYAS[Math.floor(Math.random() * STIHIYAS.length)];
         essences[s] = (essences[s] || 0) + 1;
       }
-      flashText('PLUNDER +' + plunderReward + ' essence', STIHIYA_COLORS.ember);
+      flashText('PLUNDER +' + plunderReward + ' shards', STIHIYA_COLORS.ember);
     }
   }
   // V18: Artifact drop roll — 50% chance, random type from boss's race pool, T1
@@ -33352,7 +33352,7 @@ function maybeShowHeroUpgradeReadyEducation() {
         <div class="edu-row-icon">⚡</div>
         <div>
           <span class="edu-row-name">TIER 2 ASCENSION</span>
-          <span class="edu-row-desc">${cost} Hero Cards + 1 T2 Stone + 200 gold + 5 essence. Permanent +20% damage.</span>
+          <span class="edu-row-desc">${cost} Hero Cards + 1 T2 Stone + 200 gold + 5 shards. Permanent +20% damage.</span>
         </div>
       </div>
       <div class="edu-modal-row">
@@ -34207,7 +34207,7 @@ function renderInfoTabHelp(body) {
     <div class="row"><span class="label">VOID CELLS</span><span class="desc">Boss drops dark blocks. Can't be cleared by passives — only line clears. If they block all moves: −1 HP per dead zone.</span></div>
     <div class="row"><span class="label">TEAM POWER</span><span class="desc">Rough indicator of squad strength. Heroes + artifacts + synergy multiplier. Higher = stronger.</span></div>
     <div class="row"><span class="label">CAPTAIN LIMIT</span><span class="desc">Only <strong>1 captain</strong> can be in a squad at a time.</span></div>
-    <div class="row"><span class="label">TIER UPGRADES</span><span class="desc">Use essences (earned from boss kills) to upgrade heroes. Tiers 1–4 boost HP, shields, dmg, ULT power.</span></div>
+    <div class="row"><span class="label">TIER UPGRADES</span><span class="desc">Use shards (earned from boss kills) to upgrade heroes. Tiers 1–4 boost HP, shields, dmg, ULT power.</span></div>
     <div class="row"><span class="label">ARTIFACTS</span><span class="desc">Boss drops give artifacts. Merge 3 of same type → next tier. Equip on matching-race heroes for bonuses.</span></div>`;
 
   // ===== BEGINNER TIPS =====
@@ -40429,7 +40429,7 @@ function vCollectVictoryRewards() {
       type: 'xp',
       icon: _V_STIHIYA_ICON[stihiya] || '✦',
       amount: essenceAmt,
-      label: `${stihiya.toUpperCase()} ESSENCE`,
+      label: `${stihiya.toUpperCase()} SHARDS`,
       rarity: _V_RARITY_FOR_STIHIYA[stihiya] || 'common',
     });
   }
@@ -41895,7 +41895,7 @@ function renderHeroDetailTierText(hero) {
     host.innerHTML =
       `<div class="detail-tier-text-line">Tier 1 (current) → Tier 2 unlocks via Ascension</div>` +
       `<div class="detail-tier-text-line"><span class="tt-label">T2 Ability:</span>${t2Name} — ${t2Desc}</div>` +
-      `<div class="detail-tier-text-line"><span class="tt-label">T2 Cost:</span>5 Hero Cards + 1 T2 Stone + 200 gold + 5 essence</div>`;
+      `<div class="detail-tier-text-line"><span class="tt-label">T2 Cost:</span>5 Hero Cards + 1 T2 Stone + 200 gold + 5 shards</div>`;
   }
 }
 
