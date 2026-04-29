@@ -560,11 +560,18 @@ stack OR use ULTs to reset" + Phase 3 acceleration "cells wither faster
 полной интеграции в seal pool (см. DEBT-6).
 **Code ref:** L30113.
 
-### Block 6.5 DEBT-6 · Archival Eternal seal pool
-**What:** Spec §2.6 описывает 7 seal mechanics для Archival Eternal. В коде
-реализованы 4: `charge_frozen`, `element_drops_random`, `placement_costs_hp`,
-`captain_inverted`. Остальные 3 — pending.
-**Code refs:** L25103, L25925, L28362, L28811, L30013.
+### ~~Block 6.5 DEBT-6~~ · Archival Eternal seal pool — RESOLVED 2026-04-29
+**Spec §2.6:** 7 seal mechanics + Phase 3 (33-0%) boss-heal-per-seal.
+**Status review:** Все 7 seals на самом деле уже зашиппнуты с 2026-04-27
+(`combo_cap_4`, `ults_disabled`, `dmg_halved`, `charge_frozen`,
+`placement_costs_hp`, `element_drops_random`, `captain_inverted` — все
+в `sealPool` + actual consumer hooks по всему combat code-path). Этот entry
+просто застрял в "4 of 7" из ранней итерации.
+**Resolution:** Подтверждено + добавлен последний недостающий бит spec §2.6:
+**Phase 3 boss-heal-per-seal** — `tickChapter3Boss()` в Archival ветке теперь
+лечит босса на `2% × seals applied` каждый ход на 33-0% HP (с банером
+"📜 ARCHIVE HEAL +N"). До этого Phase 3 просто давала 3 seal per turn без
+healing-stack давления.
 
 ### Block 6.5 DEBT-7 · "Forgotten Names" mythic portrait frame
 **What:** Cosmetic mythic portrait frame для Tier 3 ascended heroes. Toggle-only
