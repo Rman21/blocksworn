@@ -4181,6 +4181,11 @@ body.shop-locked [onclick*="goToShop"] {
   margin-bottom: 14px;
   text-shadow: 0 0 6px rgba(255,213,61,0.7);
 }
+/* 2026-04-29 — Pack opening cinematic upgrade per BLOCKSWORN_MONETIZATION.md
+   §12.2. Per-kind chest theming with progressively dramatic glow + idle
+   pulse: standard/race/big use 📦 with element-tinted glow, premium gets
+   🎁 with continuous gold pulse, ultimate uses 💠 with cosmic violet+gold
+   double-glow at 96px. Shake-on-open still fires for all kinds. */
 .pack-chest {
   font-size: 64px;
   text-align: center;
@@ -4188,16 +4193,50 @@ body.shop-locked [onclick*="goToShop"] {
   display: inline-block;
   filter: drop-shadow(0 0 12px rgba(255,213,61,0.7));
   transition: transform 1.5s ease-out, filter 1.5s ease-out;
+  color: var(--chest-glow-color, #FFD53D);
 }
 .pack-chest.opening {
   transform: scale(1.4) rotate(8deg);
-  filter: drop-shadow(0 0 24px rgba(255,213,61,1)) brightness(1.4);
+  filter: drop-shadow(0 0 24px currentColor) brightness(1.4);
   animation: packChestShake 0.6s ease-in-out;
 }
 @keyframes packChestShake {
   0%, 100% { transform: scale(1.4) rotate(0); }
   25%      { transform: scale(1.4) rotate(-6deg); }
   75%      { transform: scale(1.4) rotate(6deg); }
+}
+/* Per-kind variants — each picks a chest-glow-color via CSS var so the
+   shadow + animation reference currentColor consistently. */
+.pack-chest.kind-standard { --chest-glow-color: #FFD53D; }
+.pack-chest.kind-big      { --chest-glow-color: #5DCA79; font-size: 72px; }
+.pack-chest.kind-race     { /* race color set inline via style attribute */ }
+.pack-chest.kind-premium {
+  --chest-glow-color: #FFD53D;
+  font-size: 80px;
+  animation: packChestPremiumPulse 2.4s ease-in-out infinite;
+}
+@keyframes packChestPremiumPulse {
+  0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 14px currentColor) drop-shadow(0 0 28px rgba(255,213,61,0.4)); }
+  50%      { transform: scale(1.06); filter: drop-shadow(0 0 24px currentColor) drop-shadow(0 0 42px rgba(255,213,61,0.6)); }
+}
+.pack-chest.kind-ultimate {
+  --chest-glow-color: #BB60FF;
+  font-size: 96px;
+  animation: packChestUltimatePulse 1.6s ease-in-out infinite;
+}
+@keyframes packChestUltimatePulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 22px #BB60FF) drop-shadow(0 0 44px rgba(255,213,61,0.55));
+  }
+  50% {
+    transform: scale(1.10);
+    filter: drop-shadow(0 0 38px #BB60FF) drop-shadow(0 0 68px rgba(255,213,61,0.85));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pack-chest.kind-premium,
+  .pack-chest.kind-ultimate { animation: none; }
 }
 .pack-reveal-cards {
   display: flex;
@@ -15743,13 +15782,29 @@ function showPackRevealModal(opts) {
       isBig      ? 'BIG PACK'      :
       isRace     ? (raceLabel + ' RACE PACK') :
                    'STANDARD HERO PACK';
-  const dropped = opts.dropped || [];
+  const dropped = (opts.dropped || []).slice();
+  // 2026-04-29 — Spec §12.2 "most exciting card revealed last": sort the
+  // dropped array by current hero fragment count DESCENDING, so heroes the
+  // player owns LESS of get the highest animation-delay index and reveal
+  // last. Animation-delay = 0.6 + i * stagger; index 0 reveals first.
+  try {
+    if (typeof heroFragments === 'object' && heroFragments) {
+      dropped.sort((a, b) => {
+        const fa = heroFragments[a.heroId] || 0;
+        const fb = heroFragments[b.heroId] || 0;
+        return fb - fa;  // descending: most-owned (least exciting) first
+      });
+    }
+  } catch (e) {}
+  // Per-kind reveal stagger — ultimate gets the longest cinematic pause
+  // between flips so each card lands as a moment.
+  const cardStagger = isUltimate ? 0.5 : isPremium ? 0.4 : isBig ? 0.35 : 0.3;
   const cardsHtml = dropped.map((d, i) => {
     const hero = HERO_ROSTER.find(h => h && h.id === d.heroId);
     if (!hero) return '';
     const stih = (hero.stihiya || '').toUpperCase();
     const stihColor = (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS[hero.stihiya]) || '#FFD53D';
-    return '<div class="pack-card" style="border-color:' + stihColor + ';animation-delay:' + (0.6 + i * 0.3) + 's">' +
+    return '<div class="pack-card" style="border-color:' + stihColor + ';color:' + stihColor + ';animation-delay:' + (0.6 + i * cardStagger) + 's">' +
       '<div class="pack-card-portrait">' +
         '<img src="' + ((typeof ASSETS !== 'undefined' && ASSETS[hero.img]) || '') + '" alt="' + hero.name + '"/>' +
       '</div>' +
@@ -15767,11 +15822,22 @@ function showPackRevealModal(opts) {
   const bonusHtml = bonusItems.length
     ? '<div class="pack-reveal-bonus">' + bonusItems.map(b => '<span>' + b + '</span>').join('') + '</div>'
     : '';
+  // 2026-04-29 — Per-kind chest emoji + class. Premium upgrades to 🎁,
+  // ultimate uses 💠 (multi-faceted gem) for the endgame "rare drop" feel.
+  // Race packs inherit the race color via inline --chest-glow-color var.
+  const chestEmoji = isUltimate ? '💠' : isPremium ? '🎁' : '📦';
+  const chestKindClass =
+      isUltimate ? 'kind-ultimate' :
+      isPremium  ? 'kind-premium'  :
+      isBig      ? 'kind-big'      :
+      isRace     ? 'kind-race'     :
+                   'kind-standard';
+  const chestStyleAttr = isRace ? ' style="--chest-glow-color:' + raceColor + '"' : '';
   modal.innerHTML =
     '<div class="modal-box pack-reveal-box" style="border-color:' + borderColor + '">' +
       '<button class="detail-close" onclick="closePackReveal()">×</button>' +
       '<div class="pack-reveal-title">' + titleStr + '</div>' +
-      '<div class="pack-chest" id="packChestIcon">📦</div>' +
+      '<div class="pack-chest ' + chestKindClass + '" id="packChestIcon"' + chestStyleAttr + '>' + chestEmoji + '</div>' +
       '<div class="pack-reveal-cards">' + (cardsHtml || '<div style="color:#9A98A4;font-size:11px">No cards dropped — pool exhausted.</div>') + '</div>' +
       bonusHtml +
       '<button class="btn pack-reveal-claim" onclick="closePackReveal()">CLAIM</button>' +
