@@ -18529,14 +18529,22 @@ function goToShop() {
     try { flashText('FINISH THE TUTORIAL FIRST', '#8A88A0'); } catch(e){}
     return;
   }
-  // Phase F (2026-04-28): shop locked for first 7 days per spec §11.1.
-  // Trust-first: pure gameplay days 1-6, shop reveals on day 7. Players
-  // who try to deep-link / URL-hack into shop early get a friendly
-  // bounce-back instead of breaking the trust curve.
+  // 2026-04-29 — Shop gated on Chapter 1 completion (Crypt Lich defeat).
+  // The original 7-day trust window was replaced with a content-progression
+  // gate so new players reach the shop after they've experienced the core
+  // game loop, not on a calendar timer. Days-since-launch lock kept as a
+  // secondary layer (currently dormant via SHOP_LOCK_DAYS = 0).
   try {
     if (typeof _isShopLocked === 'function' && _isShopLocked()) {
-      const days = SHOP_LOCK_DAYS - _daysSinceFirstLaunch();
-      try { flashText('SHOP UNLOCKS IN ' + days + 'd', '#A8A5B8'); } catch (e) {}
+      let msg = 'SHOP UNLOCKS AFTER CHAPTER 1';
+      try {
+        if (typeof hasCompletedChapter1 === 'function' && hasCompletedChapter1()) {
+          // Ch1 done → only the days-window is still gating. Show day count.
+          const days = SHOP_LOCK_DAYS - _daysSinceFirstLaunch();
+          if (days > 0) msg = 'SHOP UNLOCKS IN ' + days + 'd';
+        }
+      } catch (e) {}
+      try { flashText(msg, '#A8A5B8'); } catch (e) {}
       return;
     }
   } catch (e) {}
@@ -24147,11 +24155,11 @@ const LAST_DAILY_POPUP_KEY      = 'blocksworn_last_daily_popup';
 const SHOP_REVEALED_KEY         = 'blocksworn_shop_revealed';
 const RENEWAL_WARNING_KEY       = 'blocksworn_renewal_warning_for';
 const SEASON_END_WARNING_KEY    = 'blocksworn_season_end_warning_for';
-// 2026-04-29 — Soft-launch decision: removed the 7-day shop trust window.
-// Shop is now accessible from day 1 (still F2P-only — no real IAP yet). The
-// lock infrastructure (_isShopLocked / body.shop-locked / first-reveal
-// popup) stays in place so a future release can reintroduce a lock by
-// flipping this constant back without rewiring call sites.
+// 2026-04-29 — Shop unlock gate. Replaced the 7-day-since-launch trust
+// window with a content-progression gate (Chapter 1 complete = Crypt Lich
+// defeated). Days-since-launch path stays dormant via SHOP_LOCK_DAYS=0 in
+// case a future release wants to layer a trust window on top of the Ch1
+// gate (flip the constant + the OR check below would do it).
 const SHOP_LOCK_DAYS            = 0;
 const SUBSCRIPTION_WARNING_DAYS = 3;
 const SEASON_END_WARNING_DAYS   = 1;
@@ -24173,6 +24181,12 @@ function _daysSinceFirstLaunch() {
   } catch (e) { return 999; }
 }
 function _isShopLocked() {
+  // 2026-04-29 — Primary gate is Chapter 1 completion (Crypt Lich defeat).
+  // Days-since-launch trust window kept as a secondary OR-layer (dormant
+  // when SHOP_LOCK_DAYS = 0). Either gate locks the shop until satisfied.
+  try {
+    if (typeof hasCompletedChapter1 === 'function' && !hasCompletedChapter1()) return true;
+  } catch (e) {}
   return _daysSinceFirstLaunch() < SHOP_LOCK_DAYS;
 }
 function _applyShopLockState() {
@@ -24238,8 +24252,12 @@ function _markDailyPopupShown() {
 
 function _pickDailyPopupContent() {
   // Priority order (each returns a content object or null).
-  // 1. Day 7 first-shop reveal (one-time)
-  if (_daysSinceFirstLaunch() === SHOP_LOCK_DAYS) {
+  // 1. First-shop reveal (one-time, once Chapter 1 is cleared).
+  //    2026-04-29 — Switched from a day-7 calendar gate to Ch1-completion
+  //    gate so the announcement lines up with the actual unlock event.
+  let _ch1Done = false;
+  try { _ch1Done = (typeof hasCompletedChapter1 === 'function') && hasCompletedChapter1(); } catch (e) {}
+  if (_ch1Done) {
     try {
       if (localStorage.getItem(SHOP_REVEALED_KEY) !== 'true') {
         return {
