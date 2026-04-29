@@ -554,11 +554,22 @@ stack OR use ULTs to reset" + Phase 3 acceleration "cells wither faster
    the boss the turn after they spawn at 33-0% HP (vs. 3 turns at higher
    phases).
 
-### Block 6.5 DEBT-5 · Tank/Warrior role-specific seal mechanics
-**What:** Seal mechanics `tank_halved` (Tank dmg ×0.5) + `warrior_blocked`
-(Warrior dmg ×0.5) — реализованы как dual-element pact synergies, но без
-полной интеграции в seal pool (см. DEBT-6).
-**Code ref:** L30113.
+### ~~Block 6.5 DEBT-5~~ · Tank/Warrior seal mechanics — RESOLVED 2026-04-29
+**Spec §2.4 (VOIDPRIESTESS confessions):**
+  • "Your Tank has nothing to defend" — Tank shields halved 3 turns
+  • "Your Warrior sees no path" — Warrior cannot place piece on first row 3 turns
+**Resolution:** Refactored from the prior pragmatic dmg-halve placeholders to
+spec-correct hooks:
+  • `applyTankUlt()` halves the Tank's shield gain
+    (`Math.floor(cfg.shields / 2)`) when `_ch3HasDebuff('tank_halved')` is
+    active. Banner: "✦ TANK SHIELDS HALVED".
+  • `canPlace()` rejects any placement that overlaps row 0 when
+    `_ch3HasDebuff('warrior_blocked')` is active AND a Warrior is in
+    `HERO_DECK`. Mirrors existing role-debuff semantics
+    (`hunter_silenced` / `mage_halved`) of "no-op without target role".
+  • Removed the dmg-stack placeholder lines from the dealDamage `_multStack`
+    so seals don't double-fire under either system.
+  • Updated `debuffPool` comments to match actual behaviour.
 
 ### ~~Block 6.5 DEBT-6~~ · Archival Eternal seal pool — RESOLVED 2026-04-29
 **Spec §2.6:** 7 seal mechanics + Phase 3 (33-0%) boss-heal-per-seal.

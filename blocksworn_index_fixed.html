@@ -27725,11 +27725,11 @@ function tickChapter3Boss() {
   // by relevant combat hooks (debuffs array drives flags below).
   if (_ch3BossId === 'priestess') {
     const debuffPool = [
-      'hunter_silenced',  // Hunters get -50% damage
-      'mage_halved',      // Mages amp window mult halved
-      'tank_halved',      // Tanks gain half shields
-      'captain_disabled', // Captain dual buff disabled (mult = 1.0)
-      'warrior_blocked',  // Warrior fire creates 1 fewer cell
+      'hunter_silenced',  // Hunter ULT damage halved (×0.5 mult)
+      'mage_halved',      // Mage amp window mult halved (×0.5 mult)
+      'tank_halved',      // Tank ULT shield gain halved (applyTankUlt hook)
+      'captain_disabled', // Captain dual buff disabled (mult clamped to 1.0)
+      'warrior_blocked',  // No piece may overlap row 0 while a Warrior is in deck (canPlace gate)
     ];
     // Decrement existing debuff timers, drop expired
     _ch3State.debuffs = _ch3State.debuffs
@@ -30736,6 +30736,19 @@ function cellsOf(p) {
 }
 
 function canPlace(p, br, bc) {
+  // 2026-04-29 — Block 6.5 DEBT-5 close: VOIDPRIESTESS `warrior_blocked` seal
+  // (spec §2.4: "Warrior cannot place piece on first row 3 turns"). Active
+  // only when a Warrior hero is currently in HERO_DECK; otherwise the random
+  // pool can still roll the debuff but has no path-of-effect (matches the
+  // existing role-debuff semantics for hunter_silenced / mage_halved).
+  try {
+    if (typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('warrior_blocked')
+        && Array.isArray(HERO_DECK) && HERO_DECK.some(h => h && h.newRole === 'warrior')) {
+      for (const [dr] of cellsOf(p)) {
+        if (br + dr === 0) return false;
+      }
+    }
+  } catch (e) {}
   for (const [dr, dc] of cellsOf(p)) {
     const r = br + dr, c = bc + dc;
     if (r < 0 || r >= SIZE || c < 0 || c >= SIZE || grid[r][c] !== null) return false;
@@ -32058,11 +32071,10 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
                    * (typeof _ch3TwilightMult === 'function' && _currentFiringHero ? _ch3TwilightMult(_currentFiringHero) : 1.0)
                    * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('hunter_silenced') && _currentFiringHero && _currentFiringHero.newRole === 'hunter') ? 0.5 : 1.0)
                    * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('mage_halved') && _currentFiringHero && _currentFiringHero.newRole === 'mage') ? 0.5 : 1.0)
-                   // 2026-04-27 — Block 6.5 DEBT-5: tank_halved (Tank dmg ×0.5) + warrior_blocked (Warrior dmg ×0.5).
-                   //  Pragmatic interpretation of spec §2.4 (shield half / first-row block) as damage halve —
-                   //  cleaner cross-cutting integration without per-tank/warrior shield/spawn refactor.
-                   * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('tank_halved') && _currentFiringHero && _currentFiringHero.newRole === 'tank') ? 0.5 : 1.0)
-                   * ((typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('warrior_blocked') && _currentFiringHero && _currentFiringHero.newRole === 'warrior') ? 0.5 : 1.0)
+                   // 2026-04-29 — Block 6.5 DEBT-5 closed: tank_halved + warrior_blocked
+                   // moved off the damage stack and into spec-correct hooks (applyTankUlt
+                   // halves shield gain, canPlace blocks first-row placements). The
+                   // damage-mult placeholders that lived here are gone.
                    * ((typeof _ch3HasSeal === 'function' && _ch3HasSeal('dmg_halved')) ? 0.5 : 1.0)
                    // 2026-04-27 — Block 6.5 DEBT-10: dual-element pact synergies.
                    //  Folds the product of all squad-satisfied dual pacts into the stack.
@@ -34256,7 +34268,17 @@ async function applyMageUlt(hero, ctx) {
 // TANK: +3 shields (cap MAX_SHIELD+2, extended by golem maxShieldBonus)
 async function applyTankUlt(hero, ctx) {
   const cfg = ROLE_ULT_PARAMS.tank;
-  shieldCount = Math.min(MAX_SHIELD + 2 + maxShieldBonus, shieldCount + cfg.shields);
+  // 2026-04-29 — Block 6.5 DEBT-5 close: VOIDPRIESTESS `tank_halved` seal
+  // halves Tank's shield generation per spec §2.4 ("Tank shields halved 3
+  // turns"). Replaces the prior pragmatic dmg-halve workaround.
+  let _shieldGain = cfg.shields;
+  try {
+    if (typeof _ch3HasDebuff === 'function' && _ch3HasDebuff('tank_halved')) {
+      _shieldGain = Math.floor(cfg.shields / 2);
+      try { flashText('✦ TANK SHIELDS HALVED', '#C0A6DF'); } catch (e) {}
+    }
+  } catch (e) {}
+  shieldCount = Math.min(MAX_SHIELD + 2 + maxShieldBonus, shieldCount + _shieldGain);
   vibrate([60, 40, 60]);
 }
 
