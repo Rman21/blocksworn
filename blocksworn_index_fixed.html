@@ -24147,7 +24147,12 @@ const LAST_DAILY_POPUP_KEY      = 'blocksworn_last_daily_popup';
 const SHOP_REVEALED_KEY         = 'blocksworn_shop_revealed';
 const RENEWAL_WARNING_KEY       = 'blocksworn_renewal_warning_for';
 const SEASON_END_WARNING_KEY    = 'blocksworn_season_end_warning_for';
-const SHOP_LOCK_DAYS            = 7;
+// 2026-04-29 — Soft-launch decision: removed the 7-day shop trust window.
+// Shop is now accessible from day 1 (still F2P-only — no real IAP yet). The
+// lock infrastructure (_isShopLocked / body.shop-locked / first-reveal
+// popup) stays in place so a future release can reintroduce a lock by
+// flipping this constant back without rewiring call sites.
+const SHOP_LOCK_DAYS            = 0;
 const SUBSCRIPTION_WARNING_DAYS = 3;
 const SEASON_END_WARNING_DAYS   = 1;
 
