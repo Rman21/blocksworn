@@ -11195,27 +11195,44 @@ body.tempo-slow-tint::after {
   color: #F5F3EC; font-weight: 800;
   text-shadow: 0 0 18px rgba(255, 213, 61, 0.45);
 }
-.tower-stats {
-  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px;
-  padding: 10px;
-  background: rgba(0,0,0,0.32);
-  border-radius: 10px;
-  border: 1px solid #3D3F5E;
+/* 2026-04-29 polish v0.1 Track E: stats demoted from three big cards to a
+ * single chip-row at the top. Plain numbers were fighting for hierarchy with
+ * the actual CTA — now they're informational chips, not focal data.
+ * Selector includes `.v-secondary` to outrank the legacy stat-grid rules
+ * defined elsewhere in the .v-secondary cascade. */
+.v-secondary .tower-stats {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.28);
+  border-radius: 999px;
+  border: 1px solid rgba(61,63,94,0.5);
 }
-.tower-stat {
-  text-align: center;
-  padding: 6px 4px;
+.v-secondary .tower-stat {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
 }
-.tower-stat-label {
-  font-size: 9px; letter-spacing: 1.5px;
-  color: #A8A5B8; font-weight: 700;
-  margin-bottom: 4px;
+.v-secondary .tower-stat-label {
+  font-size: 9px !important;
+  letter-spacing: 1.2px !important;
+  color: #8A88A0 !important;
+  font-weight: 600 !important;
 }
-.tower-stat-value {
-  font-size: 18px; font-weight: 800;
-  color: #FFD53D;
+.v-secondary .tower-stat-value {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: var(--a-gold-300, #FFD53D) !important;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 8px rgba(255, 213, 61, 0.3);
+  text-shadow: none !important;
 }
 .tower-current {
   padding: 10px 14px;
@@ -11488,14 +11505,42 @@ body.tempo-slow-tint::after {
 }
 .tower-theme-banner .ttb-effects {
   display: flex;
-  gap: 12px;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
 }
 .tower-theme-banner .ttb-dom { color: #5DCA79; }
 .tower-theme-banner .ttb-sup { color: #E85D4A; }
+/* 2026-04-29 polish v0.1 Track E: actionable tip below the bonus lines. */
+.tower-theme-banner .ttb-tip {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 213, 61, 0.20);
+  font-size: 11px;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 0.4px;
+  opacity: 0.95;
+}
+/* 2026-04-29 polish v0.1 Track E: How-it-works bulleted block (replaces the
+ * dense one-line F5/F10/250💰/💎❤ shorthand for first-time tower players). */
+.tower-howto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, rgba(255, 213, 61, 0.06), rgba(0, 0, 0, 0.20));
+  border: 1px solid rgba(255, 213, 61, 0.20);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #C8C5D4;
+  line-height: 1.4;
+  text-align: left;
+}
+.tower-howto .th-row { letter-spacing: 0.2px; }
 
 /* 2026-04-27 — Block T.3 — Daily curse banner. Red-violet warning palette
  * to feel ominous; sits at the top of the tower entry screen above status. */
@@ -11534,16 +11579,32 @@ body.tempo-slow-tint::after {
 }
 .tower-enter-btn:hover,
 .tower-enter-btn:active { transform: translateY(-1px); filter: brightness(1.08); }
-.tower-shop-btn {
-  padding: 10px;
-  background: rgba(0,0,0,0.32);
-  color: #FFD53D;
-  border: 1px solid #FFD53D;
-  border-radius: 8px;
-  font-weight: 700; font-size: 12px;
-  letter-spacing: 2px;
+/* 2026-04-29 polish v0.1 Track E: Tower Shop + Upgrades demoted from
+ * primary-style buttons to compact text links. They were competing with the
+ * actual gauntlet CTAs for attention; players who want shop/upgrades go
+ * looking — not pulled in by visual prominence. */
+.tower-shop-btn,
+.tower-upgrades-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 4px 0;
+  padding: 6px 12px;
+  background: transparent;
+  color: #A8A5B8;
+  border: 1px solid rgba(106, 88, 64, 0.45);
+  border-radius: 999px;
+  font-weight: 600; font-size: 10.5px;
+  letter-spacing: 1.2px;
   cursor: pointer;
   font-family: inherit;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.tower-shop-btn:hover,
+.tower-upgrades-btn:hover {
+  color: var(--a-gold-300, #FFD53D);
+  border-color: var(--a-gold-300, #FFD53D);
+  background: rgba(255, 213, 61, 0.08);
 }
 
 /* 2026-04-27 HOTFIX — Abandon Run button (only when run in progress).
@@ -11615,22 +11676,18 @@ body.tempo-slow-tint::after {
   cursor: not-allowed;
 }
 
-/* 2026-04-27 — Block T.5 — Tower upgrades button + modal */
-.tower-upgrades-btn {
-  margin-top: 6px;
-  padding: 10px;
-  background: linear-gradient(180deg, rgba(232, 93, 74, 0.20), rgba(60, 20, 14, 0.55));
-  color: #FFB8A8;
-  border: 1px solid rgba(232, 93, 74, 0.55);
-  border-radius: 8px;
-  font-weight: 700; font-size: 12px;
-  letter-spacing: 2px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: filter 0.15s, transform 0.12s;
-}
-.tower-upgrades-btn:hover { filter: brightness(1.1); }
+/* 2026-04-29 polish v0.1 Track E: removed the dedicated `.tower-upgrades-btn`
+   block here (was a prominent red CTA competing with the gauntlet button).
+   The compact chip-link styling lives in the consolidated rule with
+   `.tower-shop-btn` above. */
+.tower-shop-btn:active,
 .tower-upgrades-btn:active { transform: scale(0.97); }
+.tower-secondary-links {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
 
 .tower-heart-modal {
   position: fixed; inset: 0;
@@ -13305,8 +13362,13 @@ button.season-tier-claim:active {
          enabled via JS in renderTowerScreen when in the right time window. -->
     <button class="tower-weekly-btn"  id="towerWeeklyBtn"  onclick="startWeeklyTower()" style="display:none;">⚔ WEEKLY TRIAL — 25 floors</button>
     <button class="tower-seasonal-btn" id="towerSeasonalBtn" onclick="startSeasonalTower()" style="display:none;">⭐ SEASONAL ASCENSION — 50 floors</button>
-    <button class="tower-shop-btn" onclick="openTowerShop()">🗼 TOWER SHOP</button>
-    <button class="tower-upgrades-btn" onclick="openHeartModal()">♥ UPGRADES</button>
+    <!-- 2026-04-29 polish v0.1 Track E: shop + upgrades demoted to compact
+         inline chip-links so the gauntlet CTAs win the eye. Players who want
+         shop/upgrades navigate by intent, not by visual pull. -->
+    <div class="tower-secondary-links">
+      <button class="tower-shop-btn" onclick="openTowerShop()">🗼 Tower Shop</button>
+      <button class="tower-upgrades-btn" onclick="openHeartModal()">♥ Upgrades</button>
+    </div>
     <div class="tower-history">
       <h3>RECENT WEEKS</h3>
       <div class="tower-history-list" id="towerHistoryList"></div>
@@ -22528,12 +22590,18 @@ function renderTowerScreen() {
       const ELEM_ICON = { ember:'🔥', tide:'❄️', grove:'🌍', umbra:'🌑', solar:'☀️' };
       const dom = (theme.dominant || '').toUpperCase();
       const sup = (theme.suppressed || '').toUpperCase();
+      const domTitle = (theme.dominant || '').charAt(0).toUpperCase() + (theme.dominant || '').slice(1);
+      // 2026-04-29 polish v0.1 Track E: explain the mechanic instead of
+      // surfacing raw `+50% / −50%` shorthand. The label + actionable tip at
+      // the bottom turn this from "data" into "guidance" — first-time-tower
+      // players read it as "here's what to do this week".
       themeBanner = `<div class="tower-theme-banner">
-        <div class="ttb-label">⚡ THIS WEEK — ELEMENT THEME</div>
+        <div class="ttb-label">⚡ THIS WEEK'S ELEMENT BONUS</div>
         <div class="ttb-effects">
-          <span class="ttb-dom">${ELEM_ICON[theme.dominant] || ''} ${dom} +50%</span>
-          <span class="ttb-sup">${ELEM_ICON[theme.suppressed] || ''} ${sup} −50%</span>
+          <div class="ttb-dom">${ELEM_ICON[theme.dominant] || ''} ${dom} heroes deal +50% damage</div>
+          <div class="ttb-sup">${ELEM_ICON[theme.suppressed] || ''} ${sup} heroes deal −50% damage</div>
         </div>
+        <div class="ttb-tip">→ Pick a squad heavy on ${domTitle}</div>
       </div>`;
     }
   } catch (e) {}
@@ -22575,8 +22643,17 @@ function renderTowerScreen() {
       btn.textContent = `▲ DAILY GAUNTLET — ${costLabel}`;
       btn.onclick = startTowerRun;
       btn.disabled = false;
+      // 2026-04-29 polish v0.1 Track E: replaced the dense one-line shorthand
+      // (`10 floors · F5 mid-boss · F10 climax · 250💰 entry · earn 💰 ◈ ♥`)
+      // with a bulleted "How it works" block. Casual mass-market players
+      // could not parse the F5 / ◈ / ♥ jargon at a glance.
       const hint = isFirstAttempt
-        ? `10 floors · F5 mid-boss · F10 climax · ${nextRetryCost}💰 entry · earn 💰 ◈ ♥ on full clear`
+        ? `<div class="tower-howto">
+             <div class="th-row">• 10 floors per run</div>
+             <div class="th-row">• Mid-boss on floor 5, final boss on floor 10</div>
+             <div class="th-row">• Costs ${nextRetryCost} gold to enter</div>
+             <div class="th-row">• Full clear earns gold, sigil shards, and heart fragments</div>
+           </div>`
         : `Retry attempt ${towerState.attemptsToday + 1}/${TOWER_MAX_ATTEMPTS_PER_DAY} · cost ${nextRetryCost} gold`;
       current.innerHTML = titleBanner + buffBanner + themeBanner + curseBanner + dailyStatus + `<div class="tower-hint">${hint}</div>`;
     }
