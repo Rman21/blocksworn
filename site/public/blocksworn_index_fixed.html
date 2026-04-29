@@ -12371,6 +12371,22 @@ button.season-tier-claim:active {
 .detail-actions .btn { width: 100%; padding: 10px; font-size: 13px; margin-top: 0; }
 .detail-actions .btn.in-squad { background: #E85D4A; }
 .detail-actions .btn.in-squad:active { background: #ff6b54; }
+/* 2026-04-29 polish v0.1 Track D — demote the squad-toggle CTA so the
+ * primary UPGRADE action wins visual hierarchy. EQUIP-state shows as an
+ * outlined ghost button; once the hero is in squad the destructive
+ * REMOVE state stays red-prominent so misclicks aren't silent. */
+#detailSquadBtn:not(.in-squad) {
+  background: transparent !important;
+  color: var(--a-gold-300, #FFD53D) !important;
+  border: 1px solid var(--a-gold-700, #B3822E) !important;
+  font-size: 12px !important;
+  padding: 8px 10px !important;
+  letter-spacing: 1px;
+  margin-top: 6px !important;
+  box-shadow: none !important;
+}
+#detailSquadBtn:not(.in-squad):hover  { background: rgba(255,213,61,0.08) !important; }
+#detailSquadBtn:not(.in-squad):active { transform: scale(0.98); }
 
 /* ===== V3.0 PHASE 4 BLOCK 4.2 — LEVEL SECTION IN DETAIL MODAL ===== */
 .detail-level-section {
@@ -13777,7 +13793,13 @@ button.season-tier-claim:active {
     <!-- Meta line: role · element · race · tier (single row, plain text) -->
     <div class="detail-meta" id="detailMeta">—</div>
     <div class="detail-tier-badge" id="detailTierBadge"></div>
+    <!-- 2026-04-29 polish v0.1 Track D: status badges live near the hero name,
+         not in the action area. Replaces the "ALREADY ASCENDED" disabled-button
+         reminders that read as clickable. The buttons themselves now hide when
+         the hero is already at that tier. -->
     <div class="detail-t2-badge" id="detailT2Badge" style="display:none;">⚡ T2 ASCENDED</div>
+    <div class="detail-t3-badge" id="detailT3Badge" style="display:none;">★ T3 DEEP ASCENDED</div>
+    <div class="detail-mythic-badge" id="detailMythicBadge" style="display:none;">✦ MYTHIC TRANSCENDENT</div>
 
     <!-- ──── STATS ──── -->
     <div class="detail-section">
@@ -13838,12 +13860,11 @@ button.season-tier-claim:active {
       </button>
       <button class="btn" id="detailSquadBtn" onclick="toggleSquadFromDetail()">EQUIP TO SQUAD</button>
     </div>
-    <!-- ASCEND TO T2 — separate row when applicable (cards + stone + gold + essence) -->
+    <!-- ASCEND CTAs — only shown when actionable (hero hasn't reached that
+         tier yet). When the hero is already at the tier, the badge near the
+         name conveys it; the button is hidden. T3/Mythic badges moved
+         alongside T2 badge near the name (see above). -->
     <button class="btn btn-ascend detail-ascend-btn" id="detailAscendBtn" onclick="onTryAscend()" style="display:none;">⚡ ASCEND TO T2</button>
-    <!-- 2026-04-29 — T3 / Mythic ascension buttons. T3 shows after T2 done.
-         Mythic shows after T3 done; gated single-slot per save. -->
-    <div class="detail-t3-badge" id="detailT3Badge" style="display:none;">★ T3 DEEP ASCENDED</div>
-    <div class="detail-mythic-badge" id="detailMythicBadge" style="display:none;">✦ MYTHIC TRANSCENDENT</div>
     <button class="btn btn-ascend-t3 detail-ascend-t3-btn" id="detailAscendT3Btn" onclick="onTryAscendT3()" style="display:none;">★ ASCEND TO T3</button>
     <button class="btn btn-ascend-mythic detail-ascend-mythic-btn" id="detailAscendMythicBtn" onclick="onTryAscendMythic()" style="display:none;">✦ MYTHIC ASCENSION</button>
 
@@ -41868,9 +41889,11 @@ function openHeroDetail(heroId) {
     if (t2Badge) t2Badge.style.display = isT2 ? '' : 'none';
     if (ascendBtn) {
       if (isT2) {
-        // Already ascended — inert reminder
-        ascendBtn.style.display = '';
-        ascendBtn.innerHTML = '⚡ ALREADY ASCENDED';
+        // 2026-04-29 polish v0.1 Track D: hide button entirely when already at
+        // this tier — the badge near the hero name is the status surface. Was
+        // an inert "⚡ ALREADY ASCENDED" disabled-button reminder, which read
+        // as a clickable CTA and competed with Upgrade for visual hierarchy.
+        ascendBtn.style.display = 'none';
         ascendBtn.disabled = true;
       } else {
         // Build cost chip strip — 4 chips, red/green per requirement.
@@ -41915,14 +41938,11 @@ function openHeroDetail(heroId) {
     // T3 badge / button
     if (t3Badge) t3Badge.style.display = isT3 ? '' : 'none';
     if (t3Btn) {
-      if (!isT2) {
-        // Hero hasn't reached T2 yet — hide T3 button entirely.
+      if (!isT2 || isT3) {
+        // 2026-04-29 polish v0.1 Track D: hide button when not yet eligible
+        // (no T2 yet) OR already at this tier (T3 already done — badge near
+        // name conveys it). Was an inert "★ ALREADY T3" reminder.
         t3Btn.style.display = 'none';
-      } else if (isT3) {
-        // Already T3 — show inert reminder.
-        t3Btn.style.display = '';
-        t3Btn.innerHTML = '★ ALREADY T3';
-        t3Btn.disabled = true;
       } else {
         // T2-ascended, T3 available — render cost chips.
         t3Btn.style.display = '';
@@ -41951,14 +41971,14 @@ function openHeroDetail(heroId) {
     // Mythic badge / button
     if (mBadge) mBadge.style.display = isMy ? '' : 'none';
     if (mBtn) {
-      if (!isT3) {
+      if (!isT3 || isMy) {
+        // 2026-04-29 polish v0.1 Track D: hide button when not yet eligible
+        // (no T3 yet) OR already mythic (badge near name conveys it).
         mBtn.style.display = 'none';
-      } else if (isMy) {
-        mBtn.style.display = '';
-        mBtn.innerHTML = '✦ MYTHIC TRANSCENDENT';
-        mBtn.disabled = true;
       } else if (mythicTaken) {
-        // Another hero is already mythic — single-slot rule blocks this one.
+        // Another hero already holds the single mythic slot — keep the
+        // button visible but disabled with explicit reason. Different from
+        // "already done" — the player CAN'T do it, not "already did it".
         mBtn.style.display = '';
         mBtn.innerHTML = '✦ MYTHIC SLOT TAKEN';
         mBtn.disabled = true;
