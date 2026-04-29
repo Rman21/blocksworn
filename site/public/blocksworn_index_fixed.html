@@ -15100,10 +15100,19 @@ function applyBossDefeatProgression(bossNumber) {
     if (!hero || hero.locked) continue;
     if (!hero.unlocked) {
       hero.unlocked = true;
+      // 2026-04-29 — Reveal alongside unlock so vRenderRoster's
+      // `revealedHeroes.has(id)` filter sees them on the next render. Without
+      // this, boss-unlocked heroes (e.g. sharks 3-5 from Solar Phoenix)
+      // stayed hidden in the Heroes grid until ensureRevealedForComplete()
+      // ran on next page load and backfilled the set.
+      try { revealedHeroes.add(id); } catch (e) {}
       newlyUnlocked.push(id);
     }
   }
-  if (newlyUnlocked.length > 0) saveUnlockedHeroesToStorage();
+  if (newlyUnlocked.length > 0) {
+    saveUnlockedHeroesToStorage();
+    try { saveRevealedHeroesToStorage(); } catch (e) {}
+  }
 
   let squadBumped = false;
   const targetMax = BOSS_SQUAD_BUMPS[bossNumber];
