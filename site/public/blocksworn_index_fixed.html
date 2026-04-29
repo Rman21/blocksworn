@@ -22794,7 +22794,16 @@ function closePactPicker() {
 }
 
 function showTowerFloorClearModal(clearedFloor) {
-  if (!towerState.currentRunStarted) return; // safety: run already ended
+  // 2026-04-29 — Mode-aware run-active guard. Previously gated only on
+  // `currentRunStarted` (the daily flag). Weekly + Seasonal sets their own
+  // *RunStarted booleans and never touches `currentRunStarted`, so floor 1
+  // clear in Weekly/Seasonal would silently no-op here after the pact picker
+  // closed — leaving the player stuck on the cleared floor with no path to
+  // floor 2. Read whichever flag corresponds to the active gauntlet.
+  const _runActive = (_currentGauntletMode === 'weekly')   ? !!towerState.weeklyRunStarted
+                   : (_currentGauntletMode === 'seasonal') ? !!towerState.seasonalRunStarted
+                   :                                          !!towerState.currentRunStarted;
+  if (!_runActive) return; // safety: run already ended
   const nextCfg = getTowerFloorConfig(clearedFloor + 1);
   const modal = document.getElementById('towerFloorClearModal');
   if (!modal) {
