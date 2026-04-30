@@ -937,6 +937,37 @@
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
 }
+/* 2026-04-29 polish v0.1 Track B: each squad slot wraps avatar + name.
+ * Plan §B.2 wanted hero names visible under each portrait without a tap. */
+.a-hub-squad-slots .v-avatar-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+.a-hub-squad-slots .v-avatar-slot .v-avatar { width: 100%; }
+.a-hub-squad-slots .v-avatar-name {
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: var(--a-gold-300, #FFD53D);
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-height: 1.2em;
+}
+.a-hub-squad-slots .v-avatar-slot.empty .v-avatar-name { opacity: 0.3; }
+/* 2026-04-29 polish v0.1 Track B: boss name + sub + diff sit BELOW the
+ * portrait now (was above as H1). Center the meta block. */
+.a-hub-boss-meta {
+  margin: 6px 16px 4px;
+  text-align: center;
+}
 .a-hub-squad-edit {
   position: absolute;
   top: 8px; right: 10px;
@@ -8178,8 +8209,33 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   100% { transform: rotate(0) scale(1); }
 }
 
+/* 2026-04-29 polish v0.1 Track C.2: threat banner above the grid. Sits
+ * persistent for the duration of a threat (storm spawn, etc.), red-tinted
+ * to read as a warning, never overlaps the grid like the legacy flashText
+ * toast did. Hidden by default — controlled via the `hidden` attribute. */
+.threat-banner {
+  margin: 4px 8px 6px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(120, 30, 40, 0.55), rgba(40, 10, 14, 0.75));
+  border: 1px solid rgba(255, 90, 74, 0.55);
+  border-radius: 8px;
+  text-align: center;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  color: #FFD0CC;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 12px rgba(255, 90, 74, 0.30);
+  animation: threatBannerPulse 1.4s ease-in-out infinite;
+}
+.threat-banner[hidden] { display: none !important; }
+@keyframes threatBannerPulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 90, 74, 0.25); }
+  50%      { box-shadow: 0 0 18px rgba(255, 90, 74, 0.55); }
+}
+
 /* ===== GRID ===== */
-.grid-wrap { 
+.grid-wrap {
   background: #1A1B2E; border: 1px solid #3D3F5E; border-radius: 12px; padding: 6px;
   display: flex; justify-content: center; align-items: center;
   flex-shrink: 1; min-height: 0;
@@ -12996,9 +13052,12 @@ button.season-tier-claim:active {
         </button>
         <div class="a-hub-chapter-menu hidden" id="vChapterMenu" role="menu"></div>
       </div>
-      <div class="a-title a-title--h1" id="vBossName">—</div>
-      <div class="a-hub-sub" id="vBossSub">—</div>
-      <div class="a-hub-diff" id="vBossDiff"></div>
+      <!-- 2026-04-29 polish v0.1 Track B: boss name + element subtitle moved
+           BELOW the portrait per plan §B.2. Was H1 above the card; new
+           player without context read the boss name as the player identity.
+           Difficulty stars stay near the name. The h1-style class drops to
+           h2 weight so the kicker (NEXT BATTLE) and BATTLE button read as
+           the eye-path leaders. -->
     </div>
 
     <!-- Central boss on pedestal -->
@@ -13007,6 +13066,11 @@ button.season-tier-claim:active {
         <img id="vBossImg" alt="">
       </div>
       <div class="a-pedestal a-hub-boss-pedestal"></div>
+    </div>
+    <div class="a-hub-boss-meta">
+      <div class="a-title a-title--h2" id="vBossName">—</div>
+      <div class="a-hub-sub" id="vBossSub">—</div>
+      <div class="a-hub-diff" id="vBossDiff"></div>
     </div>
 
     <!-- Chapter progress -->
@@ -13274,6 +13338,13 @@ button.season-tier-claim:active {
 
   <div class="synergy-bar" id="synergyBar"></div>
   <div class="deck" id="deck"></div>
+
+  <!-- 2026-04-29 polish v0.1 Track C.2: dedicated threat banner above the
+       grid (between heroes deck and grid-wrap, per plan §5.1). Persists
+       while a threat is active; never overlaps grid cells. Storm spawns
+       (Stormshepherd) and other 1-line warnings route here via
+       showThreatBanner() / hideThreatBanner() helpers. Hidden by default. -->
+  <div class="threat-banner" id="threatBanner" hidden></div>
 
   <div class="grid-wrap">
     <div class="v-battle-dmg-chip">⚔ <b id="dmg">0</b></div>
@@ -27928,14 +27999,15 @@ function tickChapter3Boss() {
     if (picks.length > 0) {
       const stormIdx = Math.floor(Math.random() * 3);
       const stormName = stormTypes[stormIdx];
-      // 2026-04-29 polish v0.1 Track A.1: clearer banner copy. The
-      // previous "× N · 2 turns to defuse" read as raw shorthand; new
-      // wording tells the player what's about to happen + how to stop
-      // it. The per-cell turn-counter chip (DEBT-3) shows the same
-      // timer visually on each storm cell.
-      const _stopHint = ['clear the cells to stop it', 'clear the cells to stop it', 'clear the cells to stop it'][stormIdx];
+      // 2026-04-29 polish v0.1 Track C.2: route through #threatBanner
+      // (above-grid persistent) instead of flashText (centered overlay
+      // that obscured the grid). The per-cell turn-counter chip
+      // (DEBT-3) still shows the timer visually on each storm cell;
+      // banner persists for ~3s then auto-clears so it doesn't pile
+      // up across multiple turns.
       const _label = picks.length > 1 ? stormName + ' ×' + picks.length : stormName;
-      try { flashText('⚠ ' + _label + ' in 2 turns — ' + _stopHint, '#9CC8DE'); } catch (e) {}
+      const _msg = '⚠ ' + _label + ' in 2 turns — clear the cells to stop it';
+      try { showThreatBanner(_msg, 3500); } catch (e) {}
       try { render(); } catch (e) {}
     }
   }
@@ -30563,6 +30635,9 @@ function startBossBattle() {
     if (typeof _dialogDeferredQueue !== 'undefined') _dialogDeferredQueue.length = 0;
     if (typeof _pendingDialogRequest !== 'undefined') _pendingDialogRequest = null;
     if (typeof resetBossVoiceFlags === 'function') resetBossVoiceFlags();
+    // 2026-04-29 polish v0.1 Track C.2: clear any lingering threat banner
+    // from the previous battle so it doesn't bleed into the new fight.
+    if (typeof hideThreatBanner === 'function') hideThreatBanner();
   } catch (e) {}
   // V3.0 Phase 4: show one-time tutorial toast carousel on first battle.
   // PHASE 4 BLOCK 1 — carousel is gated to NON-FTUE inside maybeShowBattleTutorial
@@ -38662,6 +38737,18 @@ function renderSynergyBar() {
   } catch (e) {}
 }
 
+// 2026-04-29 polish v0.1 Track C.1: format boss HP as compact shorthand
+// (`41.4K / 41.4K`) instead of `41 400 / 41 400`. Mass-market players don't
+// mental-count five-digit numbers — they parse them as "big". Shorthand
+// reads "big" the same way without the eye-straining digit count.
+function _shortHP(n) {
+  if (!Number.isFinite(n)) return '0';
+  const abs = Math.abs(n);
+  if (abs >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (abs >= 1000)    return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  return String(Math.round(n));
+}
+
 function renderBossHP() {
   const pct = Math.max(0, (bossHP / bossMaxHP) * 100);
   document.getElementById('bossHpFill').style.width = pct + '%';
@@ -38672,7 +38759,7 @@ function renderBossHP() {
   const hasRevives = currentBoss && (currentBoss.revives || 0) > 0;
   const reviveMark = hasRevives ? ` · ${'🔥'.repeat(revivesRemaining + 1)}` : '';
   document.getElementById('bossHpText').textContent =
-    `${bossHP.toLocaleString('ru-RU')} / ${bossMaxHP.toLocaleString('ru-RU')}${reviveMark}`;
+    `${_shortHP(bossHP)} / ${_shortHP(bossMaxHP)}${reviveMark}`;
 }
 
 function renderDeck() {
@@ -39024,6 +39111,33 @@ function _flushDeferredQueueAfterDialog() {
   items.forEach((fn, i) => {
     setTimeout(() => { try { fn(); } catch (e) {} }, 150 + i * 280);
   });
+}
+
+// 2026-04-29 polish v0.1 Track C.2: persistent threat banner (above-grid).
+// Use for warnings that must stay readable while the player plans a
+// response — storm spawns, future debuff timers, etc. Distinct surface
+// from `flashText` (transient toast) and `attackWarning` (boss attack
+// countdown) so the three threat layers don't compete for the same DOM.
+let _threatBannerHideTimer = null;
+function showThreatBanner(text, durationMs) {
+  const el = document.getElementById('threatBanner');
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = false;
+  if (_threatBannerHideTimer) { clearTimeout(_threatBannerHideTimer); _threatBannerHideTimer = null; }
+  const dur = Number.isFinite(durationMs) ? durationMs : 0;
+  if (dur > 0) {
+    _threatBannerHideTimer = setTimeout(() => {
+      try { hideThreatBanner(); } catch (e) {}
+    }, dur);
+  }
+}
+function hideThreatBanner() {
+  const el = document.getElementById('threatBanner');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
+  if (_threatBannerHideTimer) { clearTimeout(_threatBannerHideTimer); _threatBannerHideTimer = null; }
 }
 
 function flashText(text, color, opts) {
@@ -40183,9 +40297,21 @@ function vRenderChapter() {
   const numEl = document.getElementById('vChapterNum');
   const fillEl = document.getElementById('vChapterFill');
   const ofEl = document.getElementById('vChapterOfN');
-  if (numEl) numEl.textContent = `CH.${currentChapter}`;
   const done = chapterProgress[currentChapter] || 0;
   const total = BOSSES.length;
+  // 2026-04-29 polish v0.1 Track B: kicker now reads "NEXT BATTLE · CH.X
+  // · N OF M" instead of just "CH.X", so a returning user understands the
+  // current screen state in <2 seconds (per plan §B.1). When the chapter is
+  // fully cleared we drop the "NEXT BATTLE" prefix — there's nothing next.
+  const _displaySel = (selectedBossIdx !== null && selectedBossIdx <= done)
+    ? selectedBossIdx
+    : Math.min(done, total - 1);
+  const _allCleared = (done >= total);
+  if (numEl) {
+    numEl.textContent = _allCleared
+      ? `CH.${currentChapter} · CLEARED`
+      : `NEXT BATTLE · CH.${currentChapter} · ${_displaySel + 1} OF ${total}`;
+  }
   if (fillEl) fillEl.style.width = `${Math.round((done / total) * 100)}%`;
   if (ofEl) ofEl.textContent = `${done}/${total}`;
   // 2026-04-27 — Chapter picker. Renders the dropdown menu items (one per
@@ -40283,9 +40409,15 @@ function vRenderSquadDock() {
   const host = document.getElementById('vSquadAvatars');
   if (!host) return;
   host.innerHTML = '';
+  // 2026-04-29 polish v0.1 Track B: hero names visible under each portrait
+  // per plan §B.2. New-player test "name a hero on the home screen without
+  // tap" was failing — only portraits were shown. Wrap each avatar in a
+  // .v-avatar-slot so the name label can sit below.
   for (let i = 0; i < 5; i++) {
     const id = activeSquad[i];
     const h = id ? HERO_ROSTER.find(x => x.id === id) : null;
+    const slot = document.createElement('div');
+    slot.className = 'v-avatar-slot' + (h ? '' : ' empty');
     const av = document.createElement('div');
     av.className = 'v-avatar' + (h ? ` ${h.stihiya}` : ' empty');
     if (h && ASSETS[h.img]) {
@@ -40296,7 +40428,12 @@ function vRenderSquadDock() {
     } else if (!h) {
       av.textContent = '+';
     }
-    host.appendChild(av);
+    slot.appendChild(av);
+    const name = document.createElement('div');
+    name.className = 'v-avatar-name';
+    name.textContent = h ? h.name : '';
+    slot.appendChild(name);
+    host.appendChild(slot);
   }
 }
 
