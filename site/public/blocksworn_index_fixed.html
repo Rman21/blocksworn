@@ -10948,10 +10948,22 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
    - padding-bottom respects iOS home-indicator inset.
    - Solid background gradient (not just rgba) so the tray reads as a
      surface even on bright element-tinted backgrounds. */
+/* 2026-04-30 — Combat UI Final Polish §10 (PR 6/6) tray drawer.
+   Tray now reads as an elevated drawer per spec §10.1, with an
+   element-themed accent line on top + a subtle upward glow that
+   bleeds into the gap between the grid and the tray. The accent
+   matches the boss element (same data-element flips that drive
+   the boss-card HP gradient in PR #72, the atmospheric board in
+   PR #79, and the top-bar element pill in PR #78) so the whole
+   battle screen reads as one coherent element-themed surface.
+
+   The default gold accent (no data-element) is preserved for
+   pre-battle / between-battle moments where the tray exists but
+   no boss is active. */
 .tray {
   background: rgba(26, 27, 46, 0.95);
   border: 1px solid #3D3F5E;
-  border-top: 1px solid rgba(255, 215, 0, 0.18);
+  border-top: 2px solid var(--tray-accent, rgba(255, 215, 0, 0.40));
   border-radius: 12px;
   padding: 10px;
   display: flex;
@@ -10966,12 +10978,77 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   z-index: 100;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+  box-shadow:
+    0 -4px 20px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 -1px 0 var(--tray-glow, rgba(255, 215, 0, 0.20));
+  transition: border-top-color 0.5s ease, box-shadow 0.5s ease;
 }
-.piece { display: grid; cursor: grab; touch-action: none; transition: opacity 0.2s; }
+/* ::before — subtle element-themed upward glow at the top of the
+   tray. Sits 20px above the tray border, inside the small gap
+   between grid-wrap bottom edge and tray top edge. Reads as
+   "the drawer is emitting light upward". */
+.tray::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: linear-gradient(
+    0deg,
+    var(--tray-glow, rgba(255, 215, 0, 0.18)) 0%,
+    transparent 100%
+  );
+  pointer-events: none;
+  transition: background 0.5s ease;
+}
+/* Per-element accent + glow palettes. Same stihiya→spec mapping
+   that drives the rest of the element theming. */
+.tray[data-element="fire"] {
+  --tray-accent: rgba(255, 107, 53, 0.55);
+  --tray-glow:   rgba(255, 107, 53, 0.20);
+}
+.tray[data-element="frost"] {
+  --tray-accent: rgba(74, 159, 255, 0.55);
+  --tray-glow:   rgba(74, 159, 255, 0.20);
+}
+.tray[data-element="earth"] {
+  --tray-accent: rgba(74, 219, 109, 0.55);
+  --tray-glow:   rgba(74, 219, 109, 0.20);
+}
+.tray[data-element="dark"] {
+  --tray-accent: rgba(139, 79, 188, 0.60);
+  --tray-glow:   rgba(139, 79, 188, 0.22);
+}
+.tray[data-element="light"] {
+  --tray-accent: rgba(255, 215, 0, 0.55);
+  --tray-glow:   rgba(255, 215, 0, 0.20);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tray, .tray::before { transition: none !important; }
+}
+
+/* 2026-04-30 — Combat UI Final Polish §10.4 (PR 6/6) piece glow.
+   Each piece carries its primary element via data-element (set in
+   makePieceEl from piece.stihiya). A subtle outer glow on the piece
+   root reinforces the element identity even before the player
+   focuses on individual cells. The .pcell children keep their
+   existing per-element backgrounds (.cell.ember/.tide/.grove/etc) —
+   no change to the actual cell visuals so combat-readability is
+   preserved. */
+.piece { display: grid; cursor: grab; touch-action: none; transition: opacity 0.2s, filter 0.2s; }
+.piece[data-element="fire"]  { filter: drop-shadow(0 0 6px rgba(255, 107, 53, 0.30)); }
+.piece[data-element="frost"] { filter: drop-shadow(0 0 6px rgba(74, 159, 255, 0.30)); }
+.piece[data-element="earth"] { filter: drop-shadow(0 0 6px rgba(74, 219, 109, 0.28)); }
+.piece[data-element="dark"]  { filter: drop-shadow(0 0 6px rgba(139, 79, 188, 0.32)); }
+.piece[data-element="light"] { filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.30)); }
 .piece.dragging { opacity: 0.15; }
 .piece.used { opacity: 0; pointer-events: none; }
 .piece .pcell { border-radius: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .piece { transition: opacity 0.2s !important; }
+}
 .piece .pcell.empty { background: transparent; }
 .drag-ghost { position: fixed; pointer-events: none; z-index: 1000; display: grid; transform: translate(-50%, -50%); opacity: 0.95; filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6)); }
 
@@ -16364,6 +16441,13 @@ button.season-tier-claim:active {
     <div class="grid" id="grid"></div>
   </div>
 
+  <!-- 2026-04-30 — Combat UI Final Polish §10 (PR 6/6): tray now
+       carries data-element (set in startBossBattle alongside bossBar
+       + gridWrap) so the element-themed accent line, upward glow, and
+       transition all flip in lock-step with the rest of the screen.
+       Pieces inside the tray are still rendered into #tray.innerHTML
+       by renderTray; the new data-element attribute lives on the
+       .tray element itself, not on its children. -->
   <div class="tray" id="tray"></div>
   <!-- 2026-04-30 — Combat UI Final Polish §11 (PR 4/6): the tray-edge
        element pill (former PR #73 #trayElementPill) was removed from
@@ -35778,11 +35862,11 @@ function startBossBattle() {
   document.getElementById('bossImgWrap').classList.remove('defeated');
   document.getElementById('bossBar').style.setProperty('--boss-color', currentBoss.color);
   document.getElementById('bossImg').src = ASSETS[currentBoss.img];
-  // 2026-04-30 — Combat UI Redesign §5 (PR 4/6) + Final Polish §8
-  // (PR 5/6): set data-element on the boss-card AND the grid-wrap
-  // so element-themed HP gradient (PR #72) + atmospheric board
-  // background, top-edge boss glow, bottom-edge player glow, and
-  // particle palette (PR #75 / Final Polish §8) all resolve in
+  // 2026-04-30 — Combat UI Redesign §5 (PR 4/6) + Final Polish §8 +
+  // §10 (PR 5/6 + 6/6): set data-element on the boss-card, grid-wrap,
+  // AND tray so element-themed HP gradient (PR #72), atmospheric
+  // board background + edge glows + particles (PR #79), and the
+  // tray drawer accent line + upward glow (this PR) all resolve in
   // lock-step. Spec uses fire/frost/earth/dark/light naming; map
   // from the existing stihiya tokens (ember/tide/grove/umbra/solar).
   try {
@@ -35793,6 +35877,9 @@ function startBossBattle() {
     // Final Polish §8: atmospheric board theming
     const _gridWrap = document.getElementById('gridWrap');
     if (_gridWrap) _gridWrap.setAttribute('data-element', _el);
+    // Final Polish §10: tray drawer theming
+    const _tray = document.getElementById('tray');
+    if (_tray) _tray.setAttribute('data-element', _el);
   } catch (e) {}
   // Reset phase glow at battle start — applied dynamically by
   // renderBossHP based on HP %. Without this, a re-entry of a boss
@@ -44746,6 +44833,18 @@ function renderTray() {
 function makePieceEl(piece, cellSize) {
   const el = document.createElement('div');
   el.className = 'piece';
+  // 2026-04-30 — Combat UI Final Polish §10.4 (PR 6/6): tag the piece
+  // root with its primary element so the per-element drop-shadow CSS
+  // resolves. Same stihiya→spec mapping that drives the rest of the
+  // theming chain (boss-card, atmospheric board, top-bar pill, tray).
+  // Tier 3 cell types (void_*) inherit the underlying stihiya so the
+  // glow stays consistent with the piece's elemental identity.
+  try {
+    const _stihiya2spec = { ember: 'fire', tide: 'frost', grove: 'earth', umbra: 'dark', solar: 'light' };
+    const _baseStihiya = String(piece.stihiya || '').replace(/^void_/, '');
+    const _el = _stihiya2spec[_baseStihiya];
+    if (_el) el.dataset.element = _el;
+  } catch (e) {}
   const cols = piece.shape[0].length, rows = piece.shape.length;
   el.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
   el.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
