@@ -1034,6 +1034,80 @@
   --slot-glow: rgba(192,106,223,0.55); --slot-border: rgba(192,106,223,0.5);
 }
 
+/* 2026-04-30 — Polish v0.2 Track I §I.4.4: WHAT'S NEW accordion. Mounts
+   on the home hub for ~3 days after Ch.1 unlock and contains the four
+   freshly-opened systems (Ch.2 / Tower / Daily / Battle Pass) the
+   cinematic showed. Default collapsed; tap header to expand. The whole
+   block hides when its expiry timestamp passes (vRenderWhatsNew). */
+.a-hub-whatsnew {
+  margin: 0 16px 4px;
+  border: 1px solid rgba(255, 213, 61, 0.30);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(40, 28, 8, 0.45), rgba(20, 14, 4, 0.65));
+  overflow: hidden;
+}
+.a-hub-whatsnew[hidden] { display: none !important; }
+.a-hub-whatsnew-head {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--a-text-secondary, #A8A5B8);
+  text-align: left;
+  font-family: var(--a-font-display, sans-serif);
+}
+.a-hub-whatsnew-head:hover { background: rgba(255, 213, 61, 0.06); }
+.a-hub-whatsnew-kicker {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  text-transform: uppercase;
+}
+.a-hub-whatsnew-sub {
+  flex: 1;
+  font-size: 10.5px; letter-spacing: 0.8px;
+  color: var(--a-text-secondary, #A8A5B8);
+  text-transform: uppercase;
+}
+.a-hub-whatsnew-chev {
+  font-size: 12px;
+  color: var(--a-gold-300, #FFD53D);
+  transition: transform 0.18s ease-out;
+}
+.a-hub-whatsnew-head[aria-expanded="true"] .a-hub-whatsnew-chev { transform: rotate(180deg); }
+.a-hub-whatsnew-body {
+  display: flex; flex-direction: column; gap: 0;
+  padding: 0 12px 8px;
+  border-top: 1px solid rgba(255, 213, 61, 0.18);
+}
+.a-hub-whatsnew-body[hidden] { display: none !important; }
+.a-hub-whatsnew-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+}
+.a-hub-whatsnew-item:last-child { border-bottom: 0; }
+.a-hub-whatsnew-icon {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  text-shadow: 0 0 8px currentColor;
+}
+.a-hub-whatsnew-text { min-width: 0; }
+.a-hub-whatsnew-name {
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 12px; font-weight: 800; letter-spacing: 1.2px;
+  color: #F5F3EC;
+  text-transform: uppercase;
+}
+.a-hub-whatsnew-desc {
+  font-size: 10.5px;
+  color: var(--a-text-secondary, #A8A5B8);
+  margin-top: 2px;
+}
+
 .a-hub-cta-wrap {
   margin-top: 4px;
 }
@@ -11107,6 +11181,23 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 }
 .crypt-aftermath .cla-cta:hover  { filter: brightness(1.08); }
 .crypt-aftermath .cla-cta:active { transform: scale(0.97); }
+/* 2026-04-30 — Polish v0.2 Track I §I.3: dual-CTA row with secondary
+   MAIN MENU escape. Primary keeps the gradient + glow; secondary is a
+   ghost button so the primary still reads as the dominant action. */
+.crypt-aftermath .cla-cta-row {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.crypt-aftermath .cla-cta-secondary {
+  margin-top: 0;
+  padding: 10px 26px;
+  background: transparent;
+  color: var(--a-text-secondary, #B7B0C8);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 11px; letter-spacing: 0.18em;
+  box-shadow: none;
+  animation: claLineEnter 0.8s ease-out 8.4s forwards;
+}
+.crypt-aftermath .cla-cta-secondary:hover { filter: none; color: #F5F3EC; border-color: rgba(255,255,255,0.32); }
 
 @media (prefers-reduced-motion: reduce) {
   .crypt-aftermath { transition: opacity 0.3s linear; }
@@ -13223,6 +13314,51 @@ button.season-tier-claim:active {
       <button class="a-hub-squad-edit" onclick="goToSelect()" aria-label="Edit squad">✎</button>
     </div>
 
+    <!-- 2026-04-30 — Polish v0.2 Track I §I.4.4: WHAT'S NEW accordion.
+         Mounts on the home hub for ~3 days after Ch.1 victory (Crypt Lich
+         defeated, Ch.2 unlocked) so the four newly-opened systems
+         (Bloom of Madness · Tower · Daily Quests · Battle Pass) live as
+         a quiet recap on the hub instead of getting stacked into the
+         post-victory modal pile. Default state: collapsed. Auto-clears
+         when its expiry timestamp passes. Hidden if no recent unlock. -->
+    <section class="a-hub-whatsnew" id="vWhatsNewBlock" hidden>
+      <button class="a-hub-whatsnew-head" id="vWhatsNewHead" type="button" aria-expanded="false" aria-controls="vWhatsNewBody" onclick="vToggleWhatsNew()">
+        <span class="a-hub-whatsnew-kicker">WHAT'S NEW</span>
+        <span class="a-hub-whatsnew-sub" id="vWhatsNewSub">Chapter 2 unlocked</span>
+        <span class="a-hub-whatsnew-chev" aria-hidden="true">▾</span>
+      </button>
+      <div class="a-hub-whatsnew-body" id="vWhatsNewBody" hidden>
+        <div class="a-hub-whatsnew-item">
+          <div class="a-hub-whatsnew-icon" style="color:#B26AFF">★</div>
+          <div class="a-hub-whatsnew-text">
+            <div class="a-hub-whatsnew-name">BLOOM OF MADNESS</div>
+            <div class="a-hub-whatsnew-desc">Chapter 2 — five new bosses await</div>
+          </div>
+        </div>
+        <div class="a-hub-whatsnew-item">
+          <div class="a-hub-whatsnew-icon" style="color:#FFB347">⛰</div>
+          <div class="a-hub-whatsnew-text">
+            <div class="a-hub-whatsnew-name">TOWER OF ENDLESS</div>
+            <div class="a-hub-whatsnew-desc">Daily / weekly / seasonal climbs</div>
+          </div>
+        </div>
+        <div class="a-hub-whatsnew-item">
+          <div class="a-hub-whatsnew-icon" style="color:#5DCAFF">📅</div>
+          <div class="a-hub-whatsnew-text">
+            <div class="a-hub-whatsnew-name">DAILY QUESTS</div>
+            <div class="a-hub-whatsnew-desc">Daily login · streak · Battle Pass XP</div>
+          </div>
+        </div>
+        <div class="a-hub-whatsnew-item">
+          <div class="a-hub-whatsnew-icon" style="color:#FFD53D">🎫</div>
+          <div class="a-hub-whatsnew-text">
+            <div class="a-hub-whatsnew-name">BATTLE PASS</div>
+            <div class="a-hub-whatsnew-desc">Free track + 100 levels of rewards</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- BATTLE CTA -->
     <div class="a-hub-cta-wrap">
       <button class="a-btn-cta a-hub-battle-btn" onclick="startBattleFromMenu()">
@@ -13854,7 +13990,18 @@ button.season-tier-claim:active {
         <div class="cla-region-badge">DAILY</div>
       </div>
     </div>
-    <button class="cla-cta" id="claCta" type="button" onclick="_dismissCryptLichAftermath()">ENTER THE TOWER</button>
+    <!-- 2026-04-30 — Polish v0.2 Track I §I.3: dual-CTA dismiss row.
+         Plan-spec wording: "no commercial CTAs in this dialog, just
+         [ENTER CHAPTER 2] and [MAIN MENU]". Tower (Chapter 2's flagship
+         feature) stays as the primary action; MAIN MENU is the secondary
+         escape so the cinematic isn't a forced funnel into Tower. Both
+         buttons route through _dismissCryptLichAftermath; the secondary
+         passes a flag that swaps the post-cinematic callback to home
+         instead of Tower. -->
+    <div class="cla-cta-row">
+      <button class="cla-cta" id="claCta" type="button" onclick="_dismissCryptLichAftermath()">ENTER THE TOWER</button>
+      <button class="cla-cta cla-cta-secondary" id="claCtaMenu" type="button" onclick="_dismissCryptLichAftermath({ toMenu: true })">MAIN MENU</button>
+    </div>
   </div>
 </div>
 
@@ -15644,6 +15791,16 @@ function applyBossDefeatProgression(bossNumber) {
   if (bossNumber === 5 && !chapter2Unlocked) {
     chapter2Unlocked = true;
     try { saveProgress(); } catch (e) {}
+    // 2026-04-30 — Polish v0.2 Track I §I.4.4: stamp the WHAT'S NEW
+    // accordion's expiry timestamp on Ch.1 unlock. The accordion sits on
+    // the home hub for ~3 days as a quiet recap of the four newly-opened
+    // systems (Bloom of Madness · Tower · Daily · Battle Pass), so the
+    // unlock content lives at the player's leisure instead of being
+    // stacked into the post-victory modal pile.
+    try {
+      const expires = Date.now() + (3 * 24 * 60 * 60 * 1000);
+      localStorage.setItem('blocksworn_whatsnew_expires', String(expires));
+    } catch (e) {}
     const cinematicDelay = (squadBumped ? 1500 : 250) + 2000;
     setTimeout(() => {
       try {
@@ -16077,14 +16234,27 @@ function showCryptLichAftermathCinematic(onDismiss) {
   try { speakNarrator('chapterUnlocked'); } catch (e) {}
 }
 
-function _dismissCryptLichAftermath() {
+function _dismissCryptLichAftermath(opts) {
   const overlay = document.getElementById('cryptLichAftermath');
   if (!overlay) return;
+  // 2026-04-30 — Polish v0.2 Track I §I.3: secondary MAIN MENU button
+  // passes { toMenu: true } so the post-cinematic callback routes to
+  // home instead of Tower. The primary ENTER THE TOWER button still
+  // calls with no args and uses the original goToTower callback.
+  const toMenu = !!(opts && opts.toMenu);
   overlay.classList.remove('show');
   overlay.setAttribute('aria-hidden', 'true');
   // Wait for fade-out transition (0.6s per CSS) before hiding
   setTimeout(() => {
     overlay.classList.add('hidden');
+    if (toMenu) {
+      // Override the queued goToTower callback — drop the player on the
+      // hub instead. The original callback is still cleared so we don't
+      // double-fire on a later open.
+      _cryptLichAftermathDismissCb = null;
+      try { if (typeof goToMenu === 'function') goToMenu(); } catch (e) { console.warn('Crypt Lich aftermath toMenu failed:', e); }
+      return;
+    }
     if (_cryptLichAftermathDismissCb) {
       try { _cryptLichAftermathDismissCb(); } catch (e) { console.warn('Crypt Lich aftermath dismiss callback failed:', e); }
       _cryptLichAftermathDismissCb = null;
@@ -16459,20 +16629,15 @@ function addHeroFragments(heroId, count) {
     }
   } catch (e) {}
   // 2026-04-28 — Player Education Stage 10: when any hero first crosses the
-  // Tier 2 fragment threshold, surface the Hero Upgrade primer modal. Bridges
-  // into Stage 11 (post-ascension Tier roadmap) which fires after the actual
-  // ascend. Delayed 1200ms so the +N FRAGMENTS flash + roster animation
-  // settle before the overlay lays on top. Self-gates on FTUE + per-install
-  // flag + suppression-if-Stage-11-already-seen.
-  try {
-    const cost = (typeof TIER2_CARDS_COST !== 'undefined') ? TIER2_CARDS_COST : 5;
-    if ((heroFragments[heroId] || 0) >= cost) {
-      setTimeout(() => {
-        try { if (typeof maybeShowHeroUpgradeReadyEducation === 'function') maybeShowHeroUpgradeReadyEducation(); }
-        catch (e) { console.warn('maybeShowHeroUpgradeReadyEducation failed:', e); }
-      }, 1200);
-    }
-  } catch (e) {}
+  // Tier 2 fragment threshold, surface the Hero Upgrade primer modal.
+  // 2026-04-30 — Polish v0.2 Track I §I.4.3: trigger relocated. Was firing
+  // here on hero-card-grant, which stacked the modal directly on top of
+  // post-victory rewards (one of the v0.2 monetization-pile complaints).
+  // Now fires on first goToSelect() with the threshold met — contextual,
+  // not interruptive, lands when the player is already looking at heroes.
+  // The threshold check + Stage-11 suppression still live inside
+  // maybeShowHeroUpgradeReadyEducation; this site just removes the early
+  // trigger.
   return added;
 }
 
@@ -40447,6 +40612,16 @@ function goToSelect() {
   // Delayed slightly so the screen render settles before the modal layers on.
   // Self-gates on FTUE + per-install localStorage flag.
   try { setTimeout(() => maybeShowSquadMgmtEducation(), 400); } catch (e) {}
+  // 2026-04-30 — Polish v0.2 Track I §I.4.3: Hero Upgrades primer fires
+  // here (first Heroes screen open with threshold met), not on hero-card
+  // grant. Contextual — the player is already looking at heroes when
+  // the modal explains how T2 ascension works. The function self-gates
+  // on FTUE, the per-install flag, and Stage-11 suppression, so calling
+  // it on every goToSelect is safe and idempotent. 800ms delay so the
+  // squad-mgmt primer above gets first crack on truly-fresh installs.
+  try { setTimeout(() => {
+    if (typeof maybeShowHeroUpgradeReadyEducation === 'function') maybeShowHeroUpgradeReadyEducation();
+  }, 800); } catch (e) {}
 }
 
 function startBattleFromMenu() {
@@ -40575,6 +40750,10 @@ function renderMenu() {
   try { vRenderChapter(); }   catch(e){ console.warn('vRenderChapter failed:', e); }
   try { vRenderBossCard(); }  catch(e){ console.warn('vRenderBossCard failed:', e); }
   try { vRenderSquadDock(); } catch(e){ console.warn('vRenderSquadDock failed:', e); }
+  // 2026-04-30 — Polish v0.2 Track I §I.4.4: WHAT'S NEW accordion
+  // visibility + auto-expire. No-ops if no Ch.1-unlock timestamp is set
+  // or if the 3-day window has passed.
+  try { vRenderWhatsNew(); }  catch(e){ console.warn('vRenderWhatsNew failed:', e); }
   try { vRenderCosmicMemorial(); } catch(e){ console.warn('vRenderCosmicMemorial failed:', e); }
   // Legacy renderers — kept because they update other screens or are called from
   // many code paths. Their DOM hosts no longer exist in screenMenu, but each
@@ -40661,6 +40840,40 @@ function vToggleChapterPicker(evt) {
     });
   }
 }
+// 2026-04-30 — Polish v0.2 Track I §I.4.4: WHAT'S NEW hub accordion.
+// vRenderWhatsNew runs every hub render and decides visibility based on
+// the expiry timestamp stamped at Ch.1 unlock. Auto-hides (and clears
+// the timestamp) once the 3-day window elapses, so the block isn't a
+// permanent fixture — it's a temporary ramp into the new systems.
+// vToggleWhatsNew flips the body open/closed via the [hidden] attribute
+// + the head's aria-expanded state (which drives the chevron rotation).
+function vRenderWhatsNew() {
+  const block = document.getElementById('vWhatsNewBlock');
+  if (!block) return;
+  let expires = 0;
+  try { expires = parseInt(localStorage.getItem('blocksworn_whatsnew_expires') || '0', 10) || 0; } catch (e) {}
+  if (!expires || Date.now() >= expires) {
+    block.hidden = true;
+    if (expires) {
+      try { localStorage.removeItem('blocksworn_whatsnew_expires'); } catch (e) {}
+    }
+    return;
+  }
+  block.hidden = false;
+}
+function vToggleWhatsNew() {
+  const head = document.getElementById('vWhatsNewHead');
+  const body = document.getElementById('vWhatsNewBody');
+  if (!head || !body) return;
+  const open = body.hidden;
+  body.hidden = !open;
+  head.setAttribute('aria-expanded', String(open));
+}
+if (typeof window !== 'undefined') {
+  window.vRenderWhatsNew = vRenderWhatsNew;
+  window.vToggleWhatsNew = vToggleWhatsNew;
+}
+
 function vSelectChapter(n) {
   const menu = document.getElementById('vChapterMenu');
   const pick = document.getElementById('vChapterPick');
