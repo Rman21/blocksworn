@@ -128,6 +128,133 @@ html.is-small-screen .a-battle .hero-slot .ult-bar {
   .rotation-prompt-icon { animation: none !important; }
 }
 
+/* 2026-04-30 — Mobile UX Fix v0.1 §6: PWA encouragement modal. Sits at
+   z=9100 above all other overlays. Card uses Arena gold accent +
+   muted ember bg so it reads as branded UI rather than generic
+   browser chrome. iOS / Android instruction blocks are toggled by
+   _pwaShowPrompt; only one is visible at a time. */
+.pwa-prompt {
+  position: fixed; inset: 0;
+  z-index: 9100;
+  display: none;
+  align-items: center; justify-content: center;
+  padding: 20px;
+  background: rgba(8, 4, 14, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: pwaPromptFadeIn 0.3s ease-out;
+}
+.pwa-prompt[aria-hidden="false"] { display: flex; }
+.pwa-prompt-card {
+  background: linear-gradient(180deg, rgba(40, 28, 8, 0.95), rgba(20, 14, 4, 0.98));
+  border: 2px solid var(--a-gold-300, #FFD53D);
+  border-radius: 16px;
+  padding: 24px 22px 20px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  color: #F5F3EC;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 24px rgba(255, 213, 61, 0.25);
+  font-family: var(--a-font-body, system-ui, sans-serif);
+}
+.pwa-prompt-icon {
+  font-size: 44px;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+.pwa-prompt-title {
+  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+  font-size: 20px; font-weight: 800; letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--a-gold-300, #FFD53D);
+  margin: 0 0 8px;
+}
+.pwa-prompt-lede {
+  font-size: 13px;
+  color: var(--a-text-secondary, #A8A5B8);
+  margin: 0 0 12px;
+}
+.pwa-prompt-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+  text-align: left;
+  font-size: 13px;
+  color: #F5F3EC;
+}
+.pwa-prompt-benefits li {
+  padding: 4px 0 4px 22px;
+  position: relative;
+}
+.pwa-prompt-benefits li::before {
+  content: '✓';
+  position: absolute;
+  left: 0; top: 4px;
+  color: var(--a-gold-300, #FFD53D);
+  font-weight: 800;
+}
+.pwa-prompt-instructions {
+  background: rgba(255, 213, 61, 0.08);
+  border: 1px solid rgba(255, 213, 61, 0.25);
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin: 0 0 14px;
+  text-align: left;
+  font-size: 12px;
+  color: #E8E6DF;
+}
+.pwa-prompt-instructions[hidden] { display: none !important; }
+.pwa-prompt-os {
+  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+  font-size: 11px; font-weight: 800; letter-spacing: 1.6px;
+  color: var(--a-gold-300, #FFD53D);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.pwa-prompt-instructions ol {
+  padding-left: 18px;
+  margin: 4px 0 0;
+}
+.pwa-prompt-instructions li {
+  padding: 2px 0;
+  line-height: 1.4;
+}
+.pwa-prompt-actions {
+  display: flex; gap: 10px;
+  margin-top: 4px;
+}
+.pwa-prompt-btn {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+  font-size: 13px; font-weight: 800; letter-spacing: 1.0px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: filter 0.18s ease-out, transform 0.12s ease-out;
+}
+.pwa-prompt-btn-primary {
+  background: linear-gradient(180deg, #FFB800, #C97A05);
+  border: 2px solid #FFE07A;
+  color: #1A1208;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
+}
+.pwa-prompt-btn-primary:hover { filter: brightness(1.08); }
+.pwa-prompt-btn-primary:active { transform: translateY(1px); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }
+.pwa-prompt-btn-secondary {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--a-text-secondary, #A8A5B8);
+}
+.pwa-prompt-btn-secondary:hover { color: #F5F3EC; border-color: rgba(255, 255, 255, 0.32); }
+@keyframes pwaPromptFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pwa-prompt { animation: none !important; }
+}
+
 :root {
   /* ========================================= */
   /* =====       ARENA PREMIUM TOKENS    ===== */
@@ -14680,6 +14807,46 @@ button.season-tier-claim:active {
   </div>
 </div>
 
+<!-- 2026-04-30 — Mobile UX Fix v0.1 §6: PWA mode encouragement.
+     Shown once after the player has completed at least one battle on a
+     mobile device that's NOT already running as a PWA. iOS / Android
+     instruction blocks are toggled by _pwaShowPrompt based on UA
+     detection. "Got it" acknowledges (won't show again);
+     "Maybe later" dismisses with a 7-day cooldown. -->
+<div id="pwaPrompt" class="pwa-prompt" aria-hidden="true" role="dialog" aria-labelledby="pwaPromptTitle">
+  <div class="pwa-prompt-card">
+    <div class="pwa-prompt-icon">📱</div>
+    <h3 id="pwaPromptTitle" class="pwa-prompt-title">Better mobile experience</h3>
+    <p class="pwa-prompt-lede">Add Blocksworm to your home screen for:</p>
+    <ul class="pwa-prompt-benefits">
+      <li>Full screen — no browser UI</li>
+      <li>Faster loading</li>
+      <li>Offline play</li>
+      <li>Better controls</li>
+    </ul>
+    <div class="pwa-prompt-instructions" id="pwaPromptIos" hidden>
+      <div class="pwa-prompt-os">iOS</div>
+      <ol>
+        <li>Tap the Share button at the bottom</li>
+        <li>Scroll and tap <b>Add to Home Screen</b></li>
+        <li>Tap <b>Add</b></li>
+      </ol>
+    </div>
+    <div class="pwa-prompt-instructions" id="pwaPromptAndroid" hidden>
+      <div class="pwa-prompt-os">Android</div>
+      <ol>
+        <li>Tap the menu (three dots)</li>
+        <li>Tap <b>Install app</b> or <b>Add to Home Screen</b></li>
+        <li>Confirm install</li>
+      </ol>
+    </div>
+    <div class="pwa-prompt-actions">
+      <button type="button" class="pwa-prompt-btn pwa-prompt-btn-primary" onclick="_pwaAcknowledge()">Got it</button>
+      <button type="button" class="pwa-prompt-btn pwa-prompt-btn-secondary" onclick="_pwaDismiss()">Maybe later</button>
+    </div>
+  </div>
+</div>
+
 <!-- PHASE 3 BLOCK 2 — CLUTCH SLOW-MO overlay. Hidden by default; shown once per
      battle when player at 1 HP AND boss attack incoming next placement (the
      "2 seconds of silence before The Last Line"). Vignette + cool-tone tint +
@@ -27510,6 +27677,85 @@ function _maybeShowRotationPrompt() {
     el.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
   } catch (e) {}
 }
+// ===== PWA ENCOURAGEMENT =====
+// 2026-04-30 — Mobile UX Fix v0.1 §6. After the player has completed
+// at least one battle on a mobile device that's NOT already running
+// as a PWA, surface a one-time prompt that explains how to add the
+// game to the home screen for the full-screen / offline experience.
+// Two dismissal paths:
+//   "Got it"      → _pwaAcknowledge() — won't show again, ever.
+//   "Maybe later" → _pwaDismiss()     — won't show again for 7 days.
+// Counters:
+//   blocksworn_battles_played      (int) — incremented per onBossDefeated
+//   blocksworn_pwa_acknowledged    (timestamp) — set on Got it
+//   blocksworn_pwa_dismissed_at    (timestamp) — set on Maybe later
+const _PWA_BATTLES_KEY      = 'blocksworn_battles_played';
+const _PWA_ACKED_KEY        = 'blocksworn_pwa_acknowledged';
+const _PWA_DISMISSED_KEY    = 'blocksworn_pwa_dismissed_at';
+const _PWA_DISMISS_COOLDOWN = 7 * 24 * 60 * 60 * 1000; // 7 days
+const _PWA_BATTLES_THRESHOLD = 1;
+function _pwaIncrementBattleCount() {
+  try {
+    const cur = parseInt(localStorage.getItem(_PWA_BATTLES_KEY) || '0', 10) || 0;
+    localStorage.setItem(_PWA_BATTLES_KEY, String(cur + 1));
+  } catch (e) {}
+}
+function _pwaShouldPrompt() {
+  try {
+    // Already in PWA mode — never prompt.
+    if (_deviceDetect.isInPWA()) return false;
+    // Permanent ack — never prompt again.
+    if (localStorage.getItem(_PWA_ACKED_KEY)) return false;
+    // Recent "maybe later" — wait out the cooldown.
+    const dismissedAt = parseInt(localStorage.getItem(_PWA_DISMISSED_KEY) || '0', 10) || 0;
+    if (dismissedAt && (Date.now() - dismissedAt) < _PWA_DISMISS_COOLDOWN) return false;
+    // Engagement gate — don't prompt anonymous "tried it once" visitors.
+    const battles = parseInt(localStorage.getItem(_PWA_BATTLES_KEY) || '0', 10) || 0;
+    if (battles < _PWA_BATTLES_THRESHOLD) return false;
+    // Mobile-only — desktop doesn't have an "add to home screen" path.
+    if (!_deviceDetect.isMobile()) return false;
+    return true;
+  } catch (e) { return false; }
+}
+function _pwaShowPrompt() {
+  try {
+    if (!_pwaShouldPrompt()) return;
+    const el = document.getElementById('pwaPrompt');
+    if (!el) return;
+    // Toggle iOS / Android instruction blocks based on UA. If somehow
+    // neither matches (rare desktop browser spoofing mobile UA), the
+    // prompt still fires — the benefits + actions stand alone without
+    // OS-specific steps.
+    const ios = document.getElementById('pwaPromptIos');
+    const android = document.getElementById('pwaPromptAndroid');
+    const isIOS = _deviceDetect.isIOS();
+    const isAndroid = _deviceDetect.isAndroid();
+    if (ios) ios.hidden = !isIOS;
+    if (android) android.hidden = !isAndroid;
+    el.setAttribute('aria-hidden', 'false');
+  } catch (e) { console.warn('_pwaShowPrompt failed:', e); }
+}
+function _pwaDismiss() {
+  try {
+    const el = document.getElementById('pwaPrompt');
+    if (el) el.setAttribute('aria-hidden', 'true');
+    localStorage.setItem(_PWA_DISMISSED_KEY, String(Date.now()));
+  } catch (e) {}
+}
+function _pwaAcknowledge() {
+  try {
+    const el = document.getElementById('pwaPrompt');
+    if (el) el.setAttribute('aria-hidden', 'true');
+    localStorage.setItem(_PWA_ACKED_KEY, String(Date.now()));
+  } catch (e) {}
+}
+if (typeof window !== 'undefined') {
+  window._pwaShowPrompt = _pwaShowPrompt;
+  window._pwaDismiss = _pwaDismiss;
+  window._pwaAcknowledge = _pwaAcknowledge;
+  window._pwaIncrementBattleCount = _pwaIncrementBattleCount;
+}
+
 // Debounce util — share if more callers need it later.
 function _mobileUxDebounce(fn, ms) {
   let t = null;
@@ -35107,6 +35353,13 @@ async function onBossDefeated() {
   if (gameEnded) return;
   // Profile P2 — track lifetime wins (covers all paths: story / tower / FTUE).
   try { if (typeof trackProfileBattleWon === 'function') trackProfileBattleWon(); } catch (e) {}
+  // 2026-04-30 — Mobile UX Fix v0.1 §6: increment battle counter so the
+  // PWA encouragement prompt becomes eligible after the player's first
+  // win (gated to mobile + non-PWA + not-acked + cooldown elapsed).
+  // The counter is the engagement signal — anonymous "tried it once"
+  // visitors don't get prompted; players who've actually beaten a boss
+  // do.
+  try { if (typeof _pwaIncrementBattleCount === 'function') _pwaIncrementBattleCount(); } catch (e) {}
   // POLISH v1 · PHASE 5 — cinematic moved below revive checks so Phoenix rebirth
   // doesn't incorrectly trigger the death sequence.
   // V3.0 Phase 7 Block 7.1: Tower battles bypass all story rewards + Phase 5/6
@@ -42776,6 +43029,15 @@ function goToMenu() {
     // shown before. Self-gates on FTUE.
     if (typeof maybeShowBattlePassEducation === 'function') {
       try { maybeShowBattlePassEducation(); } catch (e) { console.warn('maybeShowBattlePassEducation failed:', e); }
+    }
+    // 2026-04-30 — Mobile UX Fix v0.1 §6: PWA add-to-home-screen prompt.
+    // Tied to goToMenu (not battle-end) so it doesn't interrupt the
+    // post-victory dialog flow. Self-gates inside _pwaShowPrompt on
+    // mobile + non-PWA + not-acked + cooldown elapsed + battles >= 1.
+    // 1.5s delay so victory animations / battle-pass intro modal land
+    // first; PWA prompt is the lowest-priority nudge.
+    if (typeof _pwaShowPrompt === 'function') {
+      try { setTimeout(_pwaShowPrompt, 1500); } catch (e) {}
     }
   } catch (e) { console.warn('Phase 5/6/7 menu refresh failed:', e); }
   // Phase F (2026-04-28): apply shop lock state + run daily pop-up scheduler.
