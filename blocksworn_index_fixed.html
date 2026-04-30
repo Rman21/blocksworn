@@ -8074,16 +8074,24 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   display: flex; flex-direction: column; gap: 8px;
   padding: max(44px, env(safe-area-inset-top, 0px) + 40px) 8px max(8px, env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
-  min-height: 100vh; min-height: 100dvh;
-  /* 2026-04-30 — Mobile UX Fix v0.1 §3: make .game the scroll container
-     for the battle screen. Without this the sticky tray below has no
-     scrolling ancestor (parent #screenBattle.active is `overflow: hidden`
-     for piece-drag isolation), so position: sticky degrades to relative
-     and the tray gets clipped on small phones (iPhone SE etc.) when
-     content height exceeds viewport. With overflow-y: auto on .game,
-     the tray sticks to the viewport bottom while the boss/grid above
-     can scroll if total content overflows. -webkit-overflow-scrolling
-     keeps iOS momentum-scrolling smooth. */
+  /* 2026-04-30 — Mobile UX Fix v0.1 §3 (HOTFIX): cap .game at exactly
+     viewport height so position: sticky on .tray actually anchors at
+     viewport bottom. Was `min-height: 100dvh` only — no max-height meant
+     when total content (boss area + heroes deck + grid + tray) exceeded
+     viewport, .game grew taller than its parent (#screenBattle.active,
+     which is `overflow: hidden`), spilling the tray below the visible
+     viewport with no way to scroll to it. Roman's iPhone screenshot
+     2026-04-30 confirmed the tray was off-screen below Safari URL bar.
+
+     Use 100svh (smallest viewport — always-with-URL-bar) instead of
+     100dvh because iOS Safari's dvh value lags during URL bar
+     transitions; the sticky tray ends up positioned BEHIND the URL bar
+     when dvh > visible viewport. svh is the safe minimum: when URL bar
+     hides, .game stays slightly smaller than the now-larger viewport
+     (~50px gap), but tray is ALWAYS fully visible — that's the right
+     trade. Fixed-vh fallback for browsers without svh support. */
+  height: 100vh; height: 100svh;
+  max-height: 100vh; max-height: 100svh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
