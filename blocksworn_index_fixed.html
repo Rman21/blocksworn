@@ -17590,6 +17590,25 @@ const BALANCE = Object.freeze({
       10: Object.freeze({ gold: 400, sigils: 3, cards: 2, t2Frags: 1, climax: true })
     })
   }),
+  // ECO.1 + ECO.2 — Sink mechanics (PRELAUNCH §3.4). retrySink scales by
+  // chapter so Ch1 retry is forgiving (500g) and Ch5 retry is meaningful
+  // (5000g cap). miniBuff = gold-only counterpart to MEGA_BUFF for F2P
+  // pacing — shorter duration (12h), smaller mult (+20%), 24h cooldown.
+  economy: Object.freeze({
+    retrySink: Object.freeze({
+      baseGold: 500,    // Ch1 cost
+      perChapter: 500,  // +500/chapter from Ch2 onward
+      cap: 5000,        // Ch10 effective ceiling
+      hpRestoreFraction: 0.5  // half HP on resume (=ceil(MAX_HP/2))
+    }),
+    miniBuff: Object.freeze({
+      cost: 5000,                       // gold
+      durationMs: 12 * 60 * 60 * 1000,  // 12h (vs Mega Buff 24h)
+      cooldownMs: 24 * 60 * 60 * 1000,  // 1 purchase per 24h
+      goldMult: 1.20,                   // +20% gold (vs Mega +25%)
+      fragMult: 1.20                    // +20% fragments (vs Mega +50%)
+    })
+  }),
   // BAL.3 + REW.1 — boss reward differentiation + star rating (PRELAUNCH §4.2).
   // First-clear fires the cinematic + huge reward modal; replay fires a minimal
   // toast (REW.3). Three-star bonus adds on top of either path. Stars are
@@ -18405,6 +18424,9 @@ function ascendHero(heroId) {
   if (!Array.isArray(towerState.ascendedHeroes)) towerState.ascendedHeroes = [];
   towerState.ascendedHeroes.push(heroId);
   saveTowerState();
+  // ECO.3 — Mission tracker: ascend_any_hero daily template.
+  try { if (typeof trackMissionEvent === 'function') trackMissionEvent('hero_ascended', { heroId, tier: 2 }); } catch (e) {}
+  try { if (typeof logEvent === 'function' && typeof EVT !== 'undefined') logEvent(EVT.hero_ascended, { heroId, tier: 2 }); } catch (e) {}
   return true;
 }
 // Combat hook helper — multiplicative T2 × T3 × Mythic damage stack.
@@ -20094,11 +20116,13 @@ function addHeroFragments(heroId, count) {
     console.warn('addHeroFragments: invalid count', count);
     return 0;
   }
-  // 2026-04-28 — Phase E — Mega Buff: +50% Hero Card drops (positive deltas only,
-  // ceiled so a single +1 at least becomes +2 during buff window).
+  // ECO.2 — buff stack: Mega/Mini fragment mult uses higher of two when both
+  // active. ceil() preserves the "+1 at least becomes +2" guarantee from the
+  // Phase E Mega Buff path.
   try {
-    if (typeof _isMegaBuffActive === 'function' && _isMegaBuffActive()) {
-      n = Math.ceil(n * MEGA_BUFF_FRAG_MULT);
+    const fragMult = (typeof _activeBuffFragMult === 'function') ? _activeBuffFragMult() : 1.0;
+    if (fragMult > 1.0) {
+      n = Math.ceil(n * fragMult);
     }
   } catch (e) {}
   const current = heroFragments[heroId] || 0;
@@ -21312,15 +21336,20 @@ function addGold(n) {
   // top of the +25% gold mult while buff is active (per spec §8.2 "+15%
   // Tower rewards"). Additive within same source so the stack reads
   // 1.25 (gold) × 1.15 (Tower) = 1.4375× during Tower fights, 1.25 elsewhere.
+  // ECO.2 — buff stack: Mega and Mini buffs do NOT stack with each other
+  // (use higher mult). Tower bonus (+15%) still stacks on top of whichever
+  // buff wins. Negative deltas (purchases) are unaffected — only positive.
   try {
-    if (v > 0 && typeof _isMegaBuffActive === 'function' && _isMegaBuffActive()) {
-      v = Math.floor(v * MEGA_BUFF_GOLD_MULT);
-      // Tower-only stack
-      try {
-        if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle) {
-          v = Math.floor(v * 1.15);
-        }
-      } catch (e2) {}
+    if (v > 0) {
+      const buffMult = (typeof _activeBuffGoldMult === 'function') ? _activeBuffGoldMult() : 1.0;
+      if (buffMult > 1.0) {
+        v = Math.floor(v * buffMult);
+        try {
+          if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle) {
+            v = Math.floor(v * 1.15);
+          }
+        } catch (e2) {}
+      }
     }
   } catch (e) {}
   // 2026-04-27 — Block T.5 — Tower Heart "+10/+25% gold" upgrade. Tower-only
@@ -23252,6 +23281,14 @@ const DAILY_MISSION_POOL = [
   { id: 'combo_8',            description: 'Reach a combo of 8× in one battle',        eventType: 'combo_achieved',     target: 1,  targetMatch: { minCombo: 8 }, reward: { gems: 25 } },
   { id: 'squad_2_same_stihiya', description: 'Win with 2+ same-element heroes',        eventType: 'battle_won_squad',   target: 1,  targetMatch: { sameStihiyaCount: 2 }, reward: { gold: 500 } },
   { id: 'fragments_any_10',   description: 'Earn 10 hero fragments',                   eventType: 'fragments_gained',   target: 10, reward: { gold: 400 } },
+  // ECO.3 — 5 new templates (PRELAUNCH §11.3) for variety + premium-currency
+  // pacing. Card-reward template ('win_3_battles') is the headline addition —
+  // F2P card supply gets a daily boost without touching pack economy.
+  { id: 'win_3_battles',      description: 'Win 3 chapter-boss battles',               eventType: 'battle_won_squad',   target: 3,  reward: { cards: 1 } },
+  { id: 'tower_floor_5',      description: 'Reach Tower floor 5',                       eventType: 'tower_floor_cleared', target: 1, targetMatch: { minFloor: 5 }, reward: { gold: 200, sigils: 1 } },
+  { id: 'ascend_any_hero',    description: 'Ascend any hero (T2 or higher)',           eventType: 'hero_ascended',       target: 1,  reward: { gold: 500, essencesRandom: 5 } },
+  { id: 'race_pure_squad_win', description: 'Win with a single-race squad',            eventType: 'race_pure_clear',     target: 1,  reward: { gold: 300 } },
+  { id: 'combo_12',           description: 'Reach a combo of 12× in one battle',       eventType: 'combo_achieved',      target: 1,  targetMatch: { minCombo: 12 }, reward: { gems: 30 } },
 ];
 
 // ========= Login streak reward table =========
@@ -23410,6 +23447,9 @@ function trackMissionEvent(eventType, data = {}) {
           if ((data.combo || 0) < expected) { match = false; break; }
         } else if (k === 'sameStihiyaCount') {
           if ((data.sameStihiyaCount || 0) < expected) { match = false; break; }
+        } else if (k === 'minFloor') {
+          // ECO.3 — Tower floor threshold (e.g., tower_floor_5 needs floor >= 5).
+          if ((data.floor || 0) < expected) { match = false; break; }
         } else if (data[k] !== expected) {
           match = false; break;
         }
@@ -23438,8 +23478,21 @@ function claimMissionReward(missionId) {
   const m = (dailyMissionsState.missions || []).find(x => x.id === missionId);
   if (!m || !m.completed || m.claimed) return false;
   const r = m.reward;
-  if (r.gold) addGold(r.gold);
-  if (r.gems) addGems(r.gems);
+  // ECO.3 — Reward dispatch via applyReward for cards/sigils/t2Stones support.
+  // Legacy gold/gems/essences fields handled inline for backward compat with
+  // existing mission entries; new templates use uniform applyReward types.
+  if (r.gold)  addGold(r.gold);
+  if (r.gems)  addGems(r.gems);
+  if (r.cards) { try { dropRandomHeroCards(r.cards); } catch (e) {} }
+  if (r.sigils && towerState) {
+    towerState.sigilShards = (towerState.sigilShards || 0) + r.sigils;
+    try { saveTowerState(); } catch (e) {}
+  }
+  if (r.essencesRandom) {
+    const s = STIHIYAS[Math.floor(Math.random() * STIHIYAS.length)];
+    essences[s] = (essences[s] || 0) + r.essencesRandom;
+    try { saveProgress(); } catch (e) {}
+  }
   if (r.essences) {
     for (const s of Object.keys(r.essences)) {
       essences[s] = (essences[s] || 0) + r.essences[s];
@@ -23449,8 +23502,11 @@ function claimMissionReward(missionId) {
   m.claimed = true;
   saveDailyMissions();
   const parts = [];
-  if (r.gold) parts.push(`+${r.gold}💰`);
-  if (r.gems) parts.push(`+${r.gems}💎`);
+  if (r.gold)   parts.push(`+${r.gold}💰`);
+  if (r.gems)   parts.push(`+${r.gems}💎`);
+  if (r.cards)  parts.push(`+${r.cards}🃏`);
+  if (r.sigils) parts.push(`+${r.sigils}◈`);
+  if (r.essencesRandom) parts.push(`+${r.essencesRandom}✦`);
   try { flashText(parts.join(' '), '#FFD53D'); } catch (e) {}
   try { vibrate([60, 40, 60]); } catch (e) {}
   try { renderDailiesScreen(); } catch (e) {}
@@ -24138,6 +24194,9 @@ function trackWeeklyMissionEvent(eventType, data = {}) {
           if ((data.combo || 0) < expected) { match = false; break; }
         } else if (k === 'sameStihiyaCount') {
           if ((data.sameStihiyaCount || 0) < expected) { match = false; break; }
+        } else if (k === 'minFloor') {
+          // ECO.3 — Tower floor threshold (e.g., tower_floor_5 needs floor >= 5).
+          if ((data.floor || 0) < expected) { match = false; break; }
         } else if (data[k] !== expected) {
           match = false; break;
         }
@@ -26428,6 +26487,8 @@ function onTowerFloorClear() {
   if (t2FragsAwarded > 0) parts.push(`+${t2FragsAwarded}♥frag`);
   try { flashText(`${tag} FLOOR ${floor} CLEARED · ${parts.join(' ')}`, '#FFD53D'); } catch (e) {}
   try { logEvent(EVT.tower_floor_cleared, { floor, mode: _currentGauntletMode, gold: goldReward, sigils: sigilsAwarded, cards: cardsAwarded, t2Frags: t2FragsAwarded }); } catch (e) {}
+  // ECO.3 — Mission tracker: tower_floor_5 daily template gates on floor >= N.
+  try { if (typeof trackMissionEvent === 'function') trackMissionEvent('tower_floor_cleared', { floor, mode: _currentGauntletMode }); } catch (e) {}
   try { vibrate([60, 40, 60, 40, 120]); } catch (e) {}
   // V3.0 Phase 7 Block 7.5: Season XP (+10 per floor, scaling)
   try { if (typeof addSeasonXP === 'function') addSeasonXP(10 * floor); } catch (e) {}
@@ -28348,8 +28409,201 @@ function buyMegaBuff() {
   try { flashText('★ 24h MEGA BUFF ACTIVE', '#FFAA00'); } catch (e) {}
   try { vibrate([120, 60, 120]); } catch (e) {}
   try { _grantFirstPurchaseBonus(); } catch (e) {}
+  try { logEvent(EVT.purchase_completed, { sku: 'mega_buff', currency: 'gems', cost: MEGA_BUFF_GEMS }); } catch (e) {}
   renderShopPacks();
   return true;
+}
+
+// ECO.2 — Mini Buff (gold-pay sibling of Mega Buff). PRELAUNCH §3.4 SINK 2:
+// gives F2P players a paid alternative without spending gems. 12h duration,
+// +20% gold/fragments, 24h cooldown between purchases. Stacks with Mega Buff
+// via _activeBuffGoldMult / _activeBuffFragMult — higher mult wins.
+const MINI_BUFF_KEY          = 'blocksworn_mini_buff_until';
+const MINI_BUFF_LAST_KEY     = 'blocksworn_mini_buff_last';
+const MINI_BUFF_GOLD_COST    = BALANCE.economy.miniBuff.cost;
+const MINI_BUFF_DURATION_MS  = BALANCE.economy.miniBuff.durationMs;
+const MINI_BUFF_COOLDOWN_MS  = BALANCE.economy.miniBuff.cooldownMs;
+const MINI_BUFF_GOLD_MULT    = BALANCE.economy.miniBuff.goldMult;
+const MINI_BUFF_FRAG_MULT    = BALANCE.economy.miniBuff.fragMult;
+
+function _isMiniBuffActive() {
+  try {
+    const raw = localStorage.getItem(MINI_BUFF_KEY);
+    if (!raw) return false;
+    return parseInt(raw, 10) > Date.now();
+  } catch (e) { return false; }
+}
+function _miniBuffHoursLeft() {
+  try {
+    const raw = localStorage.getItem(MINI_BUFF_KEY);
+    if (!raw) return 0;
+    const ms = parseInt(raw, 10) - Date.now();
+    return Math.max(0, Math.ceil(ms / 3600000));
+  } catch (e) { return 0; }
+}
+function _miniBuffOnCooldown() {
+  try {
+    const raw = localStorage.getItem(MINI_BUFF_LAST_KEY);
+    if (!raw) return false;
+    return (Date.now() - parseInt(raw, 10)) < MINI_BUFF_COOLDOWN_MS;
+  } catch (e) { return false; }
+}
+function _miniBuffCooldownHoursLeft() {
+  try {
+    const raw = localStorage.getItem(MINI_BUFF_LAST_KEY);
+    if (!raw) return 0;
+    const ms = MINI_BUFF_COOLDOWN_MS - (Date.now() - parseInt(raw, 10));
+    return Math.max(0, Math.ceil(ms / 3600000));
+  } catch (e) { return 0; }
+}
+function buyMiniBuff() {
+  if (_isMiniBuffActive()) {
+    try { flashText('MINI BUFF ALREADY ACTIVE', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  if (_miniBuffOnCooldown()) {
+    try { flashText('ON COOLDOWN — ' + _miniBuffCooldownHoursLeft() + 'h LEFT', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  if ((gold || 0) < MINI_BUFF_GOLD_COST) {
+    try { flashText('❌ NOT ENOUGH GOLD', '#E85D4A'); } catch (e) {}
+    return false;
+  }
+  gold -= MINI_BUFF_GOLD_COST;
+  try { saveGoldToStorage(); } catch (e) {}
+  try { renderResourceBar(); } catch (e) {}
+  const now = Date.now();
+  try { localStorage.setItem(MINI_BUFF_KEY,      String(now + MINI_BUFF_DURATION_MS)); } catch (e) {}
+  try { localStorage.setItem(MINI_BUFF_LAST_KEY, String(now)); } catch (e) {}
+  try { flashText('★ 12h MINI BUFF · +20% GOLD/CARDS', '#FFD53D'); } catch (e) {}
+  try { vibrate([80, 40, 80]); } catch (e) {}
+  try { logEvent(EVT.purchase_completed, { sku: 'mini_buff', currency: 'gold', cost: MINI_BUFF_GOLD_COST }); } catch (e) {}
+  try { if (typeof renderShopPacks === 'function') renderShopPacks(); } catch (e) {}
+  return true;
+}
+
+// Combined buff multipliers — when both Mega and Mini are active, take the
+// HIGHER mult (stacks NOT, per spec §3.4). Returns 1.0 when neither active.
+function _activeBuffGoldMult() {
+  let m = 1.0;
+  try { if (_isMegaBuffActive()) m = Math.max(m, MEGA_BUFF_GOLD_MULT); } catch (e) {}
+  try { if (_isMiniBuffActive()) m = Math.max(m, MINI_BUFF_GOLD_MULT); } catch (e) {}
+  return m;
+}
+function _activeBuffFragMult() {
+  let m = 1.0;
+  try { if (_isMegaBuffActive()) m = Math.max(m, MEGA_BUFF_FRAG_MULT); } catch (e) {}
+  try { if (_isMiniBuffActive()) m = Math.max(m, MINI_BUFF_FRAG_MULT); } catch (e) {}
+  return m;
+}
+
+if (typeof window !== 'undefined') {
+  window.buyMiniBuff = buyMiniBuff;
+  window._isMiniBuffActive = _isMiniBuffActive;
+  window._activeBuffGoldMult = _activeBuffGoldMult;
+  window._activeBuffFragMult = _activeBuffFragMult;
+}
+
+// ECO.1 — Battle Retry sink (PRELAUNCH §3.4 SINK 1). On chapter-boss defeat
+// the player gets a "Continue from where you fell?" offer: pay gold, resume
+// at half HP. Free path always available (decline → standard restart). One
+// retry per battle to prevent gold-grind exploits. Excluded paths: FTUE
+// (guided fights), Tower (Tower has its own retry-cost system).
+//
+// Per spec: "500g chapter 1, +500g per chapter (max 5000g)".
+let _battleRetryUsedThisBattle = false;
+
+function getBattleRetryCost(chapter) {
+  const r = BALANCE.economy.retrySink;
+  return Math.min(r.cap, r.baseGold + Math.max(0, ((chapter | 0) - 1)) * r.perChapter);
+}
+
+// Wraps the post-defeat path. Returns true if retry modal was shown (caller
+// must NOT proceed to defeat); false if path ineligible (caller proceeds).
+function maybeShowBattleRetry(onProceedToDefeat) {
+  try {
+    if (_battleRetryUsedThisBattle) return false;
+    if (!currentBoss) return false;
+    if (currentBoss._isFtueOnly) return false;
+    if (currentBoss._isTowerBattle) return false;
+    if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle) return false;
+    const cost = getBattleRetryCost(currentChapter);
+    if ((gold || 0) < cost) return false;  // can't afford → straight to defeat
+    showBattleRetryModal(cost, onProceedToDefeat);
+    return true;
+  } catch (e) {
+    console.warn('maybeShowBattleRetry failed:', e);
+    return false;
+  }
+}
+
+function showBattleRetryModal(cost, onDecline) {
+  // Build a self-contained overlay (no shared modal hijacking — defeat modal
+  // still uses its own DOM). Removed by _dismissBattleRetryModal.
+  let host = document.getElementById('battleRetryOverlay');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'battleRetryOverlay';
+    host.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(8,5,18,0.82);backdrop-filter:blur(4px);font-family:inherit';
+    document.body.appendChild(host);
+  }
+  const canPay = (gold || 0) >= cost;
+  host.innerHTML =
+    '<div style="background:#15101F;border:1px solid #FFD53D;border-radius:14px;padding:22px 24px;max-width:360px;width:88%;box-shadow:0 0 40px rgba(255,213,61,0.35),inset 0 0 24px rgba(255,213,61,0.06);text-align:center">' +
+      '<div style="font-size:11px;color:#A8A5B8;letter-spacing:3px;margin-bottom:6px">SQUAD WIPED</div>' +
+      '<div style="font-size:22px;font-weight:800;color:#FFD53D;letter-spacing:2px;margin-bottom:14px">CONTINUE THE FIGHT?</div>' +
+      '<div style="font-size:12px;color:#C8C3D8;line-height:1.5;margin-bottom:18px">' +
+        'Resume at half HP and finish the boss. Free path: tap RESTART for a clean retry from the start.' +
+      '</div>' +
+      '<button id="battleRetryPayBtn" class="btn" ' + (canPay ? '' : 'disabled') + ' ' +
+        'style="display:block;width:100%;padding:14px;font-size:14px;font-weight:800;letter-spacing:2px;background:linear-gradient(180deg,#FFD53D,#E8A800);color:#1B1228;border:none;border-radius:10px;margin-bottom:10px;cursor:pointer' + (canPay ? '' : ';opacity:0.5;cursor:not-allowed') + '">' +
+        'CONTINUE · ' + cost.toLocaleString('en-US') + ' 💰' +
+      '</button>' +
+      '<button id="battleRetryDeclineBtn" ' +
+        'style="display:block;width:100%;padding:12px;font-size:12px;font-weight:600;letter-spacing:2px;background:rgba(168,165,184,0.12);color:#A8A5B8;border:1px solid rgba(168,165,184,0.30);border-radius:10px;cursor:pointer">' +
+        'RESTART · FREE' +
+      '</button>' +
+    '</div>';
+  document.getElementById('battleRetryPayBtn').addEventListener('click', () => {
+    _onBattleRetryConfirm(cost);
+  });
+  document.getElementById('battleRetryDeclineBtn').addEventListener('click', () => {
+    _dismissBattleRetryModal();
+    try { logEvent(EVT.pinch_dismissed, { kind: 'battle_retry', cost }); } catch (e) {}
+    if (typeof onDecline === 'function') onDecline();
+  });
+  try { logEvent(EVT.pinch_shown, { kind: 'battle_retry', chapter: currentChapter, cost }); } catch (e) {}
+}
+
+function _dismissBattleRetryModal() {
+  const host = document.getElementById('battleRetryOverlay');
+  if (host && host.parentNode) host.parentNode.removeChild(host);
+}
+
+function _onBattleRetryConfirm(cost) {
+  // Atomic gold spend
+  if ((gold || 0) < cost) {
+    try { flashText('NOT ENOUGH GOLD', '#E85D4A'); } catch (e) {}
+    return;
+  }
+  gold -= cost;
+  try { saveGoldToStorage(); } catch (e) {}
+  try { renderResourceBar(); } catch (e) {}
+  // Resume at half HP (rounded up so MAX_HP=3 → 2 lives, MAX_HP=5 → 3)
+  const restoreFraction = (BALANCE.economy.retrySink.hpRestoreFraction) || 0.5;
+  hp = Math.max(1, Math.ceil((typeof MAX_HP === 'number' ? MAX_HP : 3) * restoreFraction));
+  _battleRetryUsedThisBattle = true;
+  gameEnded = false;
+  _dismissBattleRetryModal();
+  try { flashText('✦ FIGHT ON · HP RESTORED', '#7DEC8F'); } catch (e) {}
+  try { vibrate([60, 40, 60, 40, 120]); } catch (e) {}
+  try { renderHP(); renderBossHP(); } catch (e) {}
+  try { logEvent(EVT.pinch_path_chosen, { kind: 'battle_retry_pay', cost, chapter: currentChapter }); } catch (e) {}
+}
+
+if (typeof window !== 'undefined') {
+  window.getBattleRetryCost = getBattleRetryCost;
+  window.maybeShowBattleRetry = maybeShowBattleRetry;
 }
 
 // ----- Squad Level Boost -----
@@ -30105,6 +30359,87 @@ function renderProfileTabTower() {
 }
 
 // ===== P2 — Stats Dashboard renderer =====
+// ECO.4 — Currency explainer modal. Tap any currency card → educational
+// overlay describing the currency's purpose + best earn sources. F2P pacing
+// hint: tells players where to focus play-time. Reuses BattleRetry overlay
+// container if present (cleared/reused).
+const _CURRENCY_INFO = Object.freeze({
+  gold: {
+    title: '💰 GOLD',
+    subtitle: 'Primary in-game currency',
+    desc: 'Used for hero level-ups, packs, sinks (battle retry, mini buff). Earned from every battle win, daily missions, and tower clears. F2P intake ≈ 500-1000g/day.',
+    sources: ['+100g per chapter battle win', 'Daily missions (300-500g)', 'Tower floor rewards', 'Login streak (Day 1, 3, 5, 6)']
+  },
+  gems: {
+    title: '💎 GEMS',
+    subtitle: 'Premium currency',
+    desc: 'Used for Battle Pass, premium packs, and convenience buffs. Limited F2P drops (Wednesday Chest, daily missions, BP track) — paid path is fastest.',
+    sources: ['Wednesday Chest (Mythic tier: 200💎/wk)', 'Daily missions (10-30💎)', 'Login streak Day 7 (100💎)', 'IAP packs ($0.99 → 100💎, scales up)']
+  },
+  cards: {
+    title: '🃏 HERO CARDS',
+    subtitle: 'Ascension + craft fuel',
+    desc: '5 cards of a specific hero = T2 ascension. 50 fragments = unlock locked hero. Drop weighted toward heroes you own less of.',
+    sources: ['Boss replays (~30% drop)', 'Battle Pass tiers', 'Standard/Race packs', 'Tower clears (F5, F10)', 'Daily mission win_3_battles']
+  },
+  sigils: {
+    title: '◈ SIGIL SHARDS',
+    subtitle: 'Tower buff currency',
+    desc: 'Spend at the Tower buff picker between floors to swap pacts. F-clear awards scale with floor reached.',
+    sources: ['Tower floor clears (1-3 per floor)', 'Weekly Gauntlet (+25)', 'Daily mission tower_floor_5']
+  },
+  hearts: {
+    title: '♥ TOWER HEARTS',
+    subtitle: 'Meta upgrade currency',
+    desc: '5 heart fragments = 1 full Heart. Spend on permanent Tower upgrades (HP/damage/tempo/wealth branches).',
+    sources: ['Tower F10 clears (+1 frag)', 'Weekly Gauntlet (+1 full Heart)', 'Wednesday Chest (Silver+ tier)']
+  },
+  stones: {
+    title: '⚡ T2 / T3 STONES',
+    subtitle: 'Ascension stones',
+    desc: 'T2 stone + 5 cards + 200g + 5 essence = T2 ascension (LV cap 10→20). T3 stone unlocks LV30 cap.',
+    sources: ['Boss first-clears (Crypt Lich +1 T2)', 'Premium/Ultimate packs', 'Battle Pass tier rewards', 'Wednesday Chest (Gold+ tier)']
+  },
+  essences: {
+    title: '✦ ELEMENT ESSENCES',
+    subtitle: '5 elemental shards (Ember/Tide/Grove/Solar/Umbra)',
+    desc: 'Stihiya-specific currency. T2 ascension costs 5 essence of hero\'s element. Match each boss element to top up.',
+    sources: ['Boss kill matches boss\'s element', '3-star perfect clear bonus', 'Daily mission ember_essence_30', 'Login streak Day 2/5']
+  }
+});
+
+function showCurrencyInfo(kind) {
+  const info = _CURRENCY_INFO[kind];
+  if (!info) return;
+  let host = document.getElementById('currencyInfoOverlay');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'currencyInfoOverlay';
+    host.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(8,5,18,0.78);backdrop-filter:blur(4px);font-family:inherit;cursor:pointer';
+    document.body.appendChild(host);
+  }
+  const sourceItems = info.sources.map(s => '<li style="padding:4px 0;color:#C8C3D8">' + s + '</li>').join('');
+  host.innerHTML =
+    '<div style="background:#15101F;border:1px solid #FFD53D;border-radius:14px;padding:22px 24px;max-width:380px;width:88%;box-shadow:0 0 40px rgba(255,213,61,0.30),inset 0 0 24px rgba(255,213,61,0.04);text-align:left;cursor:default" onclick="event.stopPropagation()">' +
+      '<div style="font-size:22px;font-weight:800;color:#FFD53D;letter-spacing:2px;margin-bottom:4px">' + info.title + '</div>' +
+      '<div style="font-size:11px;color:#A8A5B8;letter-spacing:2px;margin-bottom:12px">' + info.subtitle + '</div>' +
+      '<div style="font-size:13px;color:#C8C3D8;line-height:1.55;margin-bottom:14px">' + info.desc + '</div>' +
+      '<div style="font-size:10px;color:#A8A5B8;letter-spacing:2px;margin-bottom:6px">BEST SOURCES</div>' +
+      '<ul style="margin:0 0 14px 0;padding-left:18px;font-size:12px">' + sourceItems + '</ul>' +
+      '<button id="currencyInfoClose" class="btn" style="width:100%;padding:10px;font-size:12px;font-weight:700;letter-spacing:2px;background:rgba(255,213,61,0.16);color:#FFD53D;border:1px solid rgba(255,213,61,0.40);border-radius:8px;cursor:pointer">CLOSE</button>' +
+    '</div>';
+  const dismiss = () => {
+    if (host && host.parentNode) host.parentNode.removeChild(host);
+  };
+  host.onclick = dismiss;  // click backdrop to close
+  document.getElementById('currencyInfoClose').onclick = dismiss;
+  try { logEvent(EVT.shop_section_viewed, { section: 'currency_info', kind }); } catch (e) {}
+}
+
+if (typeof window !== 'undefined') {
+  window.showCurrencyInfo = showCurrencyInfo;
+}
+
 function renderProfileTabStats() {
   const p = playerProfile;
   const battlesPlayed = p.totalBattlesPlayed || 0;
@@ -30162,16 +30497,60 @@ function renderProfileTabStats() {
           card('FRAGMENTS',   fragmentsTotal.toLocaleString(), 'collected') +
         '</div>' +
       '</div>' +
-      // Currency section
+      // ECO.4 — Currency Dashboard. Every currency the player can hold is
+      // listed here with a tap handler that opens "What is this?" modal
+      // (showCurrencyInfo). Single source of truth for currency UX, drives
+      // educational moments without cluttering the resource bar.
       '<div class="profile-stat-section">' +
-        '<div class="profile-stat-section-title">💰 ECONOMY</div>' +
+        '<div class="profile-stat-section-title">💰 CURRENCIES · tap any to learn more</div>' +
         '<div class="profile-stat-row">' +
-          card('GOLD',     (typeof gold !== 'undefined' ? gold : 0).toLocaleString()) +
-          card('GEMS',     (typeof gems !== 'undefined' ? gems : 0).toLocaleString()) +
+          '<div class="stat-card" onclick="showCurrencyInfo(\'gold\')" style="cursor:pointer">' +
+            '<div class="stat-label">💰 GOLD</div>' +
+            '<div class="stat-value">' + (typeof gold !== 'undefined' ? gold : 0).toLocaleString() + '</div>' +
+            '<div class="stat-sub">primary · level-up + sinks</div>' +
+          '</div>' +
+          '<div class="stat-card" onclick="showCurrencyInfo(\'gems\')" style="cursor:pointer">' +
+            '<div class="stat-label">💎 GEMS</div>' +
+            '<div class="stat-value">' + (typeof gems !== 'undefined' ? gems : 0).toLocaleString() + '</div>' +
+            '<div class="stat-sub">premium · BP + packs</div>' +
+          '</div>' +
         '</div>' +
         '<div class="profile-stat-row">' +
-          card('SHARDS TOTAL', totalEssence.toLocaleString(), 'across 5 elements') +
-          card('T2 / T3 STONES', ((towerState && towerState.tier2Stones) || 0) + ' / ' + ((towerState && towerState.tier3Stones) || 0)) +
+          '<div class="stat-card" onclick="showCurrencyInfo(\'cards\')" style="cursor:pointer">' +
+            '<div class="stat-label">🃏 HERO CARDS</div>' +
+            '<div class="stat-value">' + fragmentsTotal.toLocaleString() + '</div>' +
+            '<div class="stat-sub">ascension fuel</div>' +
+          '</div>' +
+          '<div class="stat-card" onclick="showCurrencyInfo(\'sigils\')" style="cursor:pointer">' +
+            '<div class="stat-label">◈ SIGIL SHARDS</div>' +
+            '<div class="stat-value">' + ((towerState && towerState.sigilShards) || 0).toLocaleString() + '</div>' +
+            '<div class="stat-sub">tower buff currency</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="profile-stat-row">' +
+          '<div class="stat-card" onclick="showCurrencyInfo(\'hearts\')" style="cursor:pointer">' +
+            '<div class="stat-label">♥ TOWER HEARTS</div>' +
+            '<div class="stat-value">' + ((towerState && towerState.towerHearts) || 0).toLocaleString() + '</div>' +
+            '<div class="stat-sub">meta upgrades</div>' +
+          '</div>' +
+          '<div class="stat-card" onclick="showCurrencyInfo(\'stones\')" style="cursor:pointer">' +
+            '<div class="stat-label">⚡ T2 / T3 STONES</div>' +
+            '<div class="stat-value">' + ((towerState && towerState.tier2Stones) || 0) + ' / ' + ((towerState && towerState.tier3Stones) || 0) + '</div>' +
+            '<div class="stat-sub">ascension stones</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="profile-stat-row">' +
+          '<div class="stat-card" onclick="showCurrencyInfo(\'essences\')" style="cursor:pointer">' +
+            '<div class="stat-label">✦ ELEMENT ESSENCES</div>' +
+            '<div class="stat-value">' + totalEssence.toLocaleString() + '</div>' +
+            '<div class="stat-sub">' +
+              '🔥' + ((essences && essences.ember)  || 0) + ' · ' +
+              '💧' + ((essences && essences.tide)   || 0) + ' · ' +
+              '🌿' + ((essences && essences.grove)  || 0) + ' · ' +
+              '☀'  + ((essences && essences.solar)  || 0) + ' · ' +
+              '🌑' + ((essences && essences.umbra)  || 0) +
+            '</div>' +
+          '</div>' +
         '</div>' +
       '</div>' +
       // Playtime section
@@ -36281,6 +36660,9 @@ function startBossBattle() {
   // V3.0 Phase 5 Block 5.2: reset per-battle damage counter. Used by perfect_clear
   // achievement + battle_won_perfect weekly mission (Block 5.3).
   battleDamageTaken = 0;
+  // ECO.1 — reset retry-sink one-shot flag so each new battle starts with the
+  // option available again (subject to FTUE/Tower exclusions).
+  _battleRetryUsedThisBattle = false;
   // V3.0 Phase 6 Block 6.1: reset phase-transition tracker so thresholds can
   // re-fire on next battle. Scoped per-battle to preserve one-way semantics
   // within a fight but restart cleanly on retry.
@@ -38498,6 +38880,8 @@ async function onBossDefeated() {
       essences[rewardStihiya] = (essences[rewardStihiya] || 0) + bonus;
     } catch (e) {}
     try { markRacePureCleared(_race); } catch (e) {}
+    // ECO.3 — Mission tracker: race_pure_squad_win daily template.
+    try { if (typeof trackMissionEvent === 'function') trackMissionEvent('race_pure_clear', { race: _race }); } catch (e) {}
     try {
       setTimeout(() => { try { flashText('★ RACE-PURE VICTORY', '#FFD53D'); } catch (e) {} }, 1100);
       const cfg = RACE_PURE_CHALLENGES.find(c => c.race === _race);
@@ -38833,7 +39217,18 @@ function showDefeatModal() {
   // Player taps CONTINUE in flashback → modal proceeds. Skipped for FTUE-only Pyredrake
   // and Tower battles (matches voice-line + signature-cinematic gating). Robust fallback:
   // if showDeathFlashback throws, modal still shows.
-  const _proceedToModal = () => _showDefeatModalBody();
+  // ECO.1 — Battle Retry sink hook. Wraps _showDefeatModalBody so the player
+  // gets a "Continue from where you fell?" gold-pay offer BEFORE the defeat
+  // modal lands. If shown and player declines (or pays — handled separately),
+  // the underlying body still fires. Death Flashback still chains in front.
+  const _proceedToModal = () => {
+    try {
+      if (typeof maybeShowBattleRetry === 'function' && maybeShowBattleRetry(_showDefeatModalBody)) {
+        return;  // retry modal owns the flow now
+      }
+    } catch (e) { console.warn('maybeShowBattleRetry hook failed:', e); }
+    _showDefeatModalBody();
+  };
   const _isFtueOnly = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isFtueOnly);
   const _isTower    = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle);
   if (!_isFtueOnly && !_isTower && typeof showDeathFlashback === 'function') {
