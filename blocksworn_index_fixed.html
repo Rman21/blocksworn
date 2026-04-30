@@ -11024,7 +11024,38 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   display: flex;
   justify-content: space-around;
   align-items: center;
-  min-height: 90px;
+  /* 2026-04-30 — Combat UI Final Polish hotfix v3 (tray-no-jump):
+     min-height bumped from 90px → calc(116 + safe-area). Roman
+     reported the tray "jumping" when tapping a 4- or 5-cube piece
+     to rotate it. Root cause: tap-with-no-drag triggers rotatePiece
+     which flips the shape's bounding box (1×5 → 5×1), changing the
+     piece DOM's height from 17px to 93px (cellSize=17 + gaps).
+     With `align-items: center` + content-driven height + min-height
+     90 as a floor, the tray box GREW from 90 → 150 (= 93 piece +
+     20 padding + 34 safe-area + 3 border) when a vertical 5-cube
+     piece appeared, then shrank back when rotated horizontal —
+     causing the visible "jump".
+
+     Math (5-cube vertical piece, the worst case):
+       Piece content: 5 × 17 + 4 × 2 (gaps) = 93px
+       Padding: 10 top + (10 + safe-area) bottom = 20 + safe-area
+       Border: 2 (top accent) + 1 (bottom) = 3
+       TRAY BOX: 93 + 20 + 3 + safe-area = 116 + safe-area
+
+     Setting min-height = 116 + safe-area makes the tray ALWAYS
+     tall enough for any piece in any rotation, so the box never
+     resizes. Layout stable.
+
+     Cost: tray reserves up to 60px more vertical space on iPhone
+     (Pro Max with safe-area 34: 90 → 150). Grid loses that space.
+     PR 82's max-height: 100% on .grid keeps the grid responsive
+     to the new tray size.
+
+     The 23 tetromino-style SHAPES (line ~17860) include only two
+     5-cube shapes (the I-piece in both orientations); a couple of
+     4-cube tall variants. Most rotations were already triggering
+     a small jump — this fix kills it for every piece. */
+  min-height: calc(116px + env(safe-area-inset-bottom, 0px));
   position: sticky;
   bottom: env(safe-area-inset-bottom, 0px);
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
@@ -15466,7 +15497,13 @@ button.season-tier-claim:active {
 @media (max-height: 720px) {
   .boss-bar { min-height: 80px; padding: 6px; }
   .boss-img-wrap { width: 64px; height: 82px; }
-  .tray { min-height: 78px; padding: 8px; }
+  /* 2026-04-30 — Combat UI Final Polish hotfix v3 (tray-no-jump):
+     720h tier — padding 8 (saves 4px vs default's 10). 5-cube
+     vertical piece (93px) + 16px padding + 3px border = 112 box
+     height. Add safe-area-inset-bottom on top so the tray's box
+     height never shrinks below the natural max-piece height,
+     killing the rotate jump. */
+  .tray { min-height: calc(112px + env(safe-area-inset-bottom, 0px)); padding: 8px; }
   /* 2026-04-30 — Mobile UX Fix v0.1 §4 (Compact Boss Area). The legacy
      .boss-bar / .boss-img-wrap rules above target old-DOM paths that
      are no longer in the active battle screen — current battle uses
@@ -15598,9 +15635,11 @@ button.season-tier-claim:active {
   .a-battle .grid {
     width: min(100%, calc(100svh - 424px), calc(100vh - 424px));
   }
-  /* Tray — slightly tighter min-height; piece tap targets stay ≥60px. */
+  /* Tray — bumped to fit 5-cube vertical pieces so tap-rotate
+     doesn't jump the layout (Combat UI Final Polish hotfix v3).
+     Inherits default tier's padding 10 → same 116 + safe-area calc. */
   .a-battle .tray {
-    min-height: 80px;
+    min-height: calc(116px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -15642,8 +15681,11 @@ button.season-tier-claim:active {
   .a-battle .grid {
     width: min(100%, calc(100svh - 380px), calc(100vh - 380px));
   }
+  /* Tray — 700h tier (iPhone SE class). Padding 6 (tightest tier) →
+     5-cube vertical (93) + 12 padding + 3 border = 108 box height,
+     plus safe-area. Combat UI Final Polish hotfix v3 (tray-no-jump). */
   .a-battle .tray {
-    min-height: 72px;
+    min-height: calc(108px + env(safe-area-inset-bottom, 0px));
     padding: 6px;
   }
 }
@@ -15664,7 +15706,9 @@ button.season-tier-claim:active {
   .deck { gap: 4px; padding: 4px; }
   .hero-card .hero-label { font-size: 9px; }
   .synergy-bar { padding: 2px 6px; font-size: 8px; }
-  .tray { min-height: 70px; padding: 6px; }
+  /* Combat UI Final Polish hotfix v3: tray min-height bumped to fit
+     5-cube vertical pieces so tap-rotate doesn't shift the layout. */
+  .tray { min-height: calc(108px + env(safe-area-inset-bottom, 0px)); padding: 6px; }
   .narrator { font-size: 11px; min-height: 24px; padding: 3px 10px; }
   .footer { font-size: 9px; padding: 1px 0; }
 }
