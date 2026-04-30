@@ -8423,14 +8423,29 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
    Now: max-width cap (90vw / 480px), allow wrap with balanced line breaks,
    layered shadow stack (sharp 1px outline → dark 6px halo → soft 16px glow)
    for crisp readability on any background. */
+/* 2026-04-30 — Polish v0.2 Track H §H.3: hero-proc typography refactor.
+   Plan rationale: callouts at 26-42px held 1.3-1.6s centered at 40% of
+   viewport were occluding the play area at the exact moment the player
+   acted on it (Steve Swink, Game Feel — feedback should amplify, never
+   obscure). Three changes compounded by the plan:
+     • Position: top 40% → 22% (upper third of grid container so the
+       grid stays visible during the proc).
+     • Size: 26px → 20px default; 42px → 28px for .big. Still readable,
+       no longer dominant.
+     • Duration: 1.3s → 0.42s default (240ms in / 180ms out per plan,
+       no hold). 1.6s → 0.55s for .big (slightly longer breath for
+       cap moments — `!`, ULT, ×4+).
+   Tier 1 persistent state callouts (RAINBOW ACTIVE, LOCK GUARD FREEZE,
+   etc.) need to migrate to a stateBanner pattern — that's Track H Part 2,
+   separate PR. This part covers typography for ALL flashText() output. */
 .hero-flash {
   position: absolute;
-  top: 40%; left: 50%;
+  top: 22%; left: 50%;
   transform: translate(-50%, -50%);
   max-width: min(90vw, 480px);
   padding: 6px 18px;
   font-family: var(--a-font-display, 'Cinzel', 'Georgia', serif);
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: 2.5px;
   line-height: 1.2;
@@ -8438,28 +8453,42 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   white-space: normal;
   text-align: center;
   text-wrap: balance;
+  pointer-events: none;
 }
-.hero-flash.active { animation: heroFlash 1.3s ease-out forwards; }
+.hero-flash.active { animation: heroFlash 0.42s ease-out forwards; }
 /* HOTFIX B4 — flashText escalation. Cap-moment banners (INFERNO, SHATTER VOLLEY,
    ENCORE-OF-ENCORE, FLOOD MENDING, DEEP TIDE, PHOENIX REBORN) get bigger font +
    stronger glow + slower animation for visual weight. Reduced-motion users get
    the static larger size without the dramatic pulse. */
 .hero-flash.big.active {
-  font-size: 42px;
+  font-size: 28px;
   letter-spacing: 3.5px;
   font-weight: 900;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9)) drop-shadow(0 0 12px currentColor);
-  animation: heroFlashBig 1.6s ease-out forwards;
+  animation: heroFlashBig 0.55s ease-out forwards;
 }
 @keyframes heroFlashBig {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
-  12%  { opacity: 1; transform: translate(-50%, -50%) scale(1.4); }
-  25%  {              transform: translate(-50%, -50%) scale(1.15); }
-  60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  35%  { opacity: 1; transform: translate(-50%, -50%) scale(1.18); }
+  55%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1.0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hero-flash.big.active { animation: heroFlash 1.3s ease-out forwards !important; }
+  .hero-flash.big.active { animation: heroFlash 0.42s ease-out forwards !important; }
+}
+/* §H.3 step: brief screen shake on Tier 2 procs to deliver "weight"
+   without giant typography. ±2px, 80ms, applied to the battle root via
+   the .proc-shake class — flashText() toggles it for the duration. */
+.proc-shake { animation: procShake 80ms ease-out 1; }
+@keyframes procShake {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-2px, 1px); }
+  50%  { transform: translate(2px, -1px); }
+  75%  { transform: translate(-1px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .proc-shake { animation: none !important; }
 }
 
 /* ===== PHASE 3 BLOCK 1 — Signature Combo cinematic overlay =====
@@ -8894,11 +8923,13 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 @media (prefers-reduced-motion: reduce) {
   .synergy-bar .syn-pill.signature { animation: none !important; }
 }
+/* 2026-04-30 — Polish v0.2 Track H: 240ms in / 180ms out (0.42s total),
+   no sustained hold. Was 0.325s in + ~0.65s hold + 0.325s out (1.3s) — too
+   long, occluded grid during cascade resolutions. */
 @keyframes heroFlash {
-  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
-  25%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-  75%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -85%) scale(1); }
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  57%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  100% { opacity: 0; transform: translate(-50%, -65%) scale(1.0); }
 }
 .hero-sub { display: block; font-size: 11px; font-weight: 500; letter-spacing: 1px; color: #F5F3EC; opacity: 0.85; margin-top: 5px; text-shadow: none; }
 .combo-flash { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 44px; font-weight: 800; color: #E8B84A; text-shadow: 0 0 24px #E8B84A; opacity: 0; letter-spacing: 2px; }
@@ -39412,6 +39443,21 @@ function flashText(text, color, opts) {
   const _isCap = /!|ULT|×([4-9]|\d{2,})/.test(text);
   el.classList.toggle('big', _isCap);
   el.classList.remove('active'); void el.offsetWidth; el.classList.add('active');
+  // 2026-04-30 — Polish v0.2 Track H §H.3: ±2px / 80ms screen-shake on
+  // proc spawn delivers the "weight" the older 60-80pt typography used
+  // to. Targets the battle root container so HUD + grid + portraits all
+  // wobble together. Idempotent — removes/re-adds .proc-shake to allow
+  // back-to-back procs to retrigger; respects prefers-reduced-motion via
+  // CSS guard.
+  try {
+    const _battle = document.querySelector('.game.v-battle, .a-battle');
+    if (_battle) {
+      _battle.classList.remove('proc-shake');
+      void _battle.offsetWidth;
+      _battle.classList.add('proc-shake');
+      setTimeout(() => { try { _battle.classList.remove('proc-shake'); } catch (e) {} }, 100);
+    }
+  } catch (e) {}
   // 2026-04-27 — Audio A.2.3: detect banner-sting types from text + auto-play SFX.
   // Per spec §4.1: combo banners (INFERNO/SHATTER/ENCORE/REVENGE) + others fire
   // a chord sting. Music ducks 50% for 800ms during stings (spec §12.2).
