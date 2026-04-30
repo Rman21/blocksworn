@@ -10143,11 +10143,150 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
 }
 
 /* ===== GRID ===== */
+/* 2026-04-30 — Combat UI Final Polish §8 (PR 5/6): the .grid-wrap becomes
+   the atmospheric "board area" per spec §8.3. Each boss element creates a
+   distinct mood — fire glows ember-orange, frost has icy mist, earth is
+   forest green, dark is purple void, light is gold radiance. Top edge
+   carries a danger glow (boss side) per element; bottom edge a subtle
+   blue safe glow (player side); 5 staggered particles drift up to add
+   life without dominating the visual.
+
+   Layering inside .grid-wrap:
+     z-index:  ::before (top edge danger glow)         | 1
+               ::after  (bottom edge safe glow)        | 1
+               .board-particles                        | 1
+               .grid (the actual cells)                | 2  (lifted above)
+
+   The grid cells themselves are opaque so particles drifting through
+   them disappear behind — visible only in the 6px frame and the slack
+   on either side. Spec §8.5 calls this out as intentional ("subtle
+   particle effect that enhances atmosphere without dominating").
+
+   Performance: 5 particles × 8s linear infinite, GPU-accelerated
+   (transform + opacity only). Reduced-motion disables them entirely
+   and turns off the bg transition. */
 .grid-wrap {
   background: #1A1B2E; border: 1px solid #3D3F5E; border-radius: 12px; padding: 6px;
   display: flex; justify-content: center; align-items: center;
   flex-shrink: 1; min-height: 0;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.5s ease;
 }
+
+/* Per-element atmospheric backgrounds. Each fades from a tinted center
+   to the original #1A1B2E base around the edges so the existing visual
+   identity stays intact. The radial gradient is subtle (40-60% alpha
+   stops) — enough to read as "this fight has a mood" without making
+   the cells hard to see. */
+.grid-wrap[data-element="fire"] {
+  background: radial-gradient(ellipse at center,
+    rgba(60, 20, 10, 0.45) 0%,
+    rgba(20, 10, 5, 0.55) 50%,
+    rgba(26, 27, 46, 1) 100%);
+}
+.grid-wrap[data-element="frost"] {
+  background: radial-gradient(ellipse at center,
+    rgba(10, 30, 60, 0.45) 0%,
+    rgba(5, 15, 35, 0.55) 50%,
+    rgba(26, 27, 46, 1) 100%);
+}
+.grid-wrap[data-element="earth"] {
+  background: radial-gradient(ellipse at center,
+    rgba(15, 40, 25, 0.45) 0%,
+    rgba(8, 20, 15, 0.55) 50%,
+    rgba(26, 27, 46, 1) 100%);
+}
+.grid-wrap[data-element="dark"] {
+  background: radial-gradient(ellipse at center,
+    rgba(40, 15, 50, 0.50) 0%,
+    rgba(20, 10, 30, 0.60) 50%,
+    rgba(26, 27, 46, 1) 100%);
+}
+.grid-wrap[data-element="light"] {
+  background: radial-gradient(ellipse at center,
+    rgba(60, 50, 20, 0.45) 0%,
+    rgba(30, 25, 10, 0.55) 50%,
+    rgba(26, 27, 46, 1) 100%);
+}
+
+/* Top edge "boss side" glow — danger zone per element. 60px-tall fade. */
+.grid-wrap::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 60px;
+  background: linear-gradient(180deg,
+    var(--board-edge-glow, transparent) 0%,
+    transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+/* Bottom edge "player side" — subtle cool blue, intentionally faint. */
+.grid-wrap::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 30px;
+  background: linear-gradient(0deg,
+    rgba(74, 159, 255, 0.06) 0%,
+    transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+/* Per-element top-edge glow palette */
+.grid-wrap[data-element="fire"]  { --board-edge-glow: rgba(255, 107, 53, 0.18); }
+.grid-wrap[data-element="frost"] { --board-edge-glow: rgba(74, 159, 255, 0.18); }
+.grid-wrap[data-element="earth"] { --board-edge-glow: rgba(74, 219, 109, 0.16); }
+.grid-wrap[data-element="dark"]  { --board-edge-glow: rgba(139, 79, 188, 0.22); }
+.grid-wrap[data-element="light"] { --board-edge-glow: rgba(255, 215, 0, 0.18); }
+
+/* Particle layer — fills .grid-wrap, hosts 5 absolutely-positioned dots
+   that drift up. Hidden under the grid cells; visible only in the 6px
+   frame + the rounded-corner slack zones. Subtle by design (Spec §8.5
+   "performance-friendly subtle particle system"). */
+.board-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+.board-particle {
+  position: absolute;
+  bottom: -10%;
+  width: 2px; height: 2px;
+  background: var(--particle-color, rgba(255, 107, 53, 0.6));
+  border-radius: 50%;
+  opacity: 0;
+  filter: drop-shadow(0 0 3px var(--particle-color, rgba(255, 107, 53, 0.6)));
+  animation: boardParticleDrift 8s linear infinite;
+  will-change: transform, opacity;
+}
+@keyframes boardParticleDrift {
+  0%   { transform: translateY(0);     opacity: 0;   }
+  10%  {                                opacity: 0.6; }
+  90%  {                                opacity: 0.6; }
+  100% { transform: translateY(-110%); opacity: 0;   }
+}
+/* Stagger animation delays so 5 particles spread across an 8s cycle. */
+.board-particle:nth-child(1) { left: 10%; animation-delay: 0s;   }
+.board-particle:nth-child(2) { left: 25%; animation-delay: 1.6s; }
+.board-particle:nth-child(3) { left: 50%; animation-delay: 3.2s; }
+.board-particle:nth-child(4) { left: 75%; animation-delay: 4.8s; }
+.board-particle:nth-child(5) { left: 90%; animation-delay: 6.4s; }
+/* Per-element particle colors */
+.grid-wrap[data-element="fire"]  .board-particle { --particle-color: rgba(255, 107, 53, 0.55); }
+.grid-wrap[data-element="frost"] .board-particle { --particle-color: rgba(180, 220, 255, 0.50); }
+.grid-wrap[data-element="earth"] .board-particle { --particle-color: rgba(120, 230, 140, 0.45); }
+.grid-wrap[data-element="dark"]  .board-particle { --particle-color: rgba(180, 140, 220, 0.45); }
+.grid-wrap[data-element="light"] .board-particle { --particle-color: rgba(255, 215, 0, 0.55); }
+
+@media (prefers-reduced-motion: reduce) {
+  .grid-wrap { transition: none !important; }
+  .board-particle { display: none !important; }
+}
+
 .grid {
   display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
   gap: 3px; aspect-ratio: 1 / 1;
@@ -10160,6 +10299,13 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
      for non-iOS where dvh is unsupported. */
   width: min(100%, calc(100dvh - 455px), calc(100vh - 455px));
   max-width: 100%;
+  /* 2026-04-30 — Combat UI Final Polish §8 (PR 5/6): lift the grid
+     above the atmospheric layers (::before edge glow, ::after edge
+     glow, .board-particles drift) so cells stay fully readable. The
+     grid-wrap is position:relative; pseudo-elements + particles sit
+     at z-index 1 inside it; the grid claims z-index 2. */
+  position: relative;
+  z-index: 2;
 }
 .cell { background: #0F0F1F; border: 1px solid #2A2B45; border-radius: 4px; transition: background 0.15s; }
 .cell.filled { border: none; }
@@ -16200,7 +16346,20 @@ button.season-tier-claim:active {
     <div class="state-banner" id="stateBanner" hidden></div>
   </div>
 
-  <div class="grid-wrap">
+  <div class="grid-wrap" id="gridWrap">
+    <!-- 2026-04-30 — Combat UI Final Polish §8.5 (PR 5/6): atmospheric
+         particle layer. 5 absolutely-positioned dots drift up via the
+         boardParticleDrift keyframe (8s linear infinite, staggered
+         delays). Decorative — aria-hidden so screen readers ignore.
+         Hidden under prefers-reduced-motion. Particle color is set
+         per-element via CSS var on .grid-wrap[data-element]. -->
+    <div class="board-particles" aria-hidden="true">
+      <span class="board-particle"></span>
+      <span class="board-particle"></span>
+      <span class="board-particle"></span>
+      <span class="board-particle"></span>
+      <span class="board-particle"></span>
+    </div>
     <div class="v-battle-dmg-chip">⚔ <b id="dmg">0</b></div>
     <div class="grid" id="grid"></div>
   </div>
@@ -35619,15 +35778,21 @@ function startBossBattle() {
   document.getElementById('bossImgWrap').classList.remove('defeated');
   document.getElementById('bossBar').style.setProperty('--boss-color', currentBoss.color);
   document.getElementById('bossImg').src = ASSETS[currentBoss.img];
-  // 2026-04-30 — Combat UI Redesign §5 (PR 4/6): set data-element on the
-  // boss-card so element-themed HP gradient + future palette rules
-  // resolve. Spec uses fire/frost/earth/dark/light naming; map from
-  // the existing stihiya tokens (ember/tide/grove/umbra/solar).
+  // 2026-04-30 — Combat UI Redesign §5 (PR 4/6) + Final Polish §8
+  // (PR 5/6): set data-element on the boss-card AND the grid-wrap
+  // so element-themed HP gradient (PR #72) + atmospheric board
+  // background, top-edge boss glow, bottom-edge player glow, and
+  // particle palette (PR #75 / Final Polish §8) all resolve in
+  // lock-step. Spec uses fire/frost/earth/dark/light naming; map
+  // from the existing stihiya tokens (ember/tide/grove/umbra/solar).
   try {
     const _el2spec = { ember: 'fire', tide: 'frost', grove: 'earth', umbra: 'dark', solar: 'light' };
     const _el = _el2spec[currentBoss.stihiya] || 'fire';
     const _bossCard = document.getElementById('bossBar');
     if (_bossCard) _bossCard.setAttribute('data-element', _el);
+    // Final Polish §8: atmospheric board theming
+    const _gridWrap = document.getElementById('gridWrap');
+    if (_gridWrap) _gridWrap.setAttribute('data-element', _el);
   } catch (e) {}
   // Reset phase glow at battle start — applied dynamically by
   // renderBossHP based on HP %. Without this, a re-entry of a boss
