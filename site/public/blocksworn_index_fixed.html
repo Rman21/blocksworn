@@ -7690,6 +7690,54 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   transition: box-shadow 0.3s;
 }
 .boss-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 2026-04-30 — Ch.3 dual-state boss aura visuals (Twilight Vessel,
+   Voidpriestess). The boss portrait wears a halo that matches the
+   currently-active state, painted by _ch3RenderBossAura on every
+   tickChapter3Boss pass. Edges through ::before so it sits BEHIND
+   the portrait img/border without distorting them. Pulse pace
+   (1.6s) is gentle — this is ambient flavor, not a threat
+   telegraph. .boss-aura-both layers gold + purple via two
+   gradients + a slow rotation so phase 3 reads as "chaos" without
+   noise. */
+.boss-img-wrap.boss-aura-light::before,
+.boss-img-wrap.boss-aura-dark::before,
+.boss-img-wrap.boss-aura-both::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 0;
+  animation: bossAuraPulse 1.6s ease-in-out infinite;
+}
+.boss-img-wrap.boss-aura-light::before {
+  background: radial-gradient(circle at center, rgba(255, 213, 61, 0.55) 0%, rgba(255, 184, 74, 0.25) 45%, transparent 75%);
+  box-shadow: 0 0 22px rgba(255, 213, 61, 0.6);
+}
+.boss-img-wrap.boss-aura-dark::before {
+  background: radial-gradient(circle at center, rgba(155, 89, 214, 0.55) 0%, rgba(80, 40, 120, 0.30) 45%, transparent 75%);
+  box-shadow: 0 0 22px rgba(155, 89, 214, 0.6);
+}
+.boss-img-wrap.boss-aura-both::before {
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 213, 61, 0.55) 0%, transparent 50%),
+    radial-gradient(circle at 70% 70%, rgba(155, 89, 214, 0.55) 0%, transparent 50%);
+  box-shadow: 0 0 24px rgba(192, 130, 255, 0.55), 0 0 12px rgba(255, 213, 61, 0.4) inset;
+  animation: bossAuraPulse 1.6s ease-in-out infinite, bossAuraSpin 6s linear infinite;
+}
+@keyframes bossAuraPulse {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1.0; }
+}
+@keyframes bossAuraSpin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boss-img-wrap.boss-aura-light::before,
+  .boss-img-wrap.boss-aura-dark::before,
+  .boss-img-wrap.boss-aura-both::before { animation: none !important; }
+}
 .boss-emblem-badge {
   position: absolute; bottom: 2px; right: 2px;
   width: 26px; height: 26px; border-radius: 50%;
@@ -28987,6 +29035,15 @@ function initChapter3Boss() {
   // encounters don't inherit a frozen / locked cell from a prior fight.
   try { if (typeof _stormBlizzardFreezes !== 'undefined') _stormBlizzardFreezes.clear(); } catch (e) {}
   try { if (typeof _stormEarthquakeLocks !== 'undefined') _stormEarthquakeLocks.clear(); } catch (e) {}
+  // Reset dual-state announcer so the next Ch3 fight fires a fresh
+  // "LIGHT VEIL" / "DARK VEIL" banner on its first phase, not silently
+  // because we'd already announced that mask in a prior battle.
+  _ch3LastDualState = '';
+  // Strip any aura class that survived from a prior battle.
+  try {
+    const wrap = document.getElementById('bossImgWrap');
+    if (wrap) wrap.classList.remove('boss-aura-light', 'boss-aura-dark', 'boss-aura-both');
+  } catch (e) {}
   if (currentChapter !== 3 || !currentBoss) return;
   const map = {
     'TWILIGHT VESSEL':  'twilight',
@@ -29009,6 +29066,23 @@ function tickChapter3Boss() {
     _ch3State.lightActive = (phase === 1 || phase === 3);
     _ch3State.darkActive  = (phase === 2 || phase === 3);
   }
+  // 2026-04-30 — VOIDPRIESTESS dual-state shift (BOSS_COMPENDIUM §2.4).
+  // The Light/Dark alternation was on the spec but missing from the
+  // archetype — confessions still rolled from a single role-debuff
+  // pool. Mirroring Twilight's lightActive/darkActive lets the boss
+  // portrait aura + state banner announce phase shifts without
+  // touching the existing confession-pool logic. (A wider future PR
+  // can split confessions into light-themed and dark-themed pools and
+  // alternate them; this drop is visual + announcement only.)
+  if (_ch3BossId === 'priestess') {
+    _ch3State.lightActive = (phase === 1 || phase === 3);
+    _ch3State.darkActive  = (phase === 2 || phase === 3);
+  }
+  // 2026-04-30 — paint the dual-state aura on the boss portrait + fire
+  // a state-banner announcement when the state mix CHANGES (avoids
+  // spamming on every tick once a phase has settled).
+  try { _ch3MaybeAnnounceDualState(); } catch (e) {}
+  try { _ch3RenderBossAura(); } catch (e) {}
   // ===== STORMSHEPHERD — STORM SUMMONING (with shatter escape per spec §2.3) =====
   // Spawn N extra storm voids per turn (N = phase). 3 storm types cycle.
   // 2026-04-27 — Block 6.5 DEBT-3: storm cells track {r,c,turnsLeft=2}.
@@ -30038,6 +30112,46 @@ function _solarApplyStorm(incoming) {
   try { flashText('☀☀ SOLAR STORM!', '#FFD200', { force: true }); } catch (e) {}
   try { vibrate([260, 100, 260, 100, 460]); } catch (e) {}
   try { renderHP(); if (typeof render === 'function') render(); } catch (e) {}
+}
+
+// 2026-04-30 — Twilight Vessel + Voidpriestess dual-state aura visuals.
+// Both bosses run on the lightActive/darkActive flags but until now the
+// dynamic was invisible — only damage scaling changed. The aura paints
+// a halo around the boss portrait that matches the active state, and
+// _ch3MaybeAnnounceDualState fires a one-shot state banner when the
+// mix changes so the player notices the shift even if they're not
+// looking at the portrait.
+let _ch3LastDualState = ''; // serialized "light|dark" mask, drives announcement edge detection
+function _ch3RenderBossAura() {
+  const wrap = document.getElementById('bossImgWrap');
+  if (!wrap) return;
+  // Reset all aura classes first — idempotent.
+  wrap.classList.remove('boss-aura-light', 'boss-aura-dark', 'boss-aura-both');
+  // Apply the right one only for bosses that participate in the dual-
+  // state dynamic (Twilight Vessel + Voidpriestess so far). Other Ch3
+  // bosses (Stormshepherd, Root-of-Nothing, Archival Eternal) get no
+  // aura — keeps the visual signal exclusive.
+  if (_ch3BossId !== 'twilight' && _ch3BossId !== 'priestess') return;
+  const light = !!(_ch3State && _ch3State.lightActive);
+  const dark  = !!(_ch3State && _ch3State.darkActive);
+  if (light && dark) wrap.classList.add('boss-aura-both');
+  else if (light)    wrap.classList.add('boss-aura-light');
+  else if (dark)     wrap.classList.add('boss-aura-dark');
+}
+function _ch3MaybeAnnounceDualState() {
+  if (_ch3BossId !== 'twilight' && _ch3BossId !== 'priestess') return;
+  const light = !!(_ch3State && _ch3State.lightActive);
+  const dark  = !!(_ch3State && _ch3State.darkActive);
+  const mask = (light ? '1' : '0') + '|' + (dark ? '1' : '0');
+  if (mask === _ch3LastDualState) return;
+  _ch3LastDualState = mask;
+  let text = '', color = '#FFD53D';
+  if (light && dark)      { text = '☯ DUAL VEIL · BOTH STATES ACTIVE'; color = '#C087FF'; }
+  else if (light)         { text = '☀ LIGHT VEIL · solar passive';     color = '#FFD53D'; }
+  else if (dark)          { text = '☾ DARK VEIL · umbra passive';      color = '#9B59D6'; }
+  if (text) {
+    try { flashStateBanner(text, color, 3200); } catch (e) {}
+  }
 }
 
 // ===== CRYPT LICH — Dark Geometry / Soul Drain / Necropulse =====
