@@ -8702,6 +8702,110 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .hero-card--crush-spire-locked::after { animation: none !important; }
 }
 
+/* 2026-04-30 — Grovewarden kit visuals (Ch.1 Boss 3). All grove-green
+   palette to read as the "ancient keeper" element identity.
+   .bloom-strike-warn  : 2x2 patch, 3T telegraph. Pulses slower (1.4s)
+                         than Cinderblast / Row Strike — long warning
+                         window, gentler urgency curve.
+   .bloom-strike-hit   : 0.6s impact strobe in grove green.
+   .root-bind          : ACTIVE persistent state (3T duration). Vine
+                         overlay + 'X' refusal symbol. canPlace()
+                         rejects placement on these cells.
+   .forest-wrath-warn  : phase-3 panic AoE +-shape, 3T telegraph. Same
+                         pulse cadence as bloom-strike but a brighter
+                         saturate so it reads as "boss is desperate".
+   .forest-wrath-hit   : 0.7s impact strobe. */
+.cell.bloom-strike-warn {
+  position: relative;
+  animation: bloomStrikeWarn 1.4s ease-in-out infinite;
+  z-index: 2;
+}
+.cell.bloom-strike-warn::after {
+  content: '';
+  position: absolute; inset: 2px;
+  border-radius: 4px;
+  background: radial-gradient(circle at center, rgba(93, 202, 121, 0.55), rgba(93, 202, 121, 0.18) 60%, transparent 80%);
+  border: 2px solid rgba(140, 230, 160, 0.85);
+  box-shadow: 0 0 12px rgba(93, 202, 121, 0.55), inset 0 0 8px rgba(160, 240, 180, 0.5);
+  pointer-events: none;
+}
+.cell.bloom-strike-hit {
+  animation: bloomStrikeHit 0.6s ease-out forwards;
+  z-index: 3;
+}
+@keyframes bloomStrikeWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.4) saturate(1.2); }
+}
+@keyframes bloomStrikeHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(60,180,90,0); }
+  20%  { filter: brightness(2.4) saturate(1.5); transform: scale(1.18); box-shadow: 0 0 26px rgba(60,180,90,0.9), 0 0 12px rgba(140,240,170,0.6) inset; }
+  60%  { filter: brightness(1.5) saturate(1.2); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(60,180,90,0); }
+}
+
+.cell.root-bind {
+  position: relative;
+  z-index: 2;
+}
+.cell.root-bind::after {
+  content: '✕';
+  position: absolute; inset: 2px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(50, 100, 60, 0.55), rgba(20, 60, 30, 0.7));
+  border: 2px solid rgba(93, 202, 121, 0.6);
+  box-shadow: inset 0 0 12px rgba(20, 50, 30, 0.65), 0 0 8px rgba(93, 202, 121, 0.4);
+  font-size: 18px; font-weight: 800;
+  color: rgba(180, 240, 200, 0.7);
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  animation: rootBindBreathe 2.0s ease-in-out infinite;
+}
+@keyframes rootBindBreathe {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.2) saturate(1.15); }
+}
+
+.cell.forest-wrath-warn {
+  position: relative;
+  animation: forestWrathWarn 1.2s ease-in-out infinite;
+  z-index: 2;
+}
+.cell.forest-wrath-warn::after {
+  content: '';
+  position: absolute; inset: 2px;
+  border-radius: 4px;
+  background: radial-gradient(circle at center, rgba(63, 170, 82, 0.65), rgba(63, 170, 82, 0.22) 60%, transparent 80%);
+  border: 2px solid rgba(150, 240, 170, 0.95);
+  box-shadow: 0 0 16px rgba(80, 200, 110, 0.7), inset 0 0 10px rgba(170, 240, 190, 0.6);
+  pointer-events: none;
+}
+.cell.forest-wrath-hit {
+  animation: forestWrathHit 0.7s ease-out forwards;
+  z-index: 3;
+}
+@keyframes forestWrathWarn {
+  0%, 100% { filter: brightness(1.05) saturate(1.1); }
+  50%      { filter: brightness(1.6) saturate(1.4); }
+}
+@keyframes forestWrathHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(50,170,80,0); }
+  18%  { filter: brightness(2.8) saturate(1.6); transform: scale(1.22); box-shadow: 0 0 32px rgba(50,170,80,1.0), 0 0 14px rgba(160,240,180,0.7) inset; }
+  60%  { filter: brightness(1.7) saturate(1.3); transform: scale(1.08); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(50,170,80,0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell.bloom-strike-warn,
+  .cell.bloom-strike-warn::after,
+  .cell.bloom-strike-hit,
+  .cell.root-bind::after,
+  .cell.forest-wrath-warn,
+  .cell.forest-wrath-warn::after,
+  .cell.forest-wrath-hit { animation: none !important; }
+}
+
 /* ===== TRAY ===== */
 .tray { background: #1A1B2E; border: 1px solid #3D3F5E; border-radius: 12px; padding: 10px; display: flex; justify-content: space-around; align-items: center; min-height: 90px; }
 .piece { display: grid; cursor: grab; touch-action: none; transition: opacity 0.2s; }
@@ -28839,6 +28943,9 @@ function tickChapter2Archetype() {
     case 'armored':
       if (currentBoss.id === 'abyssal_tyrant' || currentBoss.name === 'ABYSSAL TYRANT') _tickAbyssalTyrant(phase);
       break;
+    case 'bruiser':
+      if (currentBoss.id === 'grovewarden' || currentBoss.name === 'GROVEWARDEN') _tickGrovewarden(phase);
+      break;
     default: return; // Other Chapter 1 archetypes — existing handlers unchanged
   }
 }
@@ -29213,6 +29320,249 @@ function _abyssalApplyMaelstrom() {
   try { flashText('🌀 MAELSTROM! · ' + converted + ' tides', '#3B8BD4', { force: true }); } catch (e) {}
   try { vibrate([220, 90, 220, 90, 360]); } catch (e) {}
   try { if (typeof render === 'function') render(); } catch (e) {}
+}
+
+// ===== GROVEWARDEN — Bloom Strike / Root Bind / Forest Wrath =====
+// (Ch.1 Boss 3, BOSS_COMPENDIUM §1.3). Grove-themed bruiser; previously
+// ran on the passive `grove_bloom_heal` (2% / 4 turns) plus archetype HP
+// inflation only. Three new specials add board-state pressure that
+// teaches the player to read 3-turn telegraphs (longer warning than
+// Pyredrake's 2T / Abyssal's 1-2T).
+//
+// BLOOM STRIKE  (P1+, every 8 / 7 / 6 turns by phase, 3T telegraph)
+//   4-cell cluster strike (2x2 patch). Same threat-banner + cell-warn
+//   pattern as Pyredrake Cinderblast but slower pulse + green palette.
+//   On landing: 1/2/3 ticks of damage by phase.
+//
+// ROOT BIND     (P1+, every 7 / 6 / 5 turns, 3T duration → cell lock)
+//   Picks 2 random empty cells, paints them with vine overlay, makes
+//   them unplayable for 3 turns (canPlace gate refuses placement).
+//   Auto-clears after 3T. No telegraph — this is the persistent
+//   board-state effect, not an attack.
+//
+// FOREST WRATH  (P3+, every 8 turns, 3T telegraph → big AoE)
+//   Phase 3 only. 4-cell + (plus) shape on a random center, 3T warn,
+//   bigger damage tier (3 ticks). Spec calls this Grovewarden's
+//   signature panic phase — long telegraph, hard hit.
+let _grovewardenState = null;
+const _grovewardenBloomWarnCells = new Set();
+const _grovewardenWrathWarnCells = new Set();
+const _grovewardenRootBindCells = new Map(); // key "r_c" → turnsLeft
+const GROVE_BLOOM_INT_P1 = 8;
+const GROVE_BLOOM_INT_P2 = 7;
+const GROVE_BLOOM_INT_P3 = 6;
+const GROVE_ROOT_INT_P1 = 7;
+const GROVE_ROOT_INT_P2 = 6;
+const GROVE_ROOT_INT_P3 = 5;
+const GROVE_ROOT_DURATION = 3;
+const GROVE_WRATH_INT = 8;
+function _initGrovewardenState() {
+  _grovewardenState = {
+    turnsSinceBloom: 0,  bloomIncoming: null,  // {cells, turnsLeft}
+    turnsSinceRoot: 0,
+    turnsSinceWrath: 0,  wrathIncoming: null,  // {cells, turnsLeft}
+  };
+}
+function _resetGrovewardenState() {
+  _grovewardenBloomWarnCells.clear();
+  _grovewardenWrathWarnCells.clear();
+  _grovewardenRootBindCells.clear();
+  _grovewardenState = null;
+}
+function _groveBloomInterval(phase) {
+  if (phase >= 3) return GROVE_BLOOM_INT_P3;
+  if (phase >= 2) return GROVE_BLOOM_INT_P2;
+  return GROVE_BLOOM_INT_P1;
+}
+function _groveRootInterval(phase) {
+  if (phase >= 3) return GROVE_ROOT_INT_P3;
+  if (phase >= 2) return GROVE_ROOT_INT_P2;
+  return GROVE_ROOT_INT_P1;
+}
+function _tickGrovewarden(phase) {
+  if (!_grovewardenState) _initGrovewardenState();
+  const st = _grovewardenState;
+
+  // Tick down active root binds first so they release at the start of
+  // the player's turn. When count hits 0 we clear the lock.
+  if (_grovewardenRootBindCells.size > 0) {
+    const drop = [];
+    for (const [k, t] of _grovewardenRootBindCells.entries()) {
+      const next = t - 1;
+      if (next <= 0) drop.push(k);
+      else _grovewardenRootBindCells.set(k, next);
+    }
+    for (const k of drop) _grovewardenRootBindCells.delete(k);
+    if (drop.length > 0) {
+      try { flashStateBanner('🌿 ROOT BIND · RELEASED', '#5DCA79'); } catch (e) {}
+      try { if (typeof render === 'function') render(); } catch (e) {}
+    }
+  }
+
+  // BLOOM STRIKE
+  if (st.bloomIncoming) {
+    st.bloomIncoming.turnsLeft--;
+    if (st.bloomIncoming.turnsLeft <= 0) {
+      _grovewardenApplyBloomStrike(st.bloomIncoming, phase);
+      st.bloomIncoming = null;
+      st.turnsSinceBloom = 0;
+    }
+  } else {
+    st.turnsSinceBloom++;
+    if (st.turnsSinceBloom >= _groveBloomInterval(phase)) {
+      _grovewardenQueueBloomStrike();
+    }
+  }
+
+  // ROOT BIND — only spawn new bind if no bind is currently active
+  // (avoids stacking too much board lock at once).
+  if (_grovewardenRootBindCells.size === 0) {
+    st.turnsSinceRoot++;
+    if (st.turnsSinceRoot >= _groveRootInterval(phase)) {
+      _grovewardenApplyRootBind(phase);
+      st.turnsSinceRoot = 0;
+    }
+  }
+
+  // FOREST WRATH — phase 3+
+  if (st.wrathIncoming) {
+    st.wrathIncoming.turnsLeft--;
+    if (st.wrathIncoming.turnsLeft <= 0) {
+      _grovewardenApplyForestWrath(st.wrathIncoming, phase);
+      st.wrathIncoming = null;
+      st.turnsSinceWrath = 0;
+    }
+  } else if (phase >= 3) {
+    st.turnsSinceWrath++;
+    if (st.turnsSinceWrath >= GROVE_WRATH_INT) {
+      _grovewardenQueueForestWrath();
+    }
+  }
+}
+function _grovewardenQueueBloomStrike() {
+  let H = 8, W = 8;
+  try {
+    if (Array.isArray(grid) && grid.length) { H = grid.length; if (Array.isArray(grid[0])) W = grid[0].length; }
+  } catch (e) {}
+  // 2x2 patch — pick top-left so the patch fits on the board.
+  const r0 = Math.floor(Math.random() * Math.max(1, H - 1));
+  const c0 = Math.floor(Math.random() * Math.max(1, W - 1));
+  const cells = [[r0, c0], [r0, c0 + 1], [r0 + 1, c0], [r0 + 1, c0 + 1]];
+  _grovewardenBloomWarnCells.clear();
+  for (const [r, c] of cells) _grovewardenBloomWarnCells.add(r + '_' + c);
+  _grovewardenState.bloomIncoming = { cells, turnsLeft: 3 };
+  try { showThreatBanner('⚠ BLOOM STRIKE in 3 turns — corruption blooming', 0); } catch (e) {}
+  try { vibrate([60, 40, 60, 40, 80]); } catch (e) {}
+  try { if (typeof render === 'function') render(); } catch (e) {}
+}
+function _grovewardenApplyBloomStrike(incoming, phase) {
+  _grovewardenBloomWarnCells.clear();
+  try {
+    if (typeof render === 'function') render();
+    for (const [r, c] of incoming.cells) {
+      const el = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+      if (el) {
+        el.classList.remove('bloom-strike-hit'); void el.offsetWidth;
+        el.classList.add('bloom-strike-hit');
+        setTimeout(() => { try { el.classList.remove('bloom-strike-hit'); } catch (e) {} }, 600);
+      }
+    }
+  } catch (e) {}
+  const ticks = Math.max(1, phase || 1);
+  for (let i = 0; i < ticks; i++) {
+    try {
+      if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+        shieldCount = Math.max(0, shieldCount - 1);
+      } else if (typeof hp !== 'undefined') {
+        hp = Math.max(0, hp - 1);
+        battleDamageTaken = (battleDamageTaken || 0) + 1;
+        if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+          try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+  try { hideThreatBanner(); } catch (e) {}
+  try { flashText('🌿 BLOOM STRIKE!', '#5DCA79', { force: true }); } catch (e) {}
+  try { vibrate([200, 80, 200, 80, 400]); } catch (e) {}
+  try { renderHP(); if (typeof render === 'function') render(); } catch (e) {}
+}
+function _grovewardenApplyRootBind(phase) {
+  // Pick 2 random empty cells. If fewer than 2 empty exist, fall back
+  // to whatever is available — root bind shouldn't fail just because
+  // the board is full.
+  let H = 8, W = 8;
+  try {
+    if (Array.isArray(grid) && grid.length) { H = grid.length; if (Array.isArray(grid[0])) W = grid[0].length; }
+  } catch (e) {}
+  const empties = [];
+  try {
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+      if (!grid[r][c]) empties.push([r, c]);
+    }
+  } catch (e) {}
+  if (empties.length === 0) return;
+  empties.sort(() => Math.random() - 0.5);
+  const picks = empties.slice(0, Math.min(2, empties.length));
+  for (const [r, c] of picks) {
+    _grovewardenRootBindCells.set(r + '_' + c, GROVE_ROOT_DURATION);
+  }
+  try { flashStateBanner('🌿 ROOT BIND · ' + picks.length + ' cell' + (picks.length === 1 ? '' : 's') + ' bound 3T', '#5DCA79', 3000); } catch (e) {}
+  try { vibrate([80, 50, 80]); } catch (e) {}
+  try { if (typeof render === 'function') render(); } catch (e) {}
+}
+function _grovewardenQueueForestWrath() {
+  let H = 8, W = 8;
+  try {
+    if (Array.isArray(grid) && grid.length) { H = grid.length; if (Array.isArray(grid[0])) W = grid[0].length; }
+  } catch (e) {}
+  // Plus-shape: center + N/S/E/W. Pick a center that fits.
+  const r = 1 + Math.floor(Math.random() * Math.max(1, H - 2));
+  const c = 1 + Math.floor(Math.random() * Math.max(1, W - 2));
+  const cells = [[r, c], [r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
+  // Spec calls Forest Wrath a 4-cell AoE; the +-shape is 5 cells, we
+  // drop the center to give the player a tiny safe zone visual cue.
+  const damaged = cells.slice(1);
+  _grovewardenWrathWarnCells.clear();
+  for (const [rr, cc] of damaged) _grovewardenWrathWarnCells.add(rr + '_' + cc);
+  _grovewardenState.wrathIncoming = { cells: damaged, turnsLeft: 3 };
+  try { showThreatBanner('⚠ FOREST WRATH in 3 turns — root pillars rising', 0); } catch (e) {}
+  try { vibrate([100, 60, 100, 60, 140]); } catch (e) {}
+  try { if (typeof render === 'function') render(); } catch (e) {}
+}
+function _grovewardenApplyForestWrath(incoming, phase) {
+  _grovewardenWrathWarnCells.clear();
+  try {
+    if (typeof render === 'function') render();
+    for (const [r, c] of incoming.cells) {
+      const el = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+      if (el) {
+        el.classList.remove('forest-wrath-hit'); void el.offsetWidth;
+        el.classList.add('forest-wrath-hit');
+        setTimeout(() => { try { el.classList.remove('forest-wrath-hit'); } catch (e) {} }, 700);
+      }
+    }
+  } catch (e) {}
+  // Forest Wrath always fires at 3 ticks (it's a phase-3 panic move).
+  for (let i = 0; i < 3; i++) {
+    try {
+      if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+        shieldCount = Math.max(0, shieldCount - 1);
+      } else if (typeof hp !== 'undefined') {
+        hp = Math.max(0, hp - 1);
+        battleDamageTaken = (battleDamageTaken || 0) + 1;
+        if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+          try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+  try { hideThreatBanner(); } catch (e) {}
+  try { flashText('🌳 FOREST WRATH!', '#3FAA52', { force: true }); } catch (e) {}
+  try { vibrate([260, 100, 260, 100, 460]); } catch (e) {}
+  try { renderHP(); if (typeof render === 'function') render(); } catch (e) {}
 }
 
 // HYPNOTIST tick — Suggestion, Petal Fall, Tendril Coil, Bloom Bloom (per phase).
@@ -31717,6 +32067,8 @@ function startBossBattle() {
     if (typeof _resetPyredrakeState === 'function') _resetPyredrakeState();
     // 2026-04-30 — Abyssal Tyrant Row Strike / Crush Spire / Maelstrom state.
     if (typeof _resetAbyssalTyrantState === 'function') _resetAbyssalTyrantState();
+    // 2026-04-30 — Grovewarden Bloom Strike / Root Bind / Forest Wrath state.
+    if (typeof _resetGrovewardenState === 'function') _resetGrovewardenState();
   } catch (e) {}
   // V3.0 Phase 4: show one-time tutorial toast carousel on first battle.
   // PHASE 4 BLOCK 1 — carousel is gated to NON-FTUE inside maybeShowBattleTutorial
@@ -32119,6 +32471,17 @@ function canPlace(p, br, bc) {
         && Array.isArray(HERO_DECK) && HERO_DECK.some(h => h && h.newRole === 'warrior')) {
       for (const [dr] of cellsOf(p)) {
         if (br + dr === 0) return false;
+      }
+    }
+  } catch (e) {}
+  // 2026-04-30 — Grovewarden Root Bind: cells in _grovewardenRootBindCells
+  // are unplayable for the duration of the bind (3T). Same reject pattern
+  // as warrior_blocked above — refusing the placement here makes the
+  // existing UI feedback (red preview + tap-to-place no-op) work for free.
+  try {
+    if (typeof _grovewardenRootBindCells !== 'undefined' && _grovewardenRootBindCells.size > 0) {
+      for (const [dr, dc] of cellsOf(p)) {
+        if (_grovewardenRootBindCells.has((br + dr) + '_' + (bc + dc))) return false;
       }
     }
   } catch (e) {}
@@ -40048,6 +40411,22 @@ function renderGrid() {
       }
       if (typeof _abyssalMaelstromWarnCells !== 'undefined' && _abyssalMaelstromWarnCells.has(key)) {
         d.classList.add('maelstrom-warn');
+      }
+    } catch (e) {}
+    // Grovewarden Bloom Strike + Forest Wrath warnings + Root Bind
+    // active locks. Bloom/Wrath are render-state Sets cleared on impact;
+    // root-bind is a Map<key, turnsLeft> cleared per-tick when a cell
+    // releases. canPlace() ALSO consults _grovewardenRootBindCells —
+    // this paint just shows the player WHERE the lock is.
+    try {
+      if (typeof _grovewardenBloomWarnCells !== 'undefined' && _grovewardenBloomWarnCells.has(key)) {
+        d.classList.add('bloom-strike-warn');
+      }
+      if (typeof _grovewardenWrathWarnCells !== 'undefined' && _grovewardenWrathWarnCells.has(key)) {
+        d.classList.add('forest-wrath-warn');
+      }
+      if (typeof _grovewardenRootBindCells !== 'undefined' && _grovewardenRootBindCells.has(key)) {
+        d.classList.add('root-bind');
       }
     } catch (e) {}
     if (v) {
