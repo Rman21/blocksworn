@@ -8287,8 +8287,29 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
  * persistent for the duration of a threat (storm spawn, etc.), red-tinted
  * to read as a warning, never overlaps the grid like the legacy flashText
  * toast did. Hidden by default — controlled via the `hidden` attribute. */
-.threat-banner {
+/* 2026-04-30 — Banner slot wraps both above-grid banners (threat +
+   state) so showing/hiding them never shifts the grid below. The slot
+   reserves vertical space for ONE banner. Each banner inside is
+   absolutely positioned to top:0 / left:0 / right:0 of the slot so
+   they overlay the same physical zone — no flow-shift on toggle, no
+   layout reflow as banners cycle. When both banners are active at
+   once the state banner sits on top via z-index; when state auto-
+   clears (~2.4s), the underlying threat banner is revealed. */
+.battle-banner-slot {
+  position: relative;
   margin: 4px 8px 6px;
+  /* Reserved height = one banner's intrinsic height (8+8 padding +
+     ~14px line + 2px border ≈ 36px). Setting min-height keeps the
+     slot in flow even when both banners are hidden, eliminating the
+     pop-up/pop-down shift Roman reported during storm warnings + state
+     fades. */
+  min-height: 36px;
+}
+
+.threat-banner {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   padding: 8px 12px;
   background: linear-gradient(180deg, rgba(120, 30, 40, 0.55), rgba(40, 10, 14, 0.75));
   border: 1px solid rgba(255, 90, 74, 0.55);
@@ -8301,6 +8322,9 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
   box-shadow: 0 0 12px rgba(255, 90, 74, 0.30);
   animation: threatBannerPulse 1.4s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .threat-banner[hidden] { display: none !important; }
 @keyframes threatBannerPulse {
@@ -8317,7 +8341,12 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
    two banners feel like one system. */
 .state-banner {
   --state-color: #FFD53D;
-  margin: 4px 8px 6px;
+  position: absolute;
+  inset: 0;
+  /* Higher z-index than threat banner so when both fire at the same
+     time the state callout (which auto-clears in ~2.4s) shows on top
+     and the storm warning re-emerges underneath when state expires. */
+  z-index: 2;
   padding: 8px 12px;
   background: linear-gradient(180deg, rgba(40, 28, 8, 0.65), rgba(20, 14, 4, 0.82));
   border: 1px solid color-mix(in srgb, var(--state-color) 55%, transparent);
@@ -8331,6 +8360,9 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 8px color-mix(in srgb, var(--state-color) 40%, transparent);
   box-shadow: 0 0 12px color-mix(in srgb, var(--state-color) 30%, transparent);
   animation: stateBannerPulse 1.6s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .state-banner[hidden] { display: none !important; }
 @keyframes stateBannerPulse {
@@ -13593,21 +13625,28 @@ button.season-tier-claim:active {
   <div class="synergy-bar" id="synergyBar"></div>
   <div class="deck" id="deck"></div>
 
-  <!-- 2026-04-29 polish v0.1 Track C.2: dedicated threat banner above the
-       grid (between heroes deck and grid-wrap, per plan §5.1). Persists
-       while a threat is active; never overlaps grid cells. Storm spawns
-       (Stormshepherd) and other 1-line warnings route here via
-       showThreatBanner() / hideThreatBanner() helpers. Hidden by default. -->
-  <div class="threat-banner" id="threatBanner" hidden></div>
-  <!-- Polish v0.2 Track H Part 2: state banner. Same above-grid zone as
-       threat banner but a positive (gold-ish) palette by default — used
-       for persistent buff/state callouts (RAINBOW ACTIVE, RADIANT WARD,
-       LOCK GUARD, BLOOM/TIDE/HALO FADES, etc.) that previously fired
-       through centered .hero-flash and occluded the cells the player
-       just acted on. flashStateBanner() drives content + auto-hide; the
-       inline `style="--state-color: …"` token gets repainted per call so
-       border + glow track the firing element's color. -->
-  <div class="state-banner" id="stateBanner" hidden></div>
+  <!-- 2026-04-30 — banner slot. Holds the threat banner (storm warnings,
+       Track C.2) and the state banner (persistent buffs/debuffs, Track
+       H Part 2) in a fixed-height zone above the grid. Banners are
+       `position: absolute` inside this slot so showing/hiding them
+       does NOT push the grid up or down — the play surface stays
+       perfectly stable while these alerts cycle.
+
+       The slot reserves vertical space equal to one banner. When both
+       banners are active simultaneously they stack via z-index (state
+       banner on top of threat banner — state auto-clears in ~2.4s,
+       revealing the threat banner during the remaining storm
+       countdown). One-banner-at-a-time is the common case; the
+       stacking-with-state-on-top is the rare case. Either way the
+       grid below never moves.
+
+       Helpers showThreatBanner / hideThreatBanner / flashStateBanner /
+       hideStateBanner unchanged — they still toggle each banner's
+       `hidden` attribute; only the layout container changes. -->
+  <div class="battle-banner-slot">
+    <div class="threat-banner" id="threatBanner" hidden></div>
+    <div class="state-banner" id="stateBanner" hidden></div>
+  </div>
 
   <div class="grid-wrap">
     <div class="v-battle-dmg-chip">⚔ <b id="dmg">0</b></div>
