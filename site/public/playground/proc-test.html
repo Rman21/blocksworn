@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Blocksworm — Proc Typography Test</title>
+<!--
+  Polish plan v0.2 Track H Part 1 — review aid.
+  This page reproduces the new .hero-flash typography (top 22%, 20px /
+  28px .big, 0.42s / 0.55s, ±2px shake) so Roman can tap-test every
+  callout in the inventory without playing through 5 chapters.
+
+  Each row is a (string, color, tier) triplet from the audit. Tap a row
+  to fire the new flashText shape. The simulated "battle" container at
+  the bottom shows what shake feels like on the layout.
+
+  This is a static test harness — it does NOT load the game. To verify
+  in the actual game, push to a Vercel preview and play through.
+-->
+<style>
+  :root {
+    --bg-deep: #0a0913;
+    --bg-card: #15131e;
+    --gold: #FFD53D;
+    --gold-300: #FFE07A;
+    --tide: #5DCAFF;
+    --ember: #FF7B3A;
+    --grove: #6BD37A;
+    --solar: #FFD200;
+    --umbra: #B26AFF;
+    --text: #F5F3EC;
+    --text-muted: #A8A5B8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: radial-gradient(1200px 800px at 30% 20%, #1c1430, var(--bg-deep) 70%);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 28px 24px 12px;
+    border-bottom: 1px solid rgba(255,213,61,0.18);
+  }
+  h1 {
+    margin: 0 0 6px;
+    font-size: 22px; letter-spacing: 1.4px;
+    font-weight: 800; color: var(--gold);
+    text-transform: uppercase;
+  }
+  .sub {
+    color: var(--text-muted);
+    font-size: 13px;
+    max-width: 680px;
+    line-height: 1.55;
+  }
+  .legend {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    padding: 14px 24px;
+    border-bottom: 1px solid rgba(255,213,61,0.12);
+    font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase;
+  }
+  .legend-tag {
+    padding: 4px 10px;
+    border: 1px solid currentColor;
+    border-radius: 6px;
+    font-weight: 700;
+  }
+  .tag-tier1 { color: var(--gold); }
+  .tag-tier2 { color: var(--tide); }
+  .tag-tele  { color: #FF8585; }
+  .tag-exempt { color: var(--umbra); }
+
+  main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: rgba(255,213,61,0.06);
+    padding: 1px;
+  }
+  @media (max-width: 720px) { main { grid-template-columns: 1fr; } }
+
+  .row {
+    background: var(--bg-card);
+    padding: 12px 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    transition: background 0.12s;
+  }
+  .row:hover { background: #1f1c2c; }
+  .row .lbl {
+    font-family: 'Cinzel', 'Georgia', serif;
+    font-size: 13px;
+    letter-spacing: 1px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .row .meta {
+    display: flex; gap: 8px; align-items: center;
+    flex-shrink: 0;
+  }
+  .pip {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .pip-tier1 { color: var(--gold); }
+  .pip-tier2 { color: var(--tide); }
+  .pip-tele  { color: #FF8585; }
+  .pip-exempt { color: var(--umbra); }
+  .tag {
+    font-size: 9px; letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+  }
+
+  /* Faux battle container so shake has something to wobble */
+  .stage {
+    position: relative;
+    margin: 24px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #0d0c18 0%, #1a1828 100%);
+    border: 1px solid rgba(255,213,61,0.18);
+    min-height: 460px;
+    overflow: hidden;
+  }
+  .stage-grid {
+    position: absolute; left: 50%; top: 35%;
+    transform: translateX(-50%);
+    width: min(86%, 380px);
+    height: 200px;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 50px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 50px),
+      linear-gradient(180deg, #1a172a, #0e0d18);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+  }
+  .stage-heroes {
+    position: absolute; left: 0; right: 0; bottom: 14px;
+    display: flex; justify-content: center; gap: 8px;
+  }
+  .stage-hero {
+    width: 38px; height: 38px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #2a2540, #1a172a);
+    border: 1px solid rgba(255,213,61,0.3);
+  }
+  .stage-info {
+    position: absolute; left: 12px; top: 12px;
+    font-size: 11px; letter-spacing: 1.2px;
+    color: var(--text-muted);
+    font-family: 'Cinzel', 'Georgia', serif;
+    text-transform: uppercase;
+  }
+
+  /* === Replicated production styles for hero-flash + proc-shake === */
+  .hero-flash {
+    position: absolute;
+    top: 22%; left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: min(90vw, 480px);
+    padding: 6px 18px;
+    font-family: 'Cinzel', 'Georgia', serif;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 2.5px;
+    line-height: 1.2;
+    opacity: 0;
+    white-space: normal;
+    text-align: center;
+    text-wrap: balance;
+    pointer-events: none;
+  }
+  .hero-flash.active { animation: heroFlash 0.42s ease-out forwards; }
+  .hero-flash.big.active {
+    font-size: 28px;
+    letter-spacing: 3.5px;
+    font-weight: 900;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9)) drop-shadow(0 0 12px currentColor);
+    animation: heroFlashBig 0.55s ease-out forwards;
+  }
+  @keyframes heroFlash {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+    57%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+    100% { opacity: 0; transform: translate(-50%, -65%) scale(1.0); }
+  }
+  @keyframes heroFlashBig {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+    35%  { opacity: 1; transform: translate(-50%, -50%) scale(1.18); }
+    55%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.0); }
+  }
+  .proc-shake { animation: procShake 80ms ease-out 1; }
+  @keyframes procShake {
+    0%   { transform: translate(0, 0); }
+    25%  { transform: translate(-2px, 1px); }
+    50%  { transform: translate(2px, -1px); }
+    75%  { transform: translate(-1px, 1px); }
+    100% { transform: translate(0, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero-flash.big.active { animation: heroFlash 0.42s ease-out forwards !important; }
+    .proc-shake { animation: none !important; }
+  }
+
+  .controls {
+    display: flex; gap: 12px; align-items: center;
+    padding: 14px 24px;
+    border-top: 1px solid rgba(255,213,61,0.18);
+    font-size: 13px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+  }
+  button.fire {
+    padding: 10px 18px;
+    background: linear-gradient(180deg, #FFB800, #C97A05);
+    border: 2px solid var(--gold-300);
+    border-radius: 8px;
+    color: #1A1208;
+    font-weight: 800; letter-spacing: 1.4px;
+    font-size: 12px; text-transform: uppercase;
+    cursor: pointer;
+  }
+  button.fire:hover { filter: brightness(1.1); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Proc Typography Test · Track H Part 1</h1>
+  <p class="sub">
+    Tap a row to fire that callout in the stage below.
+    The new <code style="color:#FFD53D">.hero-flash</code> renders at <strong>top 22%</strong> (upper third of grid),
+    <strong>20px / 28px .big</strong>, <strong>0.42s / 0.55s</strong> total animation,
+    with a <strong>±2px / 80ms screen-shake</strong> on each spawn.
+    Tier 1 (persistent state) callouts will move to a state-banner above the grid in <em>Track H Part 2</em> — they're shown here in their current Tier-2-styled form for now.
+  </p>
+</header>
+<div class="legend">
+  <span class="legend-tag tag-tier1">● Tier 1 — persistent state</span>
+  <span class="legend-tag tag-tier2">● Tier 2 — one-shot proc</span>
+  <span class="legend-tag tag-tele">● Telegraph (boss attack)</span>
+  <span class="legend-tag tag-exempt">● Exempt (Signature Combo modal)</span>
+</div>
+
+<main id="rows"></main>
+
+<div class="controls">
+  <button class="fire" id="fireRandom">Fire random</button>
+  <button class="fire" id="fireBigOnly">Fire big-only</button>
+  <span>Tap a row above to demo a single proc · last fired: <strong id="lastFired" style="color:var(--text)">—</strong></span>
+</div>
+
+<div class="stage" id="stage">
+  <div class="stage-info">Battle (faux)</div>
+  <div class="stage-grid"></div>
+  <div class="hero-flash" id="heroFlash"></div>
+  <div class="stage-heroes">
+    <div class="stage-hero"></div><div class="stage-hero"></div><div class="stage-hero"></div>
+    <div class="stage-hero"></div><div class="stage-hero"></div>
+  </div>
+</div>
+
+<script>
+// Inventory from the Track H audit. (string, color, tier).
+// Tier 1 = persistent state, Tier 2 = one-shot, T = telegraph, E = exempt.
+const PROCS = [
+  // ===== Tier 1 — persistent state =====
+  ['🌈 RAINBOW ACTIVE', '#E8B84A', 1],
+  ['🌿 STONE BLOOM +1', '#6BD37A', 1],
+  ['VOID SIPHON +2', '#B26AFF', 1],
+  ['ENCORE SIEGE +5', '#5DCAFF', 1],
+  ['ENCORE ETERNAL', '#5DCAFF', 1],
+  ['ECHO PERMANENT', '#5DCAFF', 1],
+  ['ENCORE AMP OPEN', '#5DCAFF', 1],
+  ['POST-ENCORE BOOST 2T', '#5DCAFF', 1],
+  ['TOCK GUARD · FREEZE +1', '#5DCAFF', 1],
+  ['HALO WINDOW ×3🛡/clear', '#FFD200', 1],
+  ['GOLDEN HOUR ENDS', '#FFD53D', 1],
+  ['DEEP SHIELD 2/4', '#5DCAFF', 1],
+  ['FROZEN WARD · SHIELD HELD', '#5DCAFF', 1],
+  ['BLOOM FADES', '#6BD37A', 1],
+  ['TIDE FADES', '#5DCAFF', 1],
+  ['HALO FADES', '#FFD200', 1],
+  ['INFERNO ENDS', '#FF7B3A', 1],
+  ['POST-ENCORE ENDS', '#5DCAFF', 1],
+  ['RADIANT WARD +1', '#FFD200', 1],
+  ['❄❄ TIDAL LOCK · TURN SKIPPED', '#5DCAFF', 1],
+  ['RALLY SHIELD +1🛡', '#FFD200', 1],
+
+  // ===== Tier 2 — one-shot procs =====
+  ['BLOOM', '#6BD37A', 2],
+  ['VOID TRAIL', '#B26AFF', 2],
+  ['REVENGE BURST!', '#FF7B3A', 2],          // → big
+  ['SHIELDS-TO-DAMAGE!', '#FFD200', 2],      // → big
+  ['🌸 BLOOM CORRUPT · 240', '#6BD37A', 2],
+  ['SHIELD BROKEN', '#FF8585', 2],
+  ['+50% INFERNO', '#FF7B3A', 2],
+  ['INFERNO! ×3', '#FF7B3A', 2],             // → big
+  ['EMBER BLOOM +30% · SPREAD ×3', '#FF7B3A', 2],
+  ['EMBER BLOOM +30% · SEED ×1', '#FF7B3A', 2],
+  ['EMBER BLOOM +30% · NO TARGETS', '#FF7B3A', 2],
+  ['FLOOD MENDING', '#5DCAFF', 2],
+  ['BLOOM CASCADE', '#FF7B3A', 2],
+  ['VOLLEY INFERNO +200', '#FF7B3A', 2],
+  ['SELF-ENCORE', '#5DCAFF', 2],
+  ['ECHO QUEUED', '#5DCAFF', 2],
+  ['ENCORE NOW', '#5DCAFF', 2],
+  ['TIDEBREAKER ×2', '#5DCAFF', 2],
+  ['+15% SHATTER', '#5DCAFF', 2],
+  ['SHATTER VOLLEY!', '#5DCAFF', 2],         // → big
+  ['TIDE WEAVE +30%', '#5DCAFF', 2],
+  ['TIDE FORGE ULT ×3', '#5DCAFF', 2],       // → big via ULT
+  ['SHATTER ECHO +60', '#5DCAFF', 2],
+  ['DEEP TIDE', '#5DCAFF', 2],
+  ['NO SHIELDS', '#A8A5B8', 2],
+  ['VENGEANCE · 480', '#FF7B3A', 2],
+  ['VENGEANCE QUAKE ×3 · 720', '#FF7B3A', 2],
+  ['HALO OF SUNS · 3 → 6🛡', '#FFD200', 2],
+  ['AURORA · 4🛡 → 320', '#FFD200', 2],
+  ['AURORA BURST · 240 (kept 2🛡)', '#FFD200', 2],
+  ['INFERNO', '#FF7B3A', 2],
+  ['SHIELD ABSORBED HIT', '#FFD200', 2],
+  ['BLACKFANG SHIELDS YOU', '#B26AFF', 2],
+  ['CHARGED BURST +50%', '#FF7B3A', 2],
+  ['ECHO RE-FIRE + ×2', '#5DCAFF', 2],
+  ['ENCORE-OF-ENCORE!', '#5DCAFF', 2],       // → big
+  ['ENCORE FORGE +60', '#5DCAFF', 2],
+  ['+20% ENCORE', '#5DCAFF', 2],
+];
+
+const TIER_TAG = {1: 'tier1', 2: 'tier2', T: 'tele', E: 'exempt'};
+const TIER_LABEL = {1: 'TIER 1', 2: 'TIER 2', T: 'TELEGRAPH', E: 'EXEMPT'};
+
+const flashEl = document.getElementById('heroFlash');
+const stage = document.getElementById('stage');
+const lastFired = document.getElementById('lastFired');
+
+function fireFlash(text, color) {
+  flashEl.innerHTML = text;
+  flashEl.style.color = color;
+  flashEl.style.textShadow =
+    `0 0 1px ${color}, ` +
+    `0 0 6px rgba(0,0,0,0.9), ` +
+    `0 2px 4px rgba(0,0,0,0.85), ` +
+    `0 0 18px ${color}`;
+  const isBig = /!|ULT|×([4-9]|\d{2,})/.test(text);
+  flashEl.classList.toggle('big', isBig);
+  flashEl.classList.remove('active');
+  void flashEl.offsetWidth;
+  flashEl.classList.add('active');
+  // shake the stage
+  stage.classList.remove('proc-shake');
+  void stage.offsetWidth;
+  stage.classList.add('proc-shake');
+  setTimeout(() => stage.classList.remove('proc-shake'), 100);
+  lastFired.textContent = text + (isBig ? ' (.big)' : '');
+}
+
+const rowsEl = document.getElementById('rows');
+PROCS.forEach(([text, color, tier]) => {
+  const row = document.createElement('div');
+  row.className = 'row';
+  const lbl = document.createElement('div');
+  lbl.className = 'lbl';
+  lbl.style.color = color;
+  lbl.textContent = text;
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  const pip = document.createElement('span');
+  pip.className = 'pip pip-' + TIER_TAG[tier];
+  const tag = document.createElement('span');
+  tag.className = 'tag';
+  tag.textContent = TIER_LABEL[tier];
+  meta.appendChild(pip);
+  meta.appendChild(tag);
+  row.appendChild(lbl);
+  row.appendChild(meta);
+  row.onclick = () => fireFlash(text, color);
+  rowsEl.appendChild(row);
+});
+
+document.getElementById('fireRandom').onclick = () => {
+  const p = PROCS[Math.floor(Math.random() * PROCS.length)];
+  fireFlash(p[0], p[1]);
+};
+document.getElementById('fireBigOnly').onclick = () => {
+  const big = PROCS.filter(p => /!|ULT|×([4-9]|\d{2,})/.test(p[0]));
+  const p = big[Math.floor(Math.random() * big.length)];
+  fireFlash(p[0], p[1]);
+};
+</script>
+</body>
+</html>
