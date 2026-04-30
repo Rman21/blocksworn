@@ -17573,7 +17573,97 @@ const BALANCE = Object.freeze({
     dailyResetHour: 4, fragmentsPerHeart: 5, maxAttemptsPerDay: 5,
     retryGoldCost: Object.freeze([250, 500, 1000, 2000, 5000]),
     daily: Object.freeze({ baseGold: 100, sigils: 5, heartFragments: 1 }),
-    racePure: Object.freeze({ hpMult: 1.20, rewardMult: 2.0 })
+    racePure: Object.freeze({ hpMult: 1.20, rewardMult: 2.0 }),
+    // BAL.4 — per-floor reward distribution (PRELAUNCH §4.3). Floor 5 mid-boss
+    // and floor 10 climax flagged for cinematic / extra cards. Sigils feed
+    // Tower buff economy; t2Frags accumulate to 1 Tower Heart per 5 fragments.
+    floorRewards: Object.freeze({
+      1:  Object.freeze({ gold:  30, sigils: 0, cards: 0, t2Frags: 0 }),
+      2:  Object.freeze({ gold:  50, sigils: 0, cards: 0, t2Frags: 0 }),
+      3:  Object.freeze({ gold:  75, sigils: 1, cards: 0, t2Frags: 0 }),
+      4:  Object.freeze({ gold: 100, sigils: 1, cards: 0, t2Frags: 0 }),
+      5:  Object.freeze({ gold: 200, sigils: 2, cards: 1, t2Frags: 0, midBoss: true }),
+      6:  Object.freeze({ gold: 100, sigils: 1, cards: 0, t2Frags: 0 }),
+      7:  Object.freeze({ gold: 125, sigils: 1, cards: 0, t2Frags: 0 }),
+      8:  Object.freeze({ gold: 150, sigils: 2, cards: 0, t2Frags: 0 }),
+      9:  Object.freeze({ gold: 175, sigils: 2, cards: 0, t2Frags: 0 }),
+      10: Object.freeze({ gold: 400, sigils: 3, cards: 2, t2Frags: 1, climax: true })
+    })
+  }),
+  // BAL.3 + REW.1 — boss reward differentiation + star rating (PRELAUNCH §4.2).
+  // First-clear fires the cinematic + huge reward modal; replay fires a minimal
+  // toast (REW.3). Three-star bonus adds on top of either path. Stars are
+  // computed from battleDamageTaken / MAX_HP ratio.
+  rewards: Object.freeze({
+    stars: Object.freeze({
+      threeStar: 0.30,    // damageTaken/maxHP < 30% → 3 stars (no hits taken at MAX_HP=3)
+      twoStar:   0.50     // damageTaken/maxHP < 50% → 2 stars (1 hit taken)
+    }),
+    // Per-boss reward tables. Key = `${chapter}.${bossIdx}`. Chapter 1-indexed
+    // (matches CHAPTERS array) · bossIdx 0-indexed (matches .bosses array).
+    boss: Object.freeze({
+      // Chapter 1 — introductory difficulty
+      '1.0': Object.freeze({  // PYREDRAKE
+        firstClear: Object.freeze({ gold: 100, cards: 2, t2Stones: 0 }),
+        replay:     Object.freeze({ gold:  50, cards: 1 }),
+        threeStar:  Object.freeze({ gold:  50, essence: 1 })
+      }),
+      '1.1': Object.freeze({  // ABYSSAL TYRANT
+        firstClear: Object.freeze({ gold: 150, cards: 3, t2Stones: 0 }),
+        replay:     Object.freeze({ gold:  75, cards: 1 }),
+        threeStar:  Object.freeze({ gold:  75, essence: 1 })
+      }),
+      '1.2': Object.freeze({  // GROVEWARDEN
+        firstClear: Object.freeze({ gold: 200, cards: 3, t2Stones: 0 }),
+        replay:     Object.freeze({ gold: 100, cards: 1 }),
+        threeStar:  Object.freeze({ gold: 100, essence: 1 })
+      }),
+      '1.3': Object.freeze({  // SOLAR PHOENIX
+        firstClear: Object.freeze({ gold: 300, cards: 3, t2Stones: 0 }),
+        replay:     Object.freeze({ gold: 150, cards: 1 }),
+        threeStar:  Object.freeze({ gold: 150, essence: 1 })
+      }),
+      '1.4': Object.freeze({  // CRYPT LICH (Ch1 finale)
+        firstClear: Object.freeze({ gold: 500, cards: 5, t2Stones: 1,
+                                    chapterCosmetic: 'ch1_banner' }),
+        replay:     Object.freeze({ gold: 250, cards: 2 }),
+        threeStar:  Object.freeze({ gold: 250, essence: 1 })
+      }),
+      // Chapter 2 — mid-difficulty
+      '2.0': Object.freeze({  // VEROTHIRA
+        firstClear: Object.freeze({ gold: 500, cards: 3, t2Stones: 1 }),
+        replay:     Object.freeze({ gold: 200, cards: 1 }),
+        threeStar:  Object.freeze({ gold: 200 })
+      }),
+      '2.1': Object.freeze({  // GEARHEART
+        firstClear: Object.freeze({ gold: 600, cards: 5, t2Stones: 1 }),
+        replay:     Object.freeze({ gold: 250, cards: 2 }),
+        threeStar:  Object.freeze({ gold: 250, gems: 50 })
+      }),
+      '2.2': Object.freeze({  // URSARO
+        firstClear: Object.freeze({ gold: 700, cards: 5, t2Stones: 1 }),
+        replay:     Object.freeze({ gold: 300, cards: 2 }),
+        threeStar:  Object.freeze({ gold: 300, essence: 1 })
+      }),
+      '2.3': Object.freeze({  // TIDESPIRE
+        firstClear: Object.freeze({ gold: 800, cards: 8, t2Stones: 2 }),
+        replay:     Object.freeze({ gold: 400, cards: 3 }),
+        threeStar:  Object.freeze({ gold: 400, gems: 50 })
+      }),
+      '2.4': Object.freeze({  // HELIOTRON (Ch2 finale)
+        firstClear: Object.freeze({ gold: 1500, cards: 15, t2Stones: 3, t3Stones: 1,
+                                    gems: 100, chapterCosmetic: 'ch2_banner' }),
+        replay:     Object.freeze({ gold:  600, cards:  5 }),
+        threeStar:  Object.freeze({ gold:  600, gems: 100 })
+      })
+    }),
+    // Chapter completion bonuses (REW.2 cinematic + Pinch 3 victory-pack offer).
+    // victoryPackUSD = price for the 3-day chapter-complete pack (Phase 5 PINCH.3).
+    chapter: Object.freeze({
+      1: Object.freeze({ t2Stones: 1,                       bpXp:  500, banner: 'ch1_banner', victoryPackUSD:  4.99 }),
+      2: Object.freeze({ t2Stones: 2, t3Stones: 1, gems: 100, bpXp:  750, banner: 'ch2_banner', victoryPackUSD:  9.99 }),
+      3: Object.freeze({ t3Stones: 2,              gems: 200, bpXp: 1000, banner: 'ch3_banner', victoryPackUSD: 14.99 })
+    })
   })
 });
 
@@ -17693,6 +17783,120 @@ function logEvent(name, props) {
 if (typeof window !== 'undefined') {
   window.EVT = EVT;
   window.logEvent = logEvent;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// REW.1 + BAL.3 — First-clear tracking + star rating persistence
+//
+// Two parallel localStorage maps keyed by `${chapter}.${bossIdx}`:
+//   FIRST_CLEAR_KEY  → { '1.0': timestamp, '1.4': timestamp, ... }
+//   BOSS_STARS_KEY   → { '1.0': 3, '1.4': 2, ... }   (best stars achieved)
+//
+// First-clear timestamp is set ONCE per boss; subsequent kills are replays.
+// Stars persist as best-ever (replay improving stars updates the entry).
+// Both surfaced via window globals for renderer + REW.3 reward dispatch.
+// ──────────────────────────────────────────────────────────────────────────
+
+const FIRST_CLEAR_KEY = 'blocksworn_first_clears';
+const BOSS_STARS_KEY  = 'blocksworn_boss_stars';
+let firstClearMap = {};  // { '<ch>.<bossIdx>': unix ms timestamp }
+let bossStarsMap  = {};  // { '<ch>.<bossIdx>': 1 | 2 | 3 }
+
+function _bossKey(chapter, bossIdx) {
+  return `${chapter | 0}.${bossIdx | 0}`;
+}
+
+function loadFirstClearsFromStorage() {
+  try {
+    const raw = localStorage.getItem(FIRST_CLEAR_KEY);
+    if (!raw) { firstClearMap = {}; return; }
+    const parsed = JSON.parse(raw);
+    firstClearMap = (parsed && typeof parsed === 'object') ? parsed : {};
+  } catch (e) {
+    console.warn('loadFirstClearsFromStorage failed:', e);
+    firstClearMap = {};
+  }
+}
+
+function saveFirstClearsToStorage() {
+  try { localStorage.setItem(FIRST_CLEAR_KEY, JSON.stringify(firstClearMap)); }
+  catch (e) { console.warn('saveFirstClearsToStorage failed:', e); }
+}
+
+function isBossFirstCleared(chapter, bossIdx) {
+  const k = _bossKey(chapter, bossIdx);
+  return !!firstClearMap[k];
+}
+
+function markBossFirstCleared(chapter, bossIdx) {
+  const k = _bossKey(chapter, bossIdx);
+  if (firstClearMap[k]) return false;  // already marked, no-op
+  firstClearMap[k] = Date.now();
+  saveFirstClearsToStorage();
+  return true;
+}
+
+function loadBossStarsFromStorage() {
+  try {
+    const raw = localStorage.getItem(BOSS_STARS_KEY);
+    if (!raw) { bossStarsMap = {}; return; }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') { bossStarsMap = {}; return; }
+    // Sanitize: only keep 1-3 integer values
+    const clean = {};
+    for (const k in parsed) {
+      const v = Math.floor(Number(parsed[k]));
+      if (v >= 1 && v <= 3) clean[k] = v;
+    }
+    bossStarsMap = clean;
+  } catch (e) {
+    console.warn('loadBossStarsFromStorage failed:', e);
+    bossStarsMap = {};
+  }
+}
+
+function saveBossStarsToStorage() {
+  try { localStorage.setItem(BOSS_STARS_KEY, JSON.stringify(bossStarsMap)); }
+  catch (e) { console.warn('saveBossStarsToStorage failed:', e); }
+}
+
+function getBossStars(chapter, bossIdx) {
+  return bossStarsMap[_bossKey(chapter, bossIdx)] || 0;
+}
+
+// Returns true if record updated (new best). Replay matching/below previous best is no-op.
+function recordBossStars(chapter, bossIdx, stars) {
+  const s = Math.max(0, Math.min(3, Math.floor(Number(stars) || 0)));
+  if (s <= 0) return false;
+  const k = _bossKey(chapter, bossIdx);
+  const prev = bossStarsMap[k] || 0;
+  if (s <= prev) return false;
+  bossStarsMap[k] = s;
+  saveBossStarsToStorage();
+  return true;
+}
+
+// Compute star count from damage taken in a single battle.
+// damageTaken = battleDamageTaken accumulator (incremented per hit landed)
+// maxHp       = MAX_HP (typically 3)
+// Thresholds drive from BALANCE.rewards.stars.
+function computeBattleStars(damageTaken, maxHp) {
+  const ratio = (Number(damageTaken) || 0) / Math.max(1, Number(maxHp) || 1);
+  const t = BALANCE.rewards.stars;
+  if (ratio < t.threeStar) return 3;
+  if (ratio < t.twoStar)   return 2;
+  return 1;
+}
+
+loadFirstClearsFromStorage();
+loadBossStarsFromStorage();
+
+if (typeof window !== 'undefined') {
+  window.isBossFirstCleared = isBossFirstCleared;
+  window.markBossFirstCleared = markBossFirstCleared;
+  window.getBossStars = getBossStars;
+  window.recordBossStars = recordBossStars;
+  window.computeBattleStars = computeBattleStars;
 }
 
 const ASSETS = {
@@ -20449,6 +20653,70 @@ function _addTier3Stones(n) {
   towerState.tier3Stones = (towerState.tier3Stones || 0) + n;
   try { saveTowerState(); } catch (e) {}
 }
+
+// REW.3 — Apply a reward config (BALANCE.rewards.boss[].firstClear / replay /
+// threeStar shape, or BALANCE.tower.floorRewards[N] shape). Each field is
+// optional; missing fields no-op. Single dispatch keeps the schema as the
+// source of truth — adding a new reward type means one new branch here.
+//
+// opts.stihiya — preferred essence stihiya (defaults to currentBoss.stihiya)
+// opts.label   — optional flash label override (auto if omitted)
+// opts.silent  — true suppresses individual flash chips (caller composes a
+//                summary modal instead)
+function applyReward(reward, opts) {
+  if (!reward) return { granted: {} };
+  opts = opts || {};
+  const granted = {};
+  if (reward.gold)     { try { addGold(reward.gold);     granted.gold = reward.gold; } catch (e) {} }
+  if (reward.gems)     { try { addGems(reward.gems);     granted.gems = reward.gems; } catch (e) {} }
+  if (reward.cards)    { try { dropRandomHeroCards(reward.cards); granted.cards = reward.cards; } catch (e) {} }
+  if (reward.t2Stones) { try { _addTier2Stones(reward.t2Stones); granted.t2Stones = reward.t2Stones; } catch (e) {} }
+  if (reward.t3Stones) { try { _addTier3Stones(reward.t3Stones); granted.t3Stones = reward.t3Stones; } catch (e) {} }
+  if (reward.sigils) {
+    try {
+      if (towerState) {
+        towerState.sigilShards = (towerState.sigilShards || 0) + reward.sigils;
+        saveTowerState();
+        granted.sigils = reward.sigils;
+      }
+    } catch (e) {}
+  }
+  if (reward.t2Frags) {
+    try {
+      if (towerState) {
+        towerState.heartFragments = (towerState.heartFragments || 0) + reward.t2Frags;
+        saveTowerState();
+        granted.t2Frags = reward.t2Frags;
+      }
+    } catch (e) {}
+  }
+  if (reward.essence) {
+    try {
+      const stih = opts.stihiya || (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.stihiya);
+      if (stih && typeof essences === 'object') {
+        essences[stih] = (essences[stih] || 0) + reward.essence;
+        granted.essence = reward.essence;
+        granted.essenceStihiya = stih;
+      }
+    } catch (e) {}
+  }
+  if (reward.chapterCosmetic) {
+    try {
+      const c = (typeof _ensureCosmeticState === 'function') ? _ensureCosmeticState() : null;
+      if (c && Array.isArray(c.owned) && !c.owned.includes(reward.chapterCosmetic)) {
+        c.owned.push(reward.chapterCosmetic);
+        try { if (typeof saveCosmeticState === 'function') saveCosmeticState(); } catch (e) {}
+        granted.chapterCosmetic = reward.chapterCosmetic;
+      }
+    } catch (e) {}
+  }
+  return { granted };
+}
+
+if (typeof window !== 'undefined') {
+  window.applyReward = applyReward;
+}
+
 function _getPackPityCounter() {
   try { return parseInt(localStorage.getItem(PACK_PITY_KEY) || '0', 10) || 0; } catch (e) { return 0; }
 }
@@ -25668,6 +25936,63 @@ if (typeof window !== 'undefined') {
   window.hasCompletedChapter1 = hasCompletedChapter1;
 }
 
+// REW.2 — Generic chapter-completion primitives (PRELAUNCH §4.2 + REW.2).
+// Per-chapter localStorage flag keyed `blocksworn_chapter_N_complete`. Ch1
+// path (`blocksworn_chapter_1_complete`) is the historical key — preserved
+// to keep Tower gating + cryptLichAftermath compatible.
+function hasCompletedChapter(n) {
+  try { return localStorage.getItem(`blocksworn_chapter_${n | 0}_complete`) === 'true'; }
+  catch (e) { return false; }
+}
+function markChapterComplete(n) {
+  try { localStorage.setItem(`blocksworn_chapter_${n | 0}_complete`, 'true'); return true; }
+  catch (e) { return false; }
+}
+
+// Chapter completion celebration. Fires once per chapter on first all-bosses
+// first-cleared. Distributes BALANCE.rewards.chapter[N] reward, season XP,
+// and a 3-beat banner cascade. Pinch 3 (3-day victory pack offer) is wired
+// in Phase 5 — this function exposes a hook (`opts.onComplete`) so PINCH
+// can layer on top without re-detecting the moment.
+function showChapterCompleteCelebration(chapter, opts) {
+  opts = opts || {};
+  const cfg = BALANCE.rewards.chapter && BALANCE.rewards.chapter[chapter];
+  if (!cfg) return false;
+  // Distribute rewards via the same dispatcher as boss/floor paths
+  try { applyReward(cfg); } catch (e) { console.warn('chapter-complete applyReward failed:', e); }
+  // Season XP feed (BP track) — bpXp is chapter-tier specific
+  if (cfg.bpXp && typeof addSeasonXP === 'function') {
+    try { addSeasonXP(cfg.bpXp); } catch (e) {}
+  }
+  try { logEvent(EVT.fight_won, { kind: 'chapter_complete', chapter, bpXp: cfg.bpXp || 0 }); } catch (e) {}
+  // 3-beat celebration cascade. Each beat is delayed so it doesn't collide
+  // with the boss-defeat flashes that already fired upstream.
+  setTimeout(() => { try { flashText(`✦ CHAPTER ${chapter} COMPLETE ✦`, '#FFD53D'); } catch (e) {} }, 1500);
+  const rewardLine = [
+    cfg.t2Stones && `+${cfg.t2Stones} T2`,
+    cfg.t3Stones && `+${cfg.t3Stones} T3`,
+    cfg.gems && `+${cfg.gems}💎`,
+    cfg.bpXp && `+${cfg.bpXp} BP XP`
+  ].filter(Boolean).join(' · ');
+  if (rewardLine) {
+    setTimeout(() => { try { flashText(rewardLine, '#FFD53D'); } catch (e) {} }, 2700);
+  }
+  if (cfg.victoryPackUSD) {
+    setTimeout(() => { try { flashText(`★ VICTORY PACK $${cfg.victoryPackUSD} · 3 DAYS`, '#E85D4A'); } catch (e) {} }, 3900);
+  }
+  try { vibrate([180, 80, 180, 80, 280]); } catch (e) {}
+  if (typeof opts.onComplete === 'function') {
+    try { opts.onComplete(chapter, cfg); } catch (e) {}
+  }
+  return true;
+}
+
+if (typeof window !== 'undefined') {
+  window.hasCompletedChapter = hasCompletedChapter;
+  window.markChapterComplete = markChapterComplete;
+  window.showChapterCompleteCelebration = showChapterCompleteCelebration;
+}
+
 function checkTowerWeeklyReset() {
   if (typeof getCurrentWeekStart !== 'function') return;
   const now = getCurrentWeekStart();
@@ -26062,12 +26387,28 @@ function launchTowerFloor() {
 
 function onTowerFloorClear() {
   const floor = towerState.currentFloor;
-  // Rewards — linear gold + scaling points + milestone bonus every 10
-  const goldReward = 10 * floor;
+  // BAL.4 — per-floor reward distribution (PRELAUNCH §4.3). Reads from
+  // BALANCE.tower.floorRewards table for floors 1..10 (Daily Gauntlet
+  // canonical curve); falls back to the legacy linear formula for higher
+  // floors (Weekly 11-25, Seasonal 11-50) until those tables ship in their
+  // own block. towerPoints stays linear — separate metric from gold.
+  const floorRwd = BALANCE.tower.floorRewards[floor];
+  let goldReward, sigilsAwarded = 0, cardsAwarded = 0, t2FragsAwarded = 0;
+  if (floorRwd) {
+    goldReward = floorRwd.gold;
+    sigilsAwarded = floorRwd.sigils || 0;
+    cardsAwarded  = floorRwd.cards  || 0;
+    t2FragsAwarded = floorRwd.t2Frags || 0;
+  } else {
+    goldReward = 10 * floor;  // legacy fallback for high floors
+  }
   const ptsReward = 5 * floor + (floor % 10 === 0 ? 50 : 0);
   try { addGold(goldReward); } catch (e) {}
   towerState.towerPoints += ptsReward;
-  // 2026-04-27 — Block T.5 — Tower Heart "+1 sigil/floor" upgrade.
+  if (sigilsAwarded > 0)  towerState.sigilShards = (towerState.sigilShards || 0) + sigilsAwarded;
+  if (t2FragsAwarded > 0) towerState.towerHeartFragments = (towerState.towerHeartFragments || 0) + t2FragsAwarded;
+  if (cardsAwarded > 0)   { try { dropRandomHeroCards(cardsAwarded); } catch (e) {} }
+  // 2026-04-27 — Block T.5 — Tower Heart "+1 sigil/floor" upgrade (additive).
   try {
     if (typeof getHeartUpgradeStats === 'function') {
       const hs = getHeartUpgradeStats();
@@ -26079,9 +26420,14 @@ function onTowerFloorClear() {
   if (floor > towerState.allTimeBest) towerState.allTimeBest = floor;
   towerState.currentFloor = floor + 1;
   saveTowerState();
-  // Consolidated flash (Trap 4 mitigation — single message per floor vs stacking)
+  // Consolidated flash — show all earned chips, climax/mid-boss flag inline.
+  const tag = floorRwd && floorRwd.climax ? '★ CLIMAX' : (floorRwd && floorRwd.midBoss ? '◆ MID-BOSS' : '▲');
   const parts = [`+${goldReward}💰`, `+${ptsReward}🗼`];
-  try { flashText(`▲ FLOOR ${floor} CLEARED · ${parts.join(' ')}`, '#FFD53D'); } catch (e) {}
+  if (sigilsAwarded > 0)  parts.push(`+${sigilsAwarded}◈`);
+  if (cardsAwarded > 0)   parts.push(`+${cardsAwarded}🃏`);
+  if (t2FragsAwarded > 0) parts.push(`+${t2FragsAwarded}♥frag`);
+  try { flashText(`${tag} FLOOR ${floor} CLEARED · ${parts.join(' ')}`, '#FFD53D'); } catch (e) {}
+  try { logEvent(EVT.tower_floor_cleared, { floor, mode: _currentGauntletMode, gold: goldReward, sigils: sigilsAwarded, cards: cardsAwarded, t2Frags: t2FragsAwarded }); } catch (e) {}
   try { vibrate([60, 40, 60, 40, 120]); } catch (e) {}
   // V3.0 Phase 7 Block 7.5: Season XP (+10 per floor, scaling)
   try { if (typeof addSeasonXP === 'function') addSeasonXP(10 * floor); } catch (e) {}
@@ -38068,6 +38414,60 @@ async function onBossDefeated() {
       }
     } catch (e) { console.warn('mission tracking (boss defeat) failed:', e); }
   }
+  // ────────────────────────────────────────────────────────────────────────
+  // REW.3 + BAL.3 + REW.1 — First-clear vs replay reward differentiation.
+  // Layers ON TOP of existing flat/floor rewards (we don't touch awardWinGold
+  // or the floor bonus path above — net effect: first-clear feels distinctly
+  // bigger than replay without breaking established economy invariants).
+  // Excluded paths: Tower (returned earlier via onTowerFloorClear),
+  // FTUE Pyredrake/Grunt (have own grants further below).
+  // ────────────────────────────────────────────────────────────────────────
+  let _wasFirstClear = false;
+  let _battleStars = 0;
+  try {
+    const _isFtuePath =
+      (ftueBeat === 'pyredrake_fight' && currentBoss && currentBoss.img === 'Boss_1' && !currentBoss._isFtueOnly) ||
+      (ftueBeat === 'grunt_fight' && currentBoss && currentBoss._isFtueOnly);
+    const _bossRewardKey = `${currentChapter}.${currentBossIdx}`;
+    const _bossRewardCfg = BALANCE.rewards.boss[_bossRewardKey];
+    if (!_isFtuePath && _bossRewardCfg && currentBossIdx >= 0) {
+      _wasFirstClear = !isBossFirstCleared(currentChapter, currentBossIdx);
+      const dmg = (typeof battleDamageTaken === 'number') ? battleDamageTaken : 0;
+      _battleStars = computeBattleStars(dmg, (typeof MAX_HP === 'number') ? MAX_HP : 3);
+      // First-clear vs replay base reward
+      const baseReward = _wasFirstClear ? _bossRewardCfg.firstClear : _bossRewardCfg.replay;
+      applyReward(baseReward, { stihiya: rewardStihiya });
+      // 3-star perfect-clear bonus stacks on top regardless of first/replay
+      if (_battleStars >= 3 && _bossRewardCfg.threeStar) {
+        applyReward(_bossRewardCfg.threeStar, { stihiya: rewardStihiya });
+      }
+      // Persist after distribution so a thrown applyReward error doesn't lock
+      // out the bonuses on the next try.
+      if (_wasFirstClear) {
+        markBossFirstCleared(currentChapter, currentBossIdx);
+        try { logEvent(EVT.fight_won, { kind: 'first_clear', chapter: currentChapter, bossIdx: currentBossIdx, stars: _battleStars }); } catch (e) {}
+      } else {
+        try { logEvent(EVT.fight_won, { kind: 'replay', chapter: currentChapter, bossIdx: currentBossIdx, stars: _battleStars }); } catch (e) {}
+      }
+      recordBossStars(currentChapter, currentBossIdx, _battleStars);
+    }
+  } catch (e) { console.warn('REW.3 hook failed:', e); }
+  // REW.2 — Chapter completion celebration. Generic over chapter index;
+  // fires once per chapter on first all-bosses-cleared. Distributes the
+  // BALANCE.rewards.chapter[N] reward bundle and queues the celebration
+  // banner cascade. Pinch 3 (3-day victory pack offer) layers in Phase 5.
+  // Backward compat: the legacy Ch1 branch below still sets the inline
+  // `blocksworn_chapter_1_complete` flag for Tower gating; markChapterComplete
+  // writes the same key generically.
+  try {
+    if (_wasFirstClear
+        && currentBossIdx === BOSSES.length - 1
+        && !hasCompletedChapter(currentChapter)
+        && BALANCE.rewards.chapter && BALANCE.rewards.chapter[currentChapter]) {
+      markChapterComplete(currentChapter);
+      showChapterCompleteCelebration(currentChapter);
+    }
+  } catch (e) { console.warn('REW.2 chapter celebration failed:', e); }
   // Store for victory modal
   _lastReward = {
     amount: finalReward + floorBonusEssence, // V3.0 2.2: include floor bonus in total
@@ -38079,6 +38479,9 @@ async function onBossDefeated() {
     floorName: currentFloorId ? (DUNGEON_FLOORS.find(f => f.id === currentFloorId) || {}).name || null : null,
     floorColor: currentFloorId ? (DUNGEON_FLOORS.find(f => f.id === currentFloorId) || {}).color || null : null,
     floorBonusEssence,
+    // REW.1 + REW.3 — first-vs-replay UX differentiation surfaced to victory modal.
+    firstClear: _wasFirstClear,
+    stars: _battleStars,
   };
   // V3.0 Block 0.3: gold reward on win (flat +100 per victory; no modifier multiplier yet)
   awardWinGold();
@@ -38321,6 +38724,31 @@ function showVictoryModal() {
          </div>
        </div>`
     : '';
+  // REW.1 — Star rating banner. Only shown for chapter-bosses where stars
+  // were tracked (skipped for FTUE / Tower / no-table paths where firstClear
+  // is undefined). Gold for 3⭐, silver for 2⭐, bronze for 1⭐.
+  let starsBanner = '';
+  if (typeof _lastReward.stars === 'number' && _lastReward.stars > 0) {
+    const filled = '★'.repeat(_lastReward.stars);
+    const empty  = '☆'.repeat(3 - _lastReward.stars);
+    const starCol = _lastReward.stars >= 3 ? '#FFD53D' : (_lastReward.stars >= 2 ? '#C0C8D8' : '#B07840');
+    const starLabel = _lastReward.stars >= 3 ? 'PERFECT CLEAR' : (_lastReward.stars >= 2 ? 'NICE CLEAR' : 'CLEARED');
+    starsBanner =
+      `<div style="margin-top:10px;padding:8px 12px;background:rgba(255,213,61,0.08);border:1px solid ${starCol}55;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+         <span style="font-size:9px;color:#A8A5B8;letter-spacing:1.5px">${starLabel}</span>
+         <span style="font-size:18px;color:${starCol};letter-spacing:3px;text-shadow:0 0 8px ${starCol}88">${filled}<span style="opacity:0.25">${empty}</span></span>
+       </div>`;
+  }
+  // REW.3 — First-clear / replay differentiation chip (shown only when
+  // _lastReward.firstClear is defined, i.e., chapter boss with reward table).
+  let firstClearBanner = '';
+  if (_lastReward.firstClear === true) {
+    firstClearBanner =
+      `<div style="margin-top:8px;padding:6px 12px;background:linear-gradient(90deg,rgba(125,236,143,0.18),rgba(255,213,61,0.18));border:1px solid rgba(125,236,143,0.55);border-radius:8px;color:#7DEC8F;font-weight:700;letter-spacing:2px;font-size:11px;text-align:center">✦ FIRST CLEAR · BIG REWARD ✦</div>`;
+  } else if (_lastReward.firstClear === false) {
+    firstClearBanner =
+      `<div style="margin-top:8px;padding:5px 12px;background:rgba(168,165,184,0.10);border:1px solid rgba(168,165,184,0.30);border-radius:8px;color:#A8A5B8;font-weight:600;letter-spacing:1.5px;font-size:10px;text-align:center">REPLAY CLEAR</div>`;
+  }
   // 2026-04-28 — De-dupe REWARD: previously this inline "REWARD: +N STIHIYA
   // ESSENCE" span rendered here AND `vDecorateVictoryModal()` injected a
   // styled v-reward-card right below — same data shown twice (see screenshot).
@@ -38330,6 +38758,8 @@ function showVictoryModal() {
   document.getElementById('modalStats').innerHTML =
     `Damage: <b>${damageDealt.toLocaleString('en-US')}</b> · Time: <b>${mins}:${String(secs).padStart(2,'0')}</b><br>` +
     `Placements: <b>${placementCount}</b> · Hero triggers: <b>${heroFireCount}</b>` +
+    starsBanner +
+    firstClearBanner +
     artDropBanner +
     unlockBanner;
   const nextBox = document.getElementById('modalNextBoss');
