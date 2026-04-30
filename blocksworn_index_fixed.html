@@ -37,6 +37,26 @@
   --safe-area-bottom:       env(safe-area-inset-bottom, 0px);
   --safe-area-left:         env(safe-area-inset-left, 0px);
   --safe-area-right:        env(safe-area-inset-right, 0px);
+
+  /* 2026-04-30 — Mobile UX Fix v0.1 §5: --cell-size as an informational
+     token. The .grid itself still auto-scales via
+     `width: min(100%, calc(100dvh - 480px))` + `1fr` columns +
+     `aspect-ratio: 1/1` (proven layout — kept untouched), but other
+     code paths (drag-ghost, piece previews, JS animations) can now
+     read var(--cell-size) for size-consistent rendering. The clamp()
+     fallback handles browsers without JS; calculateBoardSize() updates
+     the var on resize / orientationchange so it tracks the actual
+     rendered cell size. */
+  --cell-size: clamp(35px, 8vw, 50px);
+}
+@media (min-width: 768px) and (orientation: portrait) {
+  :root { --cell-size: clamp(45px, 9vw, 65px); }
+}
+@media (min-width: 768px) and (orientation: landscape) {
+  :root { --cell-size: clamp(40px, 6vh, 60px); }
+}
+@media (min-width: 1024px) {
+  :root { --cell-size: 60px; }
 }
 
 /* 2026-04-30 — Mobile UX Fix v0.1 §7 (Detection Logic): adaptive CSS
@@ -85,8 +105,24 @@ html.is-small-screen .a-battle .hero-slot .name-lbl {
   letter-spacing: 0.3px;
 }
 html.is-small-screen .a-battle .hero-slot .ult-bar {
-  height: 5px;
+  /* 2026-04-30 — Mobile UX Fix v0.1 §4.4: ULT charge bar at spec-target
+     3px on small phones. Adds an extra 1px gold inner highlight + a
+     box-shadow glow so the bar still reads as the critical "how close
+     to ULT" signal at this height. The shadow grows when the bar is
+     full (.hero-slot.ult-ready uses its own glow) so the player still
+     gets the "ready!" cue. */
+  height: 3px;
   margin-top: 3px;
+  border-width: 0.5px;
+  box-shadow:
+    inset 0 0 2px rgba(0, 0, 0, 0.7),
+    0 0 4px rgba(255, 213, 61, 0.25);
+}
+html.is-small-screen .a-battle .hero-slot .ult-fill::after {
+  /* Drop the inner highlight stripe — at 3px tall the stripe takes up
+     2/3 of the bar height and washes the fill out. Native fill
+     gradient is enough at this size. */
+  display: none;
 }
 
 /* 2026-04-30 — Mobile UX Fix v0.1 §5.5: rotation prompt for narrow
@@ -253,6 +289,154 @@ html.is-small-screen .a-battle .hero-slot .ult-bar {
 }
 @media (prefers-reduced-motion: reduce) {
   .pwa-prompt { animation: none !important; }
+}
+
+/* 2026-04-30 — Mobile UX Fix v0.1 §4.3: boss-details modal + ⓘ trigger
+   button on the boss card. The ⓘ sits on the right edge of the card,
+   tap target ≥32px so it's reachable without precision. Modal lands
+   at z=9050 below the rotation prompt (z=9000) but above the FX
+   overlay (z=50) — players can still tap-dismiss anywhere on the
+   backdrop to close. */
+.v-battle-boss-info-btn {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 184, 74, 0.45);
+  background: rgba(20, 14, 28, 0.55);
+  color: var(--a-gold-300, #FFD53D);
+  font-size: 16px; font-weight: 800;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.18s ease-out, transform 0.12s ease-out;
+  z-index: 5;
+}
+.v-battle-boss-info-btn:hover { background: rgba(255, 184, 74, 0.18); }
+.v-battle-boss-info-btn:active { transform: scale(0.94); }
+.boss-details-modal {
+  position: fixed; inset: 0;
+  z-index: 9050;
+  display: none;
+  align-items: center; justify-content: center;
+  padding: 20px;
+  background: rgba(8, 4, 14, 0.86);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: bossDetailsFadeIn 0.22s ease-out;
+}
+.boss-details-modal[aria-hidden="false"] { display: flex; }
+.boss-details-card {
+  position: relative;
+  background: linear-gradient(180deg, var(--a-bg-surface, #150a1c) 0%, var(--a-bg-deepest, #050308) 100%);
+  border: 2px solid var(--a-gold-300, #FFD53D);
+  border-radius: 14px;
+  padding: 22px 22px 18px;
+  max-width: 380px;
+  width: 100%;
+  color: #F5F3EC;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 24px rgba(255, 213, 61, 0.25);
+  font-family: var(--a-font-body, system-ui, sans-serif);
+  max-height: calc(100dvh - 60px);
+  overflow-y: auto;
+}
+.boss-details-close {
+  position: absolute;
+  top: 10px; right: 10px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.18);
+  color: var(--a-text-secondary, #A8A5B8);
+  font-size: 20px; line-height: 1; font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.boss-details-close:hover { color: #F5F3EC; border-color: rgba(255,255,255,0.32); }
+.boss-details-header {
+  display: flex; gap: 14px; align-items: center;
+  margin-bottom: 12px;
+}
+.boss-details-portrait {
+  width: 64px; height: 80px;
+  border-radius: 10px;
+  border: 2px solid var(--boss-color, var(--a-gold-300, #FFD53D));
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px var(--boss-color, rgba(255,184,74,0.4));
+}
+.boss-details-portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.boss-details-titles { min-width: 0; flex: 1; }
+.boss-details-name {
+  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+  font-size: 20px; font-weight: 800; letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--a-gold-300, #FFD53D);
+  margin: 0 0 4px;
+  line-height: 1.1;
+}
+.boss-details-lvl {
+  font-size: 11px; letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--a-text-secondary, #A8A5B8);
+}
+.boss-details-stats {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 213, 61, 0.06);
+  border: 1px solid rgba(255, 213, 61, 0.18);
+  border-radius: 10px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.boss-details-stats .stat-row {
+  display: flex; justify-content: space-between; gap: 8px;
+}
+.boss-details-stats .stat-label {
+  color: var(--a-text-secondary, #A8A5B8);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-size: 10px;
+}
+.boss-details-stats .stat-value {
+  color: #F5F3EC;
+  font-weight: 700;
+}
+.boss-details-section { margin-bottom: 12px; }
+.boss-details-section:last-child { margin-bottom: 0; }
+.boss-details-section-title {
+  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+  font-size: 11px; font-weight: 800; letter-spacing: 1.6px;
+  color: var(--a-gold-300, #FFD53D);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.boss-details-state, .boss-details-strategy {
+  font-size: 13px;
+  color: #E8E6DF;
+  line-height: 1.5;
+}
+.boss-details-state ul {
+  list-style: none;
+  padding: 0; margin: 0;
+}
+.boss-details-state li {
+  padding: 4px 0 4px 18px;
+  position: relative;
+}
+.boss-details-state li::before {
+  content: '•';
+  position: absolute; left: 0; top: 4px;
+  color: var(--a-gold-300, #FFD53D);
+}
+@keyframes bossDetailsFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1.0); }
+}
+.boss-details-modal > .boss-details-card { animation: bossDetailsFadeIn 0.22s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .boss-details-modal,
+  .boss-details-modal > .boss-details-card { animation: none !important; }
 }
 
 :root {
@@ -14453,6 +14637,14 @@ button.season-tier-claim:active {
         <div class="v-battle-boss-hptext" id="bossHpText">—</div>
         <div class="attack-warning" id="attackWarning">—</div>
       </div>
+      <!-- 2026-04-30 — Mobile UX Fix v0.1 §4.3: boss-info quick-look button.
+           Tap shows extended boss details (archetype, HP, current phase,
+           active state effects) in a focused modal — avoids cluttering
+           the compact boss card with permanent buff chips. Stays on
+           the .v-battle-boss-card so it's reachable in the same
+           thumb zone as the rest of the boss UI. -->
+      <button type="button" class="v-battle-boss-info-btn" id="bossInfoBtn"
+              onclick="showBossDetailsModal()" aria-label="Boss details">ⓘ</button>
     </div>
     <div class="v-battle-topbar-actions">
       <button class="v-btn-icon info-btn" onclick="showInfoModal()" aria-label="Info">ⓘ</button>
@@ -14843,6 +15035,36 @@ button.season-tier-claim:active {
     <div class="pwa-prompt-actions">
       <button type="button" class="pwa-prompt-btn pwa-prompt-btn-primary" onclick="_pwaAcknowledge()">Got it</button>
       <button type="button" class="pwa-prompt-btn pwa-prompt-btn-secondary" onclick="_pwaDismiss()">Maybe later</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2026-04-30 — Mobile UX Fix v0.1 §4.3: boss-details modal. Opens on
+     tap of #bossInfoBtn (ⓘ button on the boss card). Single-tap dismiss
+     via close button or backdrop. Shows: name + level + archetype +
+     element + HP/maxHP + current phase + active state effects (storm
+     count for Stormshepherd, soul-drain status for Crypt Lich, etc.).
+     Body content is rendered fresh each open via _renderBossDetailsModal
+     so the mid-battle state is always current. -->
+<div id="bossDetailsModal" class="boss-details-modal" aria-hidden="true" role="dialog" aria-labelledby="bossDetailsTitle"
+     onclick="if(event.target===this) closeBossDetailsModal()">
+  <div class="boss-details-card">
+    <button type="button" class="boss-details-close" onclick="closeBossDetailsModal()" aria-label="Close">×</button>
+    <div class="boss-details-header">
+      <div class="boss-details-portrait"><img id="bossDetailsImg" alt=""></div>
+      <div class="boss-details-titles">
+        <h3 id="bossDetailsTitle" class="boss-details-name">—</h3>
+        <div id="bossDetailsLvl" class="boss-details-lvl">—</div>
+      </div>
+    </div>
+    <div class="boss-details-stats" id="bossDetailsStats"></div>
+    <div class="boss-details-section">
+      <div class="boss-details-section-title">Active state</div>
+      <div class="boss-details-state" id="bossDetailsState">No active state effects.</div>
+    </div>
+    <div class="boss-details-section">
+      <div class="boss-details-section-title">Strategy</div>
+      <div class="boss-details-strategy" id="bossDetailsStrategy">—</div>
     </div>
   </div>
 </div>
@@ -27756,6 +27978,36 @@ if (typeof window !== 'undefined') {
   window._pwaIncrementBattleCount = _pwaIncrementBattleCount;
 }
 
+// 2026-04-30 — Mobile UX Fix v0.1 §5.2: runtime cell-size tracker. The
+// .grid auto-scales via CSS `width: min(100%, calc(100dvh - 480px))` —
+// this function reads the actual rendered cell size once layout has
+// settled and writes it back to --cell-size so other code paths stay
+// in sync. Doesn't touch grid layout; purely an informational sync.
+// Falls back to the CSS clamp() default if the grid isn't mounted yet
+// (e.g. before first battle). Capped at [35, 60] per spec §5.2 to
+// avoid pathological sizes if a viewport hack succeeds.
+function calculateBoardSize() {
+  try {
+    const grid = document.getElementById('grid');
+    if (!grid) return;
+    const rect = grid.getBoundingClientRect();
+    if (!rect.width) return;
+    // Subtract gaps: 8 cells, 7 gaps × 3px (matches .grid `gap: 3px`).
+    const usableWidth = Math.max(0, rect.width - 7 * 3);
+    const computed = Math.floor(usableWidth / 8);
+    const clamped = Math.max(35, Math.min(60, computed));
+    if (clamped > 0) {
+      document.documentElement.style.setProperty('--cell-size', clamped + 'px');
+    }
+  } catch (e) { /* defensive — never break layout if calc fails */ }
+}
+if (typeof window !== 'undefined') {
+  window.calculateBoardSize = calculateBoardSize;
+  // Run once on load + after every resize (debounced via the existing
+  // mobile-ux refresh chain below). orientationchange triggers via
+  // _refreshMobileUx → which we extend here so cell-size stays in sync.
+}
+
 // Debounce util — share if more callers need it later.
 function _mobileUxDebounce(fn, ms) {
   let t = null;
@@ -27769,7 +28021,15 @@ function _mobileUxDebounce(fn, ms) {
 // state; resize/orientationchange keep classes in sync as the user
 // rotates or the viewport changes (e.g. iOS Safari URL bar slide).
 if (typeof window !== 'undefined') {
-  const _refreshMobileUx = () => { applyDeviceClasses(); _maybeShowRotationPrompt(); };
+  const _refreshMobileUx = () => {
+    applyDeviceClasses();
+    _maybeShowRotationPrompt();
+    // 2026-04-30 — §5.2: keep --cell-size CSS var aligned with actual
+    // rendered grid size so other code paths reading the var stay in
+    // sync across resize / orientation flips. RAF defers to next frame
+    // so layout has settled before we measure.
+    try { requestAnimationFrame(calculateBoardSize); } catch (e) {}
+  };
   const _refreshMobileUxDebounced = _mobileUxDebounce(_refreshMobileUx, 180);
   window.addEventListener('DOMContentLoaded', _refreshMobileUx);
   window.addEventListener('resize',           _refreshMobileUxDebounced);
@@ -36690,6 +36950,116 @@ function showInfoModal() {
 }
 function closeInfoModal() {
   document.getElementById('infoModal').classList.remove('active');
+}
+
+// 2026-04-30 — Mobile UX Fix v0.1 §4.3: boss-details modal. Surfaces
+// extended boss info (archetype / element / HP / phase / active state
+// effects / strategy) without cluttering the compact battle boss card
+// with permanent buff chips. Renders fresh on every open so the
+// mid-battle state (e.g. soul-drain on Crypt Lich, storm count on
+// Stormshepherd) is always current.
+function showBossDetailsModal() {
+  const el = document.getElementById('bossDetailsModal');
+  if (!el) return;
+  try { _renderBossDetailsModal(); } catch (e) { console.warn('boss-details render failed:', e); }
+  el.setAttribute('aria-hidden', 'false');
+}
+function closeBossDetailsModal() {
+  const el = document.getElementById('bossDetailsModal');
+  if (el) el.setAttribute('aria-hidden', 'true');
+}
+function _renderBossDetailsModal() {
+  if (typeof currentBoss === 'undefined' || !currentBoss) return;
+  const card = document.getElementById('bossDetailsModal');
+  const img = document.getElementById('bossDetailsImg');
+  const nameEl = document.getElementById('bossDetailsTitle');
+  const lvlEl = document.getElementById('bossDetailsLvl');
+  const statsEl = document.getElementById('bossDetailsStats');
+  const stateEl = document.getElementById('bossDetailsState');
+  const strategyEl = document.getElementById('bossDetailsStrategy');
+  // Portrait + identity
+  if (img && currentBoss.img && typeof ASSETS !== 'undefined' && ASSETS[currentBoss.img]) {
+    img.src = ASSETS[currentBoss.img];
+    img.alt = currentBoss.name || '';
+  }
+  if (nameEl) nameEl.textContent = currentBoss.name || '—';
+  if (lvlEl) lvlEl.textContent = currentBoss.title || '';
+  if (card) card.style.setProperty('--boss-color', currentBoss.color || 'var(--a-gold-300, #FFD53D)');
+  // Stats grid — HP, element, archetype, phase
+  if (statsEl) {
+    const hpNow = (typeof bossHP !== 'undefined' && Number.isFinite(bossHP)) ? bossHP : (currentBoss.hp || 0);
+    const hpMax = (typeof bossMaxHP !== 'undefined' && bossMaxHP) ? bossMaxHP : (currentBoss.hp || 0);
+    const hpStr = (typeof _shortHP === 'function') ? _shortHP(hpNow) + ' / ' + _shortHP(hpMax) : (hpNow + ' / ' + hpMax);
+    let phase = '—';
+    try { if (typeof _bossArchetypePhase === 'function') phase = 'P' + _bossArchetypePhase(); } catch (e) {}
+    statsEl.innerHTML =
+      '<div class="stat-row"><span class="stat-label">HP</span><span class="stat-value">' + hpStr + '</span></div>' +
+      '<div class="stat-row"><span class="stat-label">Element</span><span class="stat-value">' + ((currentBoss.stihiya || '—') + '').toUpperCase() + '</span></div>' +
+      '<div class="stat-row"><span class="stat-label">Type</span><span class="stat-value">' + ((currentBoss.archetype || '—') + '').toUpperCase() + '</span></div>' +
+      '<div class="stat-row"><span class="stat-label">Phase</span><span class="stat-value">' + phase + '</span></div>';
+  }
+  // Active state effects — gather from known per-boss flags
+  if (stateEl) {
+    const states = [];
+    try {
+      // Phoenix revive flag
+      if (typeof bossRevivedOnce !== 'undefined' && bossRevivedOnce) states.push('Phoenix revived (post-revive)');
+      // Crypt Lich Soul Drain
+      if (typeof _cryptLichSoulDrainAnnounced !== 'undefined' && _cryptLichSoulDrainAnnounced) states.push('Soul Drain active (passive HP leech)');
+      // Crypt Lich Necropulse pending
+      if (typeof _cryptLichNecropulsePending !== 'undefined' && _cryptLichNecropulsePending) states.push('Necropulse incoming next turn');
+      // Stormshepherd active storms
+      if (typeof _ch3State !== 'undefined' && _ch3State && Array.isArray(_ch3State.stormCells) && _ch3State.stormCells.length > 0) {
+        states.push(_ch3State.stormCells.length + ' active storm cell' + (_ch3State.stormCells.length === 1 ? '' : 's'));
+      }
+      // Twilight Vessel / Voidpriestess dual-state
+      if (typeof _ch3State !== 'undefined' && _ch3State && (_ch3State.lightActive || _ch3State.darkActive)) {
+        const veil = (_ch3State.lightActive && _ch3State.darkActive) ? 'DUAL VEIL — both states active'
+                   : _ch3State.lightActive ? 'LIGHT VEIL — solar passive'
+                   : 'DARK VEIL — umbra passive';
+        states.push(veil);
+      }
+      // Abyssal Crush Spire active pin
+      if (typeof abyssalCrushSpireHeroId !== 'undefined' && abyssalCrushSpireHeroId && abyssalCrushSpireTurnsLeft > 0) {
+        const heroName = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK))
+          ? ((HERO_DECK.find(h => h && h.id === abyssalCrushSpireHeroId) || {}).name || abyssalCrushSpireHeroId)
+          : abyssalCrushSpireHeroId;
+        states.push('Crush Spire on ' + heroName + ' (' + abyssalCrushSpireTurnsLeft + 'T)');
+      }
+      // Pyredrake Cinderblast pending
+      if (typeof _pyredrakeState !== 'undefined' && _pyredrakeState && _pyredrakeState.incoming) {
+        states.push('Cinderblast in ' + _pyredrakeState.incoming.turnsLeft + ' turn' + (_pyredrakeState.incoming.turnsLeft === 1 ? '' : 's'));
+      }
+    } catch (e) {}
+    stateEl.innerHTML = states.length === 0
+      ? 'No active state effects.'
+      : '<ul>' + states.map(s => '<li>' + s + '</li>').join('') + '</ul>';
+  }
+  // Strategy hint — derive from archetype
+  if (strategyEl) {
+    const archHints = {
+      berserker:        'Watch for the every-6-turns CINDERBLAST telegraph and stack shields when it lands.',
+      armored:          'Damage reduction means slow grinds. Save ULTs for big multi-cell clears.',
+      bruiser:          'Phase-3 Forest Wrath is a +-shape AoE — clear the warning row before impact.',
+      phoenix:          'First death triggers a 60% revive. Save big damage for the SECOND HP bar.',
+      assassin:         'Phase-2 Soul Drain ticks every 2-3 turns — race the boss before HP melts.',
+      hypnotist:        'Suggested heroes get +30/50/75% if they fire — follow the suggestions when safe.',
+      engineer:         'Welded cells can\'t be cleared — combo around them or wait for the lock to expire.',
+      frenzy:           'Damaging the boss resets the stack. Whittle don\'t haymaker.',
+      tempo_disruptor:  'Phase-3 Tidal Lock skips your turn — bank shields BEFORE the warning lands.',
+      battery:          'Watch the charge meter. At 100% Solar Convergence drops a 4-row AoE.',
+    };
+    let hint = archHints[(currentBoss.archetype || '').toLowerCase()] || 'Read the threat banners above the grid — every warning has a counter.';
+    // Per-boss extras
+    if (currentBoss.id === 'storm' || currentBoss.name === 'STORMSHEPHERD') {
+      hint = 'Three storm types: BLIZZARD freezes adjacent cells; EARTHQUAKE locks one cell 3T; LIGHTNING strikes a row. Clear the warning cells in 2 turns to defuse.';
+    }
+    strategyEl.textContent = hint;
+  }
+}
+if (typeof window !== 'undefined') {
+  window.showBossDetailsModal = showBossDetailsModal;
+  window.closeBossDetailsModal = closeBossDetailsModal;
 }
 // 2026-04-27 — Block H.7 — Info Tab switcher.
 // Updates active tab pill + modal title + dispatches to correct renderer.
