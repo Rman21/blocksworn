@@ -15915,6 +15915,18 @@ function showCryptLichAftermathCinematic(onDismiss) {
     return;
   }
   _cryptLichAftermathDismissCb = (typeof onDismiss === 'function') ? onDismiss : null;
+  // 2026-04-30 — Polish v0.2 Track J2: hide the underlying VICTORY modal
+  // before the chapter cinematic mounts. Without this the prior #modal
+  // (.active) z=100 layer bleeds through the cinematic (z=9200) on devices
+  // where the cinematic's background isn't fully opaque, producing the
+  // "ghost VICTORY" frame that shipped to the v0.2 source video. The
+  // victory has done its job by this point — strip its .active so it's
+  // hidden, and clear .modal-active off body so backdrop styles reset.
+  try {
+    const m = document.getElementById('modal');
+    if (m) m.classList.remove('active');
+    document.body.classList.remove('modal-active');
+  } catch (e) {}
   // Reset CSS animations by removing/adding the class
   overlay.classList.remove('show');
   overlay.classList.remove('hidden');
@@ -16793,7 +16805,7 @@ function purchaseGemPack(packId) {
   const totalGems = isFirst ? Math.floor(baseTotal * 1.5) : baseTotal;
   const promoLine = isFirst ? '\n+50% First Purchase Bonus → ' + totalGems + ' 💎' : '';
   const msg = 'Buy $' + pack.price.toFixed(2) + ' → +' + baseTotal + ' 💎' + promoLine
-            + '\n\n(Mock IAP — no real charge in dev build)';
+            + _devNotice();
   if (!confirm(msg)) return;
   // Mock IAP success — grant gems.
   addGems(totalGems);
@@ -23787,7 +23799,7 @@ function subscribeToSeasonPass() {
     '• 1 random Hero Card on each renewal\n' +
     '• Subscriber badge\n\n' +
     'Cancel anytime — current season always completes, no penalty.\n\n' +
-    '(Mock IAP — no real charge in dev build)';
+    _devNotice();
   if (!confirm(msg)) return false;
   // Mock IAP success.
   const now = new Date();
@@ -23973,7 +23985,7 @@ function buyRaceLaunchBundle(race) {
     '• ' + cardsTotal + ' ' + label + ' hero cards\n' +
     '• ' + RACE_BUNDLE_ESSENCE + ' ' + stih.toUpperCase() + ' shards\n\n' +
     'Skip 5-8 days of progression.\n\n' +
-    '(Mock IAP — no real charge in dev build)';
+    _devNotice();
   if (!confirm(msg)) return false;
   // Spend gems if affordable, else assume USD path (mock-confirm already accepted).
   if ((gems || 0) >= RACE_BUNDLE_GEMS) {
@@ -24020,7 +24032,7 @@ function buyEndgameKit() {
     '• ' + ENDGAME_KIT_HEARTS + ' Tower Hearts ♥\n' +
     '• 30-day Battle Pass premium\n' +
     '• Permanent ARCHITECT FUNDER profile effect\n\n' +
-    '(Mock IAP — no real charge in dev build)';
+    _devNotice();
   if (!confirm(msg)) return false;
   if ((gems || 0) >= ENDGAME_KIT_GEMS) {
     if (!spendGems(ENDGAME_KIT_GEMS)) return false;
@@ -24055,7 +24067,7 @@ function buyRapidAscensionPack() {
     '• ' + (RAPID_ASCENSION_ESSENCE_PER * 5) + ' shards (mixed)\n' +
     '• ' + RAPID_ASCENSION_GOLD + ' gold\n\n' +
     'Skip 6-8 weeks of normal play.\n\n' +
-    '(Mock IAP — no real charge in dev build)';
+    _devNotice();
   if (!confirm(msg)) return false;
   if ((gems || 0) >= RAPID_ASCENSION_GEMS) {
     if (!spendGems(RAPID_ASCENSION_GEMS)) return false;
@@ -24087,7 +24099,7 @@ function buySquadPowerPack() {
     '• ' + (SQUAD_POWER_ESSENCE_PER * 5) + ' shards (mixed)\n' +
     '• ' + SQUAD_POWER_GOLD + ' gold\n\n' +
     'Skip 3-4 weeks of normal play.\n\n' +
-    '(Mock IAP — no real charge in dev build)';
+    _devNotice();
   if (!confirm(msg)) return false;
   if ((gems || 0) >= SQUAD_POWER_GEMS) {
     if (!spendGems(SQUAD_POWER_GEMS)) return false;
@@ -24124,14 +24136,14 @@ function buyWeeklyOffer() {
           '• ' + offer.t2 + ' Tier 2 Stones ⚡\n' +
           '• ' + offer.gold + ' gold\n\n' +
           'Available ' + _daysLeftInWeek() + ' more day' + (_daysLeftInWeek() === 1 ? '' : 's') + ' · no pressure\n' +
-          '(Mock IAP — no real charge in dev build)';
+          _devNotice();
   } else {
     msg = offer.label + '\n$' + offer.priceUSD.toFixed(2) + ' / ' + offer.priceGems + '💎\n\n' +
           '• Battle Pass Premium activated\n' +
           '• ' + offer.essence + ' shards (mixed)\n' +
           '• ' + offer.cards + ' Hero Cards\n\n' +
           'Available ' + _daysLeftInWeek() + ' more day' + (_daysLeftInWeek() === 1 ? '' : 's') + ' · no pressure\n' +
-          '(Mock IAP — no real charge in dev build)';
+          _devNotice();
   }
   if (!confirm(msg)) return false;
   if ((gems || 0) >= offer.priceGems) {
@@ -24243,7 +24255,7 @@ function buyMegaBuff() {
     '• +50% Hero Card drops\n' +
     '• +25% shards drops\n' +
     '• Active for 24 hours\n\n' +
-    '(Mock IAP — no real charge in dev build)';
+    _devNotice();
   if (!confirm(msg)) return false;
   if ((gems || 0) >= MEGA_BUFF_GEMS) {
     if (!spendGems(MEGA_BUFF_GEMS)) return false;
@@ -24286,7 +24298,7 @@ function buySquadLevelBoost() {
     'SQUAD LEVEL BOOST\n$' + SQUAD_BOOST_USD.toFixed(2) + ' / ' + SQUAD_BOOST_GEMS + '💎\n\n' +
     '• +' + SQUAD_BOOST_LEVELS + ' level to all ' + activeSquad.length + ' active squad heroes\n' +
     '• 1 boost per 24 hours\n\n' +
-    '(Mock IAP — no real charge in dev build)';
+    _devNotice();
   if (!confirm(msg)) return false;
   if ((gems || 0) >= SQUAD_BOOST_GEMS) {
     if (!spendGems(SQUAD_BOOST_GEMS)) return false;
@@ -24331,7 +24343,7 @@ function buyDailyGift() {
     gift.label + '\n$' + DAILY_GIFT_USD.toFixed(2) + ' / ' + DAILY_GIFT_GEMS + '💎\n\n' +
     parts.join('\n') + '\n\n' +
     'Rotates daily — different content tomorrow.\n\n' +
-    '(Mock IAP — no real charge in dev build)';
+    _devNotice();
   if (!confirm(msg)) return false;
   if ((gems || 0) >= DAILY_GIFT_GEMS) {
     if (!spendGems(DAILY_GIFT_GEMS)) return false;
@@ -26217,6 +26229,29 @@ function saveUsernameFromEditor() {
 loadPlayerProfile();
 _ensureProfileBootstrap();
 
+// ===== DEV-MODE GATE (Polish v0.2 Track J1, 2026-04-30) =====
+// Production users on blocksworm.com / Vercel previews must NOT see the
+// "(Mock IAP — no real charge in dev build)" hint that the mock IAP path
+// appends to confirm() dialogs. The hint is useful while developing on
+// localhost (or with ?dev=1 to force it on a real host) — but on prod it
+// reads as "this game isn't real yet" to a Royal-Match-grade casual user
+// and tanks trust at the worst possible moment (the purchase confirm).
+//
+// _isDevMode() returns true ONLY on localhost-style hostnames or when the
+// URL carries ?dev=1. Production domains return false → _devNotice() is
+// an empty string → confirm() dialogs read clean.
+function _isDevMode() {
+  try {
+    const h = (location.hostname || '').toLowerCase();
+    if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === '') return true;
+    if (/[?&]dev=1\b/.test(location.search || '')) return true;
+  } catch (e) {}
+  return false;
+}
+function _devNotice() {
+  return _isDevMode() ? '\n\n(Mock IAP — no real charge in dev build)' : '';
+}
+
 // ===== IAP PROVIDER PATTERN (Phase G scaffold, 2026-04-28) =====
 // Single switch-point for swapping mock-IAP → Stripe / Apple / Google in Phase G.
 // Existing buy* functions still call mock paths inline (confirm + addGems);
@@ -26259,7 +26294,7 @@ const IAP_PROVIDERS = {
       const priceLine = '$' + item.priceUSD.toFixed(2)
         + (item.priceGems ? ' / ' + item.priceGems + '💎' : '');
       const msg = item.title + '\n' + priceLine + '\n\n'
-        + item.body + '\n\n(Mock IAP — no real charge in dev build)';
+        + item.body + _devNotice();
       if (!confirm(msg)) return false;
       // Player has enough gems → debit gems. Otherwise treat as mock-USD.
       if (item.priceGems && (gems || 0) >= item.priceGems) {
