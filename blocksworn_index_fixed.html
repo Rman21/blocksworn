@@ -191,8 +191,69 @@
   /* §16 Layout heights — single source of truth for stack budget. */
   --top-bar-height:    40px;
   --boss-area-height: 110px;
+  --boss-portrait:     72px;
   --hero-row-height:   95px;
+  --hero-portrait:     60px;
   --tray-height:      105px;
+}
+
+/* §14.3 4-tier responsive breakpoints (PR 6/6).
+   Cell-size + portrait sizes scale by viewport width. The overrides
+   adjust the foundation tokens; downstream rules (hero portrait,
+   boss portrait, etc.) read the var so they all scale together
+   without per-rule duplication. */
+
+/* Small Phone (<380px) — iPhone SE, narrow Androids */
+@media (max-width: 380px) {
+  :root {
+    --boss-area-height:  95px;
+    --boss-portrait:     60px;
+    --hero-row-height:   85px;
+    --hero-portrait:     52px;
+    --tray-height:       95px;
+    --cell-size: clamp(35px, 8vw, 45px);
+  }
+}
+
+/* Large Phone (430-500px) — iPhone Pro Max */
+@media (min-width: 430px) and (max-width: 500px) {
+  :root {
+    --cell-size: clamp(45px, 10vw, 55px);
+  }
+}
+
+/* Tablet (500-1024px) — iPad Mini, smaller tablets */
+@media (min-width: 500px) and (max-width: 1024px) {
+  :root {
+    --boss-area-height: 130px;
+    --boss-portrait:     90px;
+    --hero-row-height:  110px;
+    --hero-portrait:     72px;
+    --tray-height:      120px;
+    --cell-size: clamp(50px, 7vw, 65px);
+  }
+}
+
+/* Desktop (>1024px) — laptops, monitors */
+@media (min-width: 1024px) {
+  :root {
+    --boss-area-height: 140px;
+    --boss-portrait:    100px;
+    --hero-row-height:  120px;
+    --hero-portrait:     80px;
+    --tray-height:      130px;
+    --cell-size: clamp(55px, 5vh, 70px);
+  }
+  /* Spec §14.3: desktop max-width container with side rule. The
+     existing .game already caps at 420px; bump to 600px for desktop
+     so the larger boss/hero/tray sizes get usable horizontal room.
+     Side borders frame the play area visually. */
+  .a-battle.game {
+    max-width: 600px;
+    margin: 0 auto;
+    border-left: 1px solid var(--combat-border-default, rgba(255, 255, 255, 0.10));
+    border-right: 1px solid var(--combat-border-default, rgba(255, 255, 255, 0.10));
+  }
 }
 @media (min-width: 768px) and (orientation: portrait) {
   :root { --cell-size: clamp(45px, 9vw, 65px); }
@@ -656,18 +717,30 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
 }
 .combat-top-bar-btn:hover { background: rgba(255, 255, 255, 0.12); }
 .combat-top-bar-btn:active { transform: scale(0.95); }
+/* Back button — same chrome as ⚙ but on the LEFT of the top bar.
+   Absorbed from legacy .v-battle-topbar in PR 6/6. */
+.combat-top-bar-back {
+  font-size: 18px;
+  font-weight: var(--fw-bold, 700);
+}
+
+/* Hide the legacy back button on .v-battle-topbar — it now lives in
+   .combat-top-bar (top of stack). The legacy DOM stays for any
+   external CSS that targets .battle-back; rule kept addressable. */
+.a-battle .v-battle-topbar > .back-btn.battle-back { display: none !important; }
+
 /* Spec §4.4: hide damage on width <380 (iPhone SE narrow). */
 @media (max-width: 380px) {
   .combat-top-bar-damage { display: none; }
   .combat-top-bar-stats { gap: var(--space-md, 12px); }
 }
 
-/* Hide the legacy player-hp row — its hearts function moved to the
-   top bar above. Rule kept addressable so a future rollback can flip
-   it via JS / dev tools without HTML changes. */
-.a-battle .v-battle-player-hp {
-  display: none !important;
-}
+/* 2026-04-30 — Combat UI Redesign §18.5 (PR 6/6): legacy
+   .v-battle-player-hp row's hide rule removed alongside the DOM
+   element itself. Hearts function is now in .combat-top-bar (count
+   + heart icon) and .v-battle-boss-card (4 individual heart ticks).
+   Selector kept addressable for any external CSS but no longer hides
+   anything since the row is gone. */
 
 /* ===========================================================
    PAUSE MENU — opens on top-bar ⚙ tap (PR 2/6).
@@ -1039,12 +1112,10 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
   text-shadow: none;
 }
 
-/* Hide legacy centered .attack-warning text overlay. Its data still
-   flows from JS into the element so a CSS rollback restores it.
-   The new warning badges (top-right) consume the same state. */
-.a-battle .v-battle-boss-card .attack-warning {
-  display: none !important;
-}
+/* 2026-04-30 — Combat UI Redesign §18.5 (PR 6/6): legacy
+   .attack-warning overlay's hide rule removed alongside the DOM
+   element. _renderBossAreaWarnings now reads attackCountdown global
+   directly (PR 6.1 refactor) so no #attackWarning DOM is needed. */
 
 /* ===========================================================
    COMBAT UI AAA+ REDESIGN — Tray Element Pill (PR 5/6)
@@ -15471,15 +15542,17 @@ button.season-tier-claim:active {
 <!-- ============ BATTLE SCREEN ============ -->
 <div class="screen" id="screenBattle">
 <div class="game v-battle a-battle">
-  <!-- 2026-04-30 — Combat UI Redesign §4 (PR 2/6). Top bar: 40px sticky
-       row above the boss card. Carries hearts + turn counter + damage
-       counter + ⚙ pause-menu trigger. Per spec §18 migration phase 2:
-       new HTML lands now, JS wires updates, old .v-battle-player-hp
-       row below is hidden because its hearts function moves here.
-       The existing back button on .v-battle-topbar stays untouched
-       in PR 2 — top-bar back-button slot is reserved for PR 6 cleanup
-       when the legacy row is fully removed. -->
+  <!-- 2026-04-30 — Combat UI Redesign §4 (PR 2/6 + PR 6/6 absorb).
+       Top bar: 40px sticky row above the boss card. Carries:
+         [← back]  hearts + turn + dmg  [⚙ pause]
+       Back button absorbed from legacy .v-battle-topbar in PR 6/6
+       cleanup so the entire top-bar row is owned by the spec'd
+       layout. The legacy .v-battle-topbar back-button slot stays
+       hidden via CSS (DOM still present for any external code that
+       targets .battle-back). -->
   <div class="combat-top-bar" id="combatTopBar">
+    <button type="button" class="combat-top-bar-btn combat-top-bar-back" id="combatBackBtn"
+            onclick="returnToMenuFromBattle()" aria-label="Back">←</button>
     <div class="combat-top-bar-stats">
       <div class="combat-top-bar-stat" id="combatTopBarHearts">
         <span class="combat-top-bar-stat-icon" aria-hidden="true">❤</span>
@@ -15524,7 +15597,6 @@ button.season-tier-claim:active {
              readout in the top bar (PR 2). _renderBossAreaHearts wires
              this to the hp global. -->
         <div class="v-battle-boss-hearts" id="bossAreaHearts"></div>
-        <div class="attack-warning" id="attackWarning" aria-hidden="true">—</div>
       </div>
       <!-- 2026-04-30 — Mobile UX Fix v0.1 §4.3: boss-info quick-look button.
            Tap shows extended boss details (archetype, HP, current phase,
@@ -15540,10 +15612,13 @@ button.season-tier-claim:active {
     </div>
   </div>
 
-  <div class="v-battle-player-hp">
-    <div class="hp" id="hp"></div>
-    <div class="v-battle-player-hp-num" id="playerHpNum">—</div>
-  </div>
+  <!-- 2026-04-30 — Combat UI Redesign §18.5 (PR 6/6) cleanup: legacy
+       .v-battle-player-hp row removed. Player hearts now render in
+       .combat-top-bar (PR 2 — count + ❤ icon) AND in .v-battle-boss-card
+       (PR 4 — 4 individual heart ticks). The legacy `#hp` element
+       hosted the old hearts/shields strip; renderHP early-returns when
+       it can't find #hp (defensive guard preserved for any code path
+       that calls renderHP before the new elements are wired). -->
 
   <div class="synergy-bar" id="synergyBar"></div>
   <div class="deck" id="deck"></div>
@@ -37629,20 +37704,19 @@ const ARCHETYPE_TELEGRAPH_LABEL = {
 // @param {number} opts.turnsUntil — for countdown chip
 function vShowAttackTelegraph(opts) {
   const { kind = 'aoe', heroIdx = null, turnsUntil = 1 } = opts || {};
-  // Countdown label inside existing #attackWarning
+  // 2026-04-30 — Combat UI Redesign §18.5 (PR 6/6) cleanup: legacy
+  // #attackWarning DOM removed; the if(warn) guard below is now a
+  // permanent no-op for that element. Visible warning state moved to
+  // _renderBossAreaWarnings (warning badges top-right of boss-card)
+  // which reads attackCountdown global directly. Block kept so a
+  // future rollback that re-adds #attackWarning starts working
+  // again immediately without code edits.
   const warn = document.getElementById('attackWarning');
   if (warn) {
-    // Block B3: archetype-specific label when boss archetype is known.
     let label;
     if (kind === 'aoe') {
       const arch = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.archetype)
         ? currentBoss.archetype : null;
-      // 2026-04-29 polish v0.1 Track A.1: less jargon. "AOE" is a tabletop
-      // /MMO acronym — most mass-market mobile players don't know it.
-      // "AREA ATTACK" is direct and self-explanatory. Per-archetype labels
-      // (BERSERKER STRIKE / SOLAR LINE / etc.) are evocative enough on
-      // their own and stay as-is. "TARGETED" gets a turn-count suffix for
-      // parity with the AOE fallback.
       label = (arch && ARCHETYPE_TELEGRAPH_LABEL[arch]) || '⚠ AREA ATTACK';
     } else {
       label = '⚠ TARGETED ATTACK';
@@ -43095,22 +43169,25 @@ function _renderBossAreaHearts() {
   }
 }
 
-// 2026-04-30 — Combat UI Redesign §5 (PR 4/6): warning badges render.
-// Aggregates state into up to 3 icon badges in top-right of boss-card:
-//   ⚡  attack incoming (legacy attackWarning text non-empty)
+// 2026-04-30 — Combat UI Redesign §5 (PR 4/6, refactored in PR 6/6):
+// warning badges render. Aggregates state into up to 3 icon badges in
+// top-right of boss-card:
+//   ⚡  attack incoming (attackCountdown global ≤ 2)
 //   🔥  phase 2 active (HP 33-66%)
 //   💀  phase 3 active (HP <33%, .danger pulse)
-// Reads from existing #attackWarning text (kept hidden; data still
-// flows there from JS) so the new badges stay in sync without
-// touching attack-warning callers.
+// PR 6 cleanup: source-of-truth changed from #attackWarning text
+// (legacy DOM element removed) to the existing attackCountdown global
+// — same data, cleaner read.
 function _renderBossAreaWarnings() {
   const el = document.getElementById('bossWarnings');
   if (!el) return;
   const badges = [];
   try {
-    const aw = document.getElementById('attackWarning');
-    const awText = aw ? (aw.textContent || '').trim() : '';
-    if (awText && awText !== '—') badges.push({ icon: '⚡', cls: '' });
+    // Telegraph window in vShowAttackTelegraph fires when attackCountdown
+    // ∈ {1, 2} so we surface the badge during the same range.
+    if (typeof attackCountdown !== 'undefined' && attackCountdown <= 2 && attackCountdown >= 1) {
+      badges.push({ icon: '⚡', cls: '' });
+    }
   } catch (e) {}
   try {
     if (typeof bossHP !== 'undefined' && typeof bossMaxHP !== 'undefined' && bossMaxHP > 0) {
@@ -43287,15 +43364,10 @@ function renderDeck() {
       seg.style.setProperty('--charge-color', STIHIYA_COLORS[h.stihiya] || '#FFD53D');
       ultBar.appendChild(seg);
     }
-    // Keep a hidden .ult-fill for legacy code paths that read its
-    // computed width during cascades / haptic triggers. Width matches
-    // the segment-rounded value so external callers still see a
-    // monotonic progress number.
-    const ultFill = document.createElement('div');
-    ultFill.className = 'ult-fill ult-fill-legacy';
-    ultFill.style.width = Math.min(100, (charge / Math.max(1, max)) * 100) + '%';
-    ultFill.style.display = 'none';
-    ultBar.appendChild(ultFill);
+    // 2026-04-30 — Combat UI Redesign §18.5 (PR 6/6) cleanup: hidden
+    // .ult-fill-legacy node removed. Verified no code path reads its
+    // computed width — the 5-segment .hero-charge-segment system is
+    // the sole charge-bar surface now.
     slot.appendChild(ultBar);
     // POLISH v1 · PHASE 4 — status effects row (no-op until per-hero status model lands)
     // TODO(polish-v2): wire h._activeStatuses when buff/debuff tracking per hero is added.
@@ -43571,22 +43643,29 @@ function darken(hex) {
 // 2026-04-27 — Audio A.2.8: shield-transition tracker (gain → bell, break → shatter).
 let _audioPrevShieldCount = 0;
 function renderHP() {
+  // 2026-04-30 — Combat UI Redesign §18.5 (PR 6/6) cleanup: legacy
+  // #hp element removed (its hearts function moved to combat-top-bar
+  // count + boss-area heart ticks). Null-guard so any pre-removal
+  // call site keeps working — the rest of this function still runs
+  // for #playerHpNum + combat-top-bar + boss-area refresh.
   const el = document.getElementById('hp');
-  el.innerHTML = '';
-  // 2026-04-29 polish v0.1 Track C.4 (option a per Roman): replaced the 18
-  // individual heart-pip row with a single digital "❤ N" readout. Easier
-  // to read at a glance from across a phone screen, and reclaims the
-  // horizontal space that 18 pips ate. Shields keep their per-pip visuals
-  // since shield-count is a tactical resource the player counts directly.
-  const num = document.createElement('span');
-  num.className = 'hp-digital';
-  if (hp <= Math.ceil(currentMaxHP * 0.25)) num.classList.add('low');
-  num.textContent = '❤ ' + hp;
-  el.appendChild(num);
-  for (let i = 0; i < shieldCount; i++) {
-    const s = document.createElement('span');
-    s.className = 'shield';
-    el.appendChild(s);
+  if (el) {
+    el.innerHTML = '';
+    // 2026-04-29 polish v0.1 Track C.4 (option a per Roman): replaced the 18
+    // individual heart-pip row with a single digital "❤ N" readout. Easier
+    // to read at a glance from across a phone screen, and reclaims the
+    // horizontal space that 18 pips ate. Shields keep their per-pip visuals
+    // since shield-count is a tactical resource the player counts directly.
+    const num = document.createElement('span');
+    num.className = 'hp-digital';
+    if (hp <= Math.ceil(currentMaxHP * 0.25)) num.classList.add('low');
+    num.textContent = '❤ ' + hp;
+    el.appendChild(num);
+    for (let i = 0; i < shieldCount; i++) {
+      const s = document.createElement('span');
+      s.className = 'shield';
+      el.appendChild(s);
+    }
   }
   // POLISH v1 · PHASE 3 — number overlay
   try {
