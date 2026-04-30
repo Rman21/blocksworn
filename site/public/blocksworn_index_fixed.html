@@ -13100,7 +13100,7 @@ button.season-tier-claim:active {
 
     <!-- Squad -->
     <div class="a-hub-squad" id="vSquadDock">
-      <span class="a-label-kicker">SQUAD</span>
+      <span class="a-label-kicker">YOUR SQUAD</span>
       <div class="a-hub-squad-slots" id="vSquadAvatars"></div>
       <button class="a-hub-squad-edit" onclick="goToSelect()" aria-label="Edit squad">✎</button>
     </div>
@@ -13600,7 +13600,7 @@ button.season-tier-claim:active {
     </div>
     <div class="season-progress-card">
       <div class="season-progress-top">
-        <div class="season-tier-label">TIER <span id="seasonCurrentTier">0</span></div>
+        <div class="season-tier-label">LEVEL <span id="seasonCurrentTier">0</span> <span class="season-tier-of">OF</span> <span id="seasonTierTotal">100</span></div>
         <div class="season-premium-status" id="seasonPremiumStatus">FREE TRACK</div>
       </div>
       <div class="season-progress-bar">
@@ -25226,12 +25226,22 @@ function renderProfileHeader() {
   // Permanent profile cosmetic — visible across all profile renders for any
   // player who has completed at least one IAP. Stays in front of any other
   // title source so it always reads first.
+  // 2026-04-30 — Polish v0.1 §A.1 "FOUNDER tooltip" — when the badge is active
+  // we attach an HTML `title` tooltip "Early supporter rank" so non-IAP players
+  // hovering it (and IAP players curious what "FOUNDER" means) get a one-liner
+  // explanation without taking up screen space.
+  let _isFounder = false;
   try {
     if (typeof _hasFounderBadge === 'function' && _hasFounderBadge()) {
       title = '★ FOUNDER · ' + title;
+      _isFounder = true;
     }
   } catch (e) {}
-  if (titleEl) titleEl.textContent = title;
+  if (titleEl) {
+    titleEl.textContent = title;
+    if (_isFounder) titleEl.title = 'Early supporter rank';
+    else titleEl.removeAttribute('title');
+  }
 
   // Banner tag (P5 fills)
   const tagEl = document.getElementById('profileBannerTag');
@@ -26330,14 +26340,20 @@ function renderSeasonScreen() {
   const premStatus = document.getElementById('seasonPremiumStatus');
   if (xpDisp) xpDisp.textContent = String(seasonState.xp);
   if (tierDisp) tierDisp.textContent = String(curTier);
+  // 2026-04-30 — Polish v0.1 §A.1: TIER → LEVEL X OF Y wording. The
+  // total-tier span lives next to the current-tier span so the label reads
+  // "LEVEL 4 OF 100" instead of bare "TIER 4". Stays in sync with the
+  // SEASON_TIER_COUNT constant if it ever changes.
+  const tierTotalDisp = document.getElementById('seasonTierTotal');
+  if (tierTotalDisp) tierTotalDisp.textContent = String(SEASON_TIER_COUNT);
   if (progFill) progFill.style.width = Math.round(prog * 100) + '%';
   if (progText) {
     if (curTier >= SEASON_TIER_COUNT) {
-      progText.textContent = 'MAX TIER REACHED';
+      progText.textContent = 'MAX LEVEL REACHED';
     } else {
       const fromTotal = getTotalXPForTier(curTier);
       const toTotal   = getTotalXPForTier(curTier + 1);
-      progText.textContent = `${seasonState.xp - fromTotal} / ${toTotal - fromTotal} XP to T${curTier + 1}`;
+      progText.textContent = `${seasonState.xp - fromTotal} / ${toTotal - fromTotal} XP to Level ${curTier + 1}`;
     }
   }
   if (seasonIdEl) seasonIdEl.textContent = String(seasonState.seasonId || 1);
