@@ -159,6 +159,36 @@
     text-transform: uppercase;
   }
 
+  /* Replicated state banner (Track H Part 2) — sits above the grid in
+     the same row as the threat banner. Tap a Tier 1 row → it fires here
+     instead of as a centered .hero-flash. */
+  .state-banner-strip {
+    position: absolute; left: 0; right: 0; top: 32%;
+    display: flex; justify-content: center;
+    pointer-events: none;
+  }
+  .state-banner {
+    --state-color: #FFD53D;
+    margin: 0 16px;
+    padding: 8px 14px;
+    background: linear-gradient(180deg, rgba(40,28,8,0.65), rgba(20,14,4,0.82));
+    border: 1px solid color-mix(in srgb, var(--state-color) 55%, transparent);
+    border-radius: 8px;
+    font-family: 'Cinzel', 'Georgia', serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: var(--state-color);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.85), 0 0 8px color-mix(in srgb, var(--state-color) 40%, transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--state-color) 30%, transparent);
+    animation: stateBannerPulse 1.6s ease-in-out infinite;
+  }
+  .state-banner[hidden] { display: none !important; }
+  @keyframes stateBannerPulse {
+    0%, 100% { box-shadow: 0 0 10px color-mix(in srgb, var(--state-color) 25%, transparent); }
+    50%      { box-shadow: 0 0 18px color-mix(in srgb, var(--state-color) 55%, transparent); }
+  }
+
   /* === Replicated production styles for hero-flash + proc-shake === */
   .hero-flash {
     position: absolute;
@@ -258,6 +288,7 @@
 
 <div class="stage" id="stage">
   <div class="stage-info">Battle (faux)</div>
+  <div class="state-banner-strip"><div class="state-banner" id="stateBanner" hidden></div></div>
   <div class="stage-grid"></div>
   <div class="hero-flash" id="heroFlash"></div>
   <div class="stage-heroes">
@@ -338,8 +369,10 @@ const TIER_TAG = {1: 'tier1', 2: 'tier2', T: 'tele', E: 'exempt'};
 const TIER_LABEL = {1: 'TIER 1', 2: 'TIER 2', T: 'TELEGRAPH', E: 'EXEMPT'};
 
 const flashEl = document.getElementById('heroFlash');
+const bannerEl = document.getElementById('stateBanner');
 const stage = document.getElementById('stage');
 const lastFired = document.getElementById('lastFired');
+let _bannerHideTimer = null;
 
 function fireFlash(text, color) {
   flashEl.innerHTML = text;
@@ -359,7 +392,16 @@ function fireFlash(text, color) {
   void stage.offsetWidth;
   stage.classList.add('proc-shake');
   setTimeout(() => stage.classList.remove('proc-shake'), 100);
-  lastFired.textContent = text + (isBig ? ' (.big)' : '');
+  lastFired.textContent = text + (isBig ? ' (.big — hero-flash)' : ' (hero-flash)');
+}
+
+function fireStateBanner(text, color) {
+  bannerEl.innerHTML = text;
+  bannerEl.style.setProperty('--state-color', color);
+  bannerEl.hidden = false;
+  if (_bannerHideTimer) { clearTimeout(_bannerHideTimer); _bannerHideTimer = null; }
+  _bannerHideTimer = setTimeout(() => { bannerEl.hidden = true; bannerEl.textContent = ''; }, 2400);
+  lastFired.textContent = text + ' (state-banner)';
 }
 
 const rowsEl = document.getElementById('rows');
@@ -381,13 +423,15 @@ PROCS.forEach(([text, color, tier]) => {
   meta.appendChild(tag);
   row.appendChild(lbl);
   row.appendChild(meta);
-  row.onclick = () => fireFlash(text, color);
+  // Tier 1 → state banner (above grid). Tier 2 / Telegraph / Exempt → hero-flash for now.
+  row.onclick = () => (tier === 1 ? fireStateBanner(text, color) : fireFlash(text, color));
   rowsEl.appendChild(row);
 });
 
 document.getElementById('fireRandom').onclick = () => {
   const p = PROCS[Math.floor(Math.random() * PROCS.length)];
-  fireFlash(p[0], p[1]);
+  if (p[2] === 1) fireStateBanner(p[0], p[1]);
+  else fireFlash(p[0], p[1]);
 };
 document.getElementById('fireBigOnly').onclick = () => {
   const big = PROCS.filter(p => /!|ULT|×([4-9]|\d{2,})/.test(p[0]));

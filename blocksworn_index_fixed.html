@@ -8234,6 +8234,39 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   50%      { box-shadow: 0 0 18px rgba(255, 90, 74, 0.55); }
 }
 
+/* 2026-04-30 — Polish v0.2 Track H Part 2 §H.3 (Tier 1 persistent state):
+   sibling of .threat-banner that sits in the same above-grid zone but
+   carries a positive palette and tracks the firing element's color via
+   the --state-color CSS variable (set inline by flashStateBanner). The
+   variable defaults to gold so a stray render without a color still reads
+   intentional. Same fade-in/out animation grammar as .threat-banner so the
+   two banners feel like one system. */
+.state-banner {
+  --state-color: #FFD53D;
+  margin: 4px 8px 6px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(40, 28, 8, 0.65), rgba(20, 14, 4, 0.82));
+  border: 1px solid color-mix(in srgb, var(--state-color) 55%, transparent);
+  border-radius: 8px;
+  text-align: center;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--state-color);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 8px color-mix(in srgb, var(--state-color) 40%, transparent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--state-color) 30%, transparent);
+  animation: stateBannerPulse 1.6s ease-in-out infinite;
+}
+.state-banner[hidden] { display: none !important; }
+@keyframes stateBannerPulse {
+  0%, 100% { box-shadow: 0 0 10px color-mix(in srgb, var(--state-color) 25%, transparent); }
+  50%      { box-shadow: 0 0 18px color-mix(in srgb, var(--state-color) 55%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .state-banner { animation: none !important; }
+}
+
 /* ===== GRID ===== */
 .grid-wrap {
   background: #1A1B2E; border: 1px solid #3D3F5E; border-radius: 12px; padding: 6px;
@@ -13430,6 +13463,15 @@ button.season-tier-claim:active {
        (Stormshepherd) and other 1-line warnings route here via
        showThreatBanner() / hideThreatBanner() helpers. Hidden by default. -->
   <div class="threat-banner" id="threatBanner" hidden></div>
+  <!-- Polish v0.2 Track H Part 2: state banner. Same above-grid zone as
+       threat banner but a positive (gold-ish) palette by default — used
+       for persistent buff/state callouts (RAINBOW ACTIVE, RADIANT WARD,
+       LOCK GUARD, BLOOM/TIDE/HALO FADES, etc.) that previously fired
+       through centered .hero-flash and occluded the cells the player
+       just acted on. flashStateBanner() drives content + auto-hide; the
+       inline `style="--state-color: …"` token gets repainted per call so
+       border + glow track the firing element's color. -->
+  <div class="state-banner" id="stateBanner" hidden></div>
 
   <div class="grid-wrap">
     <div class="v-battle-dmg-chip">⚔ <b id="dmg">0</b></div>
@@ -28812,7 +28854,7 @@ function _tickTempo(phase) {
     if (tempoTurnsSinceLock >= TEMPO_LOCK_INT) {
       tempoTurnsSinceLock = 0;
       tempoTurnLockQueued = true;
-      try { flashText('❄❄ TIDAL LOCK · NEXT TURN', '#78C8FF'); } catch(e) {}
+      try { flashStateBanner('❄❄ TIDAL LOCK · NEXT TURN', '#78C8FF'); } catch(e) {}
       try { vibrate([100, 50, 100, 50, 100]); } catch(e) {}
     }
   }
@@ -30915,6 +30957,8 @@ function startBossBattle() {
     // 2026-04-29 polish v0.1 Track C.2: clear any lingering threat banner
     // from the previous battle so it doesn't bleed into the new fight.
     if (typeof hideThreatBanner === 'function') hideThreatBanner();
+    // 2026-04-30 polish v0.2 Track H Part 2: same hygiene for the state banner.
+    if (typeof hideStateBanner === 'function') hideStateBanner();
   } catch (e) {}
   // V3.0 Phase 4: show one-time tutorial toast carousel on first battle.
   // PHASE 4 BLOCK 1 — carousel is gated to NON-FTUE inside maybeShowBattleTutorial
@@ -32017,7 +32061,7 @@ function consumeChainStack() {
     const shieldsPerSeg = 1 + (_t2Bonus_ || 0);
     shieldCount = Math.min(cap, shieldCount + (consumed * shieldsPerSeg));
     const gained = shieldCount - before;
-    if (gained > 0) flashText('TOCK GUARD +' + gained + '🛡', STIHIYA_COLORS.tide);
+    if (gained > 0) flashStateBanner('TOCK GUARD +' + gained + '🛡', STIHIYA_COLORS.tide);
   }
   return consumed;
 }
@@ -32106,7 +32150,7 @@ function onGroveCellsCleared(n) {
         const [r, c] = empties[Math.floor(Math.random() * empties.length)];
         grid[r][c] = 'grove';
         groveAbsorbedByCell.set(r + '_' + c, 0);
-        try { flashText('🌿 STONE BLOOM +1', STIHIYA_COLORS.grove); } catch (e) {}
+        try { flashStateBanner('🌿 STONE BLOOM +1', STIHIYA_COLORS.grove); } catch (e) {}
         try { render(); } catch (e) {}
       }
     }
@@ -32419,7 +32463,7 @@ function giftChargeToRandomUmbraHero() {
   const target = umbraHeroes[Math.floor(Math.random() * umbraHeroes.length)];
   const cap = (currentUltThreshold && currentUltThreshold.umbra) || ULT_THRESHOLD.umbra || 10;
   ultCharges.umbra = Math.min(cap, ultCharges.umbra + UMBRA_CHAIN_CHARGE);
-  flashText(`${target.name} · VOID SIPHON +${UMBRA_CHAIN_CHARGE}`, STIHIYA_COLORS.umbra);
+  flashStateBanner(`${target.name} · VOID SIPHON +${UMBRA_CHAIN_CHARGE}`, STIHIYA_COLORS.umbra);
   vibrate([20, 20, 40]);
 }
 
@@ -36357,7 +36401,7 @@ async function ultDeltaRiffblade(ctx, tier) {
   // Runtime T1: +200 extra Siege dmg when Encore active
   if (ctx && tier >= 1 && riffbladeUltSiegeBonus > 0 && rockEncoreActive) {
     dealDamage(riffbladeUltSiegeBonus, true);
-    flashText('ENCORE SIEGE +' + riffbladeUltSiegeBonus, STIHIYA_COLORS.umbra);
+    flashStateBanner('ENCORE SIEGE +' + riffbladeUltSiegeBonus, STIHIYA_COLORS.umbra);
   }
   // Runtime T2: triggers self-Encore if not already active
   if (ctx && tier >= 2 && riffbladeSelfEncore && !rockEncoreActive) {
@@ -36368,7 +36412,7 @@ async function ultDeltaRiffblade(ctx, tier) {
   // Runtime T3: prevent encoreUsed from sticking
   if (ctx && tier >= 3 && riffbladeEncorePermanent) {
     encoreUsed = false;
-    flashText('ENCORE ETERNAL', STIHIYA_COLORS.umbra);
+    flashStateBanner('ENCORE ETERNAL', STIHIYA_COLORS.umbra);
   }
 }
 
@@ -36381,7 +36425,7 @@ async function ultDeltaShriek(ctx, tier) {
   if (ctx && tier >= 1 && shriekEchoTurns > 1) {
     shriekEchoNextPlacement = true;  // ensure next placement triggers
   }
-  if (ctx && tier >= 3) flashText('ECHO PERMANENT', STIHIYA_COLORS.umbra);
+  if (ctx && tier >= 3) flashStateBanner('ECHO PERMANENT', STIHIYA_COLORS.umbra);
 }
 
 // KEYCRYPT — T1 amp 0.25 · T2 +1 charge per amp placement · T3 window 5
@@ -36437,9 +36481,9 @@ async function ultDeltaNightlord(ctx, tier) {
   // Runtime T2: open Keycrypt's Amplifier window (2 placements)
   if (ctx && tier >= 2 && nightlordUltAmpOpens) {
     keycryptAmpWindow = Math.max(keycryptAmpWindow, 2);
-    flashText('ENCORE AMP OPEN', STIHIYA_COLORS.umbra);
+    flashStateBanner('ENCORE AMP OPEN', STIHIYA_COLORS.umbra);
   }
-  if (ctx && tier >= 3) flashText('POST-ENCORE BOOST 2T', STIHIYA_COLORS.umbra);
+  if (ctx && tier >= 3) flashStateBanner('POST-ENCORE BOOST 2T', STIHIYA_COLORS.umbra);
 }
 
 // ===== Block 5.6 init dispatcher =====
@@ -36912,7 +36956,7 @@ async function fireBulwark(counts) {
   if (typeof attackCountdown === 'number' && attackCountdown < TIDE_COUNTDOWN_CAP) {
     attackCountdown += 1;
     if (typeof onFreezeApplied === 'function') onFreezeApplied(1);
-    flashText('TOCK GUARD · FREEZE +1', STIHIYA_COLORS.tide);
+    flashStateBanner('TOCK GUARD · FREEZE +1', STIHIYA_COLORS.tide);
   }
   vibrate([50, 30, 50]);
 }
@@ -37002,7 +37046,7 @@ async function ultTwistBulwark(ctx) {
   const before = shieldCount;
   shieldCount = Math.min(cap, shieldCount + 3);
   const gained = shieldCount - before;
-  if (gained > 0) flashText('TOCK GUARD +' + gained + '🛡', STIHIYA_COLORS.tide);
+  if (gained > 0) flashStateBanner('TOCK GUARD +' + gained + '🛡', STIHIYA_COLORS.tide);
 }
 
 // HERO_GRAMMAR §4 [Frost × Captain] — ABYSSKING / DOMINION ULT signature
@@ -37293,7 +37337,7 @@ async function fireLumenwind(counts) {
   const _t2Window = _t2Bonus('spark_mage', 'mageWindow');
   lumenwindHaloDuration     = (_t2Window != null) ? _t2Window : LUMENWIND_HALO_TURNS;
   const _shieldsPerClear = 1 + lumenwindHaloShieldsBonus;
-  flashText('HALO WINDOW ×' + _shieldsPerClear + '🛡/clear', STIHIYA_COLORS.solar || '#E8B84A');
+  flashStateBanner('HALO WINDOW ×' + _shieldsPerClear + '🛡/clear', STIHIYA_COLORS.solar || '#E8B84A');
   vibrate([50, 30, 50]);
 }
 async function ultTwistLumenwind(ctx) {
@@ -37934,7 +37978,7 @@ async function afterPlacement(piece) {
   // Decrementing post-mark means placement 1/2/3 still see goldenHourRemaining > 0 during maybeMarkRadiant.
   if (goldenHourRemaining > 0) {
     goldenHourRemaining--;
-    if (goldenHourRemaining === 0) flashText('GOLDEN HOUR ENDS', STIHIYA_COLORS.solar);
+    if (goldenHourRemaining === 0) flashStateBanner('GOLDEN HOUR ENDS', STIHIYA_COLORS.solar);
   }
 
   // V2.0 Block 1.1: track per-placement clear state for motif ticks (run after loop regardless of clear)
@@ -38255,7 +38299,7 @@ async function afterPlacement(piece) {
         const [rr, cc] = radiantCands[Math.floor(Math.random() * radiantCands.length)];
         radiantCells.add(rr + '_' + cc);
         radiantAge.set(rr + '_' + cc, 0);
-        flashText('RADIANT WARD +1', STIHIYA_COLORS.solar);
+        flashStateBanner('RADIANT WARD +1', STIHIYA_COLORS.solar);
       }
     }
 
@@ -38333,7 +38377,7 @@ async function afterPlacement(piece) {
   if (typeof tempoTurnLockQueued !== 'undefined' && tempoTurnLockQueued
       && typeof currentBoss !== 'undefined' && currentBoss
       && currentBoss.archetype === 'tempo_disruptor') {
-    try { flashText('❄❄ TIDAL LOCK · TURN SKIPPED', '#78C8FF'); } catch (e) {}
+    try { flashStateBanner('❄❄ TIDAL LOCK · TURN SKIPPED', '#78C8FF'); } catch (e) {}
     try { vibrate([100, 50, 100, 50, 200]); } catch (e) {}
     tempoTurnLockQueued = false;
   } else {
@@ -38397,12 +38441,12 @@ async function afterPlacement(piece) {
       const _aegisCap = 1 + (_t2AegisBonus || 0);
       if (aegisActive && aegisUsed < _aegisCap) {
         aegisUsed++;
-        flashText(_t2AegisBonus ? 'DEEP SHIELD ' + aegisUsed + '/' + _aegisCap : 'AEGIS', '#5DCA79');
+        flashStateBanner(_t2AegisBonus ? 'DEEP SHIELD ' + aegisUsed + '/' + _aegisCap : 'AEGIS', '#5DCA79');
         vibrate([80, 40, 80]);
         // shield NOT consumed, damage fully blocked
       } else if (maelenShieldNoDecay > 0) {
         // V2.0 Stage 5 Block 5.3: MAELEN T2 shields don't degrade for N turns post-fire
-        flashText('FROZEN WARD · SHIELD HELD', STIHIYA_COLORS.tide);
+        flashStateBanner('FROZEN WARD · SHIELD HELD', STIHIYA_COLORS.tide);
         vibrate([80, 40, 80]);
         // shield NOT consumed
       } else {
@@ -38497,7 +38541,7 @@ async function afterPlacement(piece) {
     emberhandBloomDuration--;
     if (emberhandBloomDuration === 0) {
       emberhandBloomActive = false;
-      flashText('BLOOM FADES', '#A07530');
+      flashStateBanner('BLOOM FADES', '#A07530');
     }
   }
   // HERO_GRAMMAR §4 [Dark × Mage] — KEYCRYPT DEEP BEAT window decrement (Block B1).
@@ -38517,7 +38561,7 @@ async function afterPlacement(piece) {
     if (cryomindWeaveDuration === 0) {
       cryomindWeaveActive = false;
       cryomindWeaveMult = 1.0;
-      flashText('TIDE FADES', '#3B8BD4');
+      flashStateBanner('TIDE FADES', '#3B8BD4');
     }
   }
   // HERO_GRAMMAR §4 [Earth × Mage] — MOSSWEAVER VERDANT SURGE window decrement (Phase 5 Block 2).
@@ -38537,7 +38581,7 @@ async function afterPlacement(piece) {
     if (lumenwindHaloDuration === 0) {
       lumenwindHaloActive = false;
       lumenwindHaloShieldsBonus = 1;
-      flashText('HALO FADES', '#E8B84A');
+      flashStateBanner('HALO FADES', '#E8B84A');
     }
   }
   // HERO_GRAMMAR §6/§8 race-passive [Shark 2-of-race] — SWIM THROUGH ICEBOUND.
@@ -38637,7 +38681,7 @@ async function afterPlacement(piece) {
   // V2.0 Stage 5 Block 5.3: MAELEN T2 maelenShieldNoDecay — decrement per turn (shields stable for N turns)
   if (maelenShieldNoDecay > 0) {
     maelenShieldNoDecay--;
-    if (maelenShieldNoDecay === 0) flashText('FROZEN WARD ENDS', STIHIYA_COLORS.tide);
+    if (maelenShieldNoDecay === 0) flashStateBanner('FROZEN WARD ENDS', STIHIYA_COLORS.tide);
   }
   // V2.0 Stage 5 Block 5.3: MAELEN T3 maelenAllFireBonus — reset at turn end (1-turn buff)
   if (maelenAllFireBonus > 0) {
@@ -38668,7 +38712,7 @@ async function afterPlacement(piece) {
   // V2.0 Stage 5 Block 5.5: SERAPHINA T3 INFERNO MODE — decrement placement counter
   if (inferno_mode_window > 0) {
     inferno_mode_window--;
-    if (inferno_mode_window === 0) flashText('INFERNO ENDS', '#FF4400');
+    if (inferno_mode_window === 0) flashStateBanner('INFERNO ENDS', '#FF4400');
   }
   // V2.0 Stage 5 Block 5.5: ASTARION T3 Starpath — +1 charge to all non-Astarion teammates per placement
   if (starpathTurns > 0) {
@@ -38702,7 +38746,7 @@ async function afterPlacement(piece) {
   // V2.0 Stage 5 Block 5.6: NIGHTLORD T3 nightlordPostEncoreBoost — decrement per-placement
   if (nightlordPostEncoreBoost > 0) {
     nightlordPostEncoreBoost--;
-    if (nightlordPostEncoreBoost === 0) flashText('POST-ENCORE ENDS', STIHIYA_COLORS.umbra);
+    if (nightlordPostEncoreBoost === 0) flashStateBanner('POST-ENCORE ENDS', STIHIYA_COLORS.umbra);
   }
   // V2.0 Block 4.5: SHRIEK ECHO VOLLEY — async re-fire on next placement (one-shot, consumed when triggered).
   // V2.0 Stage 5 Block 5.6: shriekEchoPermanent (T3) keeps flag set across placements until next ULT fires;
@@ -38849,7 +38893,7 @@ async function fireHero(hero, counts) {
         // Optional: T2 grommarRallyShield — +1🛡 per warrior/hunter fire during Rally
         if (grommarRallyShield && (hero.newRole === 'warrior' || hero.newRole === 'hunter')) {
           const cap = MAX_SHIELD + 2 + maxShieldBonus;
-          if (shieldCount < cap) { shieldCount++; flashText('RALLY SHIELD +1🛡', '#FFD53D'); }
+          if (shieldCount < cap) { shieldCount++; flashStateBanner('RALLY SHIELD +1🛡', '#FFD53D'); }
         }
       }
     }
@@ -39415,6 +39459,46 @@ function hideThreatBanner() {
   el.hidden = true;
   el.textContent = '';
   if (_threatBannerHideTimer) { clearTimeout(_threatBannerHideTimer); _threatBannerHideTimer = null; }
+}
+
+// 2026-04-30 — Polish v0.2 Track H Part 2 §H.3 (Tier 1 persistent state):
+// flashStateBanner is the above-grid sibling of flashText. Used for
+// persistent buff/state callouts (RAINBOW ACTIVE, RADIANT WARD,
+// LOCK GUARD FREEZE, BLOOM/TIDE/HALO FADES, etc.) that previously fired
+// through centered .hero-flash and occluded grid cells the player just
+// acted on. The banner sits in the same zone as #threatBanner (between
+// hero deck and grid) and uses a positive (gold-default) palette tinted
+// per call by --state-color. Auto-hides after durationMs (default 2400ms
+// — long enough for a state change to register, short enough to clear
+// before the next turn). Late-arrivals during dialog defer through
+// _deferDuringDialog so they don't fire under the dialog overlay.
+let _stateBannerHideTimer = null;
+const _STATE_BANNER_DEFAULT_MS = 2400;
+function flashStateBanner(text, color, durationMs) {
+  // FTUE Chronicle silence: same gating as flashText so tutorial doesn't
+  // surface mechanics the player hasn't been taught yet.
+  if (typeof ftueBeat !== 'undefined' && ftueBeat === 'chronicle_fight') return;
+  if (_isDialogActive()) { _deferDuringDialog(() => flashStateBanner(text, color, durationMs)); return; }
+  const el = document.getElementById('stateBanner');
+  if (!el) return;
+  el.innerHTML = text;
+  if (color) el.style.setProperty('--state-color', color);
+  else el.style.removeProperty('--state-color');
+  el.hidden = false;
+  if (_stateBannerHideTimer) { clearTimeout(_stateBannerHideTimer); _stateBannerHideTimer = null; }
+  const dur = Number.isFinite(durationMs) ? durationMs : _STATE_BANNER_DEFAULT_MS;
+  if (dur > 0) {
+    _stateBannerHideTimer = setTimeout(() => {
+      try { hideStateBanner(); } catch (e) {}
+    }, dur);
+  }
+}
+function hideStateBanner() {
+  const el = document.getElementById('stateBanner');
+  if (!el) return;
+  el.hidden = true;
+  el.textContent = '';
+  if (_stateBannerHideTimer) { clearTimeout(_stateBannerHideTimer); _stateBannerHideTimer = null; }
 }
 
 function flashText(text, color, opts) {
