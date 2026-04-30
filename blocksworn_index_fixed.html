@@ -916,132 +916,354 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
    anything since the row is gone. */
 
 /* ===========================================================
-   PAUSE MENU — opens on top-bar ⚙ tap (PR 2/6).
-   Resume / Restart / Sound toggle / Quit. Restart + Quit gate on
-   a confirm dialog so battle progress isn't lost on accidental tap.
+   SETTINGS MENU — opens on top-bar ⚙ tap (PR 3/6 Final Polish).
+   Spec: BLOCKSWORN_COMBAT_UI_FINAL_POLISH.md §6.
+
+   REPLACES the pause menu (PR #70) per Roman's Q1 = "Replace"
+   directive. The earlier pause-menu pattern (Resume / Restart /
+   Sound / Quit modal in center of screen) is gone — this is the
+   AAA mobile pattern: right-edge slide-in panel with primary
+   navigation (Profile, Codex, Audio, Help) and Exit Battle as the
+   destructive option.
+
+   Items per spec §6.2 minus Language (English-only per
+   project_localization_eng_only memory; will revisit if i18n
+   sprint approved). Audio Settings is a stub modal preserving
+   the existing mute toggle behaviour from the old pause menu —
+   Roman's Q4 said "ok use stubs for missing screens". Codex
+   delegates to the existing showInfoModal (PROFILE/HEROES/etc
+   tabs already serve as a mini-codex). Profile delegates to
+   openProfileSheet which the avatar chip on the home screen
+   already uses. Help is a stub. Exit Battle uses native confirm()
+   per spec §6.5 then routes to returnToMenuFromBattle.
    =========================================================== */
-.pause-menu {
-  position: fixed; inset: 0;
+.settings-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal, 300) - 1);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s var(--ease-out, ease-out);
+}
+.settings-menu-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.settings-menu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(320px, 80vw);
   z-index: var(--z-modal, 300);
-  display: none;
-  align-items: center; justify-content: center;
-  padding: var(--space-xl, 24px);
-  background: rgba(8, 4, 14, 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  animation: pauseMenuFadeIn 0.22s ease-out;
+  background: var(--combat-bg-elevated, rgba(20, 25, 40, 0.98));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.5);
+  transform: translateX(100%);
+  transition: transform 0.30s var(--ease-out, ease-out);
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  font-family: var(--a-font-body, system-ui, sans-serif);
 }
-.pause-menu[aria-hidden="false"] { display: flex; }
-.pause-menu-card {
-  background: var(--combat-bg-tertiary, #1A2235);
-  border: 2px solid var(--a-gold-300, #FFD53D);
-  border-radius: var(--radius-lg, 12px);
-  padding: var(--space-xl, 24px);
-  max-width: 320px;
-  width: 100%;
-  display: flex; flex-direction: column;
-  gap: var(--space-md, 12px);
-  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.4)), 0 0 24px rgba(255, 213, 61, 0.25);
-  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+.settings-menu.open {
+  transform: translateX(0);
 }
-.pause-menu-title {
-  font-size: var(--fs-xl, 20px);
-  font-weight: var(--fw-black, 800);
-  letter-spacing: 3px;
+
+.settings-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.settings-menu-header-title {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: var(--fs-md, 13px);
+  font-weight: 800;
+  letter-spacing: 2px;
   text-transform: uppercase;
-  color: var(--a-gold-300, #FFD53D);
-  margin: 0 0 var(--space-sm, 8px);
-  text-align: center;
+  color: var(--a-gold-100, #FFE066);
 }
-.pause-menu-btn {
-  padding: 12px 18px;
-  border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--combat-border-default, rgba(255, 255, 255, 0.10));
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--combat-text-primary, #FFFFFF);
+.settings-menu-close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.16s, border-color 0.16s;
+}
+.settings-menu-close:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.30);
+}
+
+.settings-menu-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 0;
+}
+
+.settings-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  color: var(--combat-text-primary, #fff);
+  text-align: left;
   font-family: inherit;
   font-size: var(--fs-md, 13px);
-  font-weight: var(--fw-bold, 700);
-  letter-spacing: 1.0px;
   cursor: pointer;
-  text-align: left;
-  transition: background 0.18s ease-out, transform 0.12s ease-out;
+  transition: background 0.16s ease-out;
 }
-.pause-menu-btn:hover { background: rgba(255, 255, 255, 0.10); }
-.pause-menu-btn:active { transform: translateY(1px); }
-.pause-menu-btn-primary {
-  background: linear-gradient(180deg, #FFB800, #C97A05);
-  border: 2px solid #FFE07A;
-  color: #1A1208;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
+.settings-menu-item:hover,
+.settings-menu-item:focus-visible {
+  background: rgba(255, 255, 255, 0.05);
+  outline: none;
+}
+.settings-menu-item:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+.settings-menu-item-icon {
+  font-size: 20px;
+  width: 28px;
   text-align: center;
+  flex-shrink: 0;
+  line-height: 1;
 }
-.pause-menu-btn-primary:hover { background: linear-gradient(180deg, #FFC830, #D88A0F); }
-.pause-menu-btn-primary:active { transform: translateY(1px); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }
-.pause-menu-btn-toggle { color: var(--combat-text-secondary, rgba(255, 255, 255, 0.7)); }
-.pause-menu-btn-quit {
-  border-color: rgba(220, 20, 60, 0.35);
-  color: #FF8585;
+.settings-menu-item-content {
+  flex: 1;
+  min-width: 0;
 }
-.pause-menu-btn-quit:hover {
-  background: rgba(220, 20, 60, 0.10);
-  border-color: rgba(220, 20, 60, 0.55);
+.settings-menu-item-label {
+  font-weight: 600;
+  margin-bottom: 2px;
+  letter-spacing: 0.3px;
+  color: var(--combat-text-primary, #fff);
+}
+.settings-menu-item-description {
+  font-size: 11px;
+  color: var(--combat-text-secondary, rgba(255, 255, 255, 0.6));
+  line-height: 1.3;
 }
 
-.pause-menu-confirm {
-  position: fixed; inset: 0;
-  z-index: var(--z-critical, 1000);
-  display: none;
-  align-items: center; justify-content: center;
-  padding: var(--space-xl, 24px);
-  background: rgba(8, 4, 14, 0.92);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+.settings-menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 8px 16px;
 }
-.pause-menu-confirm[aria-hidden="false"] { display: flex; }
-.pause-menu-confirm-card {
-  background: var(--combat-bg-tertiary, #1A2235);
-  border: 2px solid rgba(220, 20, 60, 0.6);
+
+.settings-menu-item.danger .settings-menu-item-label {
+  color: #FF8585;
+}
+.settings-menu-item.danger:hover {
+  background: rgba(220, 20, 60, 0.10);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-menu,
+  .settings-menu-overlay {
+    transition: none !important;
+  }
+}
+
+/* ===========================================================
+   AUDIO SETTINGS STUB MODAL — opens from settings menu (PR 3/6).
+   Preserves the mute toggle behaviour from the removed pause-menu
+   sound row. Layered above the settings menu (z-index higher).
+   "More options coming soon" hints at the future polish pass per
+   Q4. Same fade-in / × close / tap-overlay-to-close pattern as
+   the buff modal so the interaction grammar is consistent.
+   =========================================================== */
+.audio-settings-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal, 300) + 10);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.audio-settings-modal[aria-hidden="false"] { display: flex; }
+.audio-settings-modal-card {
+  background: var(--combat-bg-elevated, rgba(20, 25, 40, 0.98));
+  border: 1px solid rgba(255, 215, 0, 0.22);
   border-radius: var(--radius-lg, 12px);
-  padding: var(--space-xl, 24px);
-  max-width: 280px;
+  padding: 20px;
   width: 100%;
+  max-width: 320px;
+  font-family: var(--a-font-body, system-ui, sans-serif);
+  color: var(--combat-text-primary, #fff);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  animation: settingsStubFadeIn 0.22s var(--ease-out, ease-out);
+}
+.audio-settings-title {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--a-gold-100, #FFE066);
+  margin: 0 0 16px;
+}
+.audio-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.audio-settings-row:first-of-type {
+  border-top: none;
+}
+.audio-settings-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--combat-text-primary, #fff);
+}
+.audio-settings-toggle {
+  padding: 6px 14px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--combat-text-primary, #fff);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.16s, border-color 0.16s;
+}
+.audio-settings-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.30);
+}
+.audio-settings-toggle.muted {
+  border-color: rgba(220, 20, 60, 0.50);
+  color: #FF8585;
+  background: rgba(220, 20, 60, 0.10);
+}
+.audio-settings-note {
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: var(--radius-md, 8px);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 11px;
+  color: var(--combat-text-secondary, rgba(255, 255, 255, 0.55));
+  font-style: italic;
+  line-height: 1.4;
+  text-align: center;
+}
+.audio-settings-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+.audio-settings-close-btn {
+  padding: 8px 18px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--combat-text-primary, #fff);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+/* Help / Codex stubs share the same lightweight modal grammar.
+   Single-purpose "Coming soon" sheets — Roman's Q4 said polish
+   pass at the end will fill these in. */
+.coming-soon-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal, 300) + 10);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.coming-soon-modal[aria-hidden="false"] { display: flex; }
+.coming-soon-modal-card {
+  background: var(--combat-bg-elevated, rgba(20, 25, 40, 0.98));
+  border: 1px solid rgba(255, 215, 0, 0.22);
+  border-radius: var(--radius-lg, 12px);
+  padding: 24px;
+  width: 100%;
+  max-width: 320px;
   text-align: center;
   font-family: var(--a-font-body, system-ui, sans-serif);
-  box-shadow: var(--shadow-lg), 0 0 24px rgba(220, 20, 60, 0.3);
+  color: var(--combat-text-primary, #fff);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  animation: settingsStubFadeIn 0.22s var(--ease-out, ease-out);
 }
-.pause-menu-confirm-title {
-  font-family: var(--a-font-display, 'Cinzel', sans-serif);
-  font-size: var(--fs-lg, 16px);
-  font-weight: var(--fw-bold, 700);
-  letter-spacing: 1.6px;
-  color: #FF8585;
+.coming-soon-modal-icon {
+  font-size: 36px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+.coming-soon-modal-title {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
   text-transform: uppercase;
-  margin-bottom: var(--space-sm, 8px);
+  color: var(--a-gold-100, #FFE066);
+  margin: 0 0 8px;
 }
-.pause-menu-confirm-body {
-  font-size: var(--fs-md, 13px);
-  color: var(--combat-text-secondary, rgba(255, 255, 255, 0.7));
-  margin-bottom: var(--space-lg, 16px);
-  line-height: 1.4;
+.coming-soon-modal-body {
+  font-size: 12px;
+  color: var(--combat-text-secondary, rgba(255, 255, 255, 0.65));
+  line-height: 1.5;
+  margin-bottom: 16px;
 }
-.pause-menu-confirm-actions {
-  display: flex; gap: var(--space-sm, 8px);
-}
-.pause-menu-confirm-actions .pause-menu-btn {
-  flex: 1;
-  text-align: center;
-  padding: 10px 14px;
-  font-size: var(--fs-sm, 11px);
+.coming-soon-modal-close {
+  padding: 8px 22px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--combat-text-primary, #fff);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-transform: uppercase;
 }
 
-@keyframes pauseMenuFadeIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1.0); }
+@keyframes settingsStubFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-.pause-menu-card { animation: pauseMenuFadeIn 0.22s ease-out; }
 @media (prefers-reduced-motion: reduce) {
-  .pause-menu, .pause-menu-card { animation: none !important; }
+  .audio-settings-modal-card,
+  .coming-soon-modal-card { animation: none !important; }
 }
 
 /* ===========================================================
@@ -15831,8 +16053,13 @@ button.season-tier-claim:active {
         <span class="combat-top-bar-stat-label">DMG</span>
       </div>
     </div>
+    <!-- 2026-04-30 — Combat UI Final Polish §6 (PR 3/6): the ⚙ button
+         now opens the slide-in settings menu (Profile / Codex /
+         Audio Settings / Help / Exit Battle) instead of the former
+         pause menu (Resume/Restart/Sound/Quit). showPauseMenu remains
+         on window as a backwards-compat alias to openSettings. -->
     <button type="button" class="combat-top-bar-btn" id="combatPauseBtn"
-            onclick="showPauseMenu()" aria-label="Pause menu">⚙</button>
+            onclick="openSettings()" aria-label="Open settings menu">⚙</button>
   </div>
   <div class="v-battle-topbar">
     <button class="v-btn-icon back-btn battle-back" onclick="returnToMenuFromBattle()" aria-label="Back">←</button>
@@ -16318,35 +16545,98 @@ button.season-tier-claim:active {
      count for Stormshepherd, soul-drain status for Crypt Lich, etc.).
      Body content is rendered fresh each open via _renderBossDetailsModal
      so the mid-battle state is always current. -->
-<!-- 2026-04-30 — Combat UI Redesign §4 (PR 2/6) pause menu. Standard
-     AAA mobile pattern (Royal Match / Marvel Snap / Honor of Kings):
-     Resume / Restart / Sound / Quit. Restart + Quit gate on a
-     confirm modal because they discard battle progress. Sound is a
-     simple mute toggle wired to the existing audio system. Settings
-     button ⚙ in top bar opens this. -->
-<div id="pauseMenu" class="pause-menu" aria-hidden="true" role="dialog" aria-labelledby="pauseMenuTitle"
-     onclick="if(event.target===this) closePauseMenu()">
-  <div class="pause-menu-card">
-    <h3 id="pauseMenuTitle" class="pause-menu-title">PAUSED</h3>
-    <button type="button" class="pause-menu-btn pause-menu-btn-primary" onclick="closePauseMenu()">▶ Resume</button>
-    <button type="button" class="pause-menu-btn" onclick="_pauseMenuRestart()">↻ Restart Battle</button>
-    <button type="button" class="pause-menu-btn pause-menu-btn-toggle" id="pauseMenuSoundBtn" onclick="_pauseMenuToggleSound()">🔊 Sound: ON</button>
-    <button type="button" class="pause-menu-btn pause-menu-btn-quit" onclick="_pauseMenuQuit()">✕ Quit to Menu</button>
+<!-- 2026-04-30 — Combat UI Final Polish §6 (PR 3/6) settings menu.
+     REPLACES the pause menu (former PR #70 — Resume/Restart/Sound/Quit
+     center modal) per Roman's Q1 = "Replace" directive. AAA mobile
+     pattern: right-edge slide-in panel with primary navigation
+     (Profile / Codex / Audio Settings / Help) and Exit Battle as
+     the destructive option separated by a divider.
+
+     Items per spec §6.2 — Language item dropped (English-only per
+     project_localization_eng_only memory). Audio Settings opens
+     a stub modal that preserves the existing mute toggle from the
+     removed pause-menu Sound row. Codex / Help are stubs (Roman's
+     Q4: polish pass at the end will fill them in). Profile delegates
+     to openProfileSheet (existing avatar-chip flow). Exit Battle
+     uses native confirm() per spec §6.5 then routes to
+     returnToMenuFromBattle.
+
+     Open: tapping ⚙ in the top bar (combatPauseBtn → openSettings).
+     Close: tap overlay, × button, or ESC key (desktop). -->
+<div class="settings-menu-overlay" id="settingsMenuOverlay" onclick="closeSettings()"></div>
+<div class="settings-menu" id="settingsMenu" aria-hidden="true" role="dialog" aria-labelledby="settingsMenuTitle">
+  <div class="settings-menu-header">
+    <span id="settingsMenuTitle" class="settings-menu-header-title">⚙ Menu</span>
+    <button type="button" class="settings-menu-close" onclick="closeSettings()" aria-label="Close menu">×</button>
+  </div>
+  <div class="settings-menu-list">
+    <button type="button" class="settings-menu-item" onclick="openProfile()">
+      <span class="settings-menu-item-icon" aria-hidden="true">👤</span>
+      <div class="settings-menu-item-content">
+        <div class="settings-menu-item-label">Profile</div>
+        <div class="settings-menu-item-description">Stats, heroes, achievements</div>
+      </div>
+    </button>
+    <button type="button" class="settings-menu-item" onclick="openCodex()">
+      <span class="settings-menu-item-icon" aria-hidden="true">📚</span>
+      <div class="settings-menu-item-content">
+        <div class="settings-menu-item-label">Codex</div>
+        <div class="settings-menu-item-description">Heroes, bosses, mechanics</div>
+      </div>
+    </button>
+    <button type="button" class="settings-menu-item" onclick="openAudioSettings()">
+      <span class="settings-menu-item-icon" aria-hidden="true">🔊</span>
+      <div class="settings-menu-item-content">
+        <div class="settings-menu-item-label">Audio Settings</div>
+        <div class="settings-menu-item-description" id="settingsAudioDesc">Music + SFX</div>
+      </div>
+    </button>
+    <button type="button" class="settings-menu-item" onclick="openHelp()">
+      <span class="settings-menu-item-icon" aria-hidden="true">❓</span>
+      <div class="settings-menu-item-content">
+        <div class="settings-menu-item-label">Help</div>
+        <div class="settings-menu-item-description">FAQ &amp; support</div>
+      </div>
+    </button>
+    <div class="settings-menu-divider" role="separator"></div>
+    <button type="button" class="settings-menu-item danger" onclick="exitBattle()">
+      <span class="settings-menu-item-icon" aria-hidden="true">🚪</span>
+      <div class="settings-menu-item-content">
+        <div class="settings-menu-item-label">Exit Battle</div>
+        <div class="settings-menu-item-description">Return to map (progress will be lost)</div>
+      </div>
+    </button>
   </div>
 </div>
 
-<!-- Confirm dialog used by Restart + Quit so battle progress isn't
-     lost on accidental tap. Title + body filled by _pauseMenuConfirm
-     at trigger time so one DOM node serves both flows. -->
-<div id="pauseMenuConfirm" class="pause-menu-confirm" aria-hidden="true" role="dialog"
-     onclick="if(event.target===this) _pauseMenuConfirmCancel()">
-  <div class="pause-menu-confirm-card">
-    <div class="pause-menu-confirm-title" id="pauseMenuConfirmTitle">Are you sure?</div>
-    <div class="pause-menu-confirm-body" id="pauseMenuConfirmBody">Battle progress will be lost.</div>
-    <div class="pause-menu-confirm-actions">
-      <button type="button" class="pause-menu-btn pause-menu-btn-quit" id="pauseMenuConfirmYes">Confirm</button>
-      <button type="button" class="pause-menu-btn" onclick="_pauseMenuConfirmCancel()">Cancel</button>
+<!-- Audio Settings stub modal — preserves the mute toggle behaviour
+     from the removed pause-menu Sound row. "More options coming soon"
+     hint for the polish pass per Roman's Q4. -->
+<div id="audioSettingsModal" class="audio-settings-modal" aria-hidden="true" role="dialog" aria-labelledby="audioSettingsTitle"
+     onclick="if(event.target===this) closeAudioSettings()">
+  <div class="audio-settings-modal-card">
+    <h3 id="audioSettingsTitle" class="audio-settings-title">🔊 Audio Settings</h3>
+    <div class="audio-settings-row">
+      <span class="audio-settings-row-label">Sound</span>
+      <button type="button" class="audio-settings-toggle" id="audioSettingsMuteBtn" onclick="_audioSettingsToggleMute()">ON</button>
     </div>
+    <div class="audio-settings-note">More audio controls (music vs SFX volumes) are coming in a future update.</div>
+    <div class="audio-settings-actions">
+      <button type="button" class="audio-settings-close-btn" onclick="closeAudioSettings()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Generic Coming-Soon modal — used by Codex + Help stubs. Single
+     DOM node, title + body filled by _showComingSoon at trigger
+     time so one element serves multiple flows. -->
+<div id="comingSoonModal" class="coming-soon-modal" aria-hidden="true" role="dialog" aria-labelledby="comingSoonTitle"
+     onclick="if(event.target===this) closeComingSoon()">
+  <div class="coming-soon-modal-card">
+    <div class="coming-soon-modal-icon" id="comingSoonIcon" aria-hidden="true">✨</div>
+    <h3 id="comingSoonTitle" class="coming-soon-modal-title">Coming Soon</h3>
+    <div class="coming-soon-modal-body" id="comingSoonBody">This feature is on the way.</div>
+    <button type="button" class="coming-soon-modal-close" onclick="closeComingSoon()">Got it</button>
   </div>
 </div>
 
@@ -38303,40 +38593,127 @@ function closeInfoModal() {
 // with permanent buff chips. Renders fresh on every open so the
 // mid-battle state (e.g. soul-drain on Crypt Lich, storm count on
 // Stormshepherd) is always current.
-// 2026-04-30 — Combat UI Redesign §4 (PR 2/6) pause menu. Standard AAA
-// mobile pattern: Resume / Restart Battle / Sound toggle / Quit to Menu.
-// Restart + Quit gate on a confirm dialog because they discard battle
-// progress. Sound toggle persists in localStorage so the preference
-// survives session restarts.
-function showPauseMenu() {
-  const el = document.getElementById('pauseMenu');
-  if (!el) return;
-  // Sync sound-button label from current mute state on every open.
-  try { _pauseMenuSyncSoundLabel(); } catch (e) {}
-  el.setAttribute('aria-hidden', 'false');
+// 2026-04-30 — Combat UI Final Polish §6 (PR 3/6) settings menu.
+// REPLACES the pause menu (former PR #70) per Roman's Q1 = "Replace"
+// directive. AAA mobile pattern: right-edge slide-in panel with
+// primary navigation (Profile / Codex / Audio Settings / Help) and
+// Exit Battle as the destructive option. Spec §6.2 minus Language
+// (English-only per project_localization_eng_only memory). Stubs
+// for Codex / Audio Settings / Help per Roman's Q4 = "use stubs;
+// polish at the end".
+//
+// The audio mute behaviour from the removed pause-menu Sound row is
+// preserved inside the Audio Settings stub modal — _audioMuteIsMuted
+// + _audioSettingsToggleMute carry the same priority-ordered API
+// probe (spec mute fn → global helper → raw localStorage flag) so
+// the user's mute preference still persists across sessions.
+
+function openSettings() {
+  const menu    = document.getElementById('settingsMenu');
+  const overlay = document.getElementById('settingsMenuOverlay');
+  if (!menu) return;
+  menu.classList.add('open');
+  menu.setAttribute('aria-hidden', 'false');
+  if (overlay) overlay.classList.add('show');
+  // Sync the audio description on the menu item so it reflects the
+  // current mute state at-a-glance ("Music + SFX" vs "Currently muted").
+  try { _syncSettingsAudioLabel(); } catch (e) {}
 }
-function closePauseMenu() {
-  const el = document.getElementById('pauseMenu');
-  if (el) el.setAttribute('aria-hidden', 'true');
-  // Also dismiss the confirm dialog if it's open — backdrop tap on
-  // the pause menu shouldn't leave a stale confirm hanging.
-  _pauseMenuConfirmCancel();
+
+function closeSettings() {
+  const menu    = document.getElementById('settingsMenu');
+  const overlay = document.getElementById('settingsMenuOverlay');
+  if (menu) {
+    menu.classList.remove('open');
+    menu.setAttribute('aria-hidden', 'true');
+  }
+  if (overlay) overlay.classList.remove('show');
 }
-function _pauseMenuSyncSoundLabel() {
-  const btn = document.getElementById('pauseMenuSoundBtn');
-  if (!btn) return;
-  let muted = false;
+
+// Profile — delegates to the existing avatar-chip flow used on the
+// home screen. openProfileSheet handles the sheet-open animation;
+// goToProfile is the screen-route fallback.
+function openProfile() {
+  closeSettings();
+  setTimeout(() => {
+    try {
+      if (typeof openProfileSheet === 'function') openProfileSheet();
+      else if (typeof goToProfile === 'function') goToProfile();
+    } catch (e) { console.warn('openProfile failed:', e); }
+  }, 200); // wait for slide-out animation
+}
+
+// Codex — delegates to the existing info modal which already serves
+// as a mini-codex (PROFILE / HEROES / etc tabs). If the function is
+// missing for any reason, fall back to the generic Coming Soon stub.
+function openCodex() {
+  closeSettings();
+  setTimeout(() => {
+    try {
+      if (typeof showInfoModal === 'function') {
+        showInfoModal();
+      } else {
+        _showComingSoon('📚', 'Codex',
+          'Heroes, bosses, and mechanics reference. The full codex is part of the upcoming polish pass.');
+      }
+    } catch (e) { console.warn('openCodex failed:', e); }
+  }, 200);
+}
+
+// Audio Settings — stub modal preserving the mute toggle. Future
+// polish pass adds music/SFX volume sliders.
+function openAudioSettings() {
+  closeSettings();
+  setTimeout(() => {
+    const modal = document.getElementById('audioSettingsModal');
+    if (!modal) return;
+    try { _syncAudioModalLabel(); } catch (e) {}
+    modal.setAttribute('aria-hidden', 'false');
+  }, 200);
+}
+function closeAudioSettings() {
+  const modal = document.getElementById('audioSettingsModal');
+  if (modal) modal.setAttribute('aria-hidden', 'true');
+}
+
+// Help — pure stub modal (Q4: polish pass at the end fills it in).
+function openHelp() {
+  closeSettings();
+  setTimeout(() => {
+    _showComingSoon('❓', 'Help & FAQ',
+      'In-game help, tutorials, and support links are part of the upcoming polish pass. For now the on-screen tutorial covers core mechanics.');
+  }, 200);
+}
+
+// Exit Battle — native confirm() per spec §6.5. Routes to the
+// existing returnToMenuFromBattle flow which the back button (←) on
+// the boss top-bar already uses.
+function exitBattle() {
+  closeSettings();
+  // Defer the confirm() so the slide-out animation has a frame to
+  // play; on iOS Safari, native confirm() during a transition can
+  // race the layout and feel jankier than waiting one tick.
+  setTimeout(() => {
+    if (!confirm('Exit battle? Progress will be lost.')) return;
+    try {
+      if (typeof returnToMenuFromBattle === 'function') returnToMenuFromBattle();
+      else if (typeof goToMenu === 'function') goToMenu();
+    } catch (e) { console.warn('exitBattle failed:', e); }
+  }, 200);
+}
+
+// ====== Audio mute helpers (preserved from removed pause-menu code) ======
+// Priority-ordered API probe — same logic as the old _pauseMenuToggleSound.
+// Anything that exposed _pauseMenuToggleSound directly (test scripts,
+// keybinds) can call _audioSettingsToggleMute via the alias below.
+function _audioMuteIsMuted() {
   try {
-    if (typeof isAudioMuted === 'function') muted = !!isAudioMuted();
-    else if (typeof window !== 'undefined' && window._audioMuted !== undefined) muted = !!window._audioMuted;
-    else muted = (localStorage.getItem('blocksworn_audio_muted') === '1');
-  } catch (e) {}
-  btn.textContent = muted ? '🔇 Sound: OFF' : '🔊 Sound: ON';
+    if (typeof isAudioMuted === 'function') return !!isAudioMuted();
+    if (typeof window !== 'undefined' && window._audioMuted !== undefined) return !!window._audioMuted;
+    return localStorage.getItem('blocksworn_audio_muted') === '1';
+  } catch (e) { return false; }
 }
-function _pauseMenuToggleSound() {
-  // Try the existing audio API in priority order: spec mute fn, global
-  // helper, raw localStorage flag. The persistence path keeps the user
-  // preference across battles.
+function _audioSettingsToggleMute() {
   let nowMuted = false;
   try {
     if (typeof toggleAudioMute === 'function') {
@@ -38349,72 +38726,75 @@ function _pauseMenuToggleSound() {
       const cur = localStorage.getItem('blocksworn_audio_muted') === '1';
       nowMuted = !cur;
       localStorage.setItem('blocksworn_audio_muted', nowMuted ? '1' : '0');
-      // Fallback: best-effort halt of any currently-playing track.
+      // Best-effort halt of any currently-playing track.
       try { if (typeof stopMusic === 'function') stopMusic(); } catch (e) {}
     }
-  } catch (e) { console.warn('_pauseMenuToggleSound failed:', e); }
-  _pauseMenuSyncSoundLabel();
+  } catch (e) { console.warn('_audioSettingsToggleMute failed:', e); }
+  _syncAudioModalLabel();
+  _syncSettingsAudioLabel();
 }
-let _pauseMenuConfirmHandler = null;
-function _pauseMenuConfirm(title, body, onConfirm) {
-  const dlg = document.getElementById('pauseMenuConfirm');
-  if (!dlg) return;
-  const titleEl = document.getElementById('pauseMenuConfirmTitle');
-  const bodyEl = document.getElementById('pauseMenuConfirmBody');
-  const yesBtn = document.getElementById('pauseMenuConfirmYes');
-  if (titleEl) titleEl.textContent = title;
-  if (bodyEl) bodyEl.textContent = body;
-  _pauseMenuConfirmHandler = onConfirm;
-  if (yesBtn) {
-    yesBtn.onclick = () => {
-      try { if (_pauseMenuConfirmHandler) _pauseMenuConfirmHandler(); } catch (e) { console.warn('confirm handler failed:', e); }
-      _pauseMenuConfirmHandler = null;
-      dlg.setAttribute('aria-hidden', 'true');
-    };
-  }
-  dlg.setAttribute('aria-hidden', 'false');
+function _syncAudioModalLabel() {
+  const btn = document.getElementById('audioSettingsMuteBtn');
+  if (!btn) return;
+  const muted = _audioMuteIsMuted();
+  btn.textContent = muted ? 'OFF' : 'ON';
+  btn.classList.toggle('muted', muted);
+  btn.setAttribute('aria-label', muted ? 'Sound is currently OFF — tap to turn ON' : 'Sound is currently ON — tap to mute');
 }
-function _pauseMenuConfirmCancel() {
-  const dlg = document.getElementById('pauseMenuConfirm');
-  if (dlg) dlg.setAttribute('aria-hidden', 'true');
-  _pauseMenuConfirmHandler = null;
+function _syncSettingsAudioLabel() {
+  const desc = document.getElementById('settingsAudioDesc');
+  if (!desc) return;
+  desc.textContent = _audioMuteIsMuted() ? 'Currently muted' : 'Music + SFX';
 }
-function _pauseMenuRestart() {
-  _pauseMenuConfirm(
-    'Restart battle?',
-    'All progress in this fight will be lost. The boss restarts at full HP.',
-    () => {
-      try {
-        // Close pause menu first so animations don't stomp each other.
-        closePauseMenu();
-        // Reuse the existing battle-start path. startBossBattle re-runs
-        // the FTUE-aware battle init flow, including state cleanup hooks.
-        if (typeof startBossBattle === 'function') startBossBattle();
-        else if (typeof location !== 'undefined') location.reload();
-      } catch (e) { console.warn('restart failed:', e); }
-    }
-  );
+
+// ====== Generic Coming Soon stub modal ======
+function _showComingSoon(icon, title, body) {
+  const modal   = document.getElementById('comingSoonModal');
+  const iconEl  = document.getElementById('comingSoonIcon');
+  const titleEl = document.getElementById('comingSoonTitle');
+  const bodyEl  = document.getElementById('comingSoonBody');
+  if (!modal) return;
+  if (iconEl)  iconEl.textContent  = icon  || '✨';
+  if (titleEl) titleEl.textContent = title || 'Coming Soon';
+  if (bodyEl)  bodyEl.textContent  = body  || 'This feature is on the way.';
+  modal.setAttribute('aria-hidden', 'false');
 }
-function _pauseMenuQuit() {
-  _pauseMenuConfirm(
-    'Quit to menu?',
-    'Battle progress will be discarded. Boss returns to full HP next time.',
-    () => {
-      try {
-        closePauseMenu();
-        if (typeof goToMenu === 'function') goToMenu();
-        else if (typeof returnToMenuFromBattle === 'function') returnToMenuFromBattle();
-      } catch (e) { console.warn('quit failed:', e); }
-    }
-  );
+function closeComingSoon() {
+  const modal = document.getElementById('comingSoonModal');
+  if (modal) modal.setAttribute('aria-hidden', 'true');
 }
+
+// ESC key — close any open settings/audio/coming-soon panel. Layered
+// priority so the topmost modal closes first when multiple are open.
 if (typeof window !== 'undefined') {
-  window.showPauseMenu = showPauseMenu;
-  window.closePauseMenu = closePauseMenu;
-  window._pauseMenuToggleSound = _pauseMenuToggleSound;
-  window._pauseMenuRestart = _pauseMenuRestart;
-  window._pauseMenuQuit = _pauseMenuQuit;
-  window._pauseMenuConfirmCancel = _pauseMenuConfirmCancel;
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const cs    = document.getElementById('comingSoonModal');
+    const audio = document.getElementById('audioSettingsModal');
+    const menu  = document.getElementById('settingsMenu');
+    if (cs    && cs.getAttribute('aria-hidden')    === 'false') { closeComingSoon();    return; }
+    if (audio && audio.getAttribute('aria-hidden') === 'false') { closeAudioSettings(); return; }
+    if (menu  && menu.getAttribute('aria-hidden')  === 'false') { closeSettings();      return; }
+  });
+}
+
+if (typeof window !== 'undefined') {
+  window.openSettings           = openSettings;
+  window.closeSettings          = closeSettings;
+  window.openProfile            = openProfile;
+  window.openCodex              = openCodex;
+  window.openAudioSettings      = openAudioSettings;
+  window.closeAudioSettings     = closeAudioSettings;
+  window.openHelp               = openHelp;
+  window.exitBattle             = exitBattle;
+  window.closeComingSoon        = closeComingSoon;
+  window._audioSettingsToggleMute = _audioSettingsToggleMute;
+  // Backwards-compat aliases — anywhere external (test scripts,
+  // keybinds, debug consoles) that called the old pause-menu API
+  // continues to work but routes through the new settings flow.
+  window.showPauseMenu          = openSettings;
+  window.closePauseMenu         = closeSettings;
+  window._pauseMenuToggleSound  = _audioSettingsToggleMute;
 }
 
 function showBossDetailsModal() {
