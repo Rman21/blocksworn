@@ -13949,6 +13949,157 @@ button.season-tier-claim:active {
   .a-battle .hero-slot { max-width: 68px; }
   .a-battle .hero-slot .name-lbl { font-size: 9px; letter-spacing: 0.4px; }
 }
+
+/* 2026-04-30 — AAA+ Mobile Combat Layout (HOTFIX-2 to Mobile UX Fix v0.1).
+   Roman's iPhone screenshot showed the grid bleeding into the tray on
+   iPhone 14 (height 844, visible-with-Safari ~720). The earlier
+   max-height: 720 rules helped but were still too loose for the
+   "everything fits, no scroll" AAA mobile target. Triggers up to
+   max-height: 820 so iPhone 14 / 13 / 12 / SE2 all enter compact mode
+   in Safari (where visible viewport with URL bar is ~720-820 depending
+   on device).
+
+   Vertical budget breakdown (target 720svh):
+     safe-area-top + .game padding-top ≈ 54px
+     boss-card                          56px
+     hearts/hp row                      24px
+     synergy bar (buffs)                14px
+     hero deck (4 cards + name + ULT)  100px
+     banner slot                        28px
+     gaps (×6)                          24px
+     tray + safe-area-bottom           124px
+     grid (calc remainder)            ~296px
+     ────────────────────────────────  720px ✓
+
+   Goal: every element earns its pixel budget. No scroll inside .game,
+   no clipped tray. Subsequent player-tap on the ⓘ button surfaces the
+   full boss / buff details that we trim from this layout. */
+@media (max-height: 820px) {
+  /* .game tighter padding + gap so vertical room flows to the grid. */
+  .a-battle.game {
+    padding: max(20px, env(safe-area-inset-top, 0px) + 8px) 8px max(8px, env(safe-area-inset-bottom, 0px));
+    gap: 4px;
+  }
+  /* Boss-card — single tight row at 56px. */
+  .a-battle .v-battle-boss-card {
+    min-height: 56px;
+    padding: 6px 8px;
+    gap: 8px;
+  }
+  .a-battle .v-battle-boss-portrait {
+    width: 48px; height: 48px;
+  }
+  .a-battle .v-battle-boss-name {
+    font-size: 13px; letter-spacing: 0.6px;
+    margin-bottom: 2px;
+  }
+  .a-battle .v-battle-boss-lvl {
+    font-size: 9px; letter-spacing: 0.4px;
+  }
+  .a-battle .v-battle-boss-hptext {
+    font-size: 10px;
+  }
+  .a-battle .v-battle-boss-card .v-progress {
+    height: 8px !important;
+  }
+  /* Hearts row — same height, just no padding bloat. */
+  .a-battle .v-battle-player-hp {
+    padding: 2px 0;
+  }
+  .a-battle .v-battle-player-hp-num {
+    font-size: 11px; letter-spacing: 0.5px;
+  }
+  /* Synergy bar — keep visible (race buffs are critical UX) but tiny. */
+  .a-battle .synergy-bar {
+    min-height: 14px;
+    font-size: 8px;
+    padding: 2px 6px;
+    gap: 3px;
+  }
+  /* Hero deck — 4 cards × 78px max fits comfortably. */
+  .a-battle .deck {
+    gap: 6px;
+    padding: 2px 6px 0;
+  }
+  .a-battle .hero-slot {
+    max-width: 78px;
+  }
+  .a-battle .hero-slot .ult-bar {
+    height: 5px;
+    margin-top: 3px;
+  }
+  .a-battle .hero-slot .name-lbl {
+    font-size: 9px;
+    padding: 2px 0 0;
+  }
+  /* Banner slot — tighter when no banner; banner content also smaller. */
+  .a-battle .battle-banner-slot {
+    min-height: 28px;
+    margin: 2px 6px 4px;
+  }
+  .a-battle .threat-banner,
+  .a-battle .state-banner {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+  /* Grid-wrap padding tighter so grid gets more room. */
+  .a-battle .grid-wrap {
+    padding: 3px;
+  }
+  /* Grid — bigger because compact non-grid takes ~424px instead of ~480.
+     Width clamps proportionally; aspect-ratio 1/1 keeps it square. */
+  .a-battle .grid {
+    width: min(100%, calc(100svh - 424px), calc(100vh - 424px));
+  }
+  /* Tray — slightly tighter min-height; piece tap targets stay ≥60px. */
+  .a-battle .tray {
+    min-height: 80px;
+  }
+}
+
+/* Even tighter on iPhone SE / Android narrow viewports (≤700h). Drops
+   non-essential text labels so 100% of visible viewport goes to active
+   gameplay. Players can recover the dropped labels via the ⓘ boss
+   modal (battle screen) and hero detail modals (heroes screen). */
+@media (max-height: 700px) {
+  .a-battle .v-battle-boss-card {
+    min-height: 48px;
+    padding: 4px 6px;
+  }
+  .a-battle .v-battle-boss-portrait {
+    width: 42px; height: 42px;
+  }
+  .a-battle .v-battle-boss-lvl {
+    display: none; /* surface via ⓘ modal */
+  }
+  .a-battle .v-battle-player-hp-num {
+    display: none; /* hearts only — count visible at a glance */
+  }
+  .a-battle .synergy-bar {
+    min-height: 12px;
+    font-size: 7.5px;
+  }
+  .a-battle .hero-slot {
+    max-width: 66px;
+  }
+  .a-battle .hero-slot .name-lbl {
+    font-size: 8px;
+    letter-spacing: 0.2px;
+  }
+  .a-battle .hero-slot .ult-bar {
+    height: 4px;
+  }
+  .a-battle .battle-banner-slot {
+    min-height: 24px;
+  }
+  .a-battle .grid {
+    width: min(100%, calc(100svh - 380px), calc(100vh - 380px));
+  }
+  .a-battle .tray {
+    min-height: 72px;
+    padding: 6px;
+  }
+}
 /* iPhone Safari viewport (~720-800px available) — apply tight spacing */
 @media (max-height: 800px) {
   .menu-logo-img { max-width: 150px; margin-bottom: 2px; }
