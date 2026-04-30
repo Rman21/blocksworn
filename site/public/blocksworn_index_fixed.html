@@ -1045,6 +1045,76 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
 .a-battle .v-battle-boss-card .attack-warning {
   display: none !important;
 }
+
+/* ===========================================================
+   COMBAT UI AAA+ REDESIGN — Tray Element Pill (PR 5/6)
+   Spec: §8.4 — element indicator floats on right edge of tray.
+   Reads activeSignatureCombo (HERO_GRAMMAR §7). Hidden when no
+   combo is active so fresh-install battles read clean.
+   =========================================================== */
+.tray-element-pill {
+  position: absolute;
+  right: max(var(--space-md, 12px), env(safe-area-inset-right, 0px));
+  bottom: calc(var(--space-md, 12px) + env(safe-area-inset-bottom, 0px));
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  padding: 6px 10px 6px 8px;
+  background: rgba(20, 14, 28, 0.85);
+  border: 1px solid var(--combat-border-strong, rgba(255, 255, 255, 0.20));
+  border-radius: var(--radius-full, 9999px);
+  z-index: calc(var(--z-sticky, 100) + 10);
+  pointer-events: none;
+  font-family: var(--a-font-display, 'Cinzel', 'Georgia', serif);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.3));
+  /* Default ember palette; overridden via [data-element] below per
+     active signature combo's stihiya. */
+  --pill-element-color: var(--el-fire-base, #FF6B35);
+  --pill-element-glow:  var(--el-fire-glow, rgba(255, 107, 53, 0.5));
+  border-color: color-mix(in srgb, var(--pill-element-color) 55%, transparent);
+  box-shadow: var(--shadow-md), 0 0 12px var(--pill-element-glow);
+  transition: opacity 0.22s ease-out, transform 0.22s ease-out;
+}
+.tray-element-pill[hidden] { display: none !important; }
+.tray-element-pill .tray-element-icon {
+  font-size: 16px;
+  line-height: 1;
+  filter: drop-shadow(0 0 4px var(--pill-element-glow));
+}
+.tray-element-pill .tray-element-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 1;
+}
+.tray-element-pill .tray-element-name {
+  font-size: var(--fs-sm, 11px);
+  font-weight: var(--fw-bold, 700);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--combat-text-primary, #FFFFFF);
+}
+.tray-element-pill .tray-element-bonus {
+  font-size: var(--fs-xs, 9px);
+  font-weight: var(--fw-black, 800);
+  letter-spacing: 0.6px;
+  color: var(--pill-element-color);
+  text-shadow: 0 0 4px var(--pill-element-glow);
+}
+/* Per-element palette via data-element attribute set by JS render. */
+.tray-element-pill[data-element="fire"]  { --pill-element-color: var(--el-fire-base, #FF6B35);  --pill-element-glow: var(--el-fire-glow, rgba(255, 107, 53, 0.5)); }
+.tray-element-pill[data-element="frost"] { --pill-element-color: var(--el-frost-base, #4A9FFF); --pill-element-glow: var(--el-frost-glow, rgba(74, 159, 255, 0.5)); }
+.tray-element-pill[data-element="earth"] { --pill-element-color: var(--el-earth-base, #4ADB6D); --pill-element-glow: var(--el-earth-glow, rgba(74, 219, 109, 0.5)); }
+.tray-element-pill[data-element="dark"]  { --pill-element-color: var(--el-dark-base, #8B4FBC);  --pill-element-glow: var(--el-dark-glow, rgba(139, 79, 188, 0.5)); }
+.tray-element-pill[data-element="light"] { --pill-element-color: var(--el-light-base, #FFD700); --pill-element-glow: var(--el-light-glow, rgba(255, 215, 0, 0.5)); }
+/* Re-apply border + shadow because the variable changed. */
+.tray-element-pill[data-element] {
+  border-color: color-mix(in srgb, var(--pill-element-color) 55%, transparent);
+  box-shadow: var(--shadow-md), 0 0 12px var(--pill-element-glow);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tray-element-pill { transition: none !important; }
+}
 .hero-slot.hero-slot-empty .hero-card-empty {
   width: 100%;
   aspect-ratio: 3 / 4;
@@ -15507,6 +15577,20 @@ button.season-tier-claim:active {
   </div>
 
   <div class="tray" id="tray"></div>
+  <!-- 2026-04-30 — Combat UI Redesign §8.4 (PR 5/6): tray element
+       indicator pill. Anchored to the right edge of the sticky tray
+       via position: absolute (sibling, not child — renderTray wipes
+       #tray's innerHTML on every piece refresh). Reads
+       activeSignatureCombo (HERO_GRAMMAR §7) and renders icon + name +
+       bonus%. Hidden via [hidden] when no signature combo is active so
+       fresh battles without a 3-of-race squad don't surface clutter. -->
+  <div class="tray-element-pill" id="trayElementPill" hidden>
+    <span class="tray-element-icon" id="trayElementIcon" aria-hidden="true">🔥</span>
+    <div class="tray-element-text">
+      <span class="tray-element-name" id="trayElementName">Fire</span>
+      <span class="tray-element-bonus" id="trayElementBonus">+30%</span>
+    </div>
+  </div>
 
   <div class="narrator" id="narrator"></div>
 
@@ -43048,6 +43132,44 @@ if (typeof window !== 'undefined') {
   window._renderBossAreaHearts = _renderBossAreaHearts;
 }
 
+// 2026-04-30 — Combat UI Redesign §8.4 (PR 5/6): tray element pill
+// render. Reads activeSignatureCombo (HERO_GRAMMAR §7 SIGNATURE_COMBOS
+// state — set in startBossBattle when 3+-of-race squad triggers a
+// Tier 3 combo). Pill maps stihiya → display element name (fire/frost/
+// earth/dark/light) + element-themed glow. Hidden when no combo is
+// active (most early-game battles before player has 3+ of one race).
+function _renderTrayElementPill() {
+  const pill = document.getElementById('trayElementPill');
+  if (!pill) return;
+  const combo = (typeof activeSignatureCombo !== 'undefined') ? activeSignatureCombo : null;
+  if (!combo || !combo.stihiya) {
+    pill.hidden = true;
+    pill.removeAttribute('data-element');
+    return;
+  }
+  const _stihiya2spec = { ember: 'fire', tide: 'frost', grove: 'earth', umbra: 'dark', solar: 'light' };
+  const _stihiya2icon = { ember: '🔥', tide: '❄', grove: '🌿', umbra: '🌑', solar: '☀' };
+  const _stihiya2name = { ember: 'Fire', tide: 'Frost', grove: 'Earth', umbra: 'Dark', solar: 'Light' };
+  const elKey  = _stihiya2spec[combo.stihiya] || 'fire';
+  const icon   = _stihiya2icon[combo.stihiya] || '🔥';
+  const name   = _stihiya2name[combo.stihiya] || 'Fire';
+  const bonusPct = Math.round(((combo.mult || 1.0) - 1) * 100);
+  const bonus  = (bonusPct >= 0 ? '+' : '') + bonusPct + '%';
+  pill.setAttribute('data-element', elKey);
+  pill.hidden = false;
+  try {
+    const iconEl = document.getElementById('trayElementIcon');
+    const nameEl = document.getElementById('trayElementName');
+    const bonusEl = document.getElementById('trayElementBonus');
+    if (iconEl) iconEl.textContent = icon;
+    if (nameEl) nameEl.textContent = name;
+    if (bonusEl) bonusEl.textContent = bonus;
+  } catch (e) {}
+}
+if (typeof window !== 'undefined') {
+  window._renderTrayElementPill = _renderTrayElementPill;
+}
+
 function renderDeck() {
   const el = document.getElementById('deck');
   el.innerHTML = '';
@@ -43409,6 +43531,11 @@ function renderTray() {
     if (p.used) el.classList.add('used');
     t.appendChild(el);
   });
+  // 2026-04-30 — Combat UI Redesign §8.4 (PR 5/6): refresh element pill
+  // alongside piece refresh. Pill is a sibling (renderTray wipes
+  // #tray.innerHTML, would clobber a child pill); _renderTrayElementPill
+  // updates the floating pill from activeSignatureCombo state.
+  try { if (typeof _renderTrayElementPill === 'function') _renderTrayElementPill(); } catch (e) {}
 }
 
 function makePieceEl(piece, cellSize) {
