@@ -1588,73 +1588,93 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
    directly (PR 6.1 refactor) so no #attackWarning DOM is needed. */
 
 /* ===========================================================
-   COMBAT UI AAA+ REDESIGN — Tray Element Pill (PR 5/6)
-   Spec: §8.4 — element indicator floats on right edge of tray.
-   Reads activeSignatureCombo (HERO_GRAMMAR §7). Hidden when no
-   combo is active so fresh-install battles read clean.
+   COMBAT UI FINAL POLISH — Top-Bar Element Pill (PR 4/6)
+   Spec: §11 — element indicator MIGRATED from the tray (former
+   PR #73 .tray-element-pill, now removed) to the top bar.
+
+   Per Roman's Q2 = (A) Migration: a single source-of-truth pill
+   in the top bar, no dual-pill fallback. The previous tray pill
+   was eating ~80px of horizontal real-estate on the right rail
+   of the sticky tray; moving it to the top bar reclaims that
+   space for piece pieces and reads at-a-glance alongside the
+   other status chips (❤ / TURN / DMG).
+
+   Reads activeSignatureCombo (HERO_GRAMMAR §7) via the renamed
+   _renderTopBarElementPill. Hidden via [hidden] when no combo
+   is active so fresh-install battles before the player has 3+
+   of one race+element read clean. The tray-element-pill class
+   names + _renderTrayElementPill alias remain on window for
+   backwards-compat with any external callers; spec §11.3
+   small-screen fallback to a tray pill is NOT implemented per
+   Roman's (A) directive — instead the pill compacts itself
+   on <380px (icon + bonus only, name dropped).
    =========================================================== */
-.tray-element-pill {
-  position: absolute;
-  right: max(var(--space-md, 12px), env(safe-area-inset-right, 0px));
-  bottom: calc(var(--space-md, 12px) + env(safe-area-inset-bottom, 0px));
+.combat-top-bar-element {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-sm, 8px);
-  padding: 6px 10px 6px 8px;
-  background: rgba(20, 14, 28, 0.85);
-  border: 1px solid var(--combat-border-strong, rgba(255, 255, 255, 0.20));
+  gap: var(--space-xs, 4px);
+  padding: 3px 8px;
+  background: rgba(20, 14, 28, 0.55);
+  border: 1px solid color-mix(in srgb, var(--pill-element-color, var(--el-fire-base, #FF6B35)) 50%, transparent);
   border-radius: var(--radius-full, 9999px);
-  z-index: calc(var(--z-sticky, 100) + 10);
-  pointer-events: none;
   font-family: var(--a-font-display, 'Cinzel', 'Georgia', serif);
-  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.3));
+  line-height: 1;
+  flex-shrink: 0;
   /* Default ember palette; overridden via [data-element] below per
      active signature combo's stihiya. */
   --pill-element-color: var(--el-fire-base, #FF6B35);
   --pill-element-glow:  var(--el-fire-glow, rgba(255, 107, 53, 0.5));
-  border-color: color-mix(in srgb, var(--pill-element-color) 55%, transparent);
-  box-shadow: var(--shadow-md), 0 0 12px var(--pill-element-glow);
+  box-shadow: 0 0 8px var(--pill-element-glow);
   transition: opacity 0.22s ease-out, transform 0.22s ease-out;
+  /* No pointer-events:none here — future polish may make this
+     tappable to surface a quick details tooltip. */
 }
-.tray-element-pill[hidden] { display: none !important; }
-.tray-element-pill .tray-element-icon {
-  font-size: 16px;
+.combat-top-bar-element[hidden] { display: none !important; }
+.combat-top-bar-element .combat-top-bar-element-icon {
+  font-size: 13px;
   line-height: 1;
-  filter: drop-shadow(0 0 4px var(--pill-element-glow));
+  filter: drop-shadow(0 0 3px var(--pill-element-glow));
 }
-.tray-element-pill .tray-element-text {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  line-height: 1;
-}
-.tray-element-pill .tray-element-name {
-  font-size: var(--fs-sm, 11px);
+.combat-top-bar-element .combat-top-bar-element-name {
+  font-size: var(--fs-xs, 9px);
   font-weight: var(--fw-bold, 700);
-  letter-spacing: 0.8px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--combat-text-primary, #FFFFFF);
 }
-.tray-element-pill .tray-element-bonus {
+.combat-top-bar-element .combat-top-bar-element-bonus {
   font-size: var(--fs-xs, 9px);
   font-weight: var(--fw-black, 800);
-  letter-spacing: 0.6px;
+  letter-spacing: 0.4px;
   color: var(--pill-element-color);
-  text-shadow: 0 0 4px var(--pill-element-glow);
+  text-shadow: 0 0 3px var(--pill-element-glow);
 }
 /* Per-element palette via data-element attribute set by JS render. */
-.tray-element-pill[data-element="fire"]  { --pill-element-color: var(--el-fire-base, #FF6B35);  --pill-element-glow: var(--el-fire-glow, rgba(255, 107, 53, 0.5)); }
-.tray-element-pill[data-element="frost"] { --pill-element-color: var(--el-frost-base, #4A9FFF); --pill-element-glow: var(--el-frost-glow, rgba(74, 159, 255, 0.5)); }
-.tray-element-pill[data-element="earth"] { --pill-element-color: var(--el-earth-base, #4ADB6D); --pill-element-glow: var(--el-earth-glow, rgba(74, 219, 109, 0.5)); }
-.tray-element-pill[data-element="dark"]  { --pill-element-color: var(--el-dark-base, #8B4FBC);  --pill-element-glow: var(--el-dark-glow, rgba(139, 79, 188, 0.5)); }
-.tray-element-pill[data-element="light"] { --pill-element-color: var(--el-light-base, #FFD700); --pill-element-glow: var(--el-light-glow, rgba(255, 215, 0, 0.5)); }
-/* Re-apply border + shadow because the variable changed. */
-.tray-element-pill[data-element] {
-  border-color: color-mix(in srgb, var(--pill-element-color) 55%, transparent);
-  box-shadow: var(--shadow-md), 0 0 12px var(--pill-element-glow);
+.combat-top-bar-element[data-element="fire"]  { --pill-element-color: var(--el-fire-base, #FF6B35);  --pill-element-glow: var(--el-fire-glow, rgba(255, 107, 53, 0.5)); }
+.combat-top-bar-element[data-element="frost"] { --pill-element-color: var(--el-frost-base, #4A9FFF); --pill-element-glow: var(--el-frost-glow, rgba(74, 159, 255, 0.5)); }
+.combat-top-bar-element[data-element="earth"] { --pill-element-color: var(--el-earth-base, #4ADB6D); --pill-element-glow: var(--el-earth-glow, rgba(74, 219, 109, 0.5)); }
+.combat-top-bar-element[data-element="dark"]  { --pill-element-color: var(--el-dark-base, #8B4FBC);  --pill-element-glow: var(--el-dark-glow, rgba(139, 79, 188, 0.5)); }
+.combat-top-bar-element[data-element="light"] { --pill-element-color: var(--el-light-base, #FFD700); --pill-element-glow: var(--el-light-glow, rgba(255, 215, 0, 0.5)); }
+.combat-top-bar-element[data-element] {
+  border-color: color-mix(in srgb, var(--pill-element-color) 50%, transparent);
+  box-shadow: 0 0 8px var(--pill-element-glow);
 }
 @media (prefers-reduced-motion: reduce) {
-  .tray-element-pill { transition: none !important; }
+  .combat-top-bar-element { transition: none !important; }
+}
+/* Small phone (<380px) — top bar drops the DMG chip already
+   (line 906); element pill compacts to icon + bonus only,
+   dropping the element name to keep the row from crowding the
+   ⚙ settings button. The signature combo bonus is the more
+   useful number; "Fire/Frost/etc" can be inferred from the icon. */
+@media (max-width: 380px) {
+  .combat-top-bar-element .combat-top-bar-element-name {
+    display: none;
+  }
+  .combat-top-bar-element {
+    gap: 3px;
+    padding: 3px 6px;
+  }
 }
 .hero-slot.hero-slot-empty .hero-card-empty {
   width: 100%;
@@ -16052,6 +16072,19 @@ button.season-tier-claim:active {
         <span class="combat-top-bar-stat-value" id="combatTopBarDamageVal">0</span>
         <span class="combat-top-bar-stat-label">DMG</span>
       </div>
+      <!-- 2026-04-30 — Combat UI Final Polish §11 (PR 4/6): element
+           indicator pill MIGRATED here from the tray (former PR #73
+           #trayElementPill, removed in this PR). Reads
+           activeSignatureCombo (HERO_GRAMMAR §7) and renders
+           icon + element name + bonus%. Hidden via [hidden] when no
+           signature combo is active so most early-game battles read
+           clean. On <380px screens the name is dropped (CSS only) so
+           the row stays uncrowded with the ⚙ settings button. -->
+      <div class="combat-top-bar-element" id="combatTopBarElementPill" hidden>
+        <span class="combat-top-bar-element-icon" id="combatTopBarElementIcon" aria-hidden="true">🔥</span>
+        <span class="combat-top-bar-element-name" id="combatTopBarElementName">Fire</span>
+        <span class="combat-top-bar-element-bonus" id="combatTopBarElementBonus">+30%</span>
+      </div>
     </div>
     <!-- 2026-04-30 — Combat UI Final Polish §6 (PR 3/6): the ⚙ button
          now opens the slide-in settings menu (Profile / Codex /
@@ -16173,20 +16206,15 @@ button.season-tier-claim:active {
   </div>
 
   <div class="tray" id="tray"></div>
-  <!-- 2026-04-30 — Combat UI Redesign §8.4 (PR 5/6): tray element
-       indicator pill. Anchored to the right edge of the sticky tray
-       via position: absolute (sibling, not child — renderTray wipes
-       #tray's innerHTML on every piece refresh). Reads
-       activeSignatureCombo (HERO_GRAMMAR §7) and renders icon + name +
-       bonus%. Hidden via [hidden] when no signature combo is active so
-       fresh battles without a 3-of-race squad don't surface clutter. -->
-  <div class="tray-element-pill" id="trayElementPill" hidden>
-    <span class="tray-element-icon" id="trayElementIcon" aria-hidden="true">🔥</span>
-    <div class="tray-element-text">
-      <span class="tray-element-name" id="trayElementName">Fire</span>
-      <span class="tray-element-bonus" id="trayElementBonus">+30%</span>
-    </div>
-  </div>
+  <!-- 2026-04-30 — Combat UI Final Polish §11 (PR 4/6): the tray-edge
+       element pill (former PR #73 #trayElementPill) was removed from
+       this anchor and migrated to the top bar (#combatTopBarElementPill,
+       see line ~16054 area in .combat-top-bar). Per Roman's Q2 = (A)
+       Migration: a single pill in the top bar, no dual-pill fallback.
+       The tray reclaims ~80px of horizontal real-estate on the right
+       rail for piece overflow. The render function is preserved as
+       _renderTopBarElementPill (with _renderTrayElementPill alias for
+       any external callers). -->
 
   <div class="narrator" id="narrator"></div>
 
@@ -44142,8 +44170,14 @@ if (typeof window !== 'undefined') {
 // Tier 3 combo). Pill maps stihiya → display element name (fire/frost/
 // earth/dark/light) + element-themed glow. Hidden when no combo is
 // active (most early-game battles before player has 3+ of one race).
-function _renderTrayElementPill() {
-  const pill = document.getElementById('trayElementPill');
+// 2026-04-30 — Combat UI Final Polish §11 (PR 4/6) — element pill
+// MIGRATED from the tray to the top bar. Same data source, same
+// stihiya→spec mapping, new DOM anchors. The function name is
+// _renderTopBarElementPill; _renderTrayElementPill remains as a
+// thin alias on window so any external callers (test scripts,
+// debug consoles, in-flight PRs) keep working.
+function _renderTopBarElementPill() {
+  const pill = document.getElementById('combatTopBarElementPill');
   if (!pill) return;
   const combo = (typeof activeSignatureCombo !== 'undefined') ? activeSignatureCombo : null;
   if (!combo || !combo.stihiya) {
@@ -44162,16 +44196,21 @@ function _renderTrayElementPill() {
   pill.setAttribute('data-element', elKey);
   pill.hidden = false;
   try {
-    const iconEl = document.getElementById('trayElementIcon');
-    const nameEl = document.getElementById('trayElementName');
-    const bonusEl = document.getElementById('trayElementBonus');
-    if (iconEl) iconEl.textContent = icon;
-    if (nameEl) nameEl.textContent = name;
+    const iconEl  = document.getElementById('combatTopBarElementIcon');
+    const nameEl  = document.getElementById('combatTopBarElementName');
+    const bonusEl = document.getElementById('combatTopBarElementBonus');
+    if (iconEl)  iconEl.textContent  = icon;
+    if (nameEl)  nameEl.textContent  = name;
     if (bonusEl) bonusEl.textContent = bonus;
   } catch (e) {}
 }
+// Backwards-compat alias — anywhere external (test scripts, debug
+// consoles, in-flight PRs) that called _renderTrayElementPill
+// continues to work and routes through the migrated render.
+function _renderTrayElementPill() { return _renderTopBarElementPill(); }
 if (typeof window !== 'undefined') {
-  window._renderTrayElementPill = _renderTrayElementPill;
+  window._renderTopBarElementPill = _renderTopBarElementPill;
+  window._renderTrayElementPill   = _renderTrayElementPill;
 }
 
 function renderDeck() {
@@ -44530,11 +44569,13 @@ function renderTray() {
     if (p.used) el.classList.add('used');
     t.appendChild(el);
   });
-  // 2026-04-30 — Combat UI Redesign §8.4 (PR 5/6): refresh element pill
-  // alongside piece refresh. Pill is a sibling (renderTray wipes
-  // #tray.innerHTML, would clobber a child pill); _renderTrayElementPill
-  // updates the floating pill from activeSignatureCombo state.
-  try { if (typeof _renderTrayElementPill === 'function') _renderTrayElementPill(); } catch (e) {}
+  // 2026-04-30 — Combat UI Final Polish §11 (PR 4/6): pill MIGRATED
+  // from tray to top bar. The hook still fires from renderTray since
+  // both reflect activeSignatureCombo state — when a player drops a
+  // piece that activates a Tier 3 combo, this is one of the natural
+  // re-render moments. Calls the new _renderTopBarElementPill (the
+  // legacy _renderTrayElementPill alias also works).
+  try { if (typeof _renderTopBarElementPill === 'function') _renderTopBarElementPill(); } catch (e) {}
 }
 
 function makePieceEl(piece, cellSize) {
