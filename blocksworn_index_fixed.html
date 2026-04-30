@@ -8939,6 +8939,75 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .cell.necropulse-charged { animation: none !important; }
 }
 
+/* 2026-04-30 — Stormshepherd variant side-effect visuals.
+   .storm-frozen      : Blizzard's adjacent-freeze (2T duration). Pale
+                        ice-blue overlay with ❄ glyph. canPlace blocked.
+   .storm-immovable   : Earthquake's random-cell lock (3T duration). Earthy
+                        gradient + 🌍 glyph. canPlace blocked.
+   .lightning-row-hit : Lightning's row strobe at intensify (0.6s).
+                        No persistent state — pure burst visual. */
+.cell.storm-frozen {
+  position: relative;
+  z-index: 2;
+  animation: stormFrozenBreathe 1.6s ease-in-out infinite;
+}
+.cell.storm-frozen::after {
+  content: '❄';
+  position: absolute; inset: 2px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(160, 215, 240, 0.55), rgba(70, 130, 180, 0.45));
+  border: 2px solid rgba(180, 230, 255, 0.85);
+  box-shadow: inset 0 0 12px rgba(70, 130, 180, 0.6), 0 0 8px rgba(160, 215, 240, 0.5);
+  font-size: 16px; font-weight: 800;
+  color: #E8F6FF;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.6), 0 0 8px rgba(160, 215, 240, 0.8);
+  pointer-events: none;
+}
+@keyframes stormFrozenBreathe {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.2); }
+}
+
+.cell.storm-immovable {
+  position: relative;
+  z-index: 2;
+  animation: stormImmovableBreathe 2.0s ease-in-out infinite;
+}
+.cell.storm-immovable::after {
+  content: '🌍';
+  position: absolute; inset: 2px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(120, 90, 60, 0.55), rgba(70, 50, 30, 0.65));
+  border: 2px solid rgba(180, 130, 80, 0.85);
+  box-shadow: inset 0 0 12px rgba(40, 30, 20, 0.65), 0 0 8px rgba(165, 128, 92, 0.5);
+  font-size: 18px;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+}
+@keyframes stormImmovableBreathe {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.15) saturate(1.1); }
+}
+
+.cell.lightning-row-hit {
+  animation: lightningRowHit 0.6s ease-out forwards;
+  z-index: 3;
+}
+@keyframes lightningRowHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(255,213,61,0); }
+  18%  { filter: brightness(2.8) saturate(1.5); transform: scale(1.18); box-shadow: 0 0 28px rgba(255,213,61,1.0), 0 0 12px rgba(255,240,160,0.7) inset; }
+  60%  { filter: brightness(1.6) saturate(1.2); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(255,213,61,0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell.storm-frozen,
+  .cell.storm-immovable,
+  .cell.lightning-row-hit { animation: none !important; }
+}
+
 /* ===== TRAY ===== */
 .tray { background: #1A1B2E; border: 1px solid #3D3F5E; border-radius: 12px; padding: 10px; display: flex; justify-content: space-around; align-items: center; min-height: 90px; }
 .piece { display: grid; cursor: grab; touch-action: none; transition: opacity 0.2s; }
@@ -28834,6 +28903,76 @@ function _bossArchetypePhase() {
 //   ARCHIVAL ETERNAL — LIBRARIAN SEAL: combo cap reduce + per-turn ability seal
 let _ch3BossId = null;        // 'twilight' | 'storm' | 'priestess' | 'root' | 'archival' | null
 let _ch3State  = {};
+// 2026-04-30 — Stormshepherd variant side-effects.
+//   Blizzard freezes 1-2 adjacent empty cells for 2T (canPlace refuses).
+//   Earthquake locks 1 random board cell immovable for 3T (same gate).
+//   Lightning has no persistent state — it's a row strobe + extra tick
+//   applied once at intensify time. These Maps key on "r_c" so the
+//   render loop can paint .storm-frozen / .storm-immovable on the
+//   right cells; canPlace consults both Maps to refuse placement.
+const _stormBlizzardFreezes = new Map();   // key → turnsLeft (default 2)
+const _stormEarthquakeLocks = new Map();   // key → turnsLeft (default 3)
+function _stormApplyBlizzardFreeze(storm) {
+  // Freeze up to 2 random EMPTY adjacent cells.
+  const candidates = [];
+  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    const r = storm.r + dr, c = storm.c + dc;
+    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) continue;
+    if (grid[r][c] !== null) continue;
+    candidates.push(r + '_' + c);
+  }
+  if (candidates.length === 0) return;
+  candidates.sort(() => Math.random() - 0.5);
+  const picks = candidates.slice(0, Math.min(2, candidates.length));
+  for (const k of picks) _stormBlizzardFreezes.set(k, 2);
+  try { flashStateBanner('❄ BLIZZARD · ' + picks.length + ' cell' + (picks.length === 1 ? '' : 's') + ' frozen 2T', '#9CC8DE', 2800); } catch (e) {}
+  try { vibrate([80, 50, 80]); } catch (e) {}
+}
+function _stormApplyEarthquakeLock(storm) {
+  // Pick a random EMPTY board cell (NOT the storm cell itself; the
+  // storm cell is already a void). 3T lock.
+  const candidates = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    if (grid[r][c] !== null) continue;
+    if (r === storm.r && c === storm.c) continue;
+    candidates.push(r + '_' + c);
+  }
+  if (candidates.length === 0) return;
+  const k = candidates[Math.floor(Math.random() * candidates.length)];
+  _stormEarthquakeLocks.set(k, 3);
+  try { flashStateBanner('🌍 EARTHQUAKE · cell locked 3T', '#A5805C', 2800); } catch (e) {}
+  try { vibrate([100, 60, 100, 60, 140]); } catch (e) {}
+}
+function _stormApplyLightningRow(storm) {
+  // Strobe the storm's row + take an extra shield/HP tick on top of
+  // the universal intensify damage. Visual via .lightning-row-hit
+  // class on every cell in that row for 0.6s.
+  try {
+    for (let c = 0; c < SIZE; c++) {
+      const el = document.querySelector(`.cell[data-row="${storm.r}"][data-col="${c}"]`);
+      if (el) {
+        el.classList.remove('lightning-row-hit'); void el.offsetWidth;
+        el.classList.add('lightning-row-hit');
+        setTimeout(() => { try { el.classList.remove('lightning-row-hit'); } catch (e) {} }, 600);
+      }
+    }
+  } catch (e) {}
+  // Extra damage tick (in addition to the universal intensify tax).
+  try {
+    if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+      shieldCount = Math.max(0, shieldCount - 1);
+      try { flashText('⚡ LIGHTNING · 🛡 absorbed', '#FFD53D'); } catch (e2) {}
+    } else if (typeof hp !== 'undefined') {
+      hp = Math.max(0, hp - 1);
+      battleDamageTaken = (battleDamageTaken || 0) + 1;
+      try { flashText('⚡ LIGHTNING · −1 HP', '#FFD53D'); renderHP(); } catch (e2) {}
+      if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+        try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
+      }
+    }
+  } catch (e) {}
+  try { vibrate([200, 80, 240]); } catch (e) {}
+}
 function _ch3PhaseFromHp() {
   if (!bossMaxHP) return 1;
   const r = bossHP / bossMaxHP;
@@ -28844,6 +28983,10 @@ function _ch3PhaseFromHp() {
 function initChapter3Boss() {
   _ch3BossId = null;
   _ch3State  = { turn: 0, debuffs: [], witherCells: [], seals: [], stormFlash: '' };
+  // 2026-04-30 — clear Stormshepherd variant Maps so Tower / replay
+  // encounters don't inherit a frozen / locked cell from a prior fight.
+  try { if (typeof _stormBlizzardFreezes !== 'undefined') _stormBlizzardFreezes.clear(); } catch (e) {}
+  try { if (typeof _stormEarthquakeLocks !== 'undefined') _stormEarthquakeLocks.clear(); } catch (e) {}
   if (currentChapter !== 3 || !currentBoss) return;
   const map = {
     'TWILIGHT VESSEL':  'twilight',
@@ -28869,29 +29012,62 @@ function tickChapter3Boss() {
   // ===== STORMSHEPHERD — STORM SUMMONING (with shatter escape per spec §2.3) =====
   // Spawn N extra storm voids per turn (N = phase). 3 storm types cycle.
   // 2026-04-27 — Block 6.5 DEBT-3: storm cells track {r,c,turnsLeft=2}.
-  // If storm cell still on grid after 2 turns → INTENSIFY (chip 100 dmg).
+  // If storm cell still on grid after 2 turns → INTENSIFY.
   // If storm cell cleared via cascade/ULT before timer expires → DEFUSED.
+  // 2026-04-30 — Storm variants no longer functionally identical:
+  //   BLIZZARD ❄  → freezes 1-2 adjacent empty cells for 2T (canPlace
+  //                 refuses; render shows ❄ overlay).
+  //   EARTHQUAKE 🌍 → locks 1 random board cell immovable for 3T (same
+  //                   placement-block visual; lasts longer than blizzard).
+  //   LIGHTNING ⚡  → strobes a random row + an extra HP/shield tick on
+  //                   top of the standard intensify damage. No persistent
+  //                   board state; pure burst damage.
+  // Storm-cell `type` is stamped at spawn so the right side-effect fires
+  // when (and only when) that specific storm intensifies. Common 1-tick
+  // damage path is preserved so all three storms still hurt baseline.
   if (_ch3BossId === 'storm') {
     if (!Array.isArray(_ch3State.stormCells)) _ch3State.stormCells = [];
+    // Tick down active blizzard freezes + earthquake locks first so
+    // they release at start of player's turn.
+    if (_stormBlizzardFreezes && _stormBlizzardFreezes.size > 0) {
+      const drop = [];
+      for (const [k, t] of _stormBlizzardFreezes.entries()) {
+        const next = t - 1;
+        if (next <= 0) drop.push(k);
+        else _stormBlizzardFreezes.set(k, next);
+      }
+      for (const k of drop) _stormBlizzardFreezes.delete(k);
+      if (drop.length > 0) try { flashStateBanner('❄ BLIZZARD · ' + drop.length + ' cell' + (drop.length === 1 ? '' : 's') + ' THAWED', '#9CC8DE'); } catch (e) {}
+    }
+    if (_stormEarthquakeLocks && _stormEarthquakeLocks.size > 0) {
+      const drop = [];
+      for (const [k, t] of _stormEarthquakeLocks.entries()) {
+        const next = t - 1;
+        if (next <= 0) drop.push(k);
+        else _stormEarthquakeLocks.set(k, next);
+      }
+      for (const k of drop) _stormEarthquakeLocks.delete(k);
+      if (drop.length > 0) try { flashStateBanner('🌍 EARTHQUAKE · GROUND SETTLES', '#A5805C'); } catch (e) {}
+    }
+
     // Tick existing storms: drop those whose cell was cleared, intensify those
     // that timed out, decrement otherwise.
     const survivors = [];
-    let intensified = 0;
+    const intensifiedStorms = [];
     for (const s of _ch3State.stormCells) {
       const stillThere = grid[s.r] && (typeof grid[s.r][s.c] === 'string') && grid[s.r][s.c].startsWith('void_');
       if (!stillThere) continue;  // DEFUSED — player cleared the storm cell
       s.turnsLeft--;
       if (s.turnsLeft <= 0) {
-        intensified++;
+        intensifiedStorms.push(s);
       } else {
         survivors.push(s);
       }
     }
-    if (intensified > 0) {
-      // 2026-04-27 — HOTFIX: player HP is on the 3-HP scale (MAX_HP=3), not 1000+.
-      // Original 100-per-storm dmg was instant TPK on first intensify (3 placements).
-      // Now: shield-first (preserves shield system), else 1 HP total per tick (capped),
-      // never compounds across multiple intensified storms in same tick.
+    if (intensifiedStorms.length > 0) {
+      // Common base intensify damage — one shield/HP tick total per
+      // turn regardless of how many storms intensified at once. Same
+      // cap as before to avoid TPK from a triple-storm tick.
       try {
         if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
           shieldCount = Math.max(0, shieldCount - 1);
@@ -28905,32 +29081,46 @@ function tickChapter3Boss() {
           }
         }
       } catch (e) {}
+      // Per-variant secondary effects. Each storm contributes its own
+      // unique pressure — the 1-shield baseline above is the universal
+      // tax, this is the flavor that makes the player learn which icon
+      // to fear most.
+      for (const s of intensifiedStorms) {
+        try {
+          if (s.type === 'blizzard') _stormApplyBlizzardFreeze(s);
+          else if (s.type === 'earthquake') _stormApplyEarthquakeLock(s);
+          else if (s.type === 'lightning') _stormApplyLightningRow(s);
+        } catch (e) { console.warn('storm variant intensify failed:', e); }
+      }
     }
     _ch3State.stormCells = survivors;
-    // Spawn new storms this turn
+    // Spawn new storms this turn — single type per spawn batch (stays
+    // legible: "this is a Blizzard turn"), cell count = phase.
     const stormCount = phase;
-    const stormTypes = ['❄ BLIZZARD', '🌍 EARTHQUAKE', '⚡ LIGHTNING'];
+    const stormTypes = [
+      { id: 'blizzard',   label: '❄ BLIZZARD',  color: '#9CC8DE' },
+      { id: 'earthquake', label: '🌍 EARTHQUAKE', color: '#A5805C' },
+      { id: 'lightning',  label: '⚡ LIGHTNING', color: '#FFD53D' },
+    ];
     const empties = [];
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
       if (grid[r][c] === null) empties.push([r, c]);
     }
     empties.sort(() => Math.random() - 0.5);
     const picks = empties.slice(0, stormCount);
-    for (const [r, c] of picks) {
-      grid[r][c] = 'void_' + (currentBoss.stihiya || 'tide');
-      _ch3State.stormCells.push({ r, c, turnsLeft: 2 });
-    }
     if (picks.length > 0) {
-      const stormIdx = Math.floor(Math.random() * 3);
-      const stormName = stormTypes[stormIdx];
-      // 2026-04-29 polish v0.1 Track C.2: route through #threatBanner
-      // (above-grid persistent) instead of flashText (centered overlay
-      // that obscured the grid). The per-cell turn-counter chip
-      // (DEBT-3) still shows the timer visually on each storm cell;
-      // banner persists for ~3s then auto-clears so it doesn't pile
-      // up across multiple turns.
-      const _label = picks.length > 1 ? stormName + ' ×' + picks.length : stormName;
-      const _msg = '⚠ ' + _label + ' in 2 turns — clear the cells to stop it';
+      const variant = stormTypes[Math.floor(Math.random() * 3)];
+      for (const [r, c] of picks) {
+        grid[r][c] = 'void_' + (currentBoss.stihiya || 'tide');
+        _ch3State.stormCells.push({ r, c, turnsLeft: 2, type: variant.id });
+      }
+      // Threat banner copy now reflects what each variant DOES on
+      // intensify so the player can pattern-read at a glance.
+      const _suffix = variant.id === 'blizzard' ? ' — clear or adjacent cells freeze'
+                    : variant.id === 'earthquake' ? ' — clear or a board cell locks 3T'
+                    : ' — clear or a row gets struck';
+      const _label = picks.length > 1 ? variant.label + ' ×' + picks.length : variant.label;
+      const _msg = '⚠ ' + _label + ' in 2 turns' + _suffix;
       try { showThreatBanner(_msg, 3500); } catch (e) {}
       try { render(); } catch (e) {}
     }
@@ -33022,6 +33212,21 @@ function canPlace(p, br, bc) {
     if (typeof _grovewardenRootBindCells !== 'undefined' && _grovewardenRootBindCells.size > 0) {
       for (const [dr, dc] of cellsOf(p)) {
         if (_grovewardenRootBindCells.has((br + dr) + '_' + (bc + dc))) return false;
+      }
+    }
+  } catch (e) {}
+  // 2026-04-30 — Stormshepherd Blizzard freeze + Earthquake lock. Same
+  // refuse-and-fall-through pattern. Clears when their respective
+  // turnsLeft expires (managed in tickChapter3Boss → storm path).
+  try {
+    if (typeof _stormBlizzardFreezes !== 'undefined' && _stormBlizzardFreezes.size > 0) {
+      for (const [dr, dc] of cellsOf(p)) {
+        if (_stormBlizzardFreezes.has((br + dr) + '_' + (bc + dc))) return false;
+      }
+    }
+    if (typeof _stormEarthquakeLocks !== 'undefined' && _stormEarthquakeLocks.size > 0) {
+      for (const [dr, dc] of cellsOf(p)) {
+        if (_stormEarthquakeLocks.has((br + dr) + '_' + (bc + dc))) return false;
       }
     }
   } catch (e) {}
@@ -40988,6 +41193,17 @@ function renderGrid() {
       }
       if (typeof _cryptLichNecropulsePending !== 'undefined' && _cryptLichNecropulsePending) {
         if (v === 'umbra' || v === 'void_umbra') d.classList.add('necropulse-charged');
+      }
+    } catch (e) {}
+    // Stormshepherd Blizzard frozen + Earthquake locked cells.
+    // Both block placement (canPlace gate) and get distinct visuals so
+    // the player can read which storm variant created the lock.
+    try {
+      if (typeof _stormBlizzardFreezes !== 'undefined' && _stormBlizzardFreezes.has(key)) {
+        d.classList.add('storm-frozen');
+      }
+      if (typeof _stormEarthquakeLocks !== 'undefined' && _stormEarthquakeLocks.has(key)) {
+        d.classList.add('storm-immovable');
       }
     } catch (e) {}
     if (v) {
