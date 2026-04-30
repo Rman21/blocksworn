@@ -8544,6 +8544,48 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   0% { transform: scale(0) rotate(-30deg); opacity: 0; }
   100% { transform: scale(1) rotate(0); opacity: 1; }
 }
+/* 2026-04-30 — Pyredrake Cinderblast telegraph + impact (Ch.1 Boss 1).
+   .cinderblast-warn: pulsing ember overlay on the 4 row cells about to
+   be struck. The cell stays empty/playable during the warning — this
+   is decoration, not a placement block. The pulse pace (1.0s) is
+   slightly faster than the storm-banner pulse so the eye reads it as
+   "more imminent". .cinderblast-hit: brief strobe + outward burst on
+   landing so the player sees exactly which row the strike landed on
+   even if their gaze was elsewhere. Reduced-motion → static color
+   only, no animation. */
+.cell.cinderblast-warn {
+  position: relative;
+  animation: cinderblastWarn 1.0s ease-in-out infinite;
+  z-index: 2;
+}
+.cell.cinderblast-warn::after {
+  content: '';
+  position: absolute; inset: 2px;
+  border-radius: 4px;
+  background: radial-gradient(circle at center, rgba(255, 80, 50, 0.55), rgba(232, 93, 74, 0.18) 60%, transparent 80%);
+  border: 2px solid rgba(255, 100, 60, 0.85);
+  box-shadow: 0 0 12px rgba(255, 100, 60, 0.55), inset 0 0 8px rgba(255, 130, 60, 0.5);
+  pointer-events: none;
+}
+.cell.cinderblast-hit {
+  animation: cinderblastHit 0.55s ease-out forwards;
+  z-index: 3;
+}
+@keyframes cinderblastWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.45) saturate(1.15); }
+}
+@keyframes cinderblastHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(255,80,40,0); }
+  20%  { filter: brightness(2.6) saturate(1.4); transform: scale(1.18); box-shadow: 0 0 28px rgba(255,80,40,0.9), 0 0 12px rgba(255,180,80,0.6) inset; }
+  60%  { filter: brightness(1.6) saturate(1.2); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(255,80,40,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cell.cinderblast-warn { animation: none !important; }
+  .cell.cinderblast-warn::after { animation: none !important; }
+  .cell.cinderblast-hit { animation: none !important; }
+}
 
 /* ===== TRAY ===== */
 .tray { background: #1A1B2E; border: 1px solid #3D3F5E; border-radius: 12px; padding: 10px; display: flex; justify-content: space-around; align-items: center; min-height: 90px; }
@@ -28662,8 +28704,153 @@ function tickChapter2Archetype() {
     case 'frenzy':          _tickFrenzy(phase);    break;
     case 'tempo_disruptor': _tickTempo(phase);     break;
     case 'battery':         _tickBattery(phase);   break;
-    default: return; // Chapter 1 archetypes — existing handlers unchanged
+    // 2026-04-30 — Chapter 1 boss-specific abilities. Until polish v0.2 the
+    // Ch1 series ran on archetype-only mechanics (berserker enrage, tank
+    // armor, etc.) which left them feeling generic compared to Ch2's
+    // telegraphed kit. Each Ch1 boss gets one or more telegraphed
+    // specials per BLOCKSWORN_BOSS_COMPENDIUM, dispatched here by id so a
+    // future second berserker / tank / etc. doesn't inherit the wrong
+    // ability set.
+    case 'berserker':
+      if (currentBoss.id === 'pyredrake' || currentBoss.name === 'PYREDRAKE') _tickPyredrake(phase);
+      break;
+    default: return; // Other Chapter 1 archetypes — existing handlers unchanged
   }
+}
+
+// ===== PYREDRAKE — Cinderblast (Ch.1 Boss 1, BOSS_COMPENDIUM §1.1) =====
+// Every 6 turns, telegraph a 4-cell row strike on a 2-turn timer. Phase 1
+// fires Cinderblast on its base 6-turn interval; Phase 2 cuts it to 5;
+// Phase 3 cuts to 4 (Pyredrake is enraged, attacks come faster — its
+// signature special should accelerate too). The strike itself is
+// uncounterable per spec: clearing the warning cells does NOT defuse,
+// the player just has to absorb. The 2-turn warning is the tradeoff —
+// it teaches them to build shields / save ULTs for the landing turn.
+//
+// Implementation parallels the Stormshepherd storm pattern (storms spawn
+// → tick down → intensify), but Pyredrake's strike lands on the
+// player's HP/shields directly, not on cells. The 4 warning cells get
+// `.cinderblast-warn` painted for visibility; the cells themselves
+// remain playable during the warning. On landing, the warning class is
+// stripped and damage is applied (1 HP on shield-less, else 1 shield;
+// scales by phase: P1=1, P2=2, P3=3 ticks).
+let _pyredrakeState = null;
+const PYREDRAKE_CINDERBLAST_INT_P1 = 6;
+const PYREDRAKE_CINDERBLAST_INT_P2 = 5;
+const PYREDRAKE_CINDERBLAST_INT_P3 = 4;
+const PYREDRAKE_CINDERBLAST_WARN_TURNS = 2;
+function _initPyredrakeState() {
+  _pyredrakeState = {
+    turnsSinceCinderblast: 0,
+    incoming: null, // { row, c0, cells: [[r,c],…], turnsLeft }
+  };
+}
+function _resetPyredrakeState() {
+  _pyredrakeWarnCells.clear();
+  _pyredrakeState = null;
+}
+function _pyredrakeCinderblastInterval(phase) {
+  if (phase >= 3) return PYREDRAKE_CINDERBLAST_INT_P3;
+  if (phase >= 2) return PYREDRAKE_CINDERBLAST_INT_P2;
+  return PYREDRAKE_CINDERBLAST_INT_P1;
+}
+function _tickPyredrake(phase) {
+  if (!_pyredrakeState) _initPyredrakeState();
+  const st = _pyredrakeState;
+  // Already incoming — count down then apply.
+  if (st.incoming) {
+    st.incoming.turnsLeft--;
+    if (st.incoming.turnsLeft <= 0) {
+      _pyredrakeApplyCinderblast(st.incoming, phase);
+      st.incoming = null;
+      st.turnsSinceCinderblast = 0;
+    }
+    return;
+  }
+  // Otherwise count toward next strike. First tick of fight starts
+  // counter at 1, so first Cinderblast warning lands on turn 6 of P1
+  // and the strike on turn 8.
+  st.turnsSinceCinderblast++;
+  if (st.turnsSinceCinderblast >= _pyredrakeCinderblastInterval(phase)) {
+    _pyredrakeQueueCinderblast(phase);
+  }
+}
+// Set of "r_c" keys for cells currently flagged for the incoming
+// strike. Re-applied on every render() loop so the .cinderblast-warn
+// class survives grid rebuilds — same pattern used by chargedCells /
+// radiantCells / _stormTimers elsewhere in the file. Cleared when the
+// strike lands or when a fight resets.
+const _pyredrakeWarnCells = new Set();
+function _pyredrakeQueueCinderblast(phase) {
+  // Pick a random row + 4 contiguous columns that fit on the board.
+  // GRID_HEIGHT / GRID_WIDTH may not exist as constants in older builds
+  // — derive from the actual grid array if needed.
+  let H = 8, W = 8;
+  try {
+    if (typeof grid !== 'undefined' && Array.isArray(grid) && grid.length) {
+      H = grid.length;
+      if (Array.isArray(grid[0])) W = grid[0].length;
+    }
+  } catch (e) {}
+  const r = Math.floor(Math.random() * H);
+  const maxStart = Math.max(0, W - 4);
+  const c0 = Math.floor(Math.random() * (maxStart + 1));
+  const cells = [];
+  for (let i = 0; i < 4; i++) cells.push([r, c0 + i]);
+  _pyredrakeWarnCells.clear();
+  for (const [rr, cc] of cells) _pyredrakeWarnCells.add(rr + '_' + cc);
+  _pyredrakeState.incoming = { row: r, c0, cells, turnsLeft: PYREDRAKE_CINDERBLAST_WARN_TURNS };
+  // Re-render so the new warning cells get .cinderblast-warn applied
+  // by the render loop's pyredrake-warn fast-path.
+  try { if (typeof render === 'function') render(); } catch (e) {}
+  // Persistent threat banner — clears when the strike lands (turnsLeft=0
+  // path) so the player always sees the timer while it's active.
+  try { showThreatBanner('⚠ CINDERBLAST in 2 turns — ember row incoming', 0); } catch (e) {}
+  try { vibrate([60, 40, 80, 40, 100]); } catch (e) {}
+}
+function _pyredrakeApplyCinderblast(incoming, phase) {
+  // Clear warn-set FIRST so the render below paints clean cells, then
+  // strobe the impact class on whatever cells currently exist for
+  // those positions. Render runs after the strobe class is added so
+  // the animation actually shows.
+  _pyredrakeWarnCells.clear();
+  try {
+    if (typeof render === 'function') render();
+    for (const [r, c] of incoming.cells) {
+      const el = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+      if (el) {
+        el.classList.remove('cinderblast-hit');
+        // Strobe red briefly on impact — telegraphed cells flash to
+        // reinforce that THIS is the row the strike landed on.
+        void el.offsetWidth;
+        el.classList.add('cinderblast-hit');
+        setTimeout(() => { try { el.classList.remove('cinderblast-hit'); } catch (e) {} }, 600);
+      }
+    }
+  } catch (e) {}
+  // Damage tier scales by phase: P1=1 tick, P2=2 ticks, P3=3 ticks.
+  // Each tick = 1 shield (or 1 HP if shield-less), matching the
+  // Stormshepherd intensify cadence so players can pattern-match.
+  const ticks = Math.max(1, phase || 1);
+  for (let i = 0; i < ticks; i++) {
+    try {
+      if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+        shieldCount = Math.max(0, shieldCount - 1);
+      } else if (typeof hp !== 'undefined') {
+        hp = Math.max(0, hp - 1);
+        battleDamageTaken = (battleDamageTaken || 0) + 1;
+        if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+          try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+  try { hideThreatBanner(); } catch (e) {}
+  try { flashText('🔥 CINDERBLAST!', '#FF4400', { force: true }); } catch (e) {}
+  try { vibrate([200, 80, 200, 80, 400]); } catch (e) {}
+  try { renderHP(); } catch (e) {}
+  try { if (typeof render === 'function') render(); } catch (e) {}
 }
 
 // HYPNOTIST tick — Suggestion, Petal Fall, Tendril Coil, Bloom Bloom (per phase).
@@ -31163,6 +31350,9 @@ function startBossBattle() {
     if (typeof hideThreatBanner === 'function') hideThreatBanner();
     // 2026-04-30 polish v0.2 Track H Part 2: same hygiene for the state banner.
     if (typeof hideStateBanner === 'function') hideStateBanner();
+    // 2026-04-30 — Pyredrake Cinderblast state. Strips any leftover
+    // warning class on cells from a prior fight before the next encounter.
+    if (typeof _resetPyredrakeState === 'function') _resetPyredrakeState();
   } catch (e) {}
   // V3.0 Phase 4: show one-time tutorial toast carousel on first battle.
   // PHASE 4 BLOCK 1 — carousel is gated to NON-FTUE inside maybeShowBattleTutorial
@@ -39465,8 +39655,25 @@ function renderGrid() {
   for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
     const d = document.createElement('div');
     d.className = 'cell';
+    // 2026-04-30 — data-row/col for JS that needs to address a specific
+    // cell after render (e.g. Pyredrake's cinderblast-hit strobe). The
+    // grid is rebuilt each render so any class added via querySelector
+    // gets wiped — anything that should persist must live in render
+    // state (chargedCells, _stormTimers, _pyredrakeWarnCells, …) and be
+    // re-applied here. Adding the data attrs is cheap and lets one-shot
+    // strobes target the live DOM without keeping their own bookkeeping.
+    d.dataset.row = r;
+    d.dataset.col = c;
     const v = grid[r][c];
     const key = r + '_' + c;
+    // Pyredrake Cinderblast warning — paint the 4 telegraphed row cells.
+    // _pyredrakeWarnCells is cleared on impact / battle reset so this
+    // class only sticks during the active 2-turn warning window.
+    try {
+      if (typeof _pyredrakeWarnCells !== 'undefined' && _pyredrakeWarnCells.has(key)) {
+        d.classList.add('cinderblast-warn');
+      }
+    } catch (e) {}
     if (v) {
       if (v.startsWith('void_')) {
         d.classList.add('filled', 'void-' + v.slice(5));
