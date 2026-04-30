@@ -188,13 +188,20 @@
   --fw-bold:    700;
   --fw-black:   800;
 
-  /* §16 Layout heights — single source of truth for stack budget. */
+  /* §16 Layout heights — single source of truth for stack budget.
+     2026-04-30 — Combat UI Final Polish §3 (PR 1/6): tightened budget to
+     give the 8×8 board ~25px more vertical room (was clipping top + bottom
+     rows on iPhone 13). Boss 110→100 (compact buff banner removed in PR 2),
+     hero 95→90 (slightly tighter portraits), tray 105→95 (element pill
+     migrating to top bar in PR 4 frees the right rail). Net board gain
+     visible immediately even before later PRs land — the calc() budget
+     in .grid (line ~9654) is reduced in lock-step. */
   --top-bar-height:    40px;
-  --boss-area-height: 110px;
+  --boss-area-height: 100px;
   --boss-portrait:     72px;
-  --hero-row-height:   95px;
+  --hero-row-height:   90px;
   --hero-portrait:     60px;
-  --tray-height:      105px;
+  --tray-height:       95px;
 }
 
 /* §14.3 4-tier responsive breakpoints (PR 6/6).
@@ -203,14 +210,18 @@
    boss portrait, etc.) read the var so they all scale together
    without per-rule duplication. */
 
-/* Small Phone (<380px) — iPhone SE, narrow Androids */
+/* Small Phone (<380px) — iPhone SE, narrow Androids.
+   2026-04-30 — Combat UI Final Polish §3.2 (PR 1/6): SE-class budget
+   matched to spec's iPhone SE row (375×667). Boss 95→90, hero 85→80,
+   tray 95→90 — saves another 15px so the cell-size floor (35px) clears
+   all 8 rows without clipping on the smallest supported viewport. */
 @media (max-width: 380px) {
   :root {
-    --boss-area-height:  95px;
+    --boss-area-height:  90px;
     --boss-portrait:     60px;
-    --hero-row-height:   85px;
+    --hero-row-height:   80px;
     --hero-portrait:     52px;
-    --tray-height:       95px;
+    --tray-height:       90px;
     --cell-size: clamp(35px, 8vw, 45px);
   }
 }
@@ -6162,14 +6173,13 @@ body.shop-locked [onclick*="goToShop"] {
   --phase-m2: var(--phase-m1);
 }
 
-.a-battle .v-battle-boss-hptext {
-  font-family: var(--a-font-num);
-  font-weight: 900;
-  font-size: 10px;
-  color: var(--a-gold-300);
-  margin-top: 3px;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-}
+/* 2026-04-30 — Combat UI Final Polish §5 (PR 1/6): legacy
+   .v-battle-boss-hptext rule removed. The DOM element is gone (boss-info
+   now ends at the .v-progress HP bar). Kept as a comment marker so a
+   future grep for "v-battle-boss-hptext" still lands here and explains
+   the absence — same documentation pattern used for .attack-warning
+   and .v-battle-player-hp legacy classes. */
+
 .a-battle .attack-warning {
   position: absolute;
   top: 4px; right: 8px;
@@ -9647,11 +9657,17 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   display: flex; justify-content: center; align-items: center;
   flex-shrink: 1; min-height: 0;
 }
-.grid { 
-  display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); 
+.grid {
+  display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
   gap: 3px; aspect-ratio: 1 / 1;
-  /* Shrink when viewport height is limited — reserves space for boss/deck/tray/footer + safe areas */
-  width: min(100%, calc(100dvh - 480px), calc(100vh - 480px));
+  /* Shrink when viewport height is limited — reserves space for boss/deck/tray/footer + safe areas.
+     2026-04-30 — Combat UI Final Polish §4.2 (PR 1/6): budget tightened
+     480→455px in lock-step with the height-token reduction (boss -10,
+     hero -5, tray -10 = 25px freed). The grid claims the freed 25px
+     directly, growing the cell-size from ~49 → ~53 on iPhone 13 — all
+     8 rows fit cleanly with no clipping. dvh fallback to vh is preserved
+     for non-iOS where dvh is unsupported. */
+  width: min(100%, calc(100dvh - 455px), calc(100vh - 455px));
   max-width: 100%;
 }
 .cell { background: #0F0F1F; border: 1px solid #2A2B45; border-radius: 4px; transition: background 0.15s; }
@@ -14759,9 +14775,8 @@ button.season-tier-claim:active {
   .a-battle .v-battle-boss-lvl {
     font-size: 9px; letter-spacing: 0.4px;
   }
-  .a-battle .v-battle-boss-hptext {
-    font-size: 10px;
-  }
+  /* .v-battle-boss-hptext rule removed in Combat UI Final Polish §5
+     (PR 1/6) — element no longer in DOM. */
   .a-battle .v-battle-boss-card .v-progress {
     height: 8px !important;
   }
@@ -15584,7 +15599,20 @@ button.season-tier-claim:active {
           <div class="v-progress-fill v-progress-lag" id="bossHpLag" style="width:100%"></div>
           <div class="v-progress-fill hp" id="bossHpFill" style="width:100%"></div>
         </div>
-        <div class="v-battle-boss-hptext" id="bossHpText">—</div>
+        <!-- 2026-04-30 — Combat UI Final Polish §5 (PR 1/6): duplicate
+             "1.8K / 1.8K" HP-numbers row removed. The gradient HP bar
+             above is sufficient information density — Marvel Snap
+             pattern (no HP numbers shown). Boss damage feedback already
+             surfaces via floatDamage() animated numbers from boss
+             portrait on every hit — see line ~36584. Boss revive
+             indicator (🔥🔥🔥 for multi-life bosses) re-homed to the
+             #bossLevel meta line in renderBossHP() so that information
+             is preserved without re-introducing the duplicate row.
+
+             Defensive: renderBossHP() early-skips the legacy
+             #bossHpText write so any future rollback that re-adds the
+             element starts working again with no JS change. -->
+
         <!-- 2026-04-30 — Combat UI Redesign §5 (PR 4/6): persistent warning
              badges in top-right of boss-card. Driven by _renderBossWarnings
              which reads attackWarning text + HP phase to surface up to 3
@@ -43124,11 +43152,37 @@ function renderBossHP() {
   // POLISH v1 · PHASE 3 — update lag-bar (догоняет с задержкой)
   const lag = document.getElementById('bossHpLag');
   if (lag) lag.style.width = pct + '%';
-  // Lives indicator: shown for any revive-boss across all its lives (current + remaining)
+  // Lives indicator: shown for any revive-boss across all its lives (current + remaining).
   const hasRevives = currentBoss && (currentBoss.revives || 0) > 0;
   const reviveMark = hasRevives ? ` · ${'🔥'.repeat(revivesRemaining + 1)}` : '';
-  document.getElementById('bossHpText').textContent =
-    `${_shortHP(bossHP)} / ${_shortHP(bossMaxHP)}${reviveMark}`;
+  // 2026-04-30 — Combat UI Final Polish §5 (PR 1/6): the duplicate
+  // "1.8K / 1.8K" HP text row was removed (HP bar visual is enough —
+  // Marvel Snap pattern). The revive flame indicator was the one piece
+  // of player-relevant data on that row, so it gets re-homed onto the
+  // boss meta line (`Level 1 · Fire · 🔥🔥🔥`) — preserves the info
+  // density without re-introducing the cluttered numbers row.
+  //
+  // Defensive guard: if a future rollback re-adds #bossHpText, the
+  // legacy write path lights back up on its own (no JS revert needed).
+  const _hpText = document.getElementById('bossHpText');
+  if (_hpText) {
+    _hpText.textContent = `${_shortHP(bossHP)} / ${_shortHP(bossMaxHP)}${reviveMark}`;
+  }
+  // Append/strip revive flames on the meta line. Guarded — `currentBoss`
+  // and the level element may both be missing during early-init paths.
+  // Idempotency: strip any pre-existing trailing flame run before
+  // appending the current one, so repeated renderBossHP() calls during
+  // a single boss life don't keep stacking 🔥🔥🔥🔥🔥. The new boss
+  // loader at startBossBattle() resets bossLevel.textContent to the
+  // bare title (no flames) — first renderBossHP after that adds the
+  // correct flame count cleanly without a stale-cache hop.
+  try {
+    const _lvlEl = document.getElementById('bossLevel');
+    if (_lvlEl && currentBoss) {
+      const _baseMeta = _lvlEl.textContent.replace(/\s*·\s*🔥+\s*$/, '');
+      _lvlEl.textContent = _baseMeta + reviveMark;
+    }
+  } catch (e) { /* defensive — never break HP render on a meta-line glitch */ }
   // 2026-04-30 — Combat UI Redesign §5 (PR 4/6): phase glow on portrait
   // tracks HP thresholds. Phase 2 (≤66%) gold breathing; Phase 3 (≤33%)
   // pink panic pulse. Lower-bound first so a boss at 33% gets the more
