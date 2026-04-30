@@ -8587,6 +8587,121 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .cell.cinderblast-hit { animation: none !important; }
 }
 
+/* 2026-04-30 — Abyssal Tyrant kit visuals (Ch.1 Boss 2).
+   .row-strike-warn  : full-row 1T telegraph (tide blue, faster pulse
+                      than Cinderblast — 0.7s — because it's a 1-turn
+                      window, not 2). Cells stay playable.
+   .row-strike-hit   : 0.5s impact strobe in tide blue.
+   .maelstrom-warn   : top-row 2T telegraph for tide-void conversion.
+                      Slow swirling shimmer to differentiate from the
+                      faster row-strike pulse.
+   .hero-card--crush-spire-warn   : pre-pin highlight on the targeted
+                                    hero card (faint chain overlay).
+   .hero-card--crush-spire-locked : active 2T pin (full chain icon
+                                    overlay + dim filter). */
+.cell.row-strike-warn {
+  position: relative;
+  animation: rowStrikeWarn 0.7s ease-in-out infinite;
+  z-index: 2;
+}
+.cell.row-strike-warn::after {
+  content: '';
+  position: absolute; inset: 2px;
+  border-radius: 4px;
+  background: radial-gradient(circle at center, rgba(59, 139, 212, 0.55), rgba(59, 139, 212, 0.18) 60%, transparent 80%);
+  border: 2px solid rgba(80, 170, 230, 0.85);
+  box-shadow: 0 0 12px rgba(80, 170, 230, 0.55), inset 0 0 8px rgba(140, 210, 240, 0.5);
+  pointer-events: none;
+}
+.cell.row-strike-hit {
+  animation: rowStrikeHit 0.5s ease-out forwards;
+  z-index: 3;
+}
+@keyframes rowStrikeWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.45) saturate(1.15); }
+}
+@keyframes rowStrikeHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(60,140,220,0); }
+  20%  { filter: brightness(2.4) saturate(1.5); transform: scale(1.16); box-shadow: 0 0 24px rgba(60,140,220,0.9), 0 0 12px rgba(140,210,240,0.6) inset; }
+  60%  { filter: brightness(1.5) saturate(1.2); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(60,140,220,0); }
+}
+
+.cell.maelstrom-warn {
+  position: relative;
+  animation: maelstromWarn 1.6s ease-in-out infinite;
+  z-index: 2;
+}
+.cell.maelstrom-warn::after {
+  content: '';
+  position: absolute; inset: 2px;
+  border-radius: 4px;
+  background: conic-gradient(from 0deg at center, rgba(50, 110, 180, 0.45), rgba(80, 170, 230, 0.25), rgba(50, 110, 180, 0.45));
+  border: 2px solid rgba(120, 200, 255, 0.7);
+  box-shadow: 0 0 14px rgba(80, 170, 230, 0.5), inset 0 0 8px rgba(140, 210, 240, 0.4);
+  pointer-events: none;
+  animation: maelstromSwirl 2.4s linear infinite;
+}
+@keyframes maelstromWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.3) saturate(1.2); }
+}
+@keyframes maelstromSwirl {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.hero-card--crush-spire-warn {
+  position: relative;
+  outline: 2px dashed rgba(80, 170, 230, 0.6);
+  outline-offset: -2px;
+  animation: crushWarnPulse 1.0s ease-in-out infinite;
+}
+.hero-card--crush-spire-warn::after {
+  content: '⚓';
+  position: absolute; top: 4px; right: 4px;
+  font-size: 14px;
+  color: rgba(140, 210, 240, 0.85);
+  text-shadow: 0 0 6px rgba(80, 170, 230, 0.9);
+  pointer-events: none;
+  z-index: 4;
+}
+.hero-card--crush-spire-locked {
+  position: relative;
+  filter: brightness(0.55) saturate(0.7);
+  outline: 2px solid rgba(60, 140, 220, 0.85);
+  outline-offset: -2px;
+  box-shadow: 0 0 14px rgba(80, 170, 230, 0.5);
+}
+.hero-card--crush-spire-locked::after {
+  content: '⚓';
+  position: absolute; top: 4px; right: 4px;
+  font-size: 16px;
+  color: #B0DBFF;
+  text-shadow: 0 0 8px rgba(80, 170, 230, 1.0), 0 0 16px rgba(60, 140, 220, 0.7);
+  pointer-events: none;
+  z-index: 4;
+  animation: crushLockBob 1.4s ease-in-out infinite;
+}
+@keyframes crushWarnPulse {
+  0%, 100% { outline-color: rgba(80, 170, 230, 0.4); }
+  50%      { outline-color: rgba(140, 210, 240, 0.95); }
+}
+@keyframes crushLockBob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cell.row-strike-warn,
+  .cell.row-strike-warn::after,
+  .cell.row-strike-hit,
+  .cell.maelstrom-warn,
+  .cell.maelstrom-warn::after,
+  .hero-card--crush-spire-warn,
+  .hero-card--crush-spire-locked::after { animation: none !important; }
+}
+
 /* ===== TRAY ===== */
 .tray { background: #1A1B2E; border: 1px solid #3D3F5E; border-radius: 12px; padding: 10px; display: flex; justify-content: space-around; align-items: center; min-height: 90px; }
 .piece { display: grid; cursor: grab; touch-action: none; transition: opacity 0.2s; }
@@ -27861,6 +27976,13 @@ function canFireUlt(heroId) {
       && hypnotistTendrilTurnsLeft > 0) {
     return false;
   }
+  // 2026-04-30 — Abyssal Tyrant Crush Spire: locked hero cannot fire ULT
+  // for 2 turns (BOSS_COMPENDIUM §1.2). Same shape as Hypnotist Tendril.
+  if (typeof abyssalCrushSpireHeroId !== 'undefined'
+      && abyssalCrushSpireHeroId === heroId
+      && abyssalCrushSpireTurnsLeft > 0) {
+    return false;
+  }
   // PHASE 5b BLOCK 5 — Frenzy Devour: locked hero cannot fire ULT for 3 turns.
   // Visual feedback via .hero-card--frenzy-devoured CSS class.
   if (typeof frenzyDevouredHeroId !== 'undefined'
@@ -28714,6 +28836,9 @@ function tickChapter2Archetype() {
     case 'berserker':
       if (currentBoss.id === 'pyredrake' || currentBoss.name === 'PYREDRAKE') _tickPyredrake(phase);
       break;
+    case 'armored':
+      if (currentBoss.id === 'abyssal_tyrant' || currentBoss.name === 'ABYSSAL TYRANT') _tickAbyssalTyrant(phase);
+      break;
     default: return; // Other Chapter 1 archetypes — existing handlers unchanged
   }
 }
@@ -28850,6 +28975,243 @@ function _pyredrakeApplyCinderblast(incoming, phase) {
   try { flashText('🔥 CINDERBLAST!', '#FF4400', { force: true }); } catch (e) {}
   try { vibrate([200, 80, 200, 80, 400]); } catch (e) {}
   try { renderHP(); } catch (e) {}
+  try { if (typeof render === 'function') render(); } catch (e) {}
+}
+
+// ===== ABYSSAL TYRANT — Row Strike / Crush Spire / Maelstrom =====
+// (Ch.1 Boss 2, BOSS_COMPENDIUM §1.2). Tide-themed armored boss; the
+// existing kit was 70% armor + base voids only. Three telegraphed
+// specials add board-state + hero-lock pressure that scales by phase.
+//
+// ROW STRIKE   (P1+, every 7 / 6 / 5 turns by phase, 1T telegraph)
+//   Full-row strike (8 cells). Telegraphed via threat banner +
+//   .row-strike-warn cell class. On landing: 1/2/3 ticks of damage by
+//   phase (mirrors Cinderblast scaling).
+//
+// CRUSH SPIRE  (P2+, every 6 / 5 turns, 2T telegraph → hero pin)
+//   Picks a random unlocked hero, marks them via .hero-card--crush-spire
+//   chain overlay, sets crushSpireHeroId / TurnsLeft = 2. Player still
+//   places blocks normally; the locked hero just doesn't fire ULT or
+//   gain charge. Mirrors Hypnotist Tendril Coil semantics so existing
+//   ability gates (e.g. ULT firing) only need the new flag check.
+//
+// MAELSTROM    (P2+, every 8 / 7 turns, 2T telegraph → top-row tide voids)
+//   Top row of the grid is telegraphed for tide conversion. On landing,
+//   every empty cell in the top row becomes a void_tide. Spec says top
+//   3 rows; we land 1 row to keep difficulty fair on first install
+//   (24 cells of voids would be game-ending). Subsequent passes can
+//   widen this once balance signal lands.
+let _abyssalTyrantState = null;
+const _abyssalRowWarnCells = new Set();
+const _abyssalMaelstromWarnCells = new Set();
+let abyssalCrushSpireHeroId = null;
+let abyssalCrushSpireTurnsLeft = 0;
+let abyssalCrushSpirePending = null; // {heroId, turnsLeft} during 2T warning
+const ABYSSAL_ROW_INT_P1 = 7;
+const ABYSSAL_ROW_INT_P2 = 6;
+const ABYSSAL_ROW_INT_P3 = 5;
+const ABYSSAL_CRUSH_INT_P2 = 6;
+const ABYSSAL_CRUSH_INT_P3 = 5;
+const ABYSSAL_MAELSTROM_INT_P2 = 8;
+const ABYSSAL_MAELSTROM_INT_P3 = 7;
+function _initAbyssalTyrantState() {
+  _abyssalTyrantState = {
+    turnsSinceRow: 0,         rowIncoming: null,        // {row, cells, turnsLeft}
+    turnsSinceCrush: 0,                                  // pending/active in globals above
+    turnsSinceMaelstrom: 0,   maelstromIncoming: null,  // {turnsLeft}
+  };
+}
+function _resetAbyssalTyrantState() {
+  _abyssalRowWarnCells.clear();
+  _abyssalMaelstromWarnCells.clear();
+  abyssalCrushSpireHeroId = null;
+  abyssalCrushSpireTurnsLeft = 0;
+  abyssalCrushSpirePending = null;
+  _abyssalTyrantState = null;
+}
+function _abyssalRowInterval(phase) {
+  if (phase >= 3) return ABYSSAL_ROW_INT_P3;
+  if (phase >= 2) return ABYSSAL_ROW_INT_P2;
+  return ABYSSAL_ROW_INT_P1;
+}
+function _abyssalCrushInterval(phase) {
+  return phase >= 3 ? ABYSSAL_CRUSH_INT_P3 : ABYSSAL_CRUSH_INT_P2;
+}
+function _abyssalMaelstromInterval(phase) {
+  return phase >= 3 ? ABYSSAL_MAELSTROM_INT_P3 : ABYSSAL_MAELSTROM_INT_P2;
+}
+function _tickAbyssalTyrant(phase) {
+  if (!_abyssalTyrantState) _initAbyssalTyrantState();
+  const st = _abyssalTyrantState;
+
+  // ROW STRIKE — phase-1+. Apply on landing → reset counter.
+  if (st.rowIncoming) {
+    st.rowIncoming.turnsLeft--;
+    if (st.rowIncoming.turnsLeft <= 0) {
+      _abyssalApplyRowStrike(st.rowIncoming, phase);
+      st.rowIncoming = null;
+      st.turnsSinceRow = 0;
+    }
+  } else {
+    st.turnsSinceRow++;
+    if (st.turnsSinceRow >= _abyssalRowInterval(phase)) {
+      _abyssalQueueRowStrike();
+    }
+  }
+
+  // CRUSH SPIRE — phase-2+. Active lock decays each tick.
+  if (abyssalCrushSpireTurnsLeft > 0) {
+    abyssalCrushSpireTurnsLeft--;
+    if (abyssalCrushSpireTurnsLeft === 0) {
+      try { flashStateBanner('⚓ CRUSH SPIRE · RELEASED', '#3B8BD4'); } catch (e) {}
+      abyssalCrushSpireHeroId = null;
+      try { _abyssalRenderCrushSpireVisual(); } catch (e) {}
+    }
+  }
+  if (abyssalCrushSpirePending) {
+    abyssalCrushSpirePending.turnsLeft--;
+    if (abyssalCrushSpirePending.turnsLeft <= 0) {
+      _abyssalApplyCrushSpire(abyssalCrushSpirePending.heroId);
+      abyssalCrushSpirePending = null;
+      st.turnsSinceCrush = 0;
+    }
+  } else if (phase >= 2 && abyssalCrushSpireTurnsLeft === 0) {
+    st.turnsSinceCrush++;
+    if (st.turnsSinceCrush >= _abyssalCrushInterval(phase)) {
+      _abyssalQueueCrushSpire();
+    }
+  }
+
+  // MAELSTROM — phase-2+. Top-row tide-void conversion on landing.
+  if (st.maelstromIncoming) {
+    st.maelstromIncoming.turnsLeft--;
+    if (st.maelstromIncoming.turnsLeft <= 0) {
+      _abyssalApplyMaelstrom();
+      st.maelstromIncoming = null;
+      st.turnsSinceMaelstrom = 0;
+    }
+  } else if (phase >= 2) {
+    st.turnsSinceMaelstrom++;
+    if (st.turnsSinceMaelstrom >= _abyssalMaelstromInterval(phase)) {
+      _abyssalQueueMaelstrom();
+    }
+  }
+}
+function _abyssalQueueRowStrike() {
+  let H = 8, W = 8;
+  try {
+    if (Array.isArray(grid) && grid.length) { H = grid.length; if (Array.isArray(grid[0])) W = grid[0].length; }
+  } catch (e) {}
+  const r = Math.floor(Math.random() * H);
+  const cells = [];
+  for (let c = 0; c < W; c++) cells.push([r, c]);
+  _abyssalRowWarnCells.clear();
+  for (const [rr, cc] of cells) _abyssalRowWarnCells.add(rr + '_' + cc);
+  _abyssalTyrantState.rowIncoming = { row: r, cells, turnsLeft: 1 };
+  try { showThreatBanner('⚠ ROW STRIKE · NEXT TURN — full row incoming', 0); } catch (e) {}
+  try { vibrate([60, 40, 80]); } catch (e) {}
+  try { if (typeof render === 'function') render(); } catch (e) {}
+}
+function _abyssalApplyRowStrike(incoming, phase) {
+  _abyssalRowWarnCells.clear();
+  try {
+    if (typeof render === 'function') render();
+    for (const [r, c] of incoming.cells) {
+      const el = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+      if (el) {
+        el.classList.remove('row-strike-hit'); void el.offsetWidth;
+        el.classList.add('row-strike-hit');
+        setTimeout(() => { try { el.classList.remove('row-strike-hit'); } catch (e) {} }, 600);
+      }
+    }
+  } catch (e) {}
+  const ticks = Math.max(1, phase || 1);
+  for (let i = 0; i < ticks; i++) {
+    try {
+      if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+        shieldCount = Math.max(0, shieldCount - 1);
+      } else if (typeof hp !== 'undefined') {
+        hp = Math.max(0, hp - 1);
+        battleDamageTaken = (battleDamageTaken || 0) + 1;
+        if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+          try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+  try { hideThreatBanner(); } catch (e) {}
+  try { flashText('🌊 ROW STRIKE!', '#3B8BD4', { force: true }); } catch (e) {}
+  try { vibrate([200, 80, 200]); } catch (e) {}
+  try { renderHP(); if (typeof render === 'function') render(); } catch (e) {}
+}
+function _abyssalQueueCrushSpire() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return;
+  const candidates = HERO_DECK.filter(h => h && h.id && h.id !== abyssalCrushSpireHeroId);
+  if (candidates.length === 0) return;
+  const target = candidates[Math.floor(Math.random() * candidates.length)];
+  abyssalCrushSpirePending = { heroId: target.id, turnsLeft: 2, name: target.name };
+  try { showThreatBanner('⚠ CRUSH SPIRE on ' + target.name + ' in 2 turns', 0); } catch (e) {}
+  try { _abyssalRenderCrushSpireVisual(); } catch (e) {}
+  try { vibrate([60, 40, 60, 40, 80]); } catch (e) {}
+}
+function _abyssalApplyCrushSpire(heroId) {
+  abyssalCrushSpireHeroId = heroId;
+  abyssalCrushSpireTurnsLeft = 2;
+  try { hideThreatBanner(); } catch (e) {}
+  let name = heroId;
+  try {
+    const h = (HERO_DECK || []).find(x => x && x.id === heroId);
+    if (h && h.name) name = h.name;
+  } catch (e) {}
+  try { flashStateBanner('⚓ CRUSH SPIRE · ' + name + ' PINNED 2T', '#3B8BD4', 3200); } catch (e) {}
+  try { vibrate([180, 60, 180, 60, 220]); } catch (e) {}
+  try { _abyssalRenderCrushSpireVisual(); } catch (e) {}
+}
+function _abyssalRenderCrushSpireVisual() {
+  // Re-paints chain overlay on hero card. Pending = warning (faint),
+  // active lock = full chain. Idempotent — safe on every render.
+  try {
+    const cards = document.querySelectorAll('.hero-card');
+    for (const card of cards) {
+      const id = card.dataset && card.dataset.id;
+      if (!id) { card.classList.remove('hero-card--crush-spire-warn', 'hero-card--crush-spire-locked'); continue; }
+      const isPending = abyssalCrushSpirePending && abyssalCrushSpirePending.heroId === id;
+      const isLocked  = abyssalCrushSpireHeroId === id && abyssalCrushSpireTurnsLeft > 0;
+      card.classList.toggle('hero-card--crush-spire-warn', !!isPending);
+      card.classList.toggle('hero-card--crush-spire-locked', !!isLocked);
+    }
+  } catch (e) {}
+}
+function _abyssalQueueMaelstrom() {
+  let W = 8;
+  try { if (Array.isArray(grid) && Array.isArray(grid[0])) W = grid[0].length; } catch (e) {}
+  // Top row only — see comment at top of block. Empty cells get
+  // telegraphed; cells already filled stay as-is (the maelstrom can't
+  // overwrite played pieces during the warning).
+  _abyssalMaelstromWarnCells.clear();
+  for (let c = 0; c < W; c++) _abyssalMaelstromWarnCells.add('0_' + c);
+  _abyssalTyrantState.maelstromIncoming = { turnsLeft: 2 };
+  try { showThreatBanner('⚠ MAELSTROM in 2 turns — top row tides incoming', 0); } catch (e) {}
+  try { vibrate([100, 50, 100, 50, 100]); } catch (e) {}
+  try { if (typeof render === 'function') render(); } catch (e) {}
+}
+function _abyssalApplyMaelstrom() {
+  let W = 8;
+  try { if (Array.isArray(grid) && Array.isArray(grid[0])) W = grid[0].length; } catch (e) {}
+  let converted = 0;
+  try {
+    for (let c = 0; c < W; c++) {
+      if (!grid[0][c]) {
+        grid[0][c] = 'void_tide';
+        converted++;
+      }
+    }
+  } catch (e) {}
+  _abyssalMaelstromWarnCells.clear();
+  try { hideThreatBanner(); } catch (e) {}
+  try { flashText('🌀 MAELSTROM! · ' + converted + ' tides', '#3B8BD4', { force: true }); } catch (e) {}
+  try { vibrate([220, 90, 220, 90, 360]); } catch (e) {}
   try { if (typeof render === 'function') render(); } catch (e) {}
 }
 
@@ -31353,6 +31715,8 @@ function startBossBattle() {
     // 2026-04-30 — Pyredrake Cinderblast state. Strips any leftover
     // warning class on cells from a prior fight before the next encounter.
     if (typeof _resetPyredrakeState === 'function') _resetPyredrakeState();
+    // 2026-04-30 — Abyssal Tyrant Row Strike / Crush Spire / Maelstrom state.
+    if (typeof _resetAbyssalTyrantState === 'function') _resetAbyssalTyrantState();
   } catch (e) {}
   // V3.0 Phase 4: show one-time tutorial toast carousel on first battle.
   // PHASE 4 BLOCK 1 — carousel is gated to NON-FTUE inside maybeShowBattleTutorial
@@ -39586,6 +39950,8 @@ function renderDeck() {
   try { if (typeof renderHypnotistVisuals === 'function') renderHypnotistVisuals(); } catch (e) {}
   // PHASE 5b BLOCK 5 — re-apply Frenzy devoured-hero indicator (red dim + 🐻 badge).
   try { if (typeof _renderFrenzyVisuals === 'function') _renderFrenzyVisuals(); } catch (e) {}
+  // 2026-04-30 — Abyssal Tyrant Crush Spire chain overlay (warn + locked).
+  try { if (typeof _abyssalRenderCrushSpireVisual === 'function') _abyssalRenderCrushSpireVisual(); } catch (e) {}
 }
 
 async function onHeroCardClick(hero) {
@@ -39672,6 +40038,16 @@ function renderGrid() {
     try {
       if (typeof _pyredrakeWarnCells !== 'undefined' && _pyredrakeWarnCells.has(key)) {
         d.classList.add('cinderblast-warn');
+      }
+    } catch (e) {}
+    // Abyssal Tyrant Row Strike + Maelstrom warnings — same Set-based
+    // pattern as Pyredrake. Both classes are reset on battle init.
+    try {
+      if (typeof _abyssalRowWarnCells !== 'undefined' && _abyssalRowWarnCells.has(key)) {
+        d.classList.add('row-strike-warn');
+      }
+      if (typeof _abyssalMaelstromWarnCells !== 'undefined' && _abyssalMaelstromWarnCells.has(key)) {
+        d.classList.add('maelstrom-warn');
       }
     } catch (e) {}
     if (v) {
