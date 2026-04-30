@@ -8882,6 +8882,63 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   .cell.solar-storm-hit { animation: none !important; }
 }
 
+/* 2026-04-30 — Crypt Lich kit visuals (Ch.1 final boss, umbra palette).
+   .dark-geometry-warn   : 4-cell diamond, 1T telegraph. Pulses in
+                           sync with Row Strike (0.7s, both 1T windows).
+                           Purple gradient + cross-hatched feel.
+   .dark-geometry-hit    : 0.6s impact strobe, deep purple.
+   .necropulse-charged   : every umbra cell on the board glows during
+                           the 1T necropulse warning so the player
+                           SEES exactly what's about to lash out.
+                           Gentle 1.4s pulse — non-aggressive, just
+                           "look at this". */
+.cell.dark-geometry-warn {
+  position: relative;
+  animation: darkGeometryWarn 0.7s ease-in-out infinite;
+  z-index: 2;
+}
+.cell.dark-geometry-warn::after {
+  content: '';
+  position: absolute; inset: 2px;
+  border-radius: 4px;
+  background: radial-gradient(circle at center, rgba(155, 89, 214, 0.6), rgba(80, 40, 120, 0.2) 60%, transparent 80%);
+  border: 2px solid rgba(192, 130, 255, 0.95);
+  box-shadow: 0 0 14px rgba(155, 89, 214, 0.7), inset 0 0 8px rgba(192, 130, 255, 0.5);
+  pointer-events: none;
+}
+.cell.dark-geometry-hit {
+  animation: darkGeometryHit 0.6s ease-out forwards;
+  z-index: 3;
+}
+@keyframes darkGeometryWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.45) saturate(1.25); }
+}
+@keyframes darkGeometryHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(155,89,214,0); }
+  20%  { filter: brightness(2.6) saturate(1.6); transform: scale(1.18); box-shadow: 0 0 28px rgba(155,89,214,1.0), 0 0 12px rgba(192,130,255,0.7) inset; }
+  60%  { filter: brightness(1.6) saturate(1.3); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(155,89,214,0); }
+}
+
+.cell.necropulse-charged {
+  position: relative;
+  animation: necropulseCharged 1.4s ease-in-out infinite;
+  z-index: 1;
+  box-shadow: 0 0 10px rgba(155, 89, 214, 0.5), inset 0 0 4px rgba(192, 130, 255, 0.3);
+}
+@keyframes necropulseCharged {
+  0%, 100% { filter: brightness(1.0); box-shadow: 0 0 6px rgba(155, 89, 214, 0.3); }
+  50%      { filter: brightness(1.35) saturate(1.2); box-shadow: 0 0 16px rgba(155, 89, 214, 0.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell.dark-geometry-warn,
+  .cell.dark-geometry-warn::after,
+  .cell.dark-geometry-hit,
+  .cell.necropulse-charged { animation: none !important; }
+}
+
 /* ===== TRAY ===== */
 .tray { background: #1A1B2E; border: 1px solid #3D3F5E; border-radius: 12px; padding: 10px; display: flex; justify-content: space-around; align-items: center; min-height: 90px; }
 .piece { display: grid; cursor: grab; touch-action: none; transition: opacity 0.2s; }
@@ -29025,6 +29082,9 @@ function tickChapter2Archetype() {
     case 'phoenix':
       if (currentBoss.id === 'solar_phoenix' || currentBoss.name === 'SOLAR PHOENIX') _tickSolarPhoenix(phase);
       break;
+    case 'assassin':
+      if (currentBoss.id === 'crypt_lich' || currentBoss.name === 'CRYPT LICH') _tickCryptLich(phase);
+      break;
     default: return; // Other Chapter 1 archetypes — existing handlers unchanged
   }
 }
@@ -29787,6 +29847,223 @@ function _solarApplyStorm(incoming) {
   try { hideThreatBanner(); } catch (e) {}
   try { flashText('☀☀ SOLAR STORM!', '#FFD200', { force: true }); } catch (e) {}
   try { vibrate([260, 100, 260, 100, 460]); } catch (e) {}
+  try { renderHP(); if (typeof render === 'function') render(); } catch (e) {}
+}
+
+// ===== CRYPT LICH — Dark Geometry / Soul Drain / Necropulse =====
+// (Ch.1 Boss 5 = Final Overlord, BOSS_COMPENDIUM §1.5). Umbra-themed
+// assassin. Existing kit was the 1.4× damage / 4-turn attack interval
+// archetype + spawnBurst phase 3. Three new specials transform the
+// final Ch.1 boss from a fast generic-attack pattern into a layered
+// pressure cooker: spike (Dark Geometry) + grind (Soul Drain) +
+// punish-your-board (Necropulse).
+//
+// DARK GEOMETRY  (P1+, every 6 / 5 / 4 turns by phase, 1T telegraph)
+//   4-cell diamond/cross pattern (center + 4 cardinal neighbors,
+//   center dropped for visual safe-zone). 1T tel + .dark-geometry-warn
+//   cell glow. P1=1 / P2=2 / P3=3 ticks of damage on landing.
+//
+// SOUL DRAIN     (P2+, persistent: 1 shield/HP every 3 turns at P2,
+//                 every 2 turns at P3)
+//   Permanent passive damage tick — no telegraph, no skill-check. The
+//   only counter is "kill the boss faster". State banner confirms
+//   "💀 SOUL DRAIN ACTIVE" on phase 2 transition; per-tick flash on
+//   each drain. Per-tick haptic so the player feels the grind.
+//
+// NECROPULSE     (P3+, every 8 turns, 1T telegraph)
+//   Phase 3 panic move. Counts every `umbra` cell currently on the
+//   board, deals 1 damage per pair (floor(count / 2)). Rewards
+//   players who don't hoard umbra cells in the final phase. Capped
+//   at 4 ticks so it can't one-shot from a maxed board.
+let _cryptLichState = null;
+const _cryptLichGeometryWarnCells = new Set();
+let _cryptLichSoulDrainAnnounced = false;
+let _cryptLichNecropulsePending = false;
+const CRYPT_GEOMETRY_INT_P1 = 6;
+const CRYPT_GEOMETRY_INT_P2 = 5;
+const CRYPT_GEOMETRY_INT_P3 = 4;
+const CRYPT_SOULDRAIN_INT_P2 = 3;
+const CRYPT_SOULDRAIN_INT_P3 = 2;
+const CRYPT_NECROPULSE_INT = 8;
+const CRYPT_NECROPULSE_MAX_TICKS = 4;
+function _initCryptLichState() {
+  _cryptLichState = {
+    turnsSinceGeo: 0,         geoIncoming: null,
+    turnsSinceSoulDrain: 0,
+    turnsSinceNecropulse: 0,  necropulseCountdown: 0, // 1T telegraph
+  };
+}
+function _resetCryptLichState() {
+  _cryptLichGeometryWarnCells.clear();
+  _cryptLichSoulDrainAnnounced = false;
+  _cryptLichNecropulsePending = false;
+  _cryptLichState = null;
+}
+function _cryptGeometryInterval(phase) {
+  if (phase >= 3) return CRYPT_GEOMETRY_INT_P3;
+  if (phase >= 2) return CRYPT_GEOMETRY_INT_P2;
+  return CRYPT_GEOMETRY_INT_P1;
+}
+function _cryptSoulDrainInterval(phase) {
+  return phase >= 3 ? CRYPT_SOULDRAIN_INT_P3 : CRYPT_SOULDRAIN_INT_P2;
+}
+function _tickCryptLich(phase) {
+  if (!_cryptLichState) _initCryptLichState();
+  const st = _cryptLichState;
+
+  // SOUL DRAIN — phase-2+ persistent passive
+  if (phase >= 2) {
+    if (!_cryptLichSoulDrainAnnounced) {
+      _cryptLichSoulDrainAnnounced = true;
+      try { flashStateBanner('💀 SOUL DRAIN ACTIVE — boss leeches your soul', '#9B59D6', 3200); } catch (e) {}
+    }
+    st.turnsSinceSoulDrain++;
+    if (st.turnsSinceSoulDrain >= _cryptSoulDrainInterval(phase)) {
+      st.turnsSinceSoulDrain = 0;
+      _cryptApplySoulDrain();
+    }
+  }
+
+  // DARK GEOMETRY — phase-1+
+  if (st.geoIncoming) {
+    st.geoIncoming.turnsLeft--;
+    if (st.geoIncoming.turnsLeft <= 0) {
+      _cryptApplyDarkGeometry(st.geoIncoming, phase);
+      st.geoIncoming = null;
+      st.turnsSinceGeo = 0;
+    }
+  } else {
+    st.turnsSinceGeo++;
+    if (st.turnsSinceGeo >= _cryptGeometryInterval(phase)) {
+      _cryptQueueDarkGeometry();
+    }
+  }
+
+  // NECROPULSE — phase-3+
+  if (st.necropulseCountdown > 0) {
+    st.necropulseCountdown--;
+    if (st.necropulseCountdown === 0) {
+      _cryptApplyNecropulse();
+      _cryptLichNecropulsePending = false;
+      st.turnsSinceNecropulse = 0;
+    }
+  } else if (phase >= 3) {
+    st.turnsSinceNecropulse++;
+    if (st.turnsSinceNecropulse >= CRYPT_NECROPULSE_INT) {
+      _cryptQueueNecropulse();
+    }
+  }
+}
+function _cryptApplySoulDrain() {
+  try {
+    if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+      shieldCount = Math.max(0, shieldCount - 1);
+      try { flashText('💀 SOUL DRAIN · 🛡 absorbed', '#9B59D6'); } catch (e) {}
+    } else if (typeof hp !== 'undefined') {
+      hp = Math.max(0, hp - 1);
+      battleDamageTaken = (battleDamageTaken || 0) + 1;
+      try { flashText('💀 SOUL DRAIN · −1 HP', '#9B59D6'); renderHP(); } catch (e) {}
+      if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+        try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
+      }
+    }
+  } catch (e) {}
+  try { vibrate([60]); } catch (e) {}
+}
+function _cryptQueueDarkGeometry() {
+  let H = 8, W = 8;
+  try {
+    if (Array.isArray(grid) && grid.length) { H = grid.length; if (Array.isArray(grid[0])) W = grid[0].length; }
+  } catch (e) {}
+  // Diamond: center + 4 cardinal neighbors. Drop the center for a tiny
+  // safe-zone visual cue — the 4 outer cells are what take the hit.
+  const r = 1 + Math.floor(Math.random() * Math.max(1, H - 2));
+  const c = 1 + Math.floor(Math.random() * Math.max(1, W - 2));
+  const cells = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
+  _cryptLichGeometryWarnCells.clear();
+  for (const [rr, cc] of cells) _cryptLichGeometryWarnCells.add(rr + '_' + cc);
+  _cryptLichState.geoIncoming = { center: [r, c], cells, turnsLeft: 1 };
+  try { showThreatBanner('⚠ DARK GEOMETRY · NEXT TURN — diamond pattern incoming', 0); } catch (e) {}
+  try { vibrate([80, 50, 80]); } catch (e) {}
+  try { if (typeof render === 'function') render(); } catch (e) {}
+}
+function _cryptApplyDarkGeometry(incoming, phase) {
+  _cryptLichGeometryWarnCells.clear();
+  try {
+    if (typeof render === 'function') render();
+    for (const [r, c] of incoming.cells) {
+      const el = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+      if (el) {
+        el.classList.remove('dark-geometry-hit'); void el.offsetWidth;
+        el.classList.add('dark-geometry-hit');
+        setTimeout(() => { try { el.classList.remove('dark-geometry-hit'); } catch (e) {} }, 600);
+      }
+    }
+  } catch (e) {}
+  const ticks = Math.max(1, phase || 1);
+  for (let i = 0; i < ticks; i++) {
+    try {
+      if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+        shieldCount = Math.max(0, shieldCount - 1);
+      } else if (typeof hp !== 'undefined') {
+        hp = Math.max(0, hp - 1);
+        battleDamageTaken = (battleDamageTaken || 0) + 1;
+        if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+          try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+  try { hideThreatBanner(); } catch (e) {}
+  try { flashText('🔮 DARK GEOMETRY!', '#9B59D6', { force: true }); } catch (e) {}
+  try { vibrate([200, 80, 200, 80, 320]); } catch (e) {}
+  try { renderHP(); if (typeof render === 'function') render(); } catch (e) {}
+}
+function _cryptQueueNecropulse() {
+  _cryptLichState.necropulseCountdown = 1;
+  _cryptLichNecropulsePending = true;
+  try { showThreatBanner('⚠ NECROPULSE · NEXT TURN — your umbra cells will lash out', 0); } catch (e) {}
+  try { flashStateBanner('💀 NECROPULSE INCOMING', '#9B59D6', 3200); } catch (e) {}
+  try { vibrate([100, 60, 100, 60, 100]); } catch (e) {}
+  // Re-render so any future _cryptLichNecropulsePending visuals (e.g.
+  // every umbra cell briefly tagged) take effect; cheap no-op if no
+  // visual pass is wired.
+  try { if (typeof render === 'function') render(); } catch (e) {}
+}
+function _cryptApplyNecropulse() {
+  // Count umbra cells on the board — both regular umbra placements
+  // and any void_umbra cells contribute. Damage = floor(count / 2),
+  // capped at CRYPT_NECROPULSE_MAX_TICKS.
+  let umbraCount = 0;
+  let H = 8, W = 8;
+  try {
+    if (Array.isArray(grid) && grid.length) { H = grid.length; if (Array.isArray(grid[0])) W = grid[0].length; }
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) {
+      const v = grid[r][c];
+      if (!v) continue;
+      if (v === 'umbra') umbraCount++;
+      else if (typeof v === 'string' && v === 'void_umbra') umbraCount++;
+    }
+  } catch (e) {}
+  const ticks = Math.max(1, Math.min(CRYPT_NECROPULSE_MAX_TICKS, Math.floor(umbraCount / 2) || 1));
+  for (let i = 0; i < ticks; i++) {
+    try {
+      if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+        shieldCount = Math.max(0, shieldCount - 1);
+      } else if (typeof hp !== 'undefined') {
+        hp = Math.max(0, hp - 1);
+        battleDamageTaken = (battleDamageTaken || 0) + 1;
+        if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
+          try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
+          break;
+        }
+      }
+    } catch (e) {}
+  }
+  try { hideThreatBanner(); } catch (e) {}
+  try { flashText('💀 NECROPULSE! · ' + umbraCount + ' umbra → ' + ticks + ' ticks', '#9B59D6', { force: true }); } catch (e) {}
+  try { vibrate([240, 100, 240, 100, 420]); } catch (e) {}
   try { renderHP(); if (typeof render === 'function') render(); } catch (e) {}
 }
 
@@ -32330,6 +32607,8 @@ function startBossBattle() {
     if (typeof _resetGrovewardenState === 'function') _resetGrovewardenState();
     // 2026-04-30 — Solar Phoenix Solar Line / Solar Storm state.
     if (typeof _resetSolarPhoenixState === 'function') _resetSolarPhoenixState();
+    // 2026-04-30 — Crypt Lich Dark Geometry / Soul Drain / Necropulse state.
+    if (typeof _resetCryptLichState === 'function') _resetCryptLichState();
   } catch (e) {}
   // V3.0 Phase 4: show one-time tutorial toast carousel on first battle.
   // PHASE 4 BLOCK 1 — carousel is gated to NON-FTUE inside maybeShowBattleTutorial
@@ -40698,6 +40977,17 @@ function renderGrid() {
       }
       if (typeof _solarStormWarnCells !== 'undefined' && _solarStormWarnCells.has(key)) {
         d.classList.add('solar-storm-warn');
+      }
+    } catch (e) {}
+    // Crypt Lich Dark Geometry warning + Necropulse "your umbra is
+    // about to lash out" overlay on every umbra cell during the 1T
+    // necropulse window.
+    try {
+      if (typeof _cryptLichGeometryWarnCells !== 'undefined' && _cryptLichGeometryWarnCells.has(key)) {
+        d.classList.add('dark-geometry-warn');
+      }
+      if (typeof _cryptLichNecropulsePending !== 'undefined' && _cryptLichNecropulsePending) {
+        if (v === 'umbra' || v === 'void_umbra') d.classList.add('necropulse-charged');
       }
     } catch (e) {}
     if (v) {
