@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "sync-game": "cp ../blocksworn_index_fixed.html public/blocksworn_index_fixed.html",
+    "predev": "npm run sync-game",
+    "prebuild": "npm run sync-game",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

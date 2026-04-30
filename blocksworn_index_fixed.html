@@ -17524,6 +17524,177 @@ function _wipeAllBlocksworn() {
   } catch (e) {}
 })();
 
+// ──────────────────────────────────────────────────────────────────────────
+// BALANCE / MONETIZATION configs — single source of truth (PRELAUNCH_MASTER BAL.0)
+// All progression / economy / tower / monetization dials live here. Tuning a
+// number = edit this object, no scattered call-site hunt across 48k lines.
+// Older `const FOO = literal` declarations later in this file now read from
+// these objects (same value, just centralized). Object.freeze prevents
+// accidental runtime mutation; remove freeze if hot-tuning via Firebase
+// Remote Config is wired in a later phase.
+// ──────────────────────────────────────────────────────────────────────────
+
+const BALANCE = Object.freeze({
+  heroLevel: Object.freeze({
+    min: 1,
+    // BAL.1 — tier-gated level caps. Use getEffectiveLevelMax(heroId) for the
+    // per-hero limit; `max` here is the absolute ceiling (= maxMyth) used for
+    // legacy save sanitization and generic UI labels.
+    maxT1: 10, maxT2: 20, maxT3: 30, maxMyth: 40,
+    max: 40,
+    // BAL.2 — cost curve rebalanced for tier-gated economy. Reference table:
+    // LV 1→10 ≈ 1170g · 1→20 ≈ 4845g · 1→30 ≈ ~10000g · 1→40 ≈ ~16000g.
+    costBase: 30,
+    costStep: 25,
+    costCap: 800,
+    dmgPer: 0.04,      // +4% dmg per level
+    hpPer: 3,          // +3 HP per level
+    ultPer: 0.01       // +1% ult charge per level
+  }),
+  tier: Object.freeze({
+    xpThresholds: Object.freeze({ t1: 5, t2: 20, t3: 50 }),
+    max: 3,
+    fireMultCap: 3.0,
+    xp: Object.freeze({ participation: 1, ultFired: 2, killShot: 5, capPerBattle: 8 })
+  }),
+  ascend: Object.freeze({
+    tier2Gold: 200,
+    tier3Gold: 500,
+    mythic: Object.freeze({ ascend: 1, cards: 25, gold: 1000, essence: 20, damageBonus: 1.30 })
+  }),
+  currency: Object.freeze({
+    goldPerWin: 100,
+    starterGems: 100,
+    goldToGems: Object.freeze({ cost: 5000, amount: 100, cooldownMs: 24*60*60*1000 })
+  }),
+  tower: Object.freeze({
+    dailyFloors: 10, weeklyFloors: 25, seasonalFloors: 50,
+    midBossFloor: 5, climaxBossFloor: 10,
+    dailyResetHour: 4, fragmentsPerHeart: 5, maxAttemptsPerDay: 5,
+    retryGoldCost: Object.freeze([250, 500, 1000, 2000, 5000]),
+    daily: Object.freeze({ baseGold: 100, sigils: 5, heartFragments: 1 }),
+    racePure: Object.freeze({ hpMult: 1.20, rewardMult: 2.0 })
+  })
+});
+
+const MONETIZATION = Object.freeze({
+  packs: Object.freeze({
+    standard: Object.freeze({ gold: 500 }),
+    race:     Object.freeze({ gold: 1500, count: 5 }),
+    big:      Object.freeze({ gold: 5000, gems: 500, cards: 10, t2Stones: 1 }),
+    premium:  Object.freeze({ gems: 500, cards: 10, t2Stones: 1, t3Chance: 0.05,
+                              goldBonus: 50, essenceBonus: 5 }),
+    ultimate: Object.freeze({ gems: 1100, cards: 25, t2Stones: 2, t3Stones: 1,
+                              goldBonus: 100, essenceBonus: 20, dropBoostDays: 7 })
+  }),
+  pity: Object.freeze({ threshold: 30, premiumDropBoost: 1.30 }),
+  buffs: Object.freeze({
+    mega:       Object.freeze({ usd: 1.99, gems: 200, durationMs: 24*60*60*1000,
+                                goldMult: 1.25, fragMult: 1.50 }),
+    squadBoost: Object.freeze({ usd: 4.99, gems: 500, cooldownMs: 24*60*60*1000, levels: 1 }),
+    squadPower: Object.freeze({ usd: 9.99, gems: 1100, t2: 3, cards: 25, gold: 1000,
+                                essencePer: 20 })
+  }),
+  firstPurchase: Object.freeze({ freeBuffMs: 7*24*60*60*1000 })
+});
+
+if (typeof window !== 'undefined') {
+  window.BALANCE = BALANCE;
+  window.MONETIZATION = MONETIZATION;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ANALYTICS.1 — Event taxonomy + logEvent wrapper (PRELAUNCH_MASTER §11.9).
+// Embedded early so all gameplay/shop/pinch/tower paths can fire events as
+// they ship — no retrofit pass needed in week 11.
+//
+// Dev mode: console.log only (tagged `[analytics]`).
+// Prod mode: forwards to Firebase Analytics if SDK loaded; silently drops
+//            otherwise. ANALYTICS.2 (retention funnel) and .4 (Crashlytics)
+//            wire into this same surface.
+//
+// Use logEvent(EVT.<name>, props) — never raw strings. Adding an event:
+//   1. Add a key to EVT below
+//   2. Call logEvent(EVT.thing_happened, { detail: 'value' })
+// ──────────────────────────────────────────────────────────────────────────
+
+const EVT = Object.freeze({
+  // Lifecycle / install
+  install:                  'install',
+  session_start:            'session_start',
+  session_end:              'session_end',
+  returned_d1:              'returned_d1',
+  returned_d7:              'returned_d7',
+  returned_d30:             'returned_d30',
+  // FTUE / onboarding
+  ftue_step:                'ftue_step',
+  ftue_complete:            'ftue_complete',
+  // Combat
+  fight_started:            'fight_started',
+  fight_won:                'fight_won',
+  fight_lost:               'fight_lost',
+  ult_fired:                'ult_fired',
+  combo_landed:             'combo_landed',
+  // Progression
+  hero_unlocked:            'hero_unlocked',
+  hero_leveled:             'hero_leveled',
+  hero_ascended:            'hero_ascended',
+  // Tower
+  tower_run_started:        'tower_run_started',
+  tower_floor_cleared:      'tower_floor_cleared',
+  tower_run_ended:          'tower_run_ended',
+  tower_chest_claimed:      'tower_chest_claimed',
+  // Shop / monetization
+  shop_opened:              'shop_opened',
+  shop_section_viewed:      'shop_section_viewed',
+  purchase_started:         'purchase_started',
+  purchase_completed:       'purchase_completed',
+  purchase_cancelled:       'purchase_cancelled',
+  // Soft pinch
+  pinch_shown:              'pinch_shown',
+  pinch_path_chosen:        'pinch_path_chosen',
+  pinch_dismissed:          'pinch_dismissed',
+  // Streak / retention
+  streak_extended:          'streak_extended',
+  streak_broken:            'streak_broken',
+  streak_freeze_used:       'streak_freeze_used',
+  // Ads
+  ad_offered:               'ad_offered',
+  ad_completed:             'ad_completed',
+  ad_failed:                'ad_failed',
+  // Content drops
+  content_unlocked:         'content_unlocked',
+  // Errors
+  error_caught:             'error_caught'
+});
+
+const _ANALYTICS_DEV = (typeof location !== 'undefined' &&
+  /^(localhost|127\.0\.0\.1|0\.0\.0\.0)/.test(location.hostname || ''));
+
+function logEvent(name, props) {
+  if (!name) return;
+  const payload = props && typeof props === 'object' ? props : {};
+  if (_ANALYTICS_DEV) {
+    try { console.log('[analytics]', name, payload); } catch (e) {}
+  }
+  // Firebase Analytics forward — wired in ANALYTICS.2.
+  // Stays a no-op until SDK is initialized to keep payload-shape stable
+  // for offline/error states.
+  try {
+    if (typeof window !== 'undefined' && window.firebase &&
+        window.firebase.analytics && typeof window.firebase.analytics === 'function') {
+      window.firebase.analytics().logEvent(name, payload);
+    }
+  } catch (e) {
+    // never let analytics break gameplay
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.EVT = EVT;
+  window.logEvent = logEvent;
+}
+
 const ASSETS = {
   // 2026-04-28 — Tutorial Dummy CHRONICLE (Player Education Stage 1).
   // Source: assets/Chronicle.png 1086×1448 → sips -Z 1024 -s format jpeg q85 → 200 KB.
@@ -17973,7 +18144,7 @@ function setChapter(n) {
 // One-shot per hero — cannot un-ascend (legendary commitment).
 const TIER2_ASCEND_COST     = 1;     // stones per ascension
 const TIER2_CARDS_COST      = 5;     // hero fragments per ascension (Block H.1)
-const TIER2_GOLD_COST       = 200;   // gold per ascension (Block H.1)
+const TIER2_GOLD_COST       = BALANCE.ascend.tier2Gold;   // gold per ascension (Block H.1)
 const TIER2_ESSENCE_COST    = 5;     // element essence per ascension (Block H.1)
 const TIER2_DAMAGE_BONUS    = 1.20;  // +20% multiplier in damage stack
 function isHeroAscended(heroId) {
@@ -18061,21 +18232,38 @@ function getHeroAscensionMult(hero) {
 // ==========================================================================
 const TIER3_ASCEND_COST     = 1;      // T3 stones per ascension
 const TIER3_CARDS_COST      = 10;     // additional fragments (15 total w/ T2)
-const TIER3_GOLD_COST       = 500;
+const TIER3_GOLD_COST       = BALANCE.ascend.tier3Gold;
 const TIER3_ESSENCE_COST    = 10;
 const TIER3_DAMAGE_BONUS    = 1.20;   // multiplicative on top of T2
 
-const MYTHIC_ASCEND_COST    = 1;      // legendary stones per ascension
-const MYTHIC_CARDS_COST     = 25;     // additional fragments (35 total w/ T2+T3)
-const MYTHIC_GOLD_COST      = 1000;
-const MYTHIC_ESSENCE_COST   = 20;
-const MYTHIC_DAMAGE_BONUS   = 1.30;   // multiplicative on top of T2 × T3
+const MYTHIC_ASCEND_COST    = BALANCE.ascend.mythic.ascend;      // legendary stones per ascension
+const MYTHIC_CARDS_COST     = BALANCE.ascend.mythic.cards;       // additional fragments (35 total w/ T2+T3)
+const MYTHIC_GOLD_COST      = BALANCE.ascend.mythic.gold;
+const MYTHIC_ESSENCE_COST   = BALANCE.ascend.mythic.essence;
+const MYTHIC_DAMAGE_BONUS   = BALANCE.ascend.mythic.damageBonus; // multiplicative on top of T2 × T3
 
 function isHeroAscendedT3(heroId) {
   return towerState && Array.isArray(towerState.tier3Ascended) && towerState.tier3Ascended.includes(heroId);
 }
 function isHeroMythic(heroId) {
   return towerState && towerState.mythicHero === heroId;
+}
+
+// BAL.1 — Tier-gated hero level cap (PRELAUNCH_MASTER §3.1).
+//   T1 (default)     → LV cap = 10
+//   T2 (ascended)    → LV cap = 20
+//   T3 (deep ascend) → LV cap = 30
+//   Mythic           → LV cap = 40
+// Used everywhere a per-hero cap matters. The flat HERO_LEVEL_MAX const remains
+// as the absolute ceiling for storage sanitization and generic UI labels.
+function getEffectiveLevelMax(heroId) {
+  if (isHeroMythic(heroId))      return BALANCE.heroLevel.maxMyth;
+  if (isHeroAscendedT3(heroId))  return BALANCE.heroLevel.maxT3;
+  if (isHeroAscended(heroId))    return BALANCE.heroLevel.maxT2;
+  return BALANCE.heroLevel.maxT1;
+}
+if (typeof window !== 'undefined') {
+  window.getEffectiveLevelMax = getEffectiveLevelMax;
 }
 function getMythicHeroId() {
   return (towerState && towerState.mythicHero) || null;
@@ -18493,17 +18681,17 @@ const HERO_ROSTER = [
 // Tier deltas are optional hero fields that run AFTER base fire / ultSignature.
 
 // Tier XP thresholds (cumulative) — see Block 5.1 PART A.3
-const TIER_XP_THRESHOLDS = { T1: 5, T2: 20, T3: 50 };
-const TIER_MAX           = 3;
+const TIER_XP_THRESHOLDS = { T1: BALANCE.tier.xpThresholds.t1, T2: BALANCE.tier.xpThresholds.t2, T3: BALANCE.tier.xpThresholds.t3 };
+const TIER_MAX           = BALANCE.tier.max;
 // V2.0 Stage 5 Block 5.7: FIRE_MULT_CAP — hard ceiling on combined multiplier stack (Part F.1.2)
 // Prevents extreme lion-fire-buff chain (Warband × Pack × Hunter × Grommar × Roar = 6.55×)
 // from breaking the game; clamps to 3.0× regardless of how many active buffs stack.
 // Flat bonuses (Leorex team +50/lion, Helios +50) still add on top of clamped mult per spec.
-const FIRE_MULT_CAP      = 3.0;
-const XP_PARTICIPATION   = 1;  // hero in squad (win or loss)
-const XP_ULT_FIRED       = 2;  // hero's ULT fired during battle (total +3)
-const XP_KILL_SHOT       = 5;  // hero dealt kill-shot on boss (total +8)
-const XP_CAP_PER_BATTLE  = 8;  // matches Cairo contract validation
+const FIRE_MULT_CAP      = BALANCE.tier.fireMultCap;
+const XP_PARTICIPATION   = BALANCE.tier.xp.participation;  // hero in squad (win or loss)
+const XP_ULT_FIRED       = BALANCE.tier.xp.ultFired;       // hero's ULT fired during battle (total +3)
+const XP_KILL_SHOT       = BALANCE.tier.xp.killShot;       // hero dealt kill-shot on boss (total +8)
+const XP_CAP_PER_BATTLE  = BALANCE.tier.xp.capPerBattle;   // matches Cairo contract validation
 
 // Initialize tier + xp fields on every HERO_ROSTER entry (non-intrusive; doesn't touch existing fields)
 for (const h of HERO_ROSTER) {
@@ -19906,9 +20094,9 @@ try {
 
 // 2026-04-27 — Block H.5 — Pack System (HERO_COMPENDIUM §11.2).
 // F2P-only: gold purchases, no premium currency required.
-const PACK_STANDARD_COST = 500;   // 1 random hero card (any race), weighted
-const PACK_RACE_COST     = 1500;  // 5 hero cards of selected race
-const PACK_RACE_COUNT    = 5;
+const PACK_STANDARD_COST = MONETIZATION.packs.standard.gold;  // 1 random hero card (any race), weighted
+const PACK_RACE_COST     = MONETIZATION.packs.race.gold;      // 5 hero cards of selected race
+const PACK_RACE_COUNT    = MONETIZATION.packs.race.count;
 const _PACK_RACE_LABELS  = { pirate: 'PIRATE', rock: 'ROCK BAND', shark: 'SHARK', crocodile: 'CROCODILE', spark: 'SPARK' };
 const _PACK_RACE_COLORS  = { pirate: '#E85D4A', rock: '#A88AC8', shark: '#4ADBFF', crocodile: '#7AEC4A', spark: '#FFE14A' };
 
@@ -20092,9 +20280,9 @@ const GEM_PACKS = [
 const FIRST_PURCHASE_KEY      = 'blocksworn_first_purchase_done';
 const FOUNDER_BADGE_KEY       = 'blocksworn_founder_badge';
 const GOLD_TO_GEMS_LAST_KEY   = 'blocksworn_gold_to_gems_last';
-const GOLD_TO_GEMS_COST       = 5000;
-const GOLD_TO_GEMS_AMOUNT     = 100;
-const GOLD_TO_GEMS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const GOLD_TO_GEMS_COST       = BALANCE.currency.goldToGems.cost;
+const GOLD_TO_GEMS_AMOUNT     = BALANCE.currency.goldToGems.amount;
+const GOLD_TO_GEMS_COOLDOWN_MS = BALANCE.currency.goldToGems.cooldownMs;
 
 function _isFirstPurchaseDone() {
   try { return localStorage.getItem(FIRST_PURCHASE_KEY) === 'true'; } catch (e) { return false; }
@@ -20122,7 +20310,7 @@ function _hasFounderBadge() {
 //   ✓ Permanent profile cosmetic ("Founder badge") — FOUNDER_BADGE_KEY
 //   ✓ 1-week 24h Buff active free                  — MEGA_BUFF_KEY 7-day
 //   ✓ 1 random Hero Card                          — dropRandomHeroCards
-const FIRST_PURCHASE_FREE_BUFF_MS = 7 * 24 * 60 * 60 * 1000;  // 7 days
+const FIRST_PURCHASE_FREE_BUFF_MS = MONETIZATION.firstPurchase.freeBuffMs;  // 7 days
 function _grantFirstPurchaseBonus() {
   if (_isFirstPurchaseDone()) return false;
   _markFirstPurchaseDone();
@@ -20226,30 +20414,30 @@ function purchaseGemPack(packId) {
 // ===== PHASE B — PACK LINEUP (Big/Premium/Ultimate + pity + premium drop) =====
 // 2026-04-28 — Per BLOCKSWORN_MONETIZATION.md §5.4-5.7 / §3.4.
 
-const PACK_BIG_GOLD_COST            = 5000;
-const PACK_BIG_GEMS_COST            = 500;
-const PACK_BIG_CARDS                = 10;
-const PACK_BIG_T2_STONES            = 1;
+const PACK_BIG_GOLD_COST            = MONETIZATION.packs.big.gold;
+const PACK_BIG_GEMS_COST            = MONETIZATION.packs.big.gems;
+const PACK_BIG_CARDS                = MONETIZATION.packs.big.cards;
+const PACK_BIG_T2_STONES            = MONETIZATION.packs.big.t2Stones;
 
-const PACK_PREMIUM_GEMS_COST        = 500;
-const PACK_PREMIUM_CARDS            = 10;
-const PACK_PREMIUM_T2_STONES        = 1;
-const PACK_PREMIUM_T3_CHANCE        = 0.05;
-const PACK_PREMIUM_GOLD_BONUS       = 50;
-const PACK_PREMIUM_ESSENCE_BONUS    = 5;
+const PACK_PREMIUM_GEMS_COST        = MONETIZATION.packs.premium.gems;
+const PACK_PREMIUM_CARDS            = MONETIZATION.packs.premium.cards;
+const PACK_PREMIUM_T2_STONES        = MONETIZATION.packs.premium.t2Stones;
+const PACK_PREMIUM_T3_CHANCE        = MONETIZATION.packs.premium.t3Chance;
+const PACK_PREMIUM_GOLD_BONUS       = MONETIZATION.packs.premium.goldBonus;
+const PACK_PREMIUM_ESSENCE_BONUS    = MONETIZATION.packs.premium.essenceBonus;
 
-const PACK_ULTIMATE_GEMS_COST       = 1100;
-const PACK_ULTIMATE_CARDS           = 25;
-const PACK_ULTIMATE_T2_STONES       = 2;
-const PACK_ULTIMATE_T3_STONES       = 1;
-const PACK_ULTIMATE_GOLD_BONUS      = 100;
-const PACK_ULTIMATE_ESSENCE_BONUS   = 20;
-const PACK_ULTIMATE_DROP_BOOST_DAYS = 7;
+const PACK_ULTIMATE_GEMS_COST       = MONETIZATION.packs.ultimate.gems;
+const PACK_ULTIMATE_CARDS           = MONETIZATION.packs.ultimate.cards;
+const PACK_ULTIMATE_T2_STONES       = MONETIZATION.packs.ultimate.t2Stones;
+const PACK_ULTIMATE_T3_STONES       = MONETIZATION.packs.ultimate.t3Stones;
+const PACK_ULTIMATE_GOLD_BONUS      = MONETIZATION.packs.ultimate.goldBonus;
+const PACK_ULTIMATE_ESSENCE_BONUS   = MONETIZATION.packs.ultimate.essenceBonus;
+const PACK_ULTIMATE_DROP_BOOST_DAYS = MONETIZATION.packs.ultimate.dropBoostDays;
 
 const PACK_PITY_KEY                 = 'blocksworn_pack_pity_counter';
-const PACK_PITY_THRESHOLD           = 30;  // standard/race packs without rare → guaranteed T2
+const PACK_PITY_THRESHOLD           = MONETIZATION.pity.threshold;  // standard/race packs without rare → guaranteed T2
 const PREMIUM_DROP_RATE_KEY         = 'blocksworn_premium_drop_until';
-const PREMIUM_DROP_RATE_BOOST       = 1.30;  // ×30% weight to less-owned heroes during 7d window
+const PREMIUM_DROP_RATE_BOOST       = MONETIZATION.pity.premiumDropBoost;  // ×30% weight to less-owned heroes during 7d window
 
 function _addTier2Stones(n) {
   if (!towerState || n <= 0) return;
@@ -20798,7 +20986,7 @@ if (typeof window !== 'undefined') {
 
 let gold = 0;
 
-const GOLD_PER_WIN     = 100;
+const GOLD_PER_WIN     = BALANCE.currency.goldPerWin;
 const GOLD_STORAGE_KEY = 'blocksworn_gold';
 
 function saveGoldToStorage() {
@@ -22409,7 +22597,7 @@ if (typeof window !== 'undefined') {
 
 let gems = 0;
 const GEMS_STORAGE_KEY = 'blocksworn_gems';
-const STARTER_GEMS = 100;
+const STARTER_GEMS = BALANCE.currency.starterGems;
 
 function saveGemsToStorage() {
   try { localStorage.setItem(GEMS_STORAGE_KEY, String(gems)); } catch (e) { console.warn('saveGemsToStorage failed:', e); }
@@ -22521,14 +22709,14 @@ if (typeof window !== 'undefined') {
 // Integration: bonuses flow via getHeroStats so all downstream consumers
 // (damage calc, HP init, ult charging) pick them up without changes.
 
-const HERO_LEVEL_MIN    = 1;
-const HERO_LEVEL_MAX    = 60;
-const LEVEL_COST_BASE   = 50;
-const LEVEL_COST_STEP   = 50;
-const LEVEL_COST_CAP    = 3000;
-const LEVEL_DMG_PER     = 0.02;   // +2% dmg per level
-const LEVEL_HP_PER      = 1;       // +1 HP per level
-const LEVEL_ULT_PER     = 0.005;   // +0.5% ult rate per level
+const HERO_LEVEL_MIN    = BALANCE.heroLevel.min;
+const HERO_LEVEL_MAX    = BALANCE.heroLevel.max;
+const LEVEL_COST_BASE   = BALANCE.heroLevel.costBase;
+const LEVEL_COST_STEP   = BALANCE.heroLevel.costStep;
+const LEVEL_COST_CAP    = BALANCE.heroLevel.costCap;
+const LEVEL_DMG_PER     = BALANCE.heroLevel.dmgPer;   // +2% dmg per level
+const LEVEL_HP_PER      = BALANCE.heroLevel.hpPer;    // +1 HP per level
+const LEVEL_ULT_PER     = BALANCE.heroLevel.ultPer;   // +0.5% ult rate per level
 
 let heroLevels = {}; // { heroId: integer in [1, 60] }
 const HERO_LEVELS_KEY = 'blocksworn_hero_levels';
@@ -22559,13 +22747,16 @@ function loadHeroLevelsFromStorage() {
 function getHeroLevel(heroId) {
   const lvl = heroLevels[heroId];
   if (typeof lvl !== 'number' || !Number.isFinite(lvl) || lvl < HERO_LEVEL_MIN) return HERO_LEVEL_MIN;
-  if (lvl > HERO_LEVEL_MAX) return HERO_LEVEL_MAX;
+  // BAL.1 — clamp display to current tier's cap. Saved levels above cap survive
+  // in storage but render as the cap until the hero is ascended further.
+  const effMax = getEffectiveLevelMax(heroId);
+  if (lvl > effMax) return effMax;
   return Math.floor(lvl);
 }
 
 function getLevelUpCost(heroId) {
   const lvl = getHeroLevel(heroId);
-  if (lvl >= HERO_LEVEL_MAX) return null;
+  if (lvl >= getEffectiveLevelMax(heroId)) return null;
   const raw = LEVEL_COST_BASE + (lvl - 1) * LEVEL_COST_STEP;
   return Math.min(raw, LEVEL_COST_CAP);
 }
@@ -22648,8 +22839,11 @@ function levelUpHero(heroId) {
     return false;
   }
   const lvl = getHeroLevel(heroId);
-  if (lvl >= HERO_LEVEL_MAX) {
-    try { flashText('⭐ MAX LEVEL REACHED', '#A8A5B8'); } catch(e){}
+  const effMax = getEffectiveLevelMax(heroId);
+  if (lvl >= effMax) {
+    // BAL.1 — at tier cap but not Mythic ceiling = ascend prompt, not "MAX".
+    const isMythCap = effMax >= BALANCE.heroLevel.maxMyth;
+    try { flashText(isMythCap ? '⭐ MAX LEVEL REACHED' : '✦ ASCEND TO RAISE CAP', '#A8A5B8'); } catch(e){}
     return false;
   }
   const cost = getLevelUpCost(heroId);
@@ -22677,7 +22871,11 @@ function levelUpHero(heroId) {
 }
 
 function setHeroLevel(heroId, level) {
-  const clamped = Math.max(HERO_LEVEL_MIN, Math.min(HERO_LEVEL_MAX, Math.floor(Number(level) || HERO_LEVEL_MIN)));
+  // BAL.1 — clamp to current tier's effective cap. Bulk grants (pack rewards
+  // via applyLevelBonusToHeroes → bumpLevel) over the cap silently waste; the
+  // player must ascend to absorb further levels.
+  const effMax = getEffectiveLevelMax(heroId);
+  const clamped = Math.max(HERO_LEVEL_MIN, Math.min(effMax, Math.floor(Number(level) || HERO_LEVEL_MIN)));
   heroLevels[heroId] = clamped;
   saveHeroLevelsToStorage();
   return clamped;
@@ -23273,6 +23471,8 @@ function triggerAntiDeadlockSystems() {
   if (typeof ultCharges === 'object') {
     ultCharges[hunter.stihiya] = Math.min(cap, (ultCharges[hunter.stihiya] || 0) + boost);
   }
+  // DEBT-014 — also bump per-hero charge so the emergency proc actually fills the ULT bar.
+  addChargeToHeroesOfElement(hunter.stihiya, boost * ELEMENT_POOL_TO_HERO_CHARGE);
   hunter.emergencyChargeUsed = true;
   // Visual: Hunter portrait pulses red, banner fires
   try { showHunterEmergencyVisual(hunter); } catch (e) {}
@@ -23520,6 +23720,8 @@ function applyRainbowBuff() {
                   || 12;
         const startBoost = Math.floor(cap * (rainbowBonus.charge - 1));
         ultCharges[h.stihiya] = Math.min(cap, (ultCharges[h.stihiya] || 0) + startBoost);
+        // DEBT-014 — feed per-hero charge for rainbow-boost start-of-fight grant.
+        addChargeToHeroesOfElement(h.stihiya, startBoost * ELEMENT_POOL_TO_HERO_CHARGE);
       });
     }
   } catch (e) {}
@@ -24496,8 +24698,8 @@ let towerState = {
 
 // 2026-04-27 — Block T.4 — Gauntlet mode constants. Daily uses 10 floors
 // (TOWER_DAILY_FLOORS from T.1). Weekly is 25, Seasonal is 50.
-const TOWER_WEEKLY_FLOORS   = 25;
-const TOWER_SEASONAL_FLOORS = 50;
+const TOWER_WEEKLY_FLOORS   = BALANCE.tower.weeklyFloors;
+const TOWER_SEASONAL_FLOORS = BALANCE.tower.seasonalFloors;
 // Mode flag — set by startTowerRun / startWeeklyTower / startSeasonalTower
 // at run launch. Read by onTowerFloorClear to decide completion gate, by
 // getPactOfferings to pick tier, by reward dispatch to pick bundle.
@@ -24591,8 +24793,8 @@ function markPactSeen(pactId) {
 // Trigger: Chapter 1 complete. (3-star alternative trigger from spec dropped —
 // no 3-star system shipped; building one would be XL out-of-scope.)
 // ──────────────────────────────────────────────────────────────────────────
-const RACE_PURE_HP_MULT     = 1.20;
-const RACE_PURE_REWARD_MULT = 2.0;
+const RACE_PURE_HP_MULT     = BALANCE.tower.racePure.hpMult;
+const RACE_PURE_REWARD_MULT = BALANCE.tower.racePure.rewardMult;
 const RACE_PURE_CHALLENGES = [
   { race: 'pirate',    bossIdx: 0, label: 'PIRATES',    bossName: 'PYREDRAKE',       element: 'ember' },
   { race: 'shark',     bossIdx: 1, label: 'SHARKS',     bossName: 'ABYSSAL TYRANT',  element: 'tide'  },
@@ -24808,21 +25010,21 @@ function getTowerBossForFloor(floor, mode) {
   return TOWER_BOSSES[idx];
 }
 const TOWER_KEY = 'blocksworn_tower_state';
-const TOWER_MAX_ATTEMPTS_PER_DAY  = 5;
-const TOWER_DAILY_FLOORS          = 10;       // Daily Gauntlet length per spec §2.1
-const TOWER_MID_BOSS_FLOOR        = 5;        // F5 mid-boss
-const TOWER_CLIMAX_BOSS_FLOOR     = 10;       // F10 climax
-const TOWER_DAILY_RESET_HOUR      = 4;        // local 4 AM per spec §2.1
-const TOWER_FRAGMENTS_PER_HEART   = 5;        // 5 fragments = 1 full heart
+const TOWER_MAX_ATTEMPTS_PER_DAY  = BALANCE.tower.maxAttemptsPerDay;
+const TOWER_DAILY_FLOORS          = BALANCE.tower.dailyFloors;       // Daily Gauntlet length per spec §2.1
+const TOWER_MID_BOSS_FLOOR        = BALANCE.tower.midBossFloor;      // F5 mid-boss
+const TOWER_CLIMAX_BOSS_FLOOR     = BALANCE.tower.climaxBossFloor;   // F10 climax
+const TOWER_DAILY_RESET_HOUR      = BALANCE.tower.dailyResetHour;    // local 4 AM per spec §2.1
+const TOWER_FRAGMENTS_PER_HEART   = BALANCE.tower.fragmentsPerHeart; // 5 fragments = 1 full heart
 // Retry cost progression per §7.2 (gold cost for attempts 2-5; attempt 1 is free).
 // 2026-04-27 — Cost ladder: 250 (first daily) / 500 / 1000 / 2000 / 5000.
 // Reduced first-attempt cost from FREE → 250 per Roman request: gives
 // immediate currency commitment so daily Tower has stakes from turn 1.
-const TOWER_RETRY_GOLD_COST = [250, 500, 1000, 2000, 5000];
+const TOWER_RETRY_GOLD_COST = BALANCE.tower.retryGoldCost;
 // Daily completion rewards per §2.1
-const TOWER_DAILY_BASE_GOLD       = 100;
-const TOWER_DAILY_SIGILS          = 5;
-const TOWER_DAILY_HEART_FRAGMENTS = 1;
+const TOWER_DAILY_BASE_GOLD       = BALANCE.tower.daily.baseGold;
+const TOWER_DAILY_SIGILS          = BALANCE.tower.daily.sigils;
+const TOWER_DAILY_HEART_FRAGMENTS = BALANCE.tower.daily.heartFragments;
 let _isTowerBattle = false;
 let _towerPreFloor = null;
 
@@ -27430,12 +27632,12 @@ const RAPID_ASCENSION_CARDS        = 50;
 const RAPID_ASCENSION_GOLD         = 1500;
 const RAPID_ASCENSION_ESSENCE_PER  = 40;    // ×5 stihiyas = 200 total
 
-const SQUAD_POWER_USD              = 9.99;
-const SQUAD_POWER_GEMS             = 1100;
-const SQUAD_POWER_T2               = 3;
-const SQUAD_POWER_CARDS            = 25;
-const SQUAD_POWER_GOLD             = 1000;
-const SQUAD_POWER_ESSENCE_PER      = 20;    // ×5 = 100 total
+const SQUAD_POWER_USD              = MONETIZATION.buffs.squadPower.usd;
+const SQUAD_POWER_GEMS             = MONETIZATION.buffs.squadPower.gems;
+const SQUAD_POWER_T2               = MONETIZATION.buffs.squadPower.t2;
+const SQUAD_POWER_CARDS            = MONETIZATION.buffs.squadPower.cards;
+const SQUAD_POWER_GOLD             = MONETIZATION.buffs.squadPower.gold;
+const SQUAD_POWER_ESSENCE_PER      = MONETIZATION.buffs.squadPower.essencePer;  // ×5 = 100 total
 
 // 2026-04-28 BUGFIX: removed Phase D's duplicate RACE_TO_STIHIYA declaration
 // (the existing const lives further down at line ~24526 and already covers
@@ -27720,17 +27922,17 @@ function buyWeeklyOffer() {
 // integrated yet (AdMob / Unity Ads slots in for it via Phase G integration).
 
 const MEGA_BUFF_KEY            = 'blocksworn_mega_buff_until';
-const MEGA_BUFF_USD            = 1.99;
-const MEGA_BUFF_GEMS           = 200;
-const MEGA_BUFF_DURATION_MS    = 24 * 60 * 60 * 1000;
-const MEGA_BUFF_GOLD_MULT      = 1.25;  // applied in addGold for positive deltas
-const MEGA_BUFF_FRAG_MULT      = 1.50;  // applied in addHeroFragments for positive count
+const MEGA_BUFF_USD            = MONETIZATION.buffs.mega.usd;
+const MEGA_BUFF_GEMS           = MONETIZATION.buffs.mega.gems;
+const MEGA_BUFF_DURATION_MS    = MONETIZATION.buffs.mega.durationMs;
+const MEGA_BUFF_GOLD_MULT      = MONETIZATION.buffs.mega.goldMult;  // applied in addGold for positive deltas
+const MEGA_BUFF_FRAG_MULT      = MONETIZATION.buffs.mega.fragMult;  // applied in addHeroFragments for positive count
 
 const SQUAD_BOOST_KEY          = 'blocksworn_squad_boost_last';
-const SQUAD_BOOST_USD          = 4.99;
-const SQUAD_BOOST_GEMS         = 500;
-const SQUAD_BOOST_COOLDOWN_MS  = 24 * 60 * 60 * 1000;
-const SQUAD_BOOST_LEVELS       = 1;
+const SQUAD_BOOST_USD          = MONETIZATION.buffs.squadBoost.usd;
+const SQUAD_BOOST_GEMS         = MONETIZATION.buffs.squadBoost.gems;
+const SQUAD_BOOST_COOLDOWN_MS  = MONETIZATION.buffs.squadBoost.cooldownMs;
+const SQUAD_BOOST_LEVELS       = MONETIZATION.buffs.squadBoost.levels;
 
 const DAILY_GIFT_KEY           = 'blocksworn_daily_gift_purchased';
 const DAILY_GIFT_USD           = 2.99;
@@ -31024,6 +31226,30 @@ function distributeChargeOnElementClear(element, cellsCleared) {
     }
   } catch (e) {}
 }
+// DEBT-014 — Element-pool dead writes mitigation (PRELAUNCH_MASTER amendment #3).
+// The legacy `ultCharges` pool is no longer the ult-fire gate (per-hero
+// `heroCharges` took over in Phase 4 Block 1). Various artifact/passive procs
+// still bump the legacy pool — this helper translates those bumps into per-hero
+// charge so the procs actually contribute to ult-readiness. Each call-site now
+// invokes this alongside the legacy write; the legacy write stays for any
+// side-effect dependency (UI flashes etc.).
+//
+// Scale conversion: 1 legacy pool unit ≈ 1/12 of bar ≈ 8% of an ult cost.
+// Pass `legacyAmount * ELEMENT_POOL_TO_HERO_CHARGE` to preserve intent.
+const ELEMENT_POOL_TO_HERO_CHARGE = 8;
+function addChargeToHeroesOfElement(element, amount) {
+  if (!element || !amount) return 0;
+  if (typeof addChargeToHero !== 'function') return 0;
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK) || HERO_DECK.length === 0) return 0;
+  const matching = HERO_DECK.filter(h => h && h.stihiya === element);
+  if (matching.length === 0) return 0;
+  for (const h of matching) addChargeToHero(h.id, amount);
+  return matching.length;
+}
+if (typeof window !== 'undefined') {
+  window.addChargeToHeroesOfElement = addChargeToHeroesOfElement;
+}
+
 function addChargeToHero(heroId, amount) {
   if (!heroId || !amount) return;
   // 2026-04-27 — Block 6.5 DEBT-6 — ARCHIVAL "charge_frozen" seal:
@@ -37188,6 +37414,8 @@ async function onHeroFireCompleted(hero) {
     const s = STIHIYAS[Math.floor(Math.random() * STIHIYAS.length)];
     const sCap = (currentUltThreshold && currentUltThreshold[s]) || ULT_THRESHOLD[s] || 12;
     ultCharges[s] = Math.min(sCap, (ultCharges[s] || 0) + 1);
+    // DEBT-014 — feed per-hero charge for umbra chain accumulator proc.
+    addChargeToHeroesOfElement(s, ELEMENT_POOL_TO_HERO_CHARGE);
   }
   // V2.0 Block 3.2: ARCANE COVEN — Mage Double Fire: mage fires execute twice.
   // Awaited + recursion-guarded. Restores passive context so 2nd fire has same damage as 1st.
@@ -40127,6 +40355,8 @@ async function ultRoleDispatch() {
       for (const w of warriors) {
         const wsCap = (currentUltThreshold && currentUltThreshold[w.stihiya]) || ULT_THRESHOLD[w.stihiya] || 12;
         ultCharges[w.stihiya] = Math.min(wsCap, (ultCharges[w.stihiya] || 0) + 3);
+        // DEBT-014 — feed per-hero charge for WARBAND warrior proc.
+        addChargeToHeroesOfElement(w.stihiya, 3 * ELEMENT_POOL_TO_HERO_CHARGE);
       }
       if (warriors.length > 0) flashText('WARBAND: +3 to warriors', '#FFD53D');
     }
@@ -40709,6 +40939,8 @@ async function ultTwistEmberhand(ctx) {
     const s = h.stihiya;
     const cap = (currentUltThreshold && currentUltThreshold[s]) || ULT_THRESHOLD[s] || 12;
     ultCharges[s] = Math.min(cap, (ultCharges[s] || 0) + 1);
+    // DEBT-014 — feed per-hero charge for FLOOD MENDING proc.
+    addChargeToHeroesOfElement(s, ELEMENT_POOL_TO_HERO_CHARGE);
   }
   flashText('FLOOD MENDING', '#FF6600');
 }
@@ -41055,6 +41287,8 @@ async function fireDeltaCrimson(counts, tier) {
       if (!h) continue;
       const cap = (currentUltThreshold && currentUltThreshold[h.stihiya]) || ULT_THRESHOLD[h.stihiya] || 12;
       ultCharges[h.stihiya] = Math.min(cap, (ultCharges[h.stihiya] || 0) + 1);
+      // DEBT-014 — feed per-hero charge for CRIMSON GAMBIT proc.
+      addChargeToHeroesOfElement(h.stihiya, ELEMENT_POOL_TO_HERO_CHARGE);
     }
     flashText('CRIMSON GAMBIT', STIHIYA_COLORS.ember);
   }
@@ -41107,6 +41341,8 @@ async function ultDeltaEmberhand(ctx, tier) {
       if (!h) continue;
       const cap = (currentUltThreshold && currentUltThreshold[h.stihiya]) || ULT_THRESHOLD[h.stihiya] || 12;
       ultCharges[h.stihiya] = Math.min(cap, (ultCharges[h.stihiya] || 0) + 1);
+      // DEBT-014 — feed per-hero charge for FLOOD +1 CHARGE ALL proc.
+      addChargeToHeroesOfElement(h.stihiya, ELEMENT_POOL_TO_HERO_CHARGE);
     }
     flashText('FLOOD +1 CHARGE ALL', STIHIYA_COLORS.ember);
   }
@@ -41807,6 +42043,8 @@ async function fireNightlord() {
           const tgt = umbraHeroes[Math.floor(Math.random() * umbraHeroes.length)];
           const sCap = (currentUltThreshold && currentUltThreshold[tgt.stihiya]) || ULT_THRESHOLD[tgt.stihiya] || 12;
           ultCharges[tgt.stihiya] = Math.min(sCap, (ultCharges[tgt.stihiya] || 0) + 1);
+          // DEBT-014 — feed per-hero charge so the proc contributes to ult-readiness.
+          addChargeToHeroesOfElement(tgt.stihiya, ELEMENT_POOL_TO_HERO_CHARGE);
           charges++;
         }
       }
@@ -43312,6 +43550,8 @@ async function afterPlacement(piece) {
         const s = strikerStihiyas[Math.floor(Math.random() * strikerStihiyas.length)];
         const cap = (currentUltThreshold && currentUltThreshold[s]) || ULT_THRESHOLD[s] || 12;
         ultCharges[s] = Math.min(cap, (ultCharges[s] || 0) + 1);
+        // DEBT-014 — feed per-hero charge so the proc contributes to ult-readiness.
+        addChargeToHeroesOfElement(s, ELEMENT_POOL_TO_HERO_CHARGE);
       }
     }
     // Narrator triggers (UI Spec Part 5.4)
@@ -43807,6 +44047,8 @@ async function afterPlacement(piece) {
       const prev = ultCharges[h.stihiya] || 0;
       ultCharges[h.stihiya] = Math.min(sCap, prev + 1);
       if (ultCharges[h.stihiya] > prev) boosted++;
+      // DEBT-014 — feed per-hero charge so the proc contributes to ult-readiness.
+      addChargeToHeroesOfElement(h.stihiya, ELEMENT_POOL_TO_HERO_CHARGE);
     }
     if (boosted > 0) flashText('STARPATH ×' + boosted, STIHIYA_COLORS.solar);
     starpathTurns--;
@@ -48079,7 +48321,7 @@ function renderHeroDetailLore(hero) {
     const t2 = HERO_T2_ABILITIES[hero.id];
     const slots = [
       { tier: 1, label: 'T1', icon: '⚔', current: !isT2, locked: false,
-        cost: 'Levels 1-' + (typeof HERO_LEVEL_MAX !== 'undefined' ? HERO_LEVEL_MAX : 60) },
+        cost: 'Levels 1-' + BALANCE.heroLevel.maxT1 },
       { tier: 2, label: 'T2', icon: '⚡', current: isT2, locked: !isT2,
         cost: t2 ? t2.name : 'Ascend' },
       { tier: 3, label: 'T3', icon: '✦', current: false, locked: true,
@@ -48104,7 +48346,8 @@ function renderHeroDetailStats(hero) {
   const host = document.getElementById('detailStatsBars');
   if (!host || !hero) return;
   const lvl = (typeof getHeroLevel === 'function') ? getHeroLevel(hero.id) : 1;
-  const lvlPct = ((lvl - 1) / Math.max(1, (HERO_LEVEL_MAX - 1))) * 100;
+  const heroEffMax = (typeof getEffectiveLevelMax === 'function') ? getEffectiveLevelMax(hero.id) : HERO_LEVEL_MAX;
+  const lvlPct = ((lvl - 1) / Math.max(1, (heroEffMax - 1))) * 100;
   const bonuses = (typeof getLevelBonuses === 'function') ? getLevelBonuses(hero.id) : { dmgBonus: 0, hpBonus: 0, ultBonus: 0 };
   // HP / DMG bars use the level progress as fill (since stat scales with level).
   // Charge: stat is hero.period (mage) or generic — show as static label per spec.
@@ -48349,13 +48592,15 @@ function renderHeroDetailLevel(hero) {
   const heroId = hero.id;
   const lvl = getHeroLevel(heroId);
   const bonuses = getLevelBonuses(heroId);
-  const atMax = lvl >= HERO_LEVEL_MAX;
+  const effMax = getEffectiveLevelMax(heroId);
+  const atMax = lvl >= effMax;
+  const isMythCap = effMax >= BALANCE.heroLevel.maxMyth;
   const cost = getLevelUpCost(heroId);
-  // Level value + progress bar
+  // Level value + progress bar — bound to current tier's cap, not absolute Mythic.
   const valEl = document.getElementById('detailLevelValue');
-  if (valEl) valEl.textContent = `${lvl} / ${HERO_LEVEL_MAX}`;
+  if (valEl) valEl.textContent = `${lvl} / ${effMax}`;
   const barFill = document.getElementById('detailLevelBarFill');
-  if (barFill) barFill.style.width = `${((lvl - HERO_LEVEL_MIN) / (HERO_LEVEL_MAX - HERO_LEVEL_MIN) * 100).toFixed(1)}%`;
+  if (barFill) barFill.style.width = `${((lvl - HERO_LEVEL_MIN) / Math.max(1, effMax - HERO_LEVEL_MIN) * 100).toFixed(1)}%`;
   // Stat preview — 3 chips. Show zeros as dimmed (level 1 baseline).
   const statsEl = document.getElementById('detailLevelStats');
   if (statsEl) {
@@ -48382,7 +48627,16 @@ function renderHeroDetailLevel(hero) {
     costEl.textContent = '—';
   } else if (atMax) {
     btn.disabled = true;
-    lbl.textContent = '⭐ MAX LEVEL';
+    if (isMythCap) {
+      lbl.textContent = '⭐ MAX LEVEL';
+    } else {
+      // BAL.1 — at tier cap but room above. Promote ascension instead of "MAX".
+      const nextTierLabel =
+        effMax === BALANCE.heroLevel.maxT1 ? 'TIER 2' :
+        effMax === BALANCE.heroLevel.maxT2 ? 'TIER 3' :
+        'MYTHIC';
+      lbl.textContent = `✦ ASCEND TO ${nextTierLabel}`;
+    }
     costEl.textContent = '';
   } else {
     lbl.textContent = 'UPGRADE';
