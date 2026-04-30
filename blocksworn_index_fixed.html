@@ -915,6 +915,136 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
   opacity: 0.4;
 }
 .hero-slot.hero-slot-empty:hover { opacity: 0.6; }
+
+/* ===========================================================
+   COMBAT UI AAA+ REDESIGN — Boss Area Refinement (PR 4/6)
+   Spec: §5 — element-themed HP gradient, phase-2/3 portrait glow,
+   warning badges in top-right, hearts strip on right side, hide
+   legacy centered .attack-warning text overlay.
+   =========================================================== */
+
+/* Element-themed HP fill — overrides the legacy fire-only gradient.
+   Triggered by data-element on .v-battle-boss-card (set in JS at
+   battle setup based on boss.stihiya: ember→fire, tide→frost, etc).
+   Each gradient consumes the foundation tokens from PR 1 §10.2. */
+.a-battle .v-battle-boss-card[data-element="fire"]  .v-progress-fill.hp {
+  background: linear-gradient(90deg, var(--el-fire-base, #FF6B35), var(--el-fire-light, #FFB347));
+  box-shadow: 0 0 10px var(--el-fire-glow, rgba(255, 107, 53, 0.5));
+}
+.a-battle .v-battle-boss-card[data-element="frost"] .v-progress-fill.hp {
+  background: linear-gradient(90deg, var(--el-frost-base, #4A9FFF), var(--el-frost-light, #6BB6FF));
+  box-shadow: 0 0 10px var(--el-frost-glow, rgba(74, 159, 255, 0.5));
+}
+.a-battle .v-battle-boss-card[data-element="earth"] .v-progress-fill.hp {
+  background: linear-gradient(90deg, var(--el-earth-base, #4ADB6D), var(--el-earth-light, #6BE08F));
+  box-shadow: 0 0 10px var(--el-earth-glow, rgba(74, 219, 109, 0.5));
+}
+.a-battle .v-battle-boss-card[data-element="dark"]  .v-progress-fill.hp {
+  background: linear-gradient(90deg, var(--el-dark-base, #8B4FBC), var(--el-dark-light, #A66FCC));
+  box-shadow: 0 0 10px var(--el-dark-glow, rgba(139, 79, 188, 0.5));
+}
+.a-battle .v-battle-boss-card[data-element="light"] .v-progress-fill.hp {
+  background: linear-gradient(90deg, var(--el-light-base, #FFD700), var(--el-light-light, #FFE066));
+  box-shadow: 0 0 10px var(--el-light-glow, rgba(255, 215, 0, 0.5));
+}
+
+/* Phase glow on boss portrait — JS adds .phase-2 / .phase-3 class on
+   renderBossHP based on HP %. P2 (≤66%): gold breathing glow. P3
+   (≤33%): pink panic pulse with subtle scale. prefers-reduced-motion
+   kills the animations but keeps the static border tint so the read
+   "boss is wounded" still lands. */
+.a-battle .v-battle-boss-portrait.phase-2 {
+  border-color: var(--el-light-base, #FFD700);
+  box-shadow: 0 0 16px rgba(255, 215, 0, 0.55), inset 0 -4px 8px rgba(0, 0, 0, 0.5);
+  animation: bossPortraitPhase2 2.0s ease-in-out infinite alternate;
+}
+.a-battle .v-battle-boss-portrait.phase-3 {
+  border-color: #FF1493;
+  box-shadow: 0 0 22px rgba(255, 20, 147, 0.7), inset 0 -4px 8px rgba(0, 0, 0, 0.5);
+  animation: bossPortraitPhase3 1.0s ease-in-out infinite alternate;
+}
+@keyframes bossPortraitPhase2 {
+  from { box-shadow: 0 0 12px rgba(255, 215, 0, 0.4), inset 0 -4px 8px rgba(0, 0, 0, 0.5); }
+  to   { box-shadow: 0 0 22px rgba(255, 215, 0, 0.85), inset 0 -4px 8px rgba(0, 0, 0, 0.5); }
+}
+@keyframes bossPortraitPhase3 {
+  from { box-shadow: 0 0 16px rgba(255, 20, 147, 0.5), inset 0 -4px 8px rgba(0, 0, 0, 0.5); transform: scale(1.0); }
+  to   { box-shadow: 0 0 26px rgba(255, 20, 147, 0.95), inset 0 -4px 8px rgba(0, 0, 0, 0.5); transform: scale(1.02); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-battle .v-battle-boss-portrait.phase-2,
+  .a-battle .v-battle-boss-portrait.phase-3 { animation: none !important; transform: none !important; }
+}
+
+/* Warning badges (top-right of boss-card). _renderBossWarnings reads
+   attackWarning text + HP phase, surfaces up to 3 icons. .danger
+   class for the phase-3 💀 variant adds a faster pulse. */
+.a-battle .v-battle-boss-card .v-battle-boss-warnings {
+  position: absolute;
+  top: var(--space-sm, 8px);
+  right: var(--space-2xl, 32px);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs, 4px);
+  z-index: 4;
+  pointer-events: none;
+}
+.a-battle .v-battle-boss-warnings .v-battle-boss-warning {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  background: rgba(255, 215, 0, 0.18);
+  border: 1px solid rgba(255, 215, 0, 0.50);
+  border-radius: var(--radius-full, 9999px);
+  color: #FFE066;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+.a-battle .v-battle-boss-warnings .v-battle-boss-warning.danger {
+  background: rgba(255, 20, 147, 0.22);
+  border-color: rgba(255, 20, 147, 0.55);
+  color: #FF8585;
+  animation: bossWarningDangerPulse 1.4s ease-in-out infinite;
+}
+@keyframes bossWarningDangerPulse {
+  0%, 100% { opacity: 1.0; }
+  50%      { opacity: 0.55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-battle .v-battle-boss-warnings .v-battle-boss-warning.danger { animation: none !important; }
+}
+
+/* Hearts strip on right side of boss-info. 4 individual ❤ icons —
+   different visual from the top-bar count (PR 2). Spec §5.3. */
+.a-battle .v-battle-boss-card .v-battle-boss-hearts {
+  position: absolute;
+  bottom: var(--space-sm, 8px);
+  right: var(--space-sm, 8px);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 3;
+  pointer-events: none;
+}
+.a-battle .v-battle-boss-hearts .v-battle-boss-heart {
+  font-size: 12px;
+  line-height: 1;
+  color: var(--hearts-color, #DC143C);
+  text-shadow: 0 0 4px var(--hearts-glow, rgba(220, 20, 60, 0.5));
+}
+.a-battle .v-battle-boss-hearts .v-battle-boss-heart.empty {
+  opacity: 0.25;
+  text-shadow: none;
+}
+
+/* Hide legacy centered .attack-warning text overlay. Its data still
+   flows from JS into the element so a CSS rollback restores it.
+   The new warning badges (top-right) consume the same state. */
+.a-battle .v-battle-boss-card .attack-warning {
+  display: none !important;
+}
 .hero-slot.hero-slot-empty .hero-card-empty {
   width: 100%;
   aspect-ratio: 3 / 4;
@@ -15312,7 +15442,19 @@ button.season-tier-claim:active {
           <div class="v-progress-fill hp" id="bossHpFill" style="width:100%"></div>
         </div>
         <div class="v-battle-boss-hptext" id="bossHpText">—</div>
-        <div class="attack-warning" id="attackWarning">—</div>
+        <!-- 2026-04-30 — Combat UI Redesign §5 (PR 4/6): persistent warning
+             badges in top-right of boss-card. Driven by _renderBossWarnings
+             which reads attackWarning text + HP phase to surface up to 3
+             icons. Replaces the legacy centered .attack-warning text
+             overlay (kept hidden via CSS so JS write hooks still flow). -->
+        <div class="v-battle-boss-warnings" id="bossWarnings"></div>
+        <!-- 2026-04-30 — Combat UI Redesign §5.3 (PR 4/6): hearts strip on
+             right side of boss-info area. Renders 4 individual hearts
+             (filled/empty) per spec — different visual from the count
+             readout in the top bar (PR 2). _renderBossAreaHearts wires
+             this to the hp global. -->
+        <div class="v-battle-boss-hearts" id="bossAreaHearts"></div>
+        <div class="attack-warning" id="attackWarning" aria-hidden="true">—</div>
       </div>
       <!-- 2026-04-30 — Mobile UX Fix v0.1 §4.3: boss-info quick-look button.
            Tap shows extended boss details (archetype, HP, current phase,
@@ -34688,6 +34830,23 @@ function startBossBattle() {
   document.getElementById('bossImgWrap').classList.remove('defeated');
   document.getElementById('bossBar').style.setProperty('--boss-color', currentBoss.color);
   document.getElementById('bossImg').src = ASSETS[currentBoss.img];
+  // 2026-04-30 — Combat UI Redesign §5 (PR 4/6): set data-element on the
+  // boss-card so element-themed HP gradient + future palette rules
+  // resolve. Spec uses fire/frost/earth/dark/light naming; map from
+  // the existing stihiya tokens (ember/tide/grove/umbra/solar).
+  try {
+    const _el2spec = { ember: 'fire', tide: 'frost', grove: 'earth', umbra: 'dark', solar: 'light' };
+    const _el = _el2spec[currentBoss.stihiya] || 'fire';
+    const _bossCard = document.getElementById('bossBar');
+    if (_bossCard) _bossCard.setAttribute('data-element', _el);
+  } catch (e) {}
+  // Reset phase glow at battle start — applied dynamically by
+  // renderBossHP based on HP %. Without this, a re-entry of a boss
+  // we previously wounded inherits the stale phase class.
+  try {
+    const _portrait = document.getElementById('bossImgWrap');
+    if (_portrait) _portrait.classList.remove('phase-2', 'phase-3');
+  } catch (e) {}
   // V18.2: apply current chapter's boss emblems to grid/tray cell backgrounds
   applyBossEmblems();
   // Boss emblem badge on portrait corner
@@ -37429,12 +37588,19 @@ function vShowAttackTelegraph(opts) {
       target.appendChild(arrow);
     }
   }
+  // 2026-04-30 — Combat UI Redesign §5 (PR 4/6): refresh warning badges
+  // so the ⚡ indicator surfaces on the boss-card top-right whenever a
+  // telegraph window is active. The legacy #attackWarning text is hidden
+  // via CSS — badges replace its visible role.
+  try { if (typeof _renderBossAreaWarnings === 'function') _renderBossAreaWarnings(); } catch (e) {}
 }
 
 function vClearAttackTelegraph() {
   document.querySelectorAll('.p-attack-telegraph, .p-attack-arrow').forEach(el => el.remove());
   const warn = document.getElementById('attackWarning');
   if (warn) { warn.classList.remove('active'); warn.innerHTML = ''; }
+  // Refresh warning badges (drops ⚡ when no telegraph active).
+  try { if (typeof _renderBossAreaWarnings === 'function') _renderBossAreaWarnings(); } catch (e) {}
 }
 
 function maybeBossAttack() {
@@ -42805,6 +42971,81 @@ function renderBossHP() {
   const reviveMark = hasRevives ? ` · ${'🔥'.repeat(revivesRemaining + 1)}` : '';
   document.getElementById('bossHpText').textContent =
     `${_shortHP(bossHP)} / ${_shortHP(bossMaxHP)}${reviveMark}`;
+  // 2026-04-30 — Combat UI Redesign §5 (PR 4/6): phase glow on portrait
+  // tracks HP thresholds. Phase 2 (≤66%) gold breathing; Phase 3 (≤33%)
+  // pink panic pulse. Lower-bound first so a boss at 33% gets the more
+  // dramatic phase-3 visual (not stuck on phase-2).
+  try {
+    const _portrait = document.getElementById('bossImgWrap');
+    if (_portrait) {
+      _portrait.classList.remove('phase-2', 'phase-3');
+      if (pct > 0 && pct <= 33) _portrait.classList.add('phase-3');
+      else if (pct <= 66)       _portrait.classList.add('phase-2');
+    }
+  } catch (e) {}
+  // Refresh warnings + hearts strip — both depend on HP / phase state.
+  try { _renderBossAreaWarnings(); } catch (e) {}
+  try { _renderBossAreaHearts();    } catch (e) {}
+}
+
+// 2026-04-30 — Combat UI Redesign §5.3 (PR 4/6): hearts strip render.
+// Reads global hp + currentMaxHP (or MAX_HP fallback). Renders one
+// span per heart slot, filled state for indices < hp. Different
+// visual from the top-bar count (PR 2) — top-bar shows the digit,
+// boss-area shows the four discrete hearts.
+function _renderBossAreaHearts() {
+  const el = document.getElementById('bossAreaHearts');
+  if (!el) return;
+  if (typeof hp === 'undefined') return;
+  const cap = (typeof currentMaxHP !== 'undefined' && currentMaxHP > 0)
+            ? currentMaxHP
+            : ((typeof MAX_HP !== 'undefined') ? MAX_HP : 3);
+  const cur = Math.max(0, Math.min(cap, hp || 0));
+  // Rebuild minimal — cap rarely changes mid-fight.
+  el.innerHTML = '';
+  for (let i = 0; i < cap; i++) {
+    const h = document.createElement('span');
+    h.className = 'v-battle-boss-heart' + (i < cur ? '' : ' empty');
+    h.textContent = '❤';
+    el.appendChild(h);
+  }
+}
+
+// 2026-04-30 — Combat UI Redesign §5 (PR 4/6): warning badges render.
+// Aggregates state into up to 3 icon badges in top-right of boss-card:
+//   ⚡  attack incoming (legacy attackWarning text non-empty)
+//   🔥  phase 2 active (HP 33-66%)
+//   💀  phase 3 active (HP <33%, .danger pulse)
+// Reads from existing #attackWarning text (kept hidden; data still
+// flows there from JS) so the new badges stay in sync without
+// touching attack-warning callers.
+function _renderBossAreaWarnings() {
+  const el = document.getElementById('bossWarnings');
+  if (!el) return;
+  const badges = [];
+  try {
+    const aw = document.getElementById('attackWarning');
+    const awText = aw ? (aw.textContent || '').trim() : '';
+    if (awText && awText !== '—') badges.push({ icon: '⚡', cls: '' });
+  } catch (e) {}
+  try {
+    if (typeof bossHP !== 'undefined' && typeof bossMaxHP !== 'undefined' && bossMaxHP > 0) {
+      const pct = (bossHP / bossMaxHP) * 100;
+      if (pct > 0 && pct <= 33) badges.push({ icon: '💀', cls: 'danger' });
+      else if (pct <= 66)        badges.push({ icon: '🔥', cls: '' });
+    }
+  } catch (e) {}
+  el.innerHTML = '';
+  for (const b of badges.slice(0, 3)) {
+    const span = document.createElement('span');
+    span.className = 'v-battle-boss-warning' + (b.cls ? ' ' + b.cls : '');
+    span.textContent = b.icon;
+    el.appendChild(span);
+  }
+}
+if (typeof window !== 'undefined') {
+  window._renderBossAreaWarnings = _renderBossAreaWarnings;
+  window._renderBossAreaHearts = _renderBossAreaHearts;
 }
 
 function renderDeck() {
@@ -43244,6 +43485,11 @@ function renderHP() {
         : String(damageDealt);
     }
   } catch (e) {}
+  // 2026-04-30 — Combat UI Redesign §5.3 (PR 4/6): also refresh the
+  // boss-area hearts strip on every player-HP render. Spec puts hearts
+  // in BOTH top-bar (count) and boss-area (4 individual icons) — they
+  // serve different reads (digit vs visual ticks).
+  try { if (typeof _renderBossAreaHearts === 'function') _renderBossAreaHearts(); } catch (e) {}
   // 2026-04-27 — Audio A.2.8: shield gain/break SFX on transition.
   try {
     const cur = shieldCount || 0;
