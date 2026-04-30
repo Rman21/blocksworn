@@ -48,6 +48,151 @@
      the var on resize / orientationchange so it tracks the actual
      rendered cell size. */
   --cell-size: clamp(35px, 8vw, 50px);
+
+  /* ========================================================== */
+  /* === COMBAT UI AAA+ REDESIGN — Foundation Tokens (PR 1/6) === */
+  /* ========================================================== */
+  /* 2026-04-30 — Per BLOCKSWORN_COMBAT_UI_REDESIGN.md §9-§11 + §16.
+     Phase 1 of the AAA+ redesign migration: expose the full design
+     system as CSS variables. Zero visual impact in this PR — these
+     tokens are NOT consumed by existing rules yet. Phases 2-6 (top bar,
+     hero squad, boss refinement, tray pill, responsive) build on this
+     foundation.
+
+     Naming convention: spec-prefixed (no leading `--a-` or `--v-`)
+     so the new tokens sit alongside the existing Arena Premium
+     palette without shadowing. When migration completes, the older
+     `--a-*` tokens can be deprecated. */
+
+  /* §9.1 Spacing scale */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* §9.2 Border radius */
+  --radius-xs:    2px;
+  --radius-sm:    4px;
+  --radius-md:    8px;
+  --radius-lg:   12px;
+  --radius-full: 9999px;
+
+  /* §9.3 Shadow tokens */
+  --shadow-sm:    0 1px 2px rgba(0, 0, 0, 0.20);
+  --shadow-md:    0 4px 12px rgba(0, 0, 0, 0.30);
+  --shadow-lg:    0 8px 24px rgba(0, 0, 0, 0.40);
+  --shadow-glow:  0 0 12px var(--element-color, rgba(255, 184, 74, 0.5));
+  --shadow-inner: inset 0 0 8px rgba(0, 0, 0, 0.30);
+
+  /* §9.4 Z-index scale */
+  --z-base:         0;     /* background, board */
+  --z-elevated:     10;    /* boss area, hero row */
+  --z-sticky:      100;    /* tray (already in use) */
+  --z-overlay:     200;    /* modal backdrops */
+  --z-modal:       300;    /* modal content */
+  --z-notification: 400;   /* toasts, flashText */
+  --z-tooltip:     500;    /* tooltips */
+  --z-critical:   1000;    /* errors, blocking dialogs */
+
+  /* §10.1 Combat UI backgrounds (spec-prefixed; coexists with --a-bg-*) */
+  --combat-bg-primary:   #0A0F1A;
+  --combat-bg-secondary: #0F1423;
+  --combat-bg-tertiary:  #1A2235;
+  --combat-bg-elevated:  rgba(20, 25, 40, 0.95);
+
+  /* §10.1 Combat UI borders */
+  --combat-border-subtle:  rgba(255, 255, 255, 0.05);
+  --combat-border-default: rgba(255, 255, 255, 0.10);
+  --combat-border-strong:  rgba(255, 255, 255, 0.20);
+
+  /* §10.1 Combat UI text */
+  --combat-text-primary:   #FFFFFF;
+  --combat-text-secondary: rgba(255, 255, 255, 0.7);
+  --combat-text-tertiary:  rgba(255, 255, 255, 0.5);
+  --combat-text-disabled:  rgba(255, 255, 255, 0.3);
+
+  /* §10.2 Element colors — Fire / Ember */
+  --el-fire-light:   #FFB347;
+  --el-fire-base:    #FF6B35;
+  --el-fire-dark:    #CC4A1F;
+  --el-fire-glow:    rgba(255, 107, 53, 0.50);
+  --el-fire-bg:      rgba(255, 107, 53, 0.15);
+  --el-fire-border:  rgba(255, 107, 53, 0.30);
+
+  /* §10.2 Frost / Tide */
+  --el-frost-light:  #6BB6FF;
+  --el-frost-base:   #4A9FFF;
+  --el-frost-dark:   #2980E6;
+  --el-frost-glow:   rgba(74, 159, 255, 0.50);
+  --el-frost-bg:     rgba(74, 159, 255, 0.15);
+  --el-frost-border: rgba(74, 159, 255, 0.30);
+
+  /* §10.2 Earth / Grove */
+  --el-earth-light:  #6BE08F;
+  --el-earth-base:   #4ADB6D;
+  --el-earth-dark:   #2EB856;
+  --el-earth-glow:   rgba(74, 219, 109, 0.50);
+  --el-earth-bg:     rgba(74, 219, 109, 0.15);
+  --el-earth-border: rgba(74, 219, 109, 0.30);
+
+  /* §10.2 Dark / Umbra */
+  --el-dark-light:   #A66FCC;
+  --el-dark-base:    #8B4FBC;
+  --el-dark-dark:    #6F35A0;
+  --el-dark-glow:    rgba(139, 79, 188, 0.50);
+  --el-dark-bg:      rgba(139, 79, 188, 0.15);
+  --el-dark-border:  rgba(139, 79, 188, 0.30);
+
+  /* §10.2 Light / Solar */
+  --el-light-light:  #FFE066;
+  --el-light-base:   #FFD700;
+  --el-light-dark:   #FFA500;
+  --el-light-glow:   rgba(255, 215, 0, 0.50);
+  --el-light-bg:     rgba(255, 215, 0, 0.15);
+  --el-light-border: rgba(255, 215, 0, 0.30);
+
+  /* §10.3 Race colors — accent palette */
+  --race-pirates:     #DC143C;
+  --race-pirates-glow: rgba(220, 20, 60, 0.50);
+  --race-rockband:    #FF1493;
+  --race-rockband-glow: rgba(255, 20, 147, 0.50);
+  --race-sharks:      #E6F3FF;
+  --race-sharks-glow:  rgba(230, 243, 255, 0.50);
+  --race-crocodiles:  #228B22;
+  --race-crocodiles-glow: rgba(34, 139, 34, 0.50);
+  --race-sparks:      #FFD700;
+  --race-sparks-glow:  rgba(255, 215, 0, 0.50);
+
+  /* §10.4 Semantic colors */
+  --hp-full:     #4ADB6D;
+  --hp-mid:      #FFD700;
+  --hp-low:      #FF6B35;
+  --hp-critical: #DC143C;
+  --hearts-color: #DC143C;
+  --hearts-glow:  rgba(220, 20, 60, 0.50);
+
+  /* §11 Typography — sizes only; font-family already in Arena tokens. */
+  --fs-xs:  9px;    /* hero name, tier badge, tiny meta */
+  --fs-sm: 11px;    /* boss meta, HP text, hero charge */
+  --fs-md: 13px;    /* boss name on small phones, tray text */
+  --fs-lg: 16px;    /* boss name, modal headings */
+  --fs-xl: 20px;    /* boss-details modal title */
+  --fs-2xl: 24px;   /* victory / defeat titles */
+
+  /* §11 Font weights */
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold: 600;
+  --fw-bold:    700;
+  --fw-black:   800;
+
+  /* §16 Layout heights — single source of truth for stack budget. */
+  --top-bar-height:    40px;
+  --boss-area-height: 110px;
+  --hero-row-height:   95px;
+  --tray-height:      105px;
 }
 @media (min-width: 768px) and (orientation: portrait) {
   :root { --cell-size: clamp(45px, 9vw, 65px); }
