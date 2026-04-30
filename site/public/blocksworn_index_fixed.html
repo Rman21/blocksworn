@@ -37,7 +37,98 @@
   --safe-area-bottom:       env(safe-area-inset-bottom, 0px);
   --safe-area-left:         env(safe-area-inset-left, 0px);
   --safe-area-right:        env(safe-area-inset-right, 0px);
+}
 
+/* 2026-04-30 — Mobile UX Fix v0.1 §7 (Detection Logic): adaptive CSS
+   gated on the html.is-* classes that applyDeviceClasses() stamps at
+   runtime. Three classes carry visual rules:
+
+     html.is-pwa        — running standalone (added to home screen).
+                          No browser URL bar / nav, so we can claim back
+                          a few px of vertical headroom.
+     html.is-small-screen — viewport <700h or <380w. Triggers an extra
+                          compact layer on top of the existing
+                          (max-height: 720px) media-query rules.
+     html.has-notch     — iPhone X+ with safe-area-inset-top > 20.
+                          Gets the explicit top inset on the battle
+                          screen so content doesn't slide under the
+                          dynamic island / notch.
+
+   Other classes (is-mobile / is-ios / is-android / is-landscape) are
+   stamped for downstream reading — JS can branch on them without
+   re-parsing the user-agent. */
+html.is-pwa #screenBattle.active,
+html.is-pwa .a-battle {
+  /* Reclaim the room we previously reserved for browser UI. */
+  padding-top: max(8px, env(safe-area-inset-top, 0px) + 4px);
+}
+html.has-notch .a-battle .v-battle-topbar {
+  /* Push the boss-card row below the dynamic island. */
+  padding-top: max(28px, env(safe-area-inset-top, 0px) + 24px);
+}
+html.is-small-screen .a-battle .v-battle-boss-card {
+  /* Smaller-screen phones get an extra compact pass on top of the
+     existing @media (max-height: 720px) rules so iPhone SE in
+     unfolded portrait still fits all four bands. */
+  min-height: 60px;
+  padding: 4px 6px;
+}
+html.is-small-screen .a-battle .v-battle-boss-portrait {
+  width: 50px;
+  height: 50px;
+}
+html.is-small-screen .a-battle .hero-slot {
+  max-width: 64px;
+}
+html.is-small-screen .a-battle .hero-slot .name-lbl {
+  font-size: 8.5px;
+  letter-spacing: 0.3px;
+}
+html.is-small-screen .a-battle .hero-slot .ult-bar {
+  height: 5px;
+  margin-top: 3px;
+}
+
+/* 2026-04-30 — Mobile UX Fix v0.1 §5.5: rotation prompt for narrow
+   landscape (phone held sideways with viewport too short to play).
+   Spec: detect inner-w > inner-h AND inner-h < 500. Hidden by default;
+   _maybeShowRotationPrompt toggles `aria-hidden=false` + sets
+   .rotation-prompt-active on body. */
+.rotation-prompt {
+  position: fixed; inset: 0;
+  z-index: 9000;
+  display: none;
+  align-items: center; justify-content: center;
+  padding: 24px;
+  background: rgba(8, 4, 14, 0.96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+  color: #F5F3EC;
+  text-align: center;
+}
+.rotation-prompt[aria-hidden="false"] { display: flex; }
+.rotation-prompt-icon {
+  font-size: 48px; margin-bottom: 16px;
+  animation: rotationPromptSpin 2.4s ease-in-out infinite;
+}
+.rotation-prompt-title {
+  font-size: 18px; font-weight: 800; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 8px;
+}
+.rotation-prompt-sub {
+  font-size: 13px; color: var(--a-text-secondary, #A8A5B8); max-width: 320px;
+}
+@keyframes rotationPromptSpin {
+  0%, 100% { transform: rotate(-15deg); }
+  50%      { transform: rotate(15deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rotation-prompt-icon { animation: none !important; }
+}
+
+:root {
   /* ========================================= */
   /* =====       ARENA PREMIUM TOKENS    ===== */
   /* ========================================= */
@@ -14577,6 +14668,18 @@ button.season-tier-claim:active {
   </div>
 </div>
 
+<!-- 2026-04-30 — Mobile UX Fix v0.1 §5.5: rotation prompt for narrow
+     landscape (phone held sideways with viewport too short to play).
+     _maybeShowRotationPrompt toggles visibility based on inner-w/h.
+     Hidden by default — display: none unless aria-hidden="false". -->
+<div id="rotationPrompt" class="rotation-prompt" aria-hidden="true">
+  <div>
+    <div class="rotation-prompt-icon">🔄</div>
+    <div class="rotation-prompt-title">Rotate to portrait</div>
+    <div class="rotation-prompt-sub">Blocksworm plays best in portrait. Turn your device upright to continue.</div>
+  </div>
+</div>
+
 <!-- PHASE 3 BLOCK 2 — CLUTCH SLOW-MO overlay. Hidden by default; shown once per
      battle when player at 1 HP AND boss attack incoming next placement (the
      "2 seconds of silence before The Last Line"). Vignette + cool-tone tint +
@@ -27346,6 +27449,88 @@ function _isDevMode() {
 }
 function _devNotice() {
   return _isDevMode() ? '\n\n(Mock IAP — no real charge in dev build)' : '';
+}
+
+// ===== DEVICE DETECTION =====
+// 2026-04-30 — Mobile UX Fix v0.1 §7. Stamps html.is-* classes at
+// runtime so adaptive CSS rules (defined near :root) and downstream JS
+// can branch on device characteristics without re-parsing user-agent
+// every time. Re-applied on resize / orientationchange so a device
+// rotated mid-session updates correctly. Idempotent — safe to call
+// repeatedly.
+const _deviceDetect = {
+  isMobile:      () => /Mobi|Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent || ''),
+  isIOS:         () => /iPad|iPhone|iPod/.test(navigator.userAgent || ''),
+  isAndroid:     () => /Android/.test(navigator.userAgent || ''),
+  isInPWA:       () => {
+    try {
+      if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
+      if (window.navigator && window.navigator.standalone === true) return true;
+    } catch (e) {}
+    return false;
+  },
+  hasNotch:      () => {
+    try {
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:fixed;top:env(safe-area-inset-top,0px);visibility:hidden;';
+      document.body.appendChild(probe);
+      const top = parseInt(getComputedStyle(probe).top || '0', 10) || 0;
+      probe.remove();
+      return top > 20;
+    } catch (e) { return false; }
+  },
+  isSmallScreen: () => (window.innerHeight || 0) < 700 || (window.innerWidth || 0) < 380,
+  isLandscape:   () => (window.innerWidth || 0) > (window.innerHeight || 0),
+};
+function applyDeviceClasses() {
+  try {
+    const html = document.documentElement;
+    html.classList.toggle('is-mobile',       _deviceDetect.isMobile());
+    html.classList.toggle('is-ios',          _deviceDetect.isIOS());
+    html.classList.toggle('is-android',      _deviceDetect.isAndroid());
+    html.classList.toggle('is-pwa',          _deviceDetect.isInPWA());
+    html.classList.toggle('has-notch',       _deviceDetect.hasNotch());
+    html.classList.toggle('is-small-screen', _deviceDetect.isSmallScreen());
+    html.classList.toggle('is-landscape',    _deviceDetect.isLandscape());
+  } catch (e) { console.warn('applyDeviceClasses failed:', e); }
+}
+// Rotation prompt shows when phone is in landscape with too-short
+// viewport to play comfortably (per spec §5.5). Threshold: inner-w >
+// inner-h AND inner-h < 500. Only triggers for actual mobile devices —
+// landscape on a 1024×600 tablet or a desktop browser resized to a
+// narrow strip should not show the prompt.
+function _maybeShowRotationPrompt() {
+  try {
+    const el = document.getElementById('rotationPrompt');
+    if (!el) return;
+    const isMobile = _deviceDetect.isMobile();
+    const w = window.innerWidth || 0;
+    const h = window.innerHeight || 0;
+    const shouldShow = isMobile && w > h && h < 500;
+    el.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
+  } catch (e) {}
+}
+// Debounce util — share if more callers need it later.
+function _mobileUxDebounce(fn, ms) {
+  let t = null;
+  return function () {
+    const args = arguments;
+    if (t) clearTimeout(t);
+    t = setTimeout(() => { try { fn.apply(null, args); } catch (e) {} }, ms);
+  };
+}
+// Attach listeners. DOMContentLoaded runs first to capture initial
+// state; resize/orientationchange keep classes in sync as the user
+// rotates or the viewport changes (e.g. iOS Safari URL bar slide).
+if (typeof window !== 'undefined') {
+  const _refreshMobileUx = () => { applyDeviceClasses(); _maybeShowRotationPrompt(); };
+  const _refreshMobileUxDebounced = _mobileUxDebounce(_refreshMobileUx, 180);
+  window.addEventListener('DOMContentLoaded', _refreshMobileUx);
+  window.addEventListener('resize',           _refreshMobileUxDebounced);
+  window.addEventListener('orientationchange', _refreshMobileUx);
+  // Run synchronously on script parse so the body has the right
+  // classes BEFORE the first paint — avoids a flash of wrong layout.
+  try { _refreshMobileUx(); } catch (e) {}
 }
 
 // ===== IAP PROVIDER PATTERN (Phase G scaffold, 2026-04-28) =====
