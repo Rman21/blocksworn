@@ -10291,13 +10291,28 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
   gap: 3px; aspect-ratio: 1 / 1;
   /* Shrink when viewport height is limited — reserves space for boss/deck/tray/footer + safe areas.
-     2026-04-30 — Combat UI Final Polish §4.2 (PR 1/6): budget tightened
-     480→455px in lock-step with the height-token reduction (boss -10,
-     hero -5, tray -10 = 25px freed). The grid claims the freed 25px
-     directly, growing the cell-size from ~49 → ~53 on iPhone 13 — all
-     8 rows fit cleanly with no clipping. dvh fallback to vh is preserved
-     for non-iOS where dvh is unsupported. */
-  width: min(100%, calc(100dvh - 455px), calc(100vh - 455px));
+     2026-04-30 — Combat UI Final Polish hotfix: budget bumped 455→490
+     after PR 5/6's `overflow: hidden` on .grid-wrap revealed that the
+     PR 1/6 budget was over-optimistic. With overflow visible (pre-PR-5)
+     a slightly oversized grid would just spill harmlessly past the
+     wrap's rounded corners; with overflow:hidden (atmospheric edge
+     glows + particles need clipping to stay inside the rounded frame)
+     the same overspill became hard top/bottom row clipping that Roman
+     flagged. The 35px buffer brings cells to ~42px on iPhone 13 (down
+     from ~46) — small proportional shrink Roman explicitly asked for,
+     and gives all 8 rows comfortable headroom on every device tier
+     above 820h.
+
+     Math: iPhone 13 dvh=844, calc=844-490=354. Grid is 354×354.
+     Cells per row: (354 - 7×3 gaps) / 8 = 41.6 → 42px. Was 46.
+
+     dvh fallback to vh is preserved for non-iOS where dvh is unsupported.
+
+     PR 1/6 history (kept for context):
+       PR 1/6 chose 455 → grid 389, cells ~46 on iPhone 13.
+       Hotfix bumped to 490 → grid 354, cells ~42 — fits all 8 rows
+       with overflow:hidden grid-wrap. */
+  width: min(100%, calc(100dvh - 490px), calc(100vh - 490px));
   max-width: 100%;
   /* 2026-04-30 — Combat UI Final Polish §8 (PR 5/6): lift the grid
      above the atmospheric layers (::before edge glow, ::after edge
@@ -16384,9 +16399,18 @@ button.season-tier-claim:active {
       <button type="button" class="v-battle-boss-info-btn" id="bossInfoBtn"
               onclick="showBossDetailsModal()" aria-label="Boss details">ⓘ</button>
     </div>
-    <div class="v-battle-topbar-actions">
-      <button class="v-btn-icon info-btn" onclick="showInfoModal()" aria-label="Info">ⓘ</button>
-    </div>
+    <!-- 2026-04-30 — Combat UI Final Polish hotfix: legacy
+         .v-battle-topbar-actions > .info-btn removed.
+
+         The button was `position: absolute; top: env(safe-area-inset-top);
+         right: 10px` so it floated in the notch zone above the ⚙
+         settings button — Roman flagged it as "the legacy profile
+         button behind settings" after the PR #80 series merged.
+
+         The button called showInfoModal() which still exists and is
+         now reachable via the settings menu's 📚 Codex item (PR #77,
+         openCodex → showInfoModal). Removing the standalone button
+         deduplicates the entry point and clears the notch area. -->
   </div>
 
   <!-- 2026-04-30 — Combat UI Redesign §18.5 (PR 6/6) cleanup: legacy
