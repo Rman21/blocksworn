@@ -9630,19 +9630,73 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
   padding: 0 8px;
   letter-spacing: 0.2px;
 }
+/* 2026-04-30 — Polish v0.2 Track G §G.4 step 5: tap-to-continue hint goes
+   from near-invisible muted (#6E6C80, weight 400, 32% pulse trough — players
+   thought screens were still loading) to readable secondary-text token at
+   body weight, with a gentle ±10% breathing pulse so it reads as
+   interactive without strobing. Plan-spec colors: #6a5840 → #a09080. The
+   project's --a-text-secondary already maps to #A8A5B8 which sits in the
+   spec band; using the token keeps it consistent with hub/HUD muted copy. */
 .dialog-tap-hint {
   margin-top: 4px;
-  font-size: 10px; letter-spacing: 2.5px;
-  color: #6E6C80;
+  font-size: 11px; letter-spacing: 2.5px;
+  color: var(--a-text-secondary, #A8A5B8);
+  font-weight: 600;
   animation: tapPulse 1.6s ease-in-out infinite;
 }
+.dialog-tap-hint[hidden] { display: none !important; }
+/* Persistent BIG CTA button for the single Chronicle pre-battle screen
+   (plan §G.4 step 2). Sized to read as the dominant action on the
+   overlay; gold border + glow matches the dialog's --dialog-glow palette
+   so it doesn't fight the speaker frame. */
+.dialog-cta-btn {
+  margin-top: 10px;
+  padding: 14px 36px;
+  background: linear-gradient(180deg, #FFB800, #C97A05);
+  border: 2px solid #FFE07A;
+  border-radius: 10px;
+  font-family: 'Anton', 'Bebas Neue', 'Impact', sans-serif;
+  font-size: 20px; font-weight: 800; letter-spacing: 2.4px;
+  color: #1A1208;
+  text-shadow: 0 1px 1px rgba(255,255,255,0.4);
+  box-shadow: 0 0 24px rgba(255,184,0,0.55), 0 4px 0 rgba(0,0,0,0.4);
+  cursor: pointer;
+  transition: transform 0.12s ease-out, box-shadow 0.18s ease-out;
+  animation: ctaPulse 2.0s ease-in-out infinite;
+}
+.dialog-cta-btn:hover { transform: translateY(-1px); box-shadow: 0 0 32px rgba(255,184,0,0.75), 0 5px 0 rgba(0,0,0,0.4); }
+.dialog-cta-btn:active { transform: translateY(1px); box-shadow: 0 0 18px rgba(255,184,0,0.45), 0 2px 0 rgba(0,0,0,0.4); }
+.dialog-cta-btn[hidden] { display: none !important; }
+/* Top-right SKIP button — same visual language as .intro-video-skip so
+   players who saw the video SKIP recognize the affordance instantly. */
+.dialog-skip-btn {
+  position: absolute; top: 16px; right: 16px;
+  padding: 8px 14px;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,213,61,0.5);
+  border-radius: 6px;
+  font-family: 'Anton', 'Bebas Neue', sans-serif;
+  font-size: 12px; font-weight: 700; letter-spacing: 1.2px;
+  color: #FFD53D;
+  opacity: 0.85;
+  cursor: pointer;
+  transition: opacity 0.18s ease-out;
+}
+.dialog-skip-btn:hover { opacity: 1; }
+.dialog-skip-btn[hidden] { display: none !important; }
 @keyframes dialogFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+/* §G.4 step 5: ±10% breathing pulse, replacing the prior 1.0 ↔ 0.32 strobe
+   that made the hint disappear half the time. */
 @keyframes tapPulse {
   0%, 100% { opacity: 1; }
-  50%      { opacity: 0.32; }
+  50%      { opacity: 0.9; }
+}
+@keyframes ctaPulse {
+  0%, 100% { box-shadow: 0 0 22px rgba(255,184,0,0.50), 0 4px 0 rgba(0,0,0,0.4); }
+  50%      { box-shadow: 0 0 30px rgba(255,184,0,0.72), 0 4px 0 rgba(0,0,0,0.4); }
 }
 @media (max-height: 720px) {
   .dialog-overlay { gap: 12px; padding: 20px 16px; }
@@ -13879,14 +13933,25 @@ button.season-tier-claim:active {
 
 <!-- Full-screen dialog for FTUE + future story beats. z-index 9999 so it sits
      above screens, battle modals, and energy/locked modals. playDialogScript
-     in JS drives content + tap handling. Starts hidden. -->
+     in JS drives content + tap handling. Starts hidden.
+     2026-04-30 — Polish v0.2 Track G additions:
+       • #dialogSkipBtn (top-right) — visible only when current line has
+         `showSkip: true`. One tap stamps localStorage.onboardingSeen and
+         fast-paths to home. Per plan §G.4 step 4.
+       • #dialogCtaBtn (centered, persistent) — visible only when current
+         line has `ctaLabel`. Replaces the "tap anywhere" semantics for the
+         single Chronicle pre-battle screen per plan §G.4 step 2 ("BIG
+         PRIMARY CTA"). When CTA is on, the overlay click no longer
+         advances — only the button does. -->
 <div id="dialogOverlay" class="dialog-overlay hidden">
+  <button type="button" id="dialogSkipBtn" class="dialog-skip-btn" hidden>SKIP ▸</button>
   <div class="dialog-portrait-wrap">
     <img id="dialogPortrait" class="dialog-portrait-img" alt="" />
   </div>
   <div class="dialog-speaker" id="dialogSpeaker"></div>
   <div class="dialog-text" id="dialogText"></div>
-  <div class="dialog-tap-hint">tap to continue</div>
+  <button type="button" id="dialogCtaBtn" class="dialog-cta-btn" hidden></button>
+  <div class="dialog-tap-hint" id="dialogTapHint">tap to continue</div>
 </div>
 
 <!-- ============ V3.0 BLOCK 1.2 · LEADER CHOICE MODAL ============ -->
@@ -17839,7 +17904,51 @@ function _maybeShowIntroVideo(onDoneCallback) {
 // If FTUE is complete, route to menu as before. If active, auto-route into
 // the flow based on current beat. Intermediate beats that require dialogs
 // will auto-advance silently in Block 1.1 (Block 1.2 will make them visible).
+// 2026-04-30 — Polish v0.2 Track G §G.4 step 4: SKIP-onboarding short-circuit.
+// One-tap exit from the prologue. Stamps localStorage.onboardingSeen so future
+// cold launches bypass intro video AND FTUE entirely; force-advances the FTUE
+// beat to 'complete' so any saved-beat resume code paths still treat the
+// player as a finished-tutorial returner; tears down the dialog overlay
+// (which is what the SKIP button lives on); jumps to the home screen. Idempotent.
+function _skipOnboarding() {
+  try { localStorage.setItem('onboardingSeen', '1'); } catch (e) {}
+  try { localStorage.setItem('seenIntroVideo', '1'); } catch (e) {}
+  try {
+    if (typeof advanceFtue === 'function' && typeof isFtueComplete === 'function' && !isFtueComplete()) {
+      advanceFtue('complete');
+    }
+  } catch (e) { console.warn('_skipOnboarding: advanceFtue(complete) failed:', e); }
+  try {
+    const ov = document.getElementById('dialogOverlay');
+    if (ov) {
+      ov.classList.add('hidden');
+      ov.onclick = null;
+    }
+    const cta = document.getElementById('dialogCtaBtn');
+    const skip = document.getElementById('dialogSkipBtn');
+    if (cta) { cta.hidden = true; cta.onclick = null; }
+    if (skip) { skip.hidden = true; skip.onclick = null; }
+    if (typeof dialogActive !== 'undefined') dialogActive = false;
+    if (typeof dialogClickLock !== 'undefined') dialogClickLock = false;
+  } catch (e) {}
+  try { if (typeof _pendingDialogRequest !== 'undefined') _pendingDialogRequest = null; } catch (e) {}
+  try { showScreen('menu'); } catch (e) { console.warn('_skipOnboarding: showScreen(menu) failed:', e); }
+}
+if (typeof window !== 'undefined') {
+  window._skipOnboarding = _skipOnboarding;
+}
+
 function routeByFtue() {
+  // 2026-04-30 — Polish v0.2 Track G §G.4 step 4: onboardingSeen fast-path.
+  // If a player tapped SKIP at any point during onboarding, they've opted out
+  // of the prologue forever. Send them straight to the home screen on every
+  // future cold launch — no intro video, no FTUE state machine, no Chronicle.
+  try {
+    if (localStorage.getItem('onboardingSeen') === '1') {
+      try { showScreen('menu'); } catch (e) { console.warn('routeByFtue: showScreen(menu) failed:', e); }
+      return;
+    }
+  } catch (e) {}
   // 2026-04-27 — gate first-launch intro video before any routing decisions.
   // Once dismissed (or already seen), we re-enter routeByFtue's body.
   let _routed = false;
@@ -18042,16 +18151,28 @@ const FTUE_SCRIPTS = {
   // 2026-04-28 follow-up: scrubbed Pyredrake-themed teasers ("dragons", "pyres",
   // "Pyredrake stirs below") — the existing FTUE intro_dialog handles boss
   // reveal cleanly; double-framing diluted the impact.
+  // 2026-04-30 — Polish v0.2 Track G (§G.3 + §G.4 step 2): pre-battle gate
+  // collapsed from 3 lines (~6-8s) to a single Chronicle one-liner with a
+  // persistent BIG CTA button. Plan-spec copy. The cut narrator framing
+  // ("Before the warband…", "A trial, then…") + the original long
+  // Chronicle line move to chronicle_outro per §G.4 step 3 — same content,
+  // different placement. Player who just won the training fight is in
+  // peak attention state; lore lands harder there.
   chronicle_intro: [
+    { speaker: 'CHRONICLE', speakerColor: '#5DCAFF', portraitKey: 'Boss_Chronicle',
+      text: 'I am the Codex. Strike me — prove you remember.',
+      ctaLabel: '▶ BEGIN', showSkip: true },
+  ],
+  // Stage 1 AAA+ — Chronicle outro on victory. The Codex "dissolves" and chains
+  // narratively into the existing prologue (intro_dialog → pyredrake_fight).
+  // 2026-04-30 — v0.2 Track G §G.4 step 3: prepended the 3 cut chronicle_intro
+  // lines so the lore ships intact, just relocated. Reads as the Codex's
+  // fading echo + the warrior's reflection rather than a pre-fight lecture.
+  chronicle_outro: [
     { speakerId: 'pirate_warrior', text: 'Before the warband. Before the trials. There was the Codex.' },
     { speaker: 'CHRONICLE', speakerColor: '#5DCAFF', portraitKey: 'Boss_Chronicle',
       text: 'I am the living memory of every warband that came before. Strike me. Learn the cadence. I cannot be slain — only studied.' },
     { speakerId: 'pirate_warrior', text: 'A trial, then. The path opens after.' },
-  ],
-  // Stage 1 AAA+ — Chronicle outro on victory. The Codex "dissolves" and chains
-  // narratively into the existing prologue (intro_dialog → pyredrake_fight).
-  // Stays abstract — lets the existing prologue introduce Pyredrake.
-  chronicle_outro: [
     { speaker: 'CHRONICLE', speakerColor: '#5DCAFF', portraitKey: 'Boss_Chronicle',
       text: 'You have learned the cadence. The trial fades. The world begins.' },
     { speakerId: 'pirate_warrior', text: 'The Codex dissolves into the smoke. Now the real fight.' },
@@ -18163,6 +18284,27 @@ function playDialogScript(lines, onComplete) {
         || null;
       if (glowColor) overlay.style.setProperty('--dialog-glow', glowColor);
     }
+    // 2026-04-30 — Polish v0.2 Track G: per-line CTA + SKIP affordances.
+    // Lines may opt in via `ctaLabel` (persistent button replaces the
+    // tap-anywhere advance) and `showSkip` (top-right SKIP that fast-paths
+    // out of onboarding via _skipOnboarding). Both default off — existing
+    // FTUE/post-victory dialogs render unchanged.
+    const ctaBtn = document.getElementById('dialogCtaBtn');
+    const skipBtn = document.getElementById('dialogSkipBtn');
+    const tapHint = document.getElementById('dialogTapHint');
+    if (ctaBtn) {
+      if (line.ctaLabel) {
+        ctaBtn.textContent = line.ctaLabel;
+        ctaBtn.hidden = false;
+        if (tapHint) tapHint.hidden = true;
+      } else {
+        ctaBtn.hidden = true;
+        if (tapHint) tapHint.hidden = false;
+      }
+    }
+    if (skipBtn) {
+      skipBtn.hidden = !line.showSkip;
+    }
     if (!textEl) return;
     textEl.textContent = '';
     let i = 0;
@@ -18181,6 +18323,16 @@ function playDialogScript(lines, onComplete) {
       overlay.classList.add('hidden');
       clearDialogTimer();
       overlay.onclick = null;
+      // 2026-04-30 — clear Track G button hooks so a re-shown dialog with
+      // no ctaLabel/showSkip starts clean.
+      try {
+        const _cta = document.getElementById('dialogCtaBtn');
+        const _skip = document.getElementById('dialogSkipBtn');
+        const _hint = document.getElementById('dialogTapHint');
+        if (_cta) { _cta.hidden = true; _cta.onclick = null; }
+        if (_skip) { _skip.hidden = true; _skip.onclick = null; }
+        if (_hint) _hint.hidden = false;
+      } catch (e) {}
       dialogActive = false;
       dialogClickLock = false;
       if (onComplete) { try { onComplete(); } catch(e){ console.warn('dialog onComplete failed:', e); } }
@@ -18203,18 +18355,61 @@ function playDialogScript(lines, onComplete) {
 
   overlay.onclick = () => {
     if (dialogClickLock) return;
-    dialogClickLock = true;
-    setTimeout(() => { dialogClickLock = false; }, DIALOG_CLICK_DEBOUNCE_MS);
-    // If mid-typing, reveal full line instantly rather than advancing
+    // 2026-04-30 — Polish v0.2 Track G §G.4 step 2: when the current line has
+    // a persistent CTA button, the overlay's tap-anywhere advance is
+    // disabled so the BIG BEGIN button is the only thing that progresses
+    // the dialog. Players still get typewriter-skip via overlay tap if the
+    // line is mid-typing; once the typewriter completes, only the CTA
+    // advances.
     const current = lines[idx - 1];
     const textEl = document.getElementById('dialogText');
-    if (current && textEl && textEl.textContent.length < current.text.length) {
+    const midType = current && textEl && textEl.textContent.length < current.text.length;
+    if (current && current.ctaLabel && !midType) return;
+    dialogClickLock = true;
+    setTimeout(() => { dialogClickLock = false; }, DIALOG_CLICK_DEBOUNCE_MS);
+    if (midType) {
       clearDialogTimer();
       textEl.textContent = current.text;
       return;
     }
     next();
   };
+
+  // 2026-04-30 — wire BEGIN button advance + SKIP fast-path. Per-line
+  // visibility is set in showLine; here we just bind the click handlers
+  // once for the lifetime of this script run. stopPropagation prevents
+  // the overlay's click handler from also firing.
+  try {
+    const ctaBtn = document.getElementById('dialogCtaBtn');
+    if (ctaBtn) {
+      ctaBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        if (dialogClickLock) return;
+        dialogClickLock = true;
+        setTimeout(() => { dialogClickLock = false; }, DIALOG_CLICK_DEBOUNCE_MS);
+        // Mid-typewriter? Flush text instantly first; second tap advances.
+        const current = lines[idx - 1];
+        const textEl = document.getElementById('dialogText');
+        if (current && textEl && textEl.textContent.length < current.text.length) {
+          clearDialogTimer();
+          textEl.textContent = current.text;
+          return;
+        }
+        next();
+      };
+    }
+    const skipBtn = document.getElementById('dialogSkipBtn');
+    if (skipBtn) {
+      skipBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        try {
+          if (typeof _skipOnboarding === 'function') {
+            _skipOnboarding();
+          }
+        } catch (e) { console.warn('SKIP handler failed:', e); }
+      };
+    }
+  } catch (e) { console.warn('Track G button wiring failed:', e); }
 
   next();
 }
