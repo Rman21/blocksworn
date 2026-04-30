@@ -657,6 +657,168 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
 }
 
 /* ===========================================================
+   COMBAT UI FINAL POLISH — Buff Modal (PR 2/6)
+   Spec: §7.4 — slide-up bottom sheet listing every active effect
+   when the player taps a boss-buff icon. AAA pattern (Genshin
+   Impact / Marvel Snap status sheets): bottom-anchored, blur the
+   board behind, max 70vh so the full card never spills off-screen.
+   =========================================================== */
+.buff-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  align-items: flex-end;
+  justify-content: center;
+}
+.buff-modal[aria-hidden="false"] { display: flex; }
+.buff-modal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.buff-modal-card {
+  position: relative;
+  background: var(--combat-bg-elevated, rgba(20, 25, 40, 0.98));
+  width: 100%;
+  max-width: 500px;
+  max-height: 70vh;
+  border-radius: 16px 16px 0 0;
+  border-top: 1px solid rgba(255, 215, 0, 0.22);
+  padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  color: rgba(255, 255, 255, 0.92);
+  animation: buffModalSlideUp 0.30s var(--ease-out, ease-out);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.55);
+}
+
+@keyframes buffModalSlideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.buff-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.buff-modal-title {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--a-gold-100, #FFE066);
+  margin: 0;
+}
+
+.buff-modal-close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  transition: color 0.16s, border-color 0.16s;
+}
+.buff-modal-close:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.30);
+}
+
+.buff-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.buff-modal-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.buff-modal-item-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.30);
+  border-radius: 10px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.buff-modal-item.danger .buff-modal-item-icon {
+  background: rgba(255, 20, 147, 0.18);
+  border-color: rgba(255, 20, 147, 0.40);
+}
+.buff-modal-item.phase .buff-modal-item-icon {
+  background: rgba(220, 20, 60, 0.18);
+  border-color: rgba(220, 20, 60, 0.40);
+}
+.buff-modal-item.player .buff-modal-item-icon {
+  background: rgba(74, 219, 109, 0.15);
+  border-color: rgba(74, 219, 109, 0.35);
+}
+
+.buff-modal-item-details {
+  flex: 1;
+  min-width: 0;
+}
+.buff-modal-item-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+  margin-bottom: 2px;
+  letter-spacing: 0.3px;
+}
+.buff-modal-item-effect {
+  font-size: 11px;
+  color: var(--a-gold-100, #FFE066);
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+.buff-modal-item-description {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.4;
+}
+
+.buff-modal-empty {
+  text-align: center;
+  padding: 24px 12px;
+  color: rgba(255, 255, 255, 0.50);
+  font-size: 12px;
+  font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buff-modal-card { animation: none !important; }
+}
+
+/* ===========================================================
    COMBAT UI AAA+ REDESIGN — Top Bar (PR 2/6)
    Spec: §4 — 40px sticky row. Carries hearts + turn + damage + ⚙.
    Consumes the foundation tokens shipped in PR 1.
@@ -1060,10 +1222,23 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
   .a-battle .v-battle-boss-portrait.phase-3 { animation: none !important; transform: none !important; }
 }
 
-/* Warning badges (top-right of boss-card). _renderBossWarnings reads
-   attackWarning text + HP phase, surfaces up to 3 icons. .danger
-   class for the phase-3 💀 variant adds a faster pulse. */
-.a-battle .v-battle-boss-card .v-battle-boss-warnings {
+/* 2026-04-30 — Combat UI Final Polish §7.3 (PR 2/6) buff icons.
+   Replaces the warning-badges-only row (PR #72) with a unified buff
+   surface in the same boss-card top-right slot.
+
+   Spec calls for:
+     • 22×22 rounded-square (radius 6, not pill — visually distinct
+       from the player-stat pills in the top bar)
+     • 5 type variants: passive (yellow) / danger (pink + pulse) /
+       phase (red) / player (green) / overflow (neutral)
+     • max 4 visible, "+N" indicator after that
+     • clickable — entire row taps open the buff modal
+     • reduced-motion respected on the danger pulse
+
+   The legacy .v-battle-boss-warnings rule was REMOVED (PR 2/6 cleanup
+   alongside the DOM rename). Comment marker preserved here so a grep
+   for the old class name still finds the migration site. */
+.a-battle .v-battle-boss-card .v-battle-boss-buffs {
   position: absolute;
   top: var(--space-sm, 8px);
   right: var(--space-2xl, 32px);
@@ -1071,33 +1246,95 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
   align-items: center;
   gap: var(--space-xs, 4px);
   z-index: 4;
-  pointer-events: none;
 }
-.a-battle .v-battle-boss-warnings .v-battle-boss-warning {
-  width: 20px;
-  height: 20px;
+
+.a-battle .v-battle-boss-buffs .v-battle-boss-buff {
+  width: 22px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  background: rgba(255, 215, 0, 0.18);
-  border: 1px solid rgba(255, 215, 0, 0.50);
-  border-radius: var(--radius-full, 9999px);
+  font-size: 12px;
+  line-height: 1;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.40);
+  border-radius: var(--radius-md, 6px);
   color: #FFE066;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  flex-shrink: 0;
+  transition: transform 160ms var(--ease-out, ease-out), background 160ms var(--ease-out, ease-out);
 }
-.a-battle .v-battle-boss-warnings .v-battle-boss-warning.danger {
-  background: rgba(255, 20, 147, 0.22);
-  border-color: rgba(255, 20, 147, 0.55);
-  color: #FF8585;
-  animation: bossWarningDangerPulse 1.4s ease-in-out infinite;
+.a-battle .v-battle-boss-buffs .v-battle-boss-buff:hover {
+  background: rgba(255, 215, 0, 0.25);
 }
-@keyframes bossWarningDangerPulse {
-  0%, 100% { opacity: 1.0; }
-  50%      { opacity: 0.55; }
+.a-battle .v-battle-boss-buffs .v-battle-boss-buff:active {
+  transform: scale(0.92);
 }
+
+/* ⚡ Incoming attack — pink, animated pulse */
+.a-battle .v-battle-boss-buffs .v-battle-boss-buff.danger {
+  background: rgba(255, 20, 147, 0.18);
+  border-color: rgba(255, 20, 147, 0.50);
+  color: #FFB3D1;
+  animation: bossBuffDangerPulse 1.5s ease-in-out infinite;
+}
+
+/* 🔥 / 💀 phase indicator — red */
+.a-battle .v-battle-boss-buffs .v-battle-boss-buff.phase {
+  background: rgba(220, 20, 60, 0.18);
+  border-color: rgba(220, 20, 60, 0.50);
+  color: #FFB3B3;
+}
+
+/* ✨ player synergy — green */
+.a-battle .v-battle-boss-buffs .v-battle-boss-buff.player {
+  background: rgba(74, 219, 109, 0.15);
+  border-color: rgba(74, 219, 109, 0.45);
+  color: #B5F2C2;
+}
+
+/* +N overflow chip — neutral pill, slightly wider */
+.a-battle .v-battle-boss-buffs .v-battle-boss-buff.overflow {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 0 4px;
+  min-width: 22px;
+  width: auto;
+}
+
+@keyframes bossBuffDangerPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.7; transform: scale(1.05); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .a-battle .v-battle-boss-warnings .v-battle-boss-warning.danger { animation: none !important; }
+  .a-battle .v-battle-boss-buffs .v-battle-boss-buff,
+  .a-battle .v-battle-boss-buffs .v-battle-boss-buff.danger {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* On small phones, shrink to 20×20 to keep the row from crowding the
+   ⓘ button. Spec §3.2 SE budget. */
+@media (max-width: 380px) {
+  .a-battle .v-battle-boss-card .v-battle-boss-buffs {
+    right: 28px;
+    gap: 3px;
+  }
+  .a-battle .v-battle-boss-buffs .v-battle-boss-buff {
+    width: 20px;
+    height: 20px;
+    font-size: 11px;
+  }
 }
 
 /* Hearts strip on right side of boss-info. 4 individual ❤ icons —
@@ -6244,11 +6481,23 @@ body.shop-locked [onclick*="goToShop"] {
   100% { background-color: transparent; }
 }
 
-/* Synergy bar */
+/* Synergy bar.
+   2026-04-30 — Combat UI Final Polish §7 (PR 2/6): the full-width pill
+   row ("🌟 THE GOLDEN HOARD +30%" + race + captain + formation pills)
+   is REPLACED by the compact boss-buffs icon row in the boss-card
+   top-right slot, with a slide-up modal for full descriptions.
+   Roman's Q3 in the diagnostic confirmed this banner was visible
+   on the last test build — hiding it here closes Issue 4 and frees
+   ~22px of perceived screen real-estate above the grid.
+
+   The .synergy-bar DOM stays in the document and renderSynergyBar()
+   keeps writing to it (same activeSynergies → pill HTML) so any
+   non-battle screens that mount this CSS still get the legacy look.
+   In the .a-battle screen specifically, we hide it. The icon row +
+   modal carry the same data via _collectActiveBuffs reading
+   activeSynergies + activeSignatureCombo. */
 .a-battle .synergy-bar {
-  display: flex; gap: 6px;
-  padding: 6px 8px 0;
-  flex-wrap: wrap;
+  display: none !important;
 }
 .a-battle .synergy-bar:empty { display: none; }
 .a-battle .synergy-bar > * {
@@ -15613,12 +15862,29 @@ button.season-tier-claim:active {
              #bossHpText write so any future rollback that re-adds the
              element starts working again with no JS change. -->
 
-        <!-- 2026-04-30 — Combat UI Redesign §5 (PR 4/6): persistent warning
-             badges in top-right of boss-card. Driven by _renderBossWarnings
-             which reads attackWarning text + HP phase to surface up to 3
-             icons. Replaces the legacy centered .attack-warning text
-             overlay (kept hidden via CSS so JS write hooks still flow). -->
-        <div class="v-battle-boss-warnings" id="bossWarnings"></div>
+        <!-- 2026-04-30 — Combat UI Final Polish §7 (PR 2/6): the
+             single warning-badges row (PR #72) is upgraded to a unified
+             buff-icon row. Same top-right anchor; same 4-icon-max
+             with "+N" overflow; tap any icon → slide-up modal with
+             full descriptions. Aggregates ALL active state into one
+             surface (replacing the synergy-bar full-width pill row
+             that was eating ~22px between hero squad and grid):
+
+               🌟 boss/player passive   (yellow — e.g. "GOLDEN HOARD")
+               ⚡ incoming attack       (pink — animated pulse)
+               🔥 phase 2               (red)
+               💀 phase 3 / final       (red — danger pulse)
+               👑 captain dual buff     (gold)
+               ⚔ formation bonus       (warm gold)
+               ✨ race tier synergy     (green)
+               +N overflow indicator    (neutral pill)
+
+             Renders via _renderBossBuffs(); modal opens via
+             showBuffModal() with the same buff list. All previous
+             call sites that pinged _renderBossAreaWarnings()
+             continue to work — that function is preserved as a
+             thin alias so PRs in-flight don't break. -->
+        <div class="v-battle-boss-buffs" id="bossBuffs"></div>
         <!-- 2026-04-30 — Combat UI Redesign §5.3 (PR 4/6): hearts strip on
              right side of boss-info area. Renders 4 individual hearts
              (filled/empty) per spec — different visual from the count
@@ -16081,6 +16347,24 @@ button.season-tier-claim:active {
       <button type="button" class="pause-menu-btn pause-menu-btn-quit" id="pauseMenuConfirmYes">Confirm</button>
       <button type="button" class="pause-menu-btn" onclick="_pauseMenuConfirmCancel()">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- 2026-04-30 — Combat UI Final Polish §7.4 (PR 2/6) buff modal.
+     Slide-up bottom sheet. Opens when player taps any boss-buff icon
+     in the boss-info row. Lists every active effect (boss passives,
+     incoming attacks, phase indicators, player synergies, captain /
+     formation / signature combo) with name + effect + plain-English
+     description. Empty state when nothing's active.
+     Click overlay or × to close. ESC closes too (wired in JS). -->
+<div id="buffModal" class="buff-modal" aria-hidden="true" role="dialog" aria-labelledby="buffModalTitle"
+     onclick="if(event.target===this) closeBuffModal()">
+  <div class="buff-modal-card">
+    <div class="buff-modal-header">
+      <h3 id="buffModalTitle" class="buff-modal-title">Active Effects</h3>
+      <button type="button" class="buff-modal-close" onclick="closeBuffModal()" aria-label="Close">×</button>
+    </div>
+    <div class="buff-modal-list" id="buffModalList"></div>
   </div>
 </div>
 
@@ -43132,6 +43416,13 @@ function renderSynergyBar() {
       setTimeout(() => maybeChronoBeat('race', { targetEl: el }), 220);
     }
   } catch (e) {}
+  // 2026-04-30 — Combat UI Final Polish §7 (PR 2/6): the synergy bar's
+  // pill data is now ALSO mirrored into the boss-buffs icon row (via
+  // _collectActiveBuffs reading activeSynergies). Refresh the icon row
+  // every time activeSynergies changes — same trigger, no new event
+  // plumbing needed. The legacy synergy-bar DOM is hidden via CSS in
+  // battle screen so this is the surface players actually see.
+  try { if (typeof _renderBossBuffs === 'function') _renderBossBuffs(); } catch (e) {}
 }
 
 // 2026-04-29 polish v0.1 Track C.1: format boss HP as compact shorthand
@@ -43223,44 +43514,246 @@ function _renderBossAreaHearts() {
   }
 }
 
-// 2026-04-30 — Combat UI Redesign §5 (PR 4/6, refactored in PR 6/6):
-// warning badges render. Aggregates state into up to 3 icon badges in
-// top-right of boss-card:
-//   ⚡  attack incoming (attackCountdown global ≤ 2)
-//   🔥  phase 2 active (HP 33-66%)
-//   💀  phase 3 active (HP <33%, .danger pulse)
-// PR 6 cleanup: source-of-truth changed from #attackWarning text
-// (legacy DOM element removed) to the existing attackCountdown global
-// — same data, cleaner read.
-function _renderBossAreaWarnings() {
-  const el = document.getElementById('bossWarnings');
-  if (!el) return;
-  const badges = [];
+// 2026-04-30 — Combat UI Final Polish §7 (PR 2/6) buff icons.
+// Replaces the warnings-only renderer (PR #72 / PR #74) with a unified
+// "active effects" surface that aggregates EVERY piece of in-flight
+// state into a single icon row in the boss-card top-right slot.
+//
+// What we surface (priority order — buffs slice to the first 4 visible,
+// "+N" overflow chip for the rest, modal shows them all):
+//   ⚡  Attack incoming        (danger,  pink + pulse — attackCountdown ≤ 2)
+//   💀  Phase 3 / final stand  (phase,   red — HP ≤ 33%)
+//   🔥  Phase 2 / awakened     (phase,   red — HP ≤ 66%)
+//   🌟  Signature combo        (passive, gold — activeSignatureCombo)
+//   👑  Captain dual buff      (passive, gold — '👑 ' synergy entries)
+//   ⚔   Formation bonus        (passive, gold — '⚔ ' synergy entries)
+//   ✨  Race tier synergy      (player,  green — remaining synergy pills)
+//
+// Tap any icon (or the "+N" overflow chip) → showBuffModal() opens a
+// slide-up sheet with name + effect + plain-English description for
+// every active buff. Players who want at-a-glance status read the
+// icons; players who want details tap once.
+//
+// This replaces the standalone `.synergy-bar` row that was eating
+// ~22px between hero squad and grid (Roman's "GOLDEN HOARD banner
+// был виден на последнем тесте"). The synergy-bar is hidden via CSS
+// in battle screen now that its content lives here + in the modal.
+function _collectActiveBuffs() {
+  const out = [];
+
+  // ⚡ Incoming attack — drives off attackCountdown which the boss
+  // archetype ticker decrements per turn. Telegraph window matches the
+  // existing vShowAttackTelegraph trigger range.
   try {
-    // Telegraph window in vShowAttackTelegraph fires when attackCountdown
-    // ∈ {1, 2} so we surface the badge during the same range.
-    if (typeof attackCountdown !== 'undefined' && attackCountdown <= 2 && attackCountdown >= 1) {
-      badges.push({ icon: '⚡', cls: '' });
+    if (typeof attackCountdown !== 'undefined'
+        && attackCountdown >= 1 && attackCountdown <= 2) {
+      out.push({
+        icon: '⚡',
+        type: 'danger',
+        name: 'Attack Incoming',
+        effect: `In ${attackCountdown} turn${attackCountdown === 1 ? '' : 's'}`,
+        description: 'Boss is winding up a strike. Plan defensively or finish a line to break the cast.'
+      });
     }
   } catch (e) {}
+
+  // 🔥 / 💀 Phase indicator — derived from current HP %. Lower-bound
+  // first so a boss at 33% surfaces the more dramatic phase-3 entry
+  // (not stuck on phase-2). Only shown while boss is still alive.
   try {
     if (typeof bossHP !== 'undefined' && typeof bossMaxHP !== 'undefined' && bossMaxHP > 0) {
       const pct = (bossHP / bossMaxHP) * 100;
-      if (pct > 0 && pct <= 33) badges.push({ icon: '💀', cls: 'danger' });
-      else if (pct <= 66)        badges.push({ icon: '🔥', cls: '' });
+      if (pct > 0 && pct <= 33) {
+        out.push({
+          icon: '💀',
+          type: 'phase',
+          name: 'Final Stand',
+          effect: 'Below 33% HP',
+          description: 'Boss enters its most dangerous form. Patterns intensify and damage scales up.'
+        });
+      } else if (pct > 33 && pct <= 66) {
+        out.push({
+          icon: '🔥',
+          type: 'phase',
+          name: 'Phase 2 — Awakened',
+          effect: 'Below 66% HP',
+          description: 'Boss has crossed a phase threshold. Watch for new attack patterns.'
+        });
+      }
     }
   } catch (e) {}
+
+  // 🌟 Signature combo — the headline player buff. "GOLDEN HOARD",
+  // "DARK ENCORE", "FROST DEEP" etc. activeSignatureCombo carries
+  // { name, race, stihiya, tier, mult, color } when 3+-of-race squad
+  // triggers a Tier 3 named combo (HERO_GRAMMAR §7).
+  try {
+    const combo = (typeof activeSignatureCombo !== 'undefined') ? activeSignatureCombo : null;
+    if (combo && combo.name) {
+      const bonusPct = Math.round(((combo.mult || 1.0) - 1) * 100);
+      const bonusStr = bonusPct > 0 ? `+${bonusPct}% damage` : '';
+      const race = (combo.race || '').toUpperCase();
+      out.push({
+        icon: '🌟',
+        type: 'passive',
+        name: combo.name,
+        effect: bonusStr,
+        description: `Active while you have 3+ ${race || 'matching'} heroes channelling the same element. Tier 3 signature bonus.`
+      });
+    }
+  } catch (e) {}
+
+  // 👑 Captain / ⚔ Formation / ✨ Race-tier synergies — pulled from
+  // activeSynergies (the same source the legacy synergy-bar used).
+  // We strip the prefix-emoji so the modal name reads cleanly, and
+  // categorize by prefix so the icon row variant matches.
+  try {
+    const arr = (typeof activeSynergies !== 'undefined' && Array.isArray(activeSynergies))
+              ? activeSynergies : [];
+    for (const raw of arr) {
+      // Skip the signature pill — already surfaced above with richer detail.
+      if (/^🌟 /.test(raw)) continue;
+      const isCaptain    = /^👑 /.test(raw);
+      const isFormation  = /^⚔ /.test(raw);
+      const stripped     = raw.replace(/^[👑⚔✨🌟⚡]\s*/, '');
+      // Synergy strings are usually "NAME: effect" or "Nx RACE: effect".
+      // Split on ":" so the modal shows a tidy name + effect pair.
+      const colonIdx = stripped.indexOf(':');
+      const name   = colonIdx > 0 ? stripped.slice(0, colonIdx).trim() : stripped;
+      const effect = colonIdx > 0 ? stripped.slice(colonIdx + 1).trim() : '';
+      const icon   = isCaptain ? '👑' : (isFormation ? '⚔' : '✨');
+      const type   = (isCaptain || isFormation) ? 'passive' : 'player';
+      const desc   = isCaptain
+        ? 'Captain dual buff — your hero squad gets two stacked bonuses while this captain is alive.'
+        : isFormation
+          ? 'Formation bonus — your specific squad layout grants this passive while in this battle.'
+          : 'Race-tier synergy — earned by stacking heroes of the same race or element in your squad.';
+      out.push({ icon, type, name, effect, description: desc });
+    }
+  } catch (e) {}
+
+  return out;
+}
+
+function _renderBossBuffs() {
+  const el = document.getElementById('bossBuffs');
+  if (!el) return;
+  const buffs = _collectActiveBuffs();
+
   el.innerHTML = '';
-  for (const b of badges.slice(0, 3)) {
-    const span = document.createElement('span');
-    span.className = 'v-battle-boss-warning' + (b.cls ? ' ' + b.cls : '');
-    span.textContent = b.icon;
-    el.appendChild(span);
+  if (!buffs.length) return; // empty container collapses naturally; no chips rendered
+
+  // Spec §7.3: max 4 visible, "+N" overflow chip for the rest. Tapping
+  // any chip — including "+N" — opens the modal with the full list.
+  const visible  = buffs.slice(0, 4);
+  const overflow = Math.max(0, buffs.length - 4);
+
+  for (const b of visible) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'v-battle-boss-buff' + (b.type ? ' ' + b.type : '');
+    btn.textContent = b.icon;
+    btn.setAttribute('aria-label', b.name);
+    btn.title = b.name;
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      showBuffModal();
+    });
+    el.appendChild(btn);
+  }
+
+  if (overflow > 0) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'v-battle-boss-buff overflow';
+    more.textContent = '+' + overflow;
+    more.setAttribute('aria-label', `${overflow} more active effect${overflow === 1 ? '' : 's'}`);
+    more.title = `${overflow} more`;
+    more.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      showBuffModal();
+    });
+    el.appendChild(more);
   }
 }
+
+// Legacy alias — every existing call site that pinged
+// _renderBossAreaWarnings (renderBossHP, vShowAttackTelegraph,
+// archetype tickers, etc.) keeps working with no edit. This avoids
+// a high-risk multi-site refactor in this PR; PRs 3-6 can rename
+// call sites incrementally with no new behavioural change.
+function _renderBossAreaWarnings() { return _renderBossBuffs(); }
+
+// Buff modal — slide-up sheet with full description for every active
+// effect. Re-renders the list each open so mid-battle state is fresh.
+function showBuffModal() {
+  const modal = document.getElementById('buffModal');
+  const list  = document.getElementById('buffModalList');
+  if (!modal || !list) return;
+  const buffs = _collectActiveBuffs();
+  list.innerHTML = '';
+  if (!buffs.length) {
+    const empty = document.createElement('div');
+    empty.className = 'buff-modal-empty';
+    empty.textContent = 'No active effects right now. Trigger a hero ability or build a squad synergy to see buffs surface here.';
+    list.appendChild(empty);
+  } else {
+    for (const b of buffs) {
+      const item = document.createElement('div');
+      item.className = 'buff-modal-item' + (b.type ? ' ' + b.type : '');
+      const icon = document.createElement('div');
+      icon.className = 'buff-modal-item-icon';
+      icon.textContent = b.icon || '★';
+      const details = document.createElement('div');
+      details.className = 'buff-modal-item-details';
+      const nameEl = document.createElement('div');
+      nameEl.className = 'buff-modal-item-name';
+      nameEl.textContent = b.name || '';
+      details.appendChild(nameEl);
+      if (b.effect) {
+        const eff = document.createElement('div');
+        eff.className = 'buff-modal-item-effect';
+        eff.textContent = b.effect;
+        details.appendChild(eff);
+      }
+      if (b.description) {
+        const desc = document.createElement('div');
+        desc.className = 'buff-modal-item-description';
+        desc.textContent = b.description;
+        details.appendChild(desc);
+      }
+      item.appendChild(icon);
+      item.appendChild(details);
+      list.appendChild(item);
+    }
+  }
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeBuffModal() {
+  const modal = document.getElementById('buffModal');
+  if (modal) modal.setAttribute('aria-hidden', 'true');
+}
+
+// ESC closes the buff modal (desktop / external keyboard). Wired once
+// at module init — early-out if the modal isn't currently open so we
+// don't intercept other ESC handlers.
 if (typeof window !== 'undefined') {
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const modal = document.getElementById('buffModal');
+    if (modal && modal.getAttribute('aria-hidden') === 'false') {
+      closeBuffModal();
+    }
+  });
+}
+
+if (typeof window !== 'undefined') {
+  window._renderBossBuffs        = _renderBossBuffs;
   window._renderBossAreaWarnings = _renderBossAreaWarnings;
-  window._renderBossAreaHearts = _renderBossAreaHearts;
+  window._renderBossAreaHearts   = _renderBossAreaHearts;
+  window.showBuffModal           = showBuffModal;
+  window.closeBuffModal          = closeBuffModal;
 }
 
 // 2026-04-30 — Combat UI Redesign §8.4 (PR 5/6): tray element pill
