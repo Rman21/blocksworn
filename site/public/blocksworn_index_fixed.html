@@ -299,9 +299,20 @@ html.is-pwa .a-battle {
   /* Reclaim the room we previously reserved for browser UI. */
   padding-top: max(8px, env(safe-area-inset-top, 0px) + 4px);
 }
+/* 2026-04-30 — Combat UI Final Polish hotfix v2: legacy notch-aware
+   padding-top REMOVED. This rule was added when .v-battle-topbar was
+   the FIRST UI row inside .a-battle and needed its own notch
+   protection. PR 2/6 (Combat UI Redesign) added .combat-top-bar above
+   it as the new first row, and .game's outer padding-top
+   `max(44px, env(safe-area-inset-top) + 40px)` already handles notch
+   clearance for the entire stack. The 28-83px Dynamic Island padding
+   on this row was eating viewport budget on iPhone 17 Pro Max — Roman
+   reported board clipping that maps directly to this overconsumption.
+   Selector kept addressable for any external CSS that probes it but
+   no longer applies a top-padding override. */
 html.has-notch .a-battle .v-battle-topbar {
-  /* Push the boss-card row below the dynamic island. */
-  padding-top: max(28px, env(safe-area-inset-top, 0px) + 24px);
+  /* Intentionally empty — notch already cleared by .combat-top-bar
+     above this row + .game's outer padding-top. */
 }
 html.is-small-screen .a-battle .v-battle-boss-card {
   /* Smaller-screen phones get an extra compact pass on top of the
@@ -6461,10 +6472,24 @@ body.shop-locked [onclick*="goToShop"] {
 }
 .a-battle .v-battle-topbar {
   gap: 8px;
-  /* 2026-04-27 — User: «между кнопкой назад и боссов сократи в 2раза».
-     Halved top padding (44/40 → 22/20) so back button + boss card sit closer
-     to viewport top, freeing vertical room for the grid + tray below. */
-  padding: max(22px, env(safe-area-inset-top, 0px) + 20px) 8px 0;
+  /* 2026-04-30 — Combat UI Final Polish hotfix v2: padding-top reduced
+     from `max(22px, env(safe-area-inset-top, 0px) + 20px)` to a flat
+     8px. The original safe-area-aware formula was designed when this
+     row was the FIRST child of .a-battle and needed its own notch
+     clearance. PR 2/6 added .combat-top-bar above it, and .game's
+     outer padding-top already handles notch clearance for the whole
+     stack. The redundant safe-area padding was eating up to 83px on
+     iPhone 17 Pro Max (Dynamic Island has ~59px safe-area-inset-top
+     → padding = max(28, 59+24) = 83 via the html.has-notch override
+     at line ~302). Roman's board-clipping report on iPhone 17 Pro
+     Max maps directly to this 75px overconsumption. The flat 8px
+     keeps a small visual breathing-gap between .combat-top-bar and
+     the boss-card row without any safe-area-related bloat.
+
+     Historical note: 2026-04-27 — User: «между кнопкой назад и
+     боссов сократи в 2раза». Halved top padding then; the rest of
+     the safe-area formula is removed in this hotfix. */
+  padding: 8px 8px 0;
 }
 .a-battle .back-btn.battle-back,
 .a-battle .v-battle-topbar .v-btn-icon {
@@ -10314,6 +10339,21 @@ body { padding: 0; min-height: 100vh; min-height: -webkit-fill-available; }
        with overflow:hidden grid-wrap. */
   width: min(100%, calc(100dvh - 490px), calc(100vh - 490px));
   max-width: 100%;
+  /* 2026-04-30 — Combat UI Final Polish hotfix v2 (Pro Max fit):
+     max-height: 100% caps the grid by its flex parent's available
+     height. On tall phones (iPhone 17 Pro Max — 956 dvh) the
+     `min(100%, calc(...))` width formula picks 100% as the smaller
+     term (≈440px viewport width) — width-bound. The grid then wants
+     440×440 vertical space, but available chrome budget on Pro Max
+     leaves less than that under the grid-wrap.
+
+     With `max-height: 100%` + `aspect-ratio: 1/1`, the browser
+     resolves: when the grid's natural width 440 would force height
+     440 but parent allows only ~370px, both axes shrink in lock-step
+     to 370×370. CSS Sizing Level 4 §6.2 ("If a non-auto aspect-ratio
+     is specified... and the box's maximum height is less than its
+     preferred height, the box shrinks") covers this case explicitly. */
+  max-height: 100%;
   /* 2026-04-30 — Combat UI Final Polish §8 (PR 5/6): lift the grid
      above the atmospheric layers (::before edge glow, ::after edge
      glow, .board-particles drift) so cells stay fully readable. The
