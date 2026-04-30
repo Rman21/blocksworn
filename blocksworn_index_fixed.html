@@ -584,6 +584,220 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
   .boss-details-modal > .boss-details-card { animation: none !important; }
 }
 
+/* ===========================================================
+   COMBAT UI AAA+ REDESIGN — Top Bar (PR 2/6)
+   Spec: §4 — 40px sticky row. Carries hearts + turn + damage + ⚙.
+   Consumes the foundation tokens shipped in PR 1.
+   =========================================================== */
+.combat-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--top-bar-height, 40px);
+  min-height: var(--top-bar-height, 40px);
+  padding: 0 var(--space-lg, 16px);
+  background: var(--combat-bg-elevated, rgba(20, 25, 40, 0.95));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--combat-border-subtle, rgba(255, 255, 255, 0.05));
+  flex-shrink: 0;
+  position: relative;
+  z-index: var(--z-elevated, 10);
+}
+.combat-top-bar-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg, 16px);
+  flex: 1;
+  justify-content: center;
+  font-size: var(--fs-sm, 11px);
+  color: var(--combat-text-secondary, rgba(255, 255, 255, 0.7));
+  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+  letter-spacing: 0.6px;
+}
+.combat-top-bar-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs, 4px);
+  white-space: nowrap;
+}
+.combat-top-bar-stat-icon {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--hearts-color, #DC143C);
+  text-shadow: 0 0 6px var(--hearts-glow, rgba(220, 20, 60, 0.5));
+}
+.combat-top-bar-stat-label {
+  font-size: var(--fs-xs, 9px);
+  letter-spacing: 1.0px;
+  text-transform: uppercase;
+  color: var(--combat-text-tertiary, rgba(255, 255, 255, 0.5));
+}
+.combat-top-bar-stat-value {
+  font-weight: var(--fw-bold, 700);
+  color: var(--combat-text-primary, #FFFFFF);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.4px;
+}
+.combat-top-bar-btn {
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--combat-border-default, rgba(255, 255, 255, 0.10));
+  border-radius: var(--radius-md, 8px);
+  color: var(--combat-text-secondary, rgba(255, 255, 255, 0.7));
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.18s ease-out, transform 0.12s ease-out;
+}
+.combat-top-bar-btn:hover { background: rgba(255, 255, 255, 0.12); }
+.combat-top-bar-btn:active { transform: scale(0.95); }
+/* Spec §4.4: hide damage on width <380 (iPhone SE narrow). */
+@media (max-width: 380px) {
+  .combat-top-bar-damage { display: none; }
+  .combat-top-bar-stats { gap: var(--space-md, 12px); }
+}
+
+/* Hide the legacy player-hp row — its hearts function moved to the
+   top bar above. Rule kept addressable so a future rollback can flip
+   it via JS / dev tools without HTML changes. */
+.a-battle .v-battle-player-hp {
+  display: none !important;
+}
+
+/* ===========================================================
+   PAUSE MENU — opens on top-bar ⚙ tap (PR 2/6).
+   Resume / Restart / Sound toggle / Quit. Restart + Quit gate on
+   a confirm dialog so battle progress isn't lost on accidental tap.
+   =========================================================== */
+.pause-menu {
+  position: fixed; inset: 0;
+  z-index: var(--z-modal, 300);
+  display: none;
+  align-items: center; justify-content: center;
+  padding: var(--space-xl, 24px);
+  background: rgba(8, 4, 14, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: pauseMenuFadeIn 0.22s ease-out;
+}
+.pause-menu[aria-hidden="false"] { display: flex; }
+.pause-menu-card {
+  background: var(--combat-bg-tertiary, #1A2235);
+  border: 2px solid var(--a-gold-300, #FFD53D);
+  border-radius: var(--radius-lg, 12px);
+  padding: var(--space-xl, 24px);
+  max-width: 320px;
+  width: 100%;
+  display: flex; flex-direction: column;
+  gap: var(--space-md, 12px);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.4)), 0 0 24px rgba(255, 213, 61, 0.25);
+  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+}
+.pause-menu-title {
+  font-size: var(--fs-xl, 20px);
+  font-weight: var(--fw-black, 800);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--a-gold-300, #FFD53D);
+  margin: 0 0 var(--space-sm, 8px);
+  text-align: center;
+}
+.pause-menu-btn {
+  padding: 12px 18px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--combat-border-default, rgba(255, 255, 255, 0.10));
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--combat-text-primary, #FFFFFF);
+  font-family: inherit;
+  font-size: var(--fs-md, 13px);
+  font-weight: var(--fw-bold, 700);
+  letter-spacing: 1.0px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.18s ease-out, transform 0.12s ease-out;
+}
+.pause-menu-btn:hover { background: rgba(255, 255, 255, 0.10); }
+.pause-menu-btn:active { transform: translateY(1px); }
+.pause-menu-btn-primary {
+  background: linear-gradient(180deg, #FFB800, #C97A05);
+  border: 2px solid #FFE07A;
+  color: #1A1208;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.4);
+  text-align: center;
+}
+.pause-menu-btn-primary:hover { background: linear-gradient(180deg, #FFC830, #D88A0F); }
+.pause-menu-btn-primary:active { transform: translateY(1px); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4); }
+.pause-menu-btn-toggle { color: var(--combat-text-secondary, rgba(255, 255, 255, 0.7)); }
+.pause-menu-btn-quit {
+  border-color: rgba(220, 20, 60, 0.35);
+  color: #FF8585;
+}
+.pause-menu-btn-quit:hover {
+  background: rgba(220, 20, 60, 0.10);
+  border-color: rgba(220, 20, 60, 0.55);
+}
+
+.pause-menu-confirm {
+  position: fixed; inset: 0;
+  z-index: var(--z-critical, 1000);
+  display: none;
+  align-items: center; justify-content: center;
+  padding: var(--space-xl, 24px);
+  background: rgba(8, 4, 14, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.pause-menu-confirm[aria-hidden="false"] { display: flex; }
+.pause-menu-confirm-card {
+  background: var(--combat-bg-tertiary, #1A2235);
+  border: 2px solid rgba(220, 20, 60, 0.6);
+  border-radius: var(--radius-lg, 12px);
+  padding: var(--space-xl, 24px);
+  max-width: 280px;
+  width: 100%;
+  text-align: center;
+  font-family: var(--a-font-body, system-ui, sans-serif);
+  box-shadow: var(--shadow-lg), 0 0 24px rgba(220, 20, 60, 0.3);
+}
+.pause-menu-confirm-title {
+  font-family: var(--a-font-display, 'Cinzel', sans-serif);
+  font-size: var(--fs-lg, 16px);
+  font-weight: var(--fw-bold, 700);
+  letter-spacing: 1.6px;
+  color: #FF8585;
+  text-transform: uppercase;
+  margin-bottom: var(--space-sm, 8px);
+}
+.pause-menu-confirm-body {
+  font-size: var(--fs-md, 13px);
+  color: var(--combat-text-secondary, rgba(255, 255, 255, 0.7));
+  margin-bottom: var(--space-lg, 16px);
+  line-height: 1.4;
+}
+.pause-menu-confirm-actions {
+  display: flex; gap: var(--space-sm, 8px);
+}
+.pause-menu-confirm-actions .pause-menu-btn {
+  flex: 1;
+  text-align: center;
+  padding: 10px 14px;
+  font-size: var(--fs-sm, 11px);
+}
+
+@keyframes pauseMenuFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1.0); }
+}
+.pause-menu-card { animation: pauseMenuFadeIn 0.22s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .pause-menu, .pause-menu-card { animation: none !important; }
+}
+
 :root {
   /* ========================================= */
   /* =====       ARENA PREMIUM TOKENS    ===== */
@@ -14924,6 +15138,32 @@ button.season-tier-claim:active {
 <!-- ============ BATTLE SCREEN ============ -->
 <div class="screen" id="screenBattle">
 <div class="game v-battle a-battle">
+  <!-- 2026-04-30 — Combat UI Redesign §4 (PR 2/6). Top bar: 40px sticky
+       row above the boss card. Carries hearts + turn counter + damage
+       counter + ⚙ pause-menu trigger. Per spec §18 migration phase 2:
+       new HTML lands now, JS wires updates, old .v-battle-player-hp
+       row below is hidden because its hearts function moves here.
+       The existing back button on .v-battle-topbar stays untouched
+       in PR 2 — top-bar back-button slot is reserved for PR 6 cleanup
+       when the legacy row is fully removed. -->
+  <div class="combat-top-bar" id="combatTopBar">
+    <div class="combat-top-bar-stats">
+      <div class="combat-top-bar-stat" id="combatTopBarHearts">
+        <span class="combat-top-bar-stat-icon" aria-hidden="true">❤</span>
+        <span class="combat-top-bar-stat-value" id="combatTopBarHeartsVal">3</span>
+      </div>
+      <div class="combat-top-bar-stat">
+        <span class="combat-top-bar-stat-label">TURN</span>
+        <span class="combat-top-bar-stat-value" id="combatTopBarTurnVal">1</span>
+      </div>
+      <div class="combat-top-bar-stat combat-top-bar-damage" id="combatTopBarDamage">
+        <span class="combat-top-bar-stat-value" id="combatTopBarDamageVal">0</span>
+        <span class="combat-top-bar-stat-label">DMG</span>
+      </div>
+    </div>
+    <button type="button" class="combat-top-bar-btn" id="combatPauseBtn"
+            onclick="showPauseMenu()" aria-label="Pause menu">⚙</button>
+  </div>
   <div class="v-battle-topbar">
     <button class="v-btn-icon back-btn battle-back" onclick="returnToMenuFromBattle()" aria-label="Back">←</button>
     <div class="v-battle-boss-card" id="bossBar">
@@ -15350,6 +15590,38 @@ button.season-tier-claim:active {
      count for Stormshepherd, soul-drain status for Crypt Lich, etc.).
      Body content is rendered fresh each open via _renderBossDetailsModal
      so the mid-battle state is always current. -->
+<!-- 2026-04-30 — Combat UI Redesign §4 (PR 2/6) pause menu. Standard
+     AAA mobile pattern (Royal Match / Marvel Snap / Honor of Kings):
+     Resume / Restart / Sound / Quit. Restart + Quit gate on a
+     confirm modal because they discard battle progress. Sound is a
+     simple mute toggle wired to the existing audio system. Settings
+     button ⚙ in top bar opens this. -->
+<div id="pauseMenu" class="pause-menu" aria-hidden="true" role="dialog" aria-labelledby="pauseMenuTitle"
+     onclick="if(event.target===this) closePauseMenu()">
+  <div class="pause-menu-card">
+    <h3 id="pauseMenuTitle" class="pause-menu-title">PAUSED</h3>
+    <button type="button" class="pause-menu-btn pause-menu-btn-primary" onclick="closePauseMenu()">▶ Resume</button>
+    <button type="button" class="pause-menu-btn" onclick="_pauseMenuRestart()">↻ Restart Battle</button>
+    <button type="button" class="pause-menu-btn pause-menu-btn-toggle" id="pauseMenuSoundBtn" onclick="_pauseMenuToggleSound()">🔊 Sound: ON</button>
+    <button type="button" class="pause-menu-btn pause-menu-btn-quit" onclick="_pauseMenuQuit()">✕ Quit to Menu</button>
+  </div>
+</div>
+
+<!-- Confirm dialog used by Restart + Quit so battle progress isn't
+     lost on accidental tap. Title + body filled by _pauseMenuConfirm
+     at trigger time so one DOM node serves both flows. -->
+<div id="pauseMenuConfirm" class="pause-menu-confirm" aria-hidden="true" role="dialog"
+     onclick="if(event.target===this) _pauseMenuConfirmCancel()">
+  <div class="pause-menu-confirm-card">
+    <div class="pause-menu-confirm-title" id="pauseMenuConfirmTitle">Are you sure?</div>
+    <div class="pause-menu-confirm-body" id="pauseMenuConfirmBody">Battle progress will be lost.</div>
+    <div class="pause-menu-confirm-actions">
+      <button type="button" class="pause-menu-btn pause-menu-btn-quit" id="pauseMenuConfirmYes">Confirm</button>
+      <button type="button" class="pause-menu-btn" onclick="_pauseMenuConfirmCancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="bossDetailsModal" class="boss-details-modal" aria-hidden="true" role="dialog" aria-labelledby="bossDetailsTitle"
      onclick="if(event.target===this) closeBossDetailsModal()">
   <div class="boss-details-card">
@@ -37262,6 +37534,120 @@ function closeInfoModal() {
 // with permanent buff chips. Renders fresh on every open so the
 // mid-battle state (e.g. soul-drain on Crypt Lich, storm count on
 // Stormshepherd) is always current.
+// 2026-04-30 — Combat UI Redesign §4 (PR 2/6) pause menu. Standard AAA
+// mobile pattern: Resume / Restart Battle / Sound toggle / Quit to Menu.
+// Restart + Quit gate on a confirm dialog because they discard battle
+// progress. Sound toggle persists in localStorage so the preference
+// survives session restarts.
+function showPauseMenu() {
+  const el = document.getElementById('pauseMenu');
+  if (!el) return;
+  // Sync sound-button label from current mute state on every open.
+  try { _pauseMenuSyncSoundLabel(); } catch (e) {}
+  el.setAttribute('aria-hidden', 'false');
+}
+function closePauseMenu() {
+  const el = document.getElementById('pauseMenu');
+  if (el) el.setAttribute('aria-hidden', 'true');
+  // Also dismiss the confirm dialog if it's open — backdrop tap on
+  // the pause menu shouldn't leave a stale confirm hanging.
+  _pauseMenuConfirmCancel();
+}
+function _pauseMenuSyncSoundLabel() {
+  const btn = document.getElementById('pauseMenuSoundBtn');
+  if (!btn) return;
+  let muted = false;
+  try {
+    if (typeof isAudioMuted === 'function') muted = !!isAudioMuted();
+    else if (typeof window !== 'undefined' && window._audioMuted !== undefined) muted = !!window._audioMuted;
+    else muted = (localStorage.getItem('blocksworn_audio_muted') === '1');
+  } catch (e) {}
+  btn.textContent = muted ? '🔇 Sound: OFF' : '🔊 Sound: ON';
+}
+function _pauseMenuToggleSound() {
+  // Try the existing audio API in priority order: spec mute fn, global
+  // helper, raw localStorage flag. The persistence path keeps the user
+  // preference across battles.
+  let nowMuted = false;
+  try {
+    if (typeof toggleAudioMute === 'function') {
+      nowMuted = !!toggleAudioMute();
+    } else if (typeof setAudioMuted === 'function') {
+      const cur = (typeof isAudioMuted === 'function') ? isAudioMuted() : false;
+      setAudioMuted(!cur);
+      nowMuted = !cur;
+    } else {
+      const cur = localStorage.getItem('blocksworn_audio_muted') === '1';
+      nowMuted = !cur;
+      localStorage.setItem('blocksworn_audio_muted', nowMuted ? '1' : '0');
+      // Fallback: best-effort halt of any currently-playing track.
+      try { if (typeof stopMusic === 'function') stopMusic(); } catch (e) {}
+    }
+  } catch (e) { console.warn('_pauseMenuToggleSound failed:', e); }
+  _pauseMenuSyncSoundLabel();
+}
+let _pauseMenuConfirmHandler = null;
+function _pauseMenuConfirm(title, body, onConfirm) {
+  const dlg = document.getElementById('pauseMenuConfirm');
+  if (!dlg) return;
+  const titleEl = document.getElementById('pauseMenuConfirmTitle');
+  const bodyEl = document.getElementById('pauseMenuConfirmBody');
+  const yesBtn = document.getElementById('pauseMenuConfirmYes');
+  if (titleEl) titleEl.textContent = title;
+  if (bodyEl) bodyEl.textContent = body;
+  _pauseMenuConfirmHandler = onConfirm;
+  if (yesBtn) {
+    yesBtn.onclick = () => {
+      try { if (_pauseMenuConfirmHandler) _pauseMenuConfirmHandler(); } catch (e) { console.warn('confirm handler failed:', e); }
+      _pauseMenuConfirmHandler = null;
+      dlg.setAttribute('aria-hidden', 'true');
+    };
+  }
+  dlg.setAttribute('aria-hidden', 'false');
+}
+function _pauseMenuConfirmCancel() {
+  const dlg = document.getElementById('pauseMenuConfirm');
+  if (dlg) dlg.setAttribute('aria-hidden', 'true');
+  _pauseMenuConfirmHandler = null;
+}
+function _pauseMenuRestart() {
+  _pauseMenuConfirm(
+    'Restart battle?',
+    'All progress in this fight will be lost. The boss restarts at full HP.',
+    () => {
+      try {
+        // Close pause menu first so animations don't stomp each other.
+        closePauseMenu();
+        // Reuse the existing battle-start path. startBossBattle re-runs
+        // the FTUE-aware battle init flow, including state cleanup hooks.
+        if (typeof startBossBattle === 'function') startBossBattle();
+        else if (typeof location !== 'undefined') location.reload();
+      } catch (e) { console.warn('restart failed:', e); }
+    }
+  );
+}
+function _pauseMenuQuit() {
+  _pauseMenuConfirm(
+    'Quit to menu?',
+    'Battle progress will be discarded. Boss returns to full HP next time.',
+    () => {
+      try {
+        closePauseMenu();
+        if (typeof goToMenu === 'function') goToMenu();
+        else if (typeof returnToMenuFromBattle === 'function') returnToMenuFromBattle();
+      } catch (e) { console.warn('quit failed:', e); }
+    }
+  );
+}
+if (typeof window !== 'undefined') {
+  window.showPauseMenu = showPauseMenu;
+  window.closePauseMenu = closePauseMenu;
+  window._pauseMenuToggleSound = _pauseMenuToggleSound;
+  window._pauseMenuRestart = _pauseMenuRestart;
+  window._pauseMenuQuit = _pauseMenuQuit;
+  window._pauseMenuConfirmCancel = _pauseMenuConfirmCancel;
+}
+
 function showBossDetailsModal() {
   const el = document.getElementById('bossDetailsModal');
   if (!el) return;
@@ -42650,6 +43036,25 @@ function renderHP() {
     const numEl = document.getElementById('playerHpNum');
     if (numEl) numEl.textContent = hp + ' / ' + currentMaxHP;
   } catch (e) {}
+  // 2026-04-30 — Combat UI Redesign §4 (PR 2/6): mirror hearts/turn/dmg
+  // into the new top-bar above the boss card. Per spec §18.3 dual-render
+  // pattern — we update both old and new UIs during migration; legacy
+  // .v-battle-player-hp row is hidden via CSS but its data still flows
+  // here, so a CSS rollback restores it instantly.
+  try {
+    const heartsEl = document.getElementById('combatTopBarHeartsVal');
+    if (heartsEl) heartsEl.textContent = String(hp);
+    const turnEl = document.getElementById('combatTopBarTurnVal');
+    if (turnEl && typeof placementCount !== 'undefined') {
+      turnEl.textContent = String(Math.max(1, placementCount + 1));
+    }
+    const dmgEl = document.getElementById('combatTopBarDamageVal');
+    if (dmgEl && typeof damageDealt !== 'undefined') {
+      dmgEl.textContent = (typeof _shortHP === 'function')
+        ? _shortHP(damageDealt)
+        : String(damageDealt);
+    }
+  } catch (e) {}
   // 2026-04-27 — Audio A.2.8: shield gain/break SFX on transition.
   try {
     const cur = shieldCount || 0;
@@ -42664,6 +43069,23 @@ function renderHP() {
 
 function renderStats() {
   document.getElementById('dmg').textContent = damageDealt.toLocaleString('ru-RU');
+  // 2026-04-30 — Combat UI Redesign §4: mirror damage to top-bar.
+  // renderStats fires after every cell-clear cascade so the top-bar
+  // damage stays in sync. Turn counter is bumped on placement (handled
+  // in renderHP path via placementCount); damage updates more often
+  // than HP, so wire it here directly to avoid stale reads.
+  try {
+    const dmgEl = document.getElementById('combatTopBarDamageVal');
+    if (dmgEl) {
+      dmgEl.textContent = (typeof _shortHP === 'function')
+        ? _shortHP(damageDealt)
+        : String(damageDealt);
+    }
+    const turnEl = document.getElementById('combatTopBarTurnVal');
+    if (turnEl && typeof placementCount !== 'undefined') {
+      turnEl.textContent = String(Math.max(1, placementCount + 1));
+    }
+  } catch (e) {}
 }
 
 function flashHero(hero) {
