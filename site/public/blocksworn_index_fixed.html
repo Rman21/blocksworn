@@ -17892,6 +17892,166 @@ if (typeof window !== 'undefined') {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// ANALYTICS.2 — Retention funnel (PRELAUNCH §11.9). User properties set
+// on every boot drive Firebase cohort filtering. returned_d1/d7/d30
+// fire-once-per-user via localStorage flags. Session lifecycle tracked
+// via visibilitychange so dwell-time is measurable.
+// ──────────────────────────────────────────────────────────────────────────
+
+const ANALYTICS_RETURN_FLAGS_KEY = 'blocksworn_return_flags';
+const ANALYTICS_LAST_SESSION_KEY = 'blocksworn_last_session';
+let _sessionStartedAt = 0;
+
+function _setUserProperty(key, value) {
+  try {
+    if (typeof window !== 'undefined' && window.firebase &&
+        window.firebase.analytics && typeof window.firebase.analytics === 'function') {
+      const analytics = window.firebase.analytics();
+      if (analytics && typeof analytics.setUserProperty === 'function') {
+        analytics.setUserProperty(key, String(value));
+      } else if (analytics && typeof analytics.setUserProperties === 'function') {
+        // newer SDK shape
+        const obj = {}; obj[key] = String(value);
+        analytics.setUserProperties(obj);
+      }
+    }
+    if (_ANALYTICS_DEV) {
+      try { console.log('[analytics:user]', key, value); } catch (e) {}
+    }
+  } catch (e) {}
+}
+
+function _getReturnFlags() {
+  try {
+    const raw = localStorage.getItem(ANALYTICS_RETURN_FLAGS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object') ? parsed : {};
+  } catch (e) { return {}; }
+}
+function _saveReturnFlags(flags) {
+  try { localStorage.setItem(ANALYTICS_RETURN_FLAGS_KEY, JSON.stringify(flags)); } catch (e) {}
+}
+
+function trackSessionStart() {
+  _sessionStartedAt = Date.now();
+  // User properties — drive Firebase cohort filtering. Set on every boot
+  // so day-since-install rolls forward without explicit refresh.
+  let daysSince = 0;
+  try {
+    if (typeof _daysSinceFirstLaunch === 'function') daysSince = _daysSinceFirstLaunch();
+  } catch (e) {}
+  _setUserProperty('install_date', (typeof _todayDateString === 'function')
+                                    ? _todayDateString() : new Date().toISOString().slice(0, 10));
+  _setUserProperty('days_since_install', daysSince);
+  // Total purchases — sum across SKU localStorage flags. Lightweight read.
+  let totalPurchases = 0;
+  try {
+    if (localStorage.getItem('blocksworn_first_purchase_done') === 'true') totalPurchases++;
+    if (localStorage.getItem('blocksworn_starter_pack_purchased') === 'true') totalPurchases++;
+  } catch (e) {}
+  _setUserProperty('total_purchases', totalPurchases);
+  try { logEvent(EVT.session_start, { days_since_install: daysSince }); } catch (e) {}
+  // Returned-Dx fire-once events. Each flag flips true the FIRST session
+  // on or after the threshold day. Drives Firebase retention dashboard.
+  const flags = _getReturnFlags();
+  let dirty = false;
+  if (!flags.d1 && daysSince >= 1) {
+    flags.d1 = true; dirty = true;
+    try { logEvent(EVT.returned_d1, { days_since_install: daysSince }); } catch (e) {}
+  }
+  if (!flags.d7 && daysSince >= 7) {
+    flags.d7 = true; dirty = true;
+    try { logEvent(EVT.returned_d7, { days_since_install: daysSince }); } catch (e) {}
+  }
+  if (!flags.d30 && daysSince >= 30) {
+    flags.d30 = true; dirty = true;
+    try { logEvent(EVT.returned_d30, { days_since_install: daysSince }); } catch (e) {}
+  }
+  if (dirty) _saveReturnFlags(flags);
+  // Stamp last-session marker for offline-recovery analytics (next boot can
+  // compute dwell gap). Survives page reloads even when end-event isn't fired.
+  try { localStorage.setItem(ANALYTICS_LAST_SESSION_KEY, String(_sessionStartedAt)); } catch (e) {}
+}
+
+function trackSessionEnd() {
+  const dur = _sessionStartedAt > 0 ? Math.floor((Date.now() - _sessionStartedAt) / 1000) : 0;
+  if (dur < 1) return;
+  try { logEvent(EVT.session_end, { duration_sec: dur }); } catch (e) {}
+  _sessionStartedAt = 0;
+}
+
+// Wire visibilitychange — start session on visible, end on hidden.
+// Fires once on initial boot too so first-load is captured.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) trackSessionEnd();
+    else if (_sessionStartedAt === 0) trackSessionStart();
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ANALYTICS.4 — Crash reporting (PRELAUNCH §11.9). Hooks window.onerror
+// + unhandledrejection. Logs to error_caught EVT (consumed by Firebase
+// Analytics) so crash-free session rate is measurable. Real Crashlytics
+// SDK integration deferred to Phase 9 (requires Firebase project config).
+// ──────────────────────────────────────────────────────────────────────────
+
+let _crashReportCount = 0;
+const _CRASH_REPORT_CAP = 20;  // anti-spam: cap reports per session
+
+function reportCrash(source, message, stack, extra) {
+  if (_crashReportCount >= _CRASH_REPORT_CAP) return;
+  _crashReportCount++;
+  // Sanitize stack: trim to first 3 frames + redact long paths.
+  const safeStack = (stack || '').toString().split('\n').slice(0, 3)
+                       .map(s => s.replace(/https?:\/\/[^/]+/g, '<host>'))
+                       .join(' | ');
+  try {
+    logEvent(EVT.error_caught, {
+      source: source || 'unknown',
+      message: (message || '').toString().slice(0, 200),
+      stack: safeStack.slice(0, 400),
+      session_count: _crashReportCount,
+      extra: extra || ''
+    });
+  } catch (e) {}
+}
+
+if (typeof window !== 'undefined') {
+  // Top-level synchronous errors
+  window.addEventListener('error', function (e) {
+    try { reportCrash('window.onerror', e && e.message, e && e.error && e.error.stack); } catch (_) {}
+  });
+  // Top-level promise rejections
+  window.addEventListener('unhandledrejection', function (e) {
+    try {
+      const reason = e && e.reason;
+      const msg = reason && reason.message ? reason.message : String(reason);
+      const stack = reason && reason.stack ? reason.stack : '';
+      reportCrash('unhandledrejection', msg, stack);
+    } catch (_) {}
+  });
+}
+
+// Boot stamp — fires session_start AFTER script finishes parsing so dependent
+// helpers (_daysSinceFirstLaunch, _todayDateString) are defined. setTimeout(0)
+// drops to next macrotask, giving the rest of the inline script time to load.
+try {
+  if (typeof document !== 'undefined' && !document.hidden) {
+    setTimeout(function () {
+      try { trackSessionStart(); } catch (e) {}
+    }, 0);
+  }
+} catch (e) {}
+
+if (typeof window !== 'undefined') {
+  window.trackSessionStart = trackSessionStart;
+  window.trackSessionEnd = trackSessionEnd;
+  window.reportCrash = reportCrash;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // CONTENT.1 + CONTENT.2 — Content Schedule Engine (PRELAUNCH §8 + §11.8).
 //
 // All content shipped in the app binary, unlock dates flag-driven by
