@@ -43759,15 +43759,26 @@ function closeAudioSettings() {
 function openMainMenuSettings() {
   const overlay = document.getElementById('mainMenuSettingsOverlay');
   const menu = document.getElementById('mainMenuSettingsMenu');
+  // 2026-05-02 — HOTFIX: .settings-menu slides via .open class (translateX
+  // 100% → 0). Setting aria-hidden alone leaves transform: translateX(100%)
+  // — modal stayed off-screen on first ship, only the overlay was visible
+  // (= "blurred screen with no buttons"). Mirror existing openSettings()
+  // wiring exactly: add .open + flip aria-hidden + add overlay .show.
+  if (menu) {
+    menu.classList.add('open');
+    menu.setAttribute('aria-hidden', 'false');
+  }
   if (overlay) overlay.classList.add('show');
-  if (menu) menu.setAttribute('aria-hidden', 'false');
   try { logEvent && logEvent('settings_opened', { from: 'main_menu' }); } catch (e) {}
 }
 function closeMainMenuSettings() {
   const overlay = document.getElementById('mainMenuSettingsOverlay');
   const menu = document.getElementById('mainMenuSettingsMenu');
+  if (menu) {
+    menu.classList.remove('open');
+    menu.setAttribute('aria-hidden', 'true');
+  }
   if (overlay) overlay.classList.remove('show');
-  if (menu) menu.setAttribute('aria-hidden', 'true');
 }
 // Restore Purchases shim — Sprint 4 B1 exposed restorePurchases() on window.
 // Wrapped so non-browser stub branches (no IAPProvider) don't crash.
