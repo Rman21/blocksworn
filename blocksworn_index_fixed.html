@@ -17683,6 +17683,15 @@ button.season-tier-claim:active {
     addDoc, query, where, orderBy, limit, getDocs, serverTimestamp,
     writeBatch
   } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+  // 2026-05-02 — SPRINT 4 B2: Firebase Analytics modular SDK. The pre-Sprint-4
+  // logEvent() wrapper called legacy `window.firebase.analytics()` which
+  // doesn't exist on the modular SDK — so events were dropped silently. This
+  // import + getAnalytics(app) bind below makes events actually flow.
+  import {
+    getAnalytics, logEvent as fbLogEventModular,
+    setUserProperties as fbSetUserPropertiesModular,
+    setUserId as fbSetUserIdModular
+  } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js';
 
   const firebaseConfig = {
     apiKey: "AIzaSyC9oetrKqpzt16KL1dnnGjN3r4iLL-aLlQ",
@@ -17698,6 +17707,13 @@ button.season-tier-claim:active {
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
+    // 2026-05-02 — SPRINT 4 B2: Initialize Analytics. Wraps in try/catch
+    // because Analytics requires measurementId (already set above) AND
+    // browser cookies/localStorage available — fails gracefully in
+    // private browsing or test harnesses without breaking auth/firestore.
+    let analytics = null;
+    try { analytics = getAnalytics(app); }
+    catch (e) { console.warn('[Firebase] Analytics init skipped:', e && e.message); }
 
     // Expose Firestore + Auth helpers on window so the main <script> (non-module)
     // can use them. Naming kept short (window.fb) for terse call sites.
@@ -17709,11 +17725,28 @@ button.season-tier-claim:active {
       query, where, orderBy, limit, getDocs, serverTimestamp, writeBatch,
     };
 
+    // 2026-05-02 — SPRINT 4 B2: Expose Analytics modular helpers on window so
+    // the main <script> (non-module) can dispatch events through them.
+    // logEvent() and _setUserProperty() in the main script check window.fbAnalyticsModular
+    // first — if available, use it; otherwise no-op (legacy path was a no-op too).
+    if (analytics) {
+      window.fbAnalytics = analytics;
+      window.fbAnalyticsModular = {
+        logEvent: (name, params) => fbLogEventModular(analytics, name, params || {}),
+        setUserProperties: (props) => fbSetUserPropertiesModular(analytics, props || {}),
+        setUserId: (uid) => fbSetUserIdModular(analytics, uid),
+      };
+    }
+
     // Anonymous sign-in. Resolves UID for the player without requiring email
     // or password — every player gets a stable identity tied to this device.
     onAuthStateChanged(auth, (user) => {
       if (user) {
         window.fbReady = true;
+        // 2026-05-02 — SPRINT 4 B2: bind player UID to Analytics user_id so
+        // retention cohorts + funnel analysis can group sessions per player.
+        try { if (window.fbAnalyticsModular) window.fbAnalyticsModular.setUserId(user.uid); }
+        catch (e) { console.warn('[Analytics] setUserId failed:', e); }
         window.dispatchEvent(new CustomEvent('firebaseReady', { detail: { uid: user.uid } }));
         console.log('[Firebase] anon-auth ready, uid=' + user.uid.slice(0, 8));
       }
@@ -17794,6 +17827,57 @@ button.season-tier-claim:active {
       _rcDispatchReady({ ready: false, reason: 'configure_failed' });
     }
   });
+</script>
+
+<!-- 2026-05-02 — SPRINT 4 B2: Sentry SDK for crash + performance monitoring.
+     Web doesn't have Firebase Crashlytics; Sentry is the spec-recommended
+     alternative (§4.6). Free tier 5K errors/month — sufficient for soft
+     launch. Loaded async so init never blocks first paint. Falls back to
+     existing reportCrash() console-log path if SDK unavailable.
+
+     SETUP REQUIRED before flipping to production:
+       1. Create Sentry account at sentry.io
+       2. Create project "blocksworn-web", get DSN
+       3. Replace SENTRY_DSN below with real DSN (https://...@o.../...)
+       4. Verify in Sentry dashboard: throw new Error('test') → appears in <5min -->
+<script
+  src="https://browser.sentry-cdn.com/7.91.0/bundle.tracing.min.js"
+  crossorigin="anonymous"
+  async></script>
+
+<script>
+  // SPRINT 4 B2 — Sentry init. Runs after the SDK loads (or no-ops if it
+  // doesn't). Wrapped in DOMContentLoaded to ensure the async script tag
+  // resolves before we call Sentry.init.
+  (function () {
+    const SENTRY_DSN = 'https://PLACEHOLDER@o0.ingest.sentry.io/PLACEHOLDER';
+    function _initSentry() {
+      try {
+        if (typeof window === 'undefined' || typeof window.Sentry === 'undefined') return;
+        if (SENTRY_DSN.indexOf('PLACEHOLDER') !== -1) {
+          console.warn('[Sentry] DSN not configured — error tracking disabled. ' +
+                       'See Sprint 4 spec §4.6 for setup.');
+          return;
+        }
+        window.Sentry.init({
+          dsn: SENTRY_DSN,
+          integrations: window.Sentry.BrowserTracing
+            ? [new window.Sentry.BrowserTracing()] : [],
+          tracesSampleRate: 0.1,           // 10% of sessions for performance
+          environment: (typeof location !== 'undefined' &&
+                        /^(localhost|127|0\.0\.0\.0)/.test(location.hostname)) ? 'dev' : 'production',
+          // Don't capture console.log noise as breadcrumbs (only via our addBreadcrumb)
+          defaultIntegrations: false,
+        });
+        console.log('[Sentry] initialized');
+      } catch (e) { console.warn('[Sentry] init failed:', e); }
+    }
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(_initSentry, 0);
+    } else {
+      document.addEventListener('DOMContentLoaded', _initSentry);
+    }
+  })();
 </script>
 
 <script>
@@ -18165,6 +18249,22 @@ const EVT = Object.freeze({
   purchase_started:         'purchase_started',
   purchase_completed:       'purchase_completed',
   purchase_cancelled:       'purchase_cancelled',
+  // 2026-05-02 — SPRINT 4 B2: additional purchase + restore + GDPR events
+  purchase_failed:          'purchase_failed',
+  purchases_restored:       'purchases_restored',
+  purchases_restore_failed: 'purchases_restore_failed',
+  account_deleted:          'account_deleted',
+  // 2026-05-02 — SPRINT 4 B2: chapter-4 + endgame-kit events (referenced
+  // by Sprint 3a code; formalizing in EVT now so logEvent calls can use
+  // EVT.chapter_4_unlocked etc instead of bare strings)
+  chapter_4_unlocked:               'chapter_4_unlocked',
+  chapter_4_completed:              'chapter_4_completed',
+  chapter_4_boss_defeated:          'chapter_4_boss_defeated',
+  chapter_4_migration_unlock:       'chapter_4_migration_unlock',
+  throne_breaker_earned:            'throne_breaker_earned',
+  archival_aftermath_shown:         'archival_aftermath_shown',
+  archival_aftermath_dismissed:     'archival_aftermath_dismissed',
+  endgame_kit_eligibility_unlocked: 'endgame_kit_eligibility_unlocked',
   // Soft pinch
   pinch_shown:              'pinch_shown',
   pinch_path_chosen:        'pinch_path_chosen',
@@ -18192,23 +18292,56 @@ function logEvent(name, props) {
   if (_ANALYTICS_DEV) {
     try { console.log('[analytics]', name, payload); } catch (e) {}
   }
-  // Firebase Analytics forward — wired in ANALYTICS.2.
-  // Stays a no-op until SDK is initialized to keep payload-shape stable
-  // for offline/error states.
+  // 2026-05-02 — SPRINT 4 B2: Firebase Analytics forward, modular SDK first.
+  // Module-side `window.fbAnalyticsModular` (bound when getAnalytics(app)
+  // succeeds) is the production path. Legacy compat-SDK probe stays as
+  // belt-and-suspenders for devs running pre-modular Firebase shims.
+  // Both wrapped in try/catch — analytics MUST NEVER break gameplay.
   try {
-    if (typeof window !== 'undefined' && window.firebase &&
-        window.firebase.analytics && typeof window.firebase.analytics === 'function') {
+    if (typeof window !== 'undefined' && window.fbAnalyticsModular &&
+        typeof window.fbAnalyticsModular.logEvent === 'function') {
+      window.fbAnalyticsModular.logEvent(name, payload);
+    } else if (typeof window !== 'undefined' && window.firebase &&
+               window.firebase.analytics && typeof window.firebase.analytics === 'function') {
       window.firebase.analytics().logEvent(name, payload);
     }
-  } catch (e) {
-    // never let analytics break gameplay
-  }
+  } catch (e) { /* never let analytics break gameplay */ }
+  // SPRINT 4 B2 — Sentry breadcrumb forward. Only adds non-PII event names +
+  // sanitized params so when a crash fires the recent events appear as
+  // breadcrumbs in the Sentry trace. Skip if Sentry not loaded.
+  try {
+    if (typeof window !== 'undefined' && window.Sentry &&
+        typeof window.Sentry.addBreadcrumb === 'function') {
+      window.Sentry.addBreadcrumb({
+        category: 'analytics',
+        message: name,
+        level: 'info',
+        data: payload,
+      });
+    }
+  } catch (e) {}
 }
 
 if (typeof window !== 'undefined') {
   window.EVT = EVT;
   window.logEvent = logEvent;
 }
+
+// 2026-05-02 — SPRINT 4 B2: Lifetime purchase counter helper. Authoritative
+// counter for `total_purchases` user property — incremented on each
+// purchase_completed event in IAPProvider (mock + revenuecat). Survives
+// SKU-flag-based heuristic; safer source for whale identification.
+// Idempotent localStorage write; never throws (storage quota etc.).
+function _recordTotalPurchases(delta) {
+  try {
+    const cur = parseInt(localStorage.getItem('blocksworn_total_purchases') || '0', 10);
+    const next = cur + (Number(delta) || 1);
+    localStorage.setItem('blocksworn_total_purchases', String(next));
+    try { _setUserProperty && _setUserProperty('total_purchases', next); } catch (e) {}
+    return next;
+  } catch (e) { return null; }
+}
+if (typeof window !== 'undefined') window._recordTotalPurchases = _recordTotalPurchases;
 
 // ──────────────────────────────────────────────────────────────────────────
 // ANALYTICS.2 — Retention funnel (PRELAUNCH §11.9). User properties set
@@ -18223,13 +18356,18 @@ let _sessionStartedAt = 0;
 
 function _setUserProperty(key, value) {
   try {
-    if (typeof window !== 'undefined' && window.firebase &&
-        window.firebase.analytics && typeof window.firebase.analytics === 'function') {
+    // 2026-05-02 — SPRINT 4 B2: prefer modular Analytics SDK. Falls back
+    // to legacy compat shape if running on older Firebase setup.
+    if (typeof window !== 'undefined' && window.fbAnalyticsModular &&
+        typeof window.fbAnalyticsModular.setUserProperties === 'function') {
+      const obj = {}; obj[key] = String(value);
+      window.fbAnalyticsModular.setUserProperties(obj);
+    } else if (typeof window !== 'undefined' && window.firebase &&
+               window.firebase.analytics && typeof window.firebase.analytics === 'function') {
       const analytics = window.firebase.analytics();
       if (analytics && typeof analytics.setUserProperty === 'function') {
         analytics.setUserProperty(key, String(value));
       } else if (analytics && typeof analytics.setUserProperties === 'function') {
-        // newer SDK shape
         const obj = {}; obj[key] = String(value);
         analytics.setUserProperties(obj);
       }
@@ -18268,6 +18406,13 @@ function trackSessionStart() {
   try {
     if (localStorage.getItem('blocksworn_first_purchase_done') === 'true') totalPurchases++;
     if (localStorage.getItem('blocksworn_starter_pack_purchased') === 'true') totalPurchases++;
+  } catch (e) {}
+  // 2026-05-02 — SPRINT 4 B2: prefer authoritative counter from
+  // _recordTotalPurchases() (incremented in IAPProvider on success). Fallback
+  // to legacy SKU-flag scan keeps the property accurate on pre-Sprint-4 saves.
+  try {
+    const recorded = parseInt(localStorage.getItem('blocksworn_total_purchases') || '0', 10);
+    if (recorded > totalPurchases) totalPurchases = recorded;
   } catch (e) {}
   _setUserProperty('total_purchases', totalPurchases);
   try { logEvent(EVT.session_start, { days_since_install: daysSince }); } catch (e) {}
@@ -18335,6 +18480,26 @@ function reportCrash(source, message, stack, extra) {
       extra: extra || ''
     });
   } catch (e) {}
+  // 2026-05-02 — SPRINT 4 B2: Sentry forward (additive). Sends raw exception
+  // when an Error object is in `extra`; otherwise builds a synthetic message
+  // from source+message+stack so Sentry has issue grouping data. Skip if
+  // SDK not loaded or DSN placeholder (Sentry.init early-returned).
+  try {
+    if (typeof window !== 'undefined' && window.Sentry &&
+        typeof window.Sentry.captureException === 'function') {
+      const err = (extra && extra instanceof Error) ? extra : new Error(
+        '[' + (source || 'unknown') + '] ' + ((message || '').toString().slice(0, 200))
+      );
+      // Preserve sanitized stack on synthetic errors (helps grouping).
+      if (!(extra instanceof Error) && safeStack) {
+        try { err.stack = safeStack; } catch (e) {}
+      }
+      window.Sentry.captureException(err, {
+        tags: { source: source || 'unknown' },
+        extra: { session_count: _crashReportCount },
+      });
+    }
+  } catch (e) { /* never let crash reporter crash gameplay */ }
 }
 
 if (typeof window !== 'undefined') {
