@@ -4162,6 +4162,43 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   text-align: center;
   margin: 6px 0 14px;
 }
+/* ===== SPRINT.2 SOCIAL.1 — Friend system locked-state styles ===== */
+.social-locked-card {
+  background: linear-gradient(160deg, rgba(168, 138, 200, 0.15), rgba(168, 138, 200, 0.04));
+  border: 1px dashed rgba(168, 138, 200, 0.4);
+  border-radius: 12px;
+  padding: 24px 16px;
+  text-align: center;
+}
+.slc-icon {
+  font-size: 36px;
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+.slc-title {
+  font-family: var(--a-display-font, sans-serif);
+  font-size: 15px; font-weight: bold;
+  color: #C0A6DF;
+  letter-spacing: 1.5px;
+  margin-bottom: 4px;
+}
+.slc-reason {
+  font-size: 12px; color: #A8A5B8;
+  margin-bottom: 12px;
+}
+.slc-preview {
+  font-size: 11px; color: #888;
+  font-style: italic;
+  margin-bottom: 14px;
+}
+.slc-fc-preview {
+  font-size: 12px; color: #E8E5F5;
+  background: rgba(255, 213, 61, 0.08);
+  padding: 8px;
+  border-radius: 6px;
+}
+.slc-fc-preview strong { color: #FFD53D; letter-spacing: 1px; }
+
 /* ===== SHOP.1-REV — Welcome Gift + Tower Climber's Pack styles ===== */
 
 /* Welcome Gift Modal (overlay + card) */
@@ -29289,6 +29326,16 @@ function saveSeasonState() {
 
 // Check if season needs to rotate — called on menu open.
 // Rotation resets XP and claims; seasonId increments.
+// SPRINT.2 BP.S2.1 — Returns days remaining in current season (decimal).
+function _seasonDaysRemaining() {
+  if (!seasonState.seasonStart) return SEASON_LENGTH_DAYS;
+  try {
+    const start = new Date(seasonState.seasonStart);
+    const elapsed = (Date.now() - start.getTime()) / (1000 * 60 * 60 * 24);
+    return Math.max(0, SEASON_LENGTH_DAYS - elapsed);
+  } catch (e) { return SEASON_LENGTH_DAYS; }
+}
+
 function checkSeasonRotation() {
   const now = new Date();
   if (!seasonState.seasonStart) {
@@ -29311,17 +29358,106 @@ function checkSeasonRotation() {
       premiumUnlocked: false,
     };
     saveSeasonState();
-    try { flashText(`✦ SEASON ${seasonState.seasonId} BEGINS`, '#FFD53D'); } catch (e) {}
+    // SPRINT.2 BP.S2.3 — Replace immediate flashText with deferred cinematic.
+    // Pending flag fires on next menu render (so cinematic doesn't pop while
+    // battle screen is mid-render). Subscriber bonus state recorded in flag
+    // for cinematic to display correctly.
+    try {
+      localStorage.setItem(SEASON_TRANSITION_PENDING_KEY, JSON.stringify({
+        fromSeason: oldId,
+        toSeason: oldId + 1,
+        timestamp: now.toISOString(),
+        subscriberAutoApplied: false,  // updated below if applicable
+      }));
+    } catch (e) {}
     // Phase C 2026-04-28: subscribers auto-claim premium track + starter bundle
     // (per spec §4.5: "Premium track auto-applied each season, 500 gems each
     // season start"). Mirrors what _grantSeasonPassSubBonus does on activation.
     try {
       if (typeof _isSeasonPassActive === 'function' && _isSeasonPassActive()) {
         _grantSeasonPassSubBonus();
-        try { flashText('★ PREMIUM AUTO-APPLIED · +' + SEASON_PASS_SUB_GEMS_BONUS + '💎', '#BB60FF'); } catch (e) {}
+        // BP.S2.3 — flag the cinematic-pending state with subscriber info
+        try {
+          const t = JSON.parse(localStorage.getItem(SEASON_TRANSITION_PENDING_KEY) || '{}');
+          t.subscriberAutoApplied = true;
+          localStorage.setItem(SEASON_TRANSITION_PENDING_KEY, JSON.stringify(t));
+        } catch (e) {}
+        // SPRINT.2 BP.S2.3 — flashText removed; cinematic on next menu render
+        // surfaces subscriber bonus more prominently (see _maybeShowSeasonTransitionCinematic).
       }
     } catch (e) { console.warn('subscriber season-rotate bonus failed:', e); }
   }
+}
+
+// SPRINT.2 BP.S2.2 — Multi-day season-end warning. Fires at exactly 3 OR 1 days
+// remaining, gated by composite key (seasonId + days) so each warning is one-shot.
+// Hooked into goToMenu so it can fire on any visit during the warning window.
+function _maybeShowSeasonEndWarning() {
+  const days = Math.ceil(_seasonDaysRemaining());
+  if (!SEASON_END_WARNING_DAYS_LIST.includes(days)) return;
+  const seasonId = seasonState.seasonId || 1;
+  const warningKey = seasonId + '_' + days;
+  let lastShown = '';
+  try { lastShown = localStorage.getItem(SEASON_END_WARNING_KEY) || ''; } catch (e) {}
+  if (lastShown === warningKey) return;
+  try { localStorage.setItem(SEASON_END_WARNING_KEY, warningKey); } catch (e) {}
+  if (typeof _showAntiFomoPopup === 'function') {
+    _showAntiFomoPopup({
+      title: '⏳ SEASON ' + seasonId + ' ENDS SOON',
+      body:
+        '<div style="font-family:var(--a-display-font);font-size:13px;line-height:1.6;color:#E8E5F5;text-align:center;">' +
+          '<p style="margin:0 0 8px;">Only <strong style="color:#FFD53D">' + days + ' day' + (days === 1 ? '' : 's') + '</strong> left.</p>' +
+          '<p style="margin:0 0 8px;">Complete remaining tiers before reset.</p>' +
+          '<p style="margin:0;font-size:11px;color:#A8A5B8;">Premium track items unclaimed will be lost.</p>' +
+        '</div>',
+      ctaLabel: 'VIEW BATTLE PASS',
+      ctaAction: function () { try { goToSeason(); } catch (e) {} },
+      glow: '#FFAA00',
+      kind: 'season_end_warning',
+    });
+  }
+  try { logEvent(EVT.shop_section_viewed, { section: 'season_end_warning_shown', daysRemaining: days, seasonId }); } catch (e) {}
+}
+
+// SPRINT.2 BP.S2.4 — Season transition cinematic. Fires ONCE on first menu
+// render after checkSeasonRotation rolls forward. Pending flag set by
+// checkSeasonRotation; cleared immediately to prevent double-show. Subscriber
+// auto-bonus surfaced in body when applicable.
+function _maybeShowSeasonTransitionCinematic() {
+  let pending = null;
+  try {
+    const raw = localStorage.getItem(SEASON_TRANSITION_PENDING_KEY);
+    if (raw) pending = JSON.parse(raw);
+  } catch (e) {}
+  if (!pending || !pending.toSeason) return;
+  try { localStorage.removeItem(SEASON_TRANSITION_PENDING_KEY); } catch (e) {}
+  const subBonus = pending.subscriberAutoApplied
+    ? '<p style="margin:6px 0 0;color:#BB60FF;font-weight:bold;">★ Premium track auto-applied · +' +
+      (typeof SEASON_PASS_SUB_GEMS_BONUS !== 'undefined' ? SEASON_PASS_SUB_GEMS_BONUS : 500) + ' 💎</p>'
+    : '';
+  if (typeof _showAntiFomoPopup === 'function') {
+    _showAntiFomoPopup({
+      title: '✦ SEASON ' + pending.toSeason + ' BEGINS',
+      body:
+        '<div style="font-family:var(--a-display-font);font-size:13px;line-height:1.7;color:#E8E5F5;text-align:center;">' +
+          '<p style="margin:0 0 8px;">Season ' + pending.fromSeason + ' has ended.</p>' +
+          '<p style="margin:0 0 12px;">A new path opens.</p>' +
+          '<p style="margin:0;font-size:11px;color:#A8A5B8;">Battle Pass tiers reset · new rewards await</p>' +
+          subBonus +
+        '</div>',
+      ctaLabel: 'VIEW NEW SEASON',
+      ctaAction: function () { try { goToSeason(); } catch (e) {} },
+      glow: '#BB60FF',
+      kind: 'season_transition',
+    });
+  }
+  try { logEvent(EVT.content_unlocked, { kind: 'season_transition_cinematic_shown', fromSeason: pending.fromSeason, toSeason: pending.toSeason, subscriberBonus: !!pending.subscriberAutoApplied }); } catch (e) {}
+}
+
+if (typeof window !== 'undefined') {
+  window._seasonDaysRemaining = _seasonDaysRemaining;
+  window._maybeShowSeasonEndWarning = _maybeShowSeasonEndWarning;
+  window._maybeShowSeasonTransitionCinematic = _maybeShowSeasonTransitionCinematic;
 }
 
 // How many XP does tier N cost (from tier N-1 to tier N)?
@@ -30820,7 +30956,11 @@ const SHOP_UNLOCK_MIN_HOURS     = 24;
 // DEPRECATED — superseded by _isShopLocked() Lich-gate. Kept for legacy refs only.
 const SHOP_LOCK_DAYS            = MONETIZATION.shopReveal ? MONETIZATION.shopReveal.minDayEnabled : 7;
 const SUBSCRIPTION_WARNING_DAYS = 3;
-const SEASON_END_WARNING_DAYS   = 1;
+const SEASON_END_WARNING_DAYS   = 1;  // legacy single-day check (kept for back-compat)
+// SPRINT.2 BP.S2.1 — Multi-day season-end warning. Fires at 3 AND 1 days
+// remaining (separate one-shots, gated by composite seasonId+days key).
+const SEASON_END_WARNING_DAYS_LIST = [3, 1];
+const SEASON_TRANSITION_PENDING_KEY = 'blocksworn_season_transition_pending';
 
 function _ensureFirstLaunchDate() {
   try {
@@ -31453,6 +31593,14 @@ setTimeout(function () {
   try { if (typeof _maybeShowEndgameKitEligibilityCelebration === 'function') _maybeShowEndgameKitEligibilityCelebration(); }
   catch (e) {}
 }, 5000);
+// SPRINT.2 SOCIAL.1.2 — Day-14 unlock celebration for existing testers past
+// Day 14 + Lich-cleared. Fires 6s after launch (after Sprint 1 eligibility
+// check) so modals don't pile up on the same tick. _showAntiFomoPopup
+// serializes one-at-a-time anyway, but sequenced delays feel cleaner.
+setTimeout(function () {
+  try { if (typeof _maybeShowSocialUnlockCelebration === 'function') _maybeShowSocialUnlockCelebration(); }
+  catch (e) {}
+}, 6000);
 
 // ===== PROFILE PAGE — P0 Foundation (2026-04-28) =====
 // Per BLOCKSWORN_PROFILE_PAGE.md spec. State + BackendProvider abstraction +
@@ -32091,10 +32239,46 @@ async function refreshSocialData() {
   } catch (e) { console.warn('refreshSocialData failed:', e); }
 }
 
+// SPRINT.2 SOCIAL.1.2 — Anti-spam constants for addFriendByCode.
+const ADD_FRIEND_DAILY_CAP    = 5;     // 5 add-attempts/day to prevent enumeration
+const MAX_FRIENDS             = 50;    // Friend list cap
+const ADD_FRIEND_ATTEMPTS_KEY = 'blocksworn_add_friend_attempts';
+
+function _getAddFriendAttemptsToday() {
+  try {
+    const raw = localStorage.getItem(ADD_FRIEND_ATTEMPTS_KEY);
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw);
+    if (parsed.date !== _todayDateString()) return 0;
+    return parsed.count || 0;
+  } catch (e) { return 0; }
+}
+function _incAddFriendAttempts() {
+  try {
+    const today = _todayDateString();
+    const cur = _getAddFriendAttemptsToday();
+    localStorage.setItem(ADD_FRIEND_ATTEMPTS_KEY, JSON.stringify({ date: today, count: cur + 1 }));
+  } catch (e) {}
+}
+
 async function addFriendByCode() {
   const inputEl = document.getElementById('addFriendInput');
   const errEl   = document.getElementById('addFriendError');
   if (!inputEl) return;
+  // SPRINT.2 SOCIAL.1.2 — anti-spam rate limit. Enforced BEFORE format check
+  // so attackers can't probe codes faster than the cap.
+  const attempts = _getAddFriendAttemptsToday();
+  if (attempts >= ADD_FRIEND_DAILY_CAP) {
+    if (errEl) errEl.textContent = 'Daily limit reached (' + ADD_FRIEND_DAILY_CAP + '/day). Try tomorrow.';
+    try { logEvent(EVT.shop_section_viewed, { section: 'friend_add_capped', attemptsToday: attempts }); } catch (e) {}
+    return;
+  }
+  // SPRINT.2 SOCIAL.1.2 — friend list cap.
+  const currentCount = (_socialFriendsCache || []).length;
+  if (currentCount >= MAX_FRIENDS) {
+    if (errEl) errEl.textContent = 'Friend list full (' + MAX_FRIENDS + ' max). Remove someone first.';
+    return;
+  }
   const raw = (inputEl.value || '').trim().toUpperCase();
   // Validate format: BLO-XXXX-XXXX (alphanumeric, no confusing chars)
   if (!/^BLO-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(raw)) {
@@ -32114,11 +32298,55 @@ async function addFriendByCode() {
     inputEl.value = '';
     if (errEl) errEl.textContent = '';
     try { flashText('★ FRIEND ADDED', '#5DCA79'); } catch (e) {}
+    // SPRINT.2 SOCIAL.1.2 — increment attempts on success (failed format checks
+    // before this point don't count as attempts; only real backend calls do).
+    _incAddFriendAttempts();
+    try { logEvent(EVT.shop_section_viewed, { section: 'friend_added', friendUid: result.friend && result.friend.uid }); } catch (e) {}
     await refreshSocialData();
     profileTab('social');
   } catch (e) {
     if (errEl) errEl.textContent = 'Backend unavailable';
   }
+}
+
+// SPRINT.2 SOCIAL.1.2 — Day-14 unlock celebration. One-shot per save via
+// SOCIAL_UNLOCK_SEEN_KEY. Wired to launch path (5s delay so it lands after
+// other modals — Wednesday Chest claim, Phase 8 retention check, etc).
+function _maybeShowSocialUnlockCelebration() {
+  if (!_isSocialTabUnlocked()) return false;
+  try {
+    if (localStorage.getItem(SOCIAL_UNLOCK_SEEN_KEY) === 'true') return false;
+    localStorage.setItem(SOCIAL_UNLOCK_SEEN_KEY, 'true');
+  } catch (e) { return false; }
+  if (typeof _showAntiFomoPopup === 'function') {
+    const targetDay = (typeof getDropById === 'function') ? ((getDropById('friend_system') || {}).unlockDay || 14) : 14;
+    _showAntiFomoPopup({
+      title: '👥 FRIEND SYSTEM UNLOCKED',
+      body:
+        '<div style="font-family:var(--a-display-font);font-size:13px;line-height:1.7;color:#E8E5F5;text-align:center;">' +
+          '<p style="margin:0 0 8px;">You\'ve been playing for <strong style="color:#FFD53D">' + targetDay + ' days</strong>.</p>' +
+          '<p style="margin:0 0 12px;">Now you can:</p>' +
+          '<p style="margin:0 0 4px;">• Add friends by code</p>' +
+          '<p style="margin:0 0 4px;">• Send daily gifts</p>' +
+          '<p style="margin:0 0 12px;">• Compare leaderboard ranks</p>' +
+          '<p style="margin:0;font-size:11px;color:#A8A5B8;">Your code: <strong>' + (playerProfile.friendCode || '—') + '</strong></p>' +
+        '</div>',
+      ctaLabel: 'VIEW SOCIAL',
+      ctaAction: function () {
+        try {
+          if (typeof goToProfile === 'function') goToProfile();
+          setTimeout(function () { try { profileTab('social'); } catch (e) {} }, 300);
+        } catch (e) {}
+      },
+      glow: '#5DCA79',
+      kind: 'social_unlock',
+    });
+  }
+  try { logEvent(EVT.content_unlocked, { id: 'friend_system', kind: 'social_unlocked' }); } catch (e) {}
+  return true;
+}
+if (typeof window !== 'undefined') {
+  window._maybeShowSocialUnlockCelebration = _maybeShowSocialUnlockCelebration;
 }
 
 async function sendFriendGift(friendUid) {
@@ -32159,7 +32387,49 @@ async function claimFriendGifts() {
   } catch (e) {}
 }
 
+// SPRINT.2 SOCIAL.1.1 — Friend system Day-14 gate. Reads from CONTENT.1
+// schedule engine (Phase 7 CONTENT_DROPS friend_system unlockDay: 14) as
+// single source of truth. Secondary Lich-defeat gate prevents pre-tutorial
+// players from seeing UI even after 14 days. Returns true only when both pass.
+const SOCIAL_UNLOCK_SEEN_KEY = 'blocksworn_social_unlock_seen';
+function _isSocialTabUnlocked() {
+  try {
+    if (typeof isContentUnlocked === 'function' && !isContentUnlocked('friend_system')) return false;
+    if (typeof hasCompletedChapter1 === 'function' && !hasCompletedChapter1()) return false;
+    return true;
+  } catch (e) { return false; }
+}
+if (typeof window !== 'undefined') {
+  window._isSocialTabUnlocked = _isSocialTabUnlocked;
+}
+
 function renderProfileTabSocial() {
+  // SPRINT.2 SOCIAL.1.1 — Day-14 gate. Pre-unlock state: locked card with
+  // friend code preview (so player still has it for word-of-mouth share),
+  // reason hint (Lich-first vs days-remaining), preview of post-unlock features.
+  if (!_isSocialTabUnlocked()) {
+    let reason;
+    const lichDone = (typeof hasCompletedChapter1 === 'function') && hasCompletedChapter1();
+    if (!lichDone) {
+      reason = 'Defeat the Crypt Lich first';
+    } else {
+      const days = (typeof _daysSinceFirstLaunch === 'function') ? _daysSinceFirstLaunch() : 0;
+      const friendDrop = (typeof getDropById === 'function') ? getDropById('friend_system') : null;
+      const targetDay = (friendDrop && friendDrop.unlockDay) || 14;
+      const daysUntil = Math.max(0, targetDay - days);
+      reason = 'Unlocks in ' + daysUntil + ' day' + (daysUntil === 1 ? '' : 's');
+    }
+    return '<div class="profile-stat-section">' +
+             '<div class="profile-stat-section-title">👥 SOCIAL</div>' +
+             '<div class="social-locked-card">' +
+               '<div class="slc-icon">🔒</div>' +
+               '<div class="slc-title">FRIEND SYSTEM</div>' +
+               '<div class="slc-reason">' + reason + '</div>' +
+               '<div class="slc-preview">Add friends · send gifts · climb leaderboards together</div>' +
+               '<div class="slc-fc-preview">Your friend code: <strong>' + (playerProfile.friendCode || '—') + '</strong></div>' +
+             '</div>' +
+           '</div>';
+  }
   // Lazy-load on first render of this tab.
   if (_socialFriendsCache === null) {
     refreshSocialData().then(() => { try { profileTab('social'); } catch (e) {} });
@@ -49674,6 +49944,11 @@ function goToMenu() {
       if (typeof checkAndRefreshWeeklyMissions === 'function') checkAndRefreshWeeklyMissions();
       checkLoginStreak();
       updateDailyButtonBadge();
+      // SPRINT.2 BP.S2 — Season-end warnings (3+1 days) + transition cinematic
+      // (first menu after rollover). Run BEFORE chest banner per spec §5.6 so
+      // modal layer sequences correctly (cinematic → warning → banners).
+      try { if (typeof _maybeShowSeasonEndWarning === 'function') _maybeShowSeasonEndWarning(); } catch (e) {}
+      try { if (typeof _maybeShowSeasonTransitionCinematic === 'function') _maybeShowSeasonTransitionCinematic(); } catch (e) {}
       // TOWER.1 — Wednesday Chest banner. Idempotent: shows when claimable
       // (Wed 4 AM → next Wed 4 AM with tier reached + not yet claimed),
       // hides otherwise. Re-runs every menu open so claim state stays fresh.
