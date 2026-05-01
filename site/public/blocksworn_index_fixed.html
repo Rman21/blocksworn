@@ -17892,6 +17892,254 @@ if (typeof window !== 'undefined') {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// CONTENT.1 + CONTENT.2 — Content Schedule Engine (PRELAUNCH §8 + §11.8).
+//
+// All content shipped in the app binary, unlock dates flag-driven by
+// account age. No App Store update needed for chapter / race bundle / BP
+// drops. Critical for live-ops responsiveness.
+//
+// Each drop: { id, type, unlockDay, payload? }
+//   type: 'chapter' | 'race' | 'battle_pass' | 'feature'
+//   unlockDay: integer days from install (0 = Day 1)
+//   payload: type-specific (chapter id, race id, etc.)
+//
+// Helpers:
+//   getActiveContent(days)        — list of unlocked drops at given day
+//   isContentUnlocked(id, days)   — boolean for specific drop
+//   getDropsTeasing(days)         — drops within T-3 to T-0 teaser window
+//   getDropById(id)               — lookup raw config
+// ──────────────────────────────────────────────────────────────────────────
+
+const CONTENT_DROPS = Object.freeze([
+  // Day 1 (always unlocked) — base game content
+  { id: 'chapter_1',         type: 'chapter',     unlockDay: 0,   payload: { chapterId: 1 } },
+  { id: 'chapter_2',         type: 'chapter',     unlockDay: 0,   payload: { chapterId: 2 } },
+  { id: 'tower_endless',     type: 'feature',     unlockDay: 0,   payload: { feature: 'tower' } },
+  { id: 'battle_pass_s1',    type: 'battle_pass', unlockDay: 0,   payload: { season: 1 } },
+  { id: 'race_pirates',      type: 'race',        unlockDay: 0,   payload: { raceId: 'pirate' } },
+  { id: 'race_rock',         type: 'race',        unlockDay: 0,   payload: { raceId: 'rock' } },
+  { id: 'race_sharks',       type: 'race',        unlockDay: 0,   payload: { raceId: 'shark' } },
+  // Day 14 — Friend system phased activation
+  { id: 'friend_system',     type: 'feature',     unlockDay: 14,  payload: { feature: 'friends' } },
+  // Day 30 — Chapter 3 + first post-launch race bundle
+  { id: 'chapter_3',         type: 'chapter',     unlockDay: 30,  payload: { chapterId: 3 } },
+  { id: 'race_bundle_crocs', type: 'race',        unlockDay: 30,  payload: { raceId: 'crocodile' } },
+  // Day 60 — Battle Pass S2
+  { id: 'battle_pass_s2',    type: 'battle_pass', unlockDay: 60,  payload: { season: 2 } },
+  // Day 75 — Chapter 4 + Race Clockwork
+  { id: 'chapter_4',         type: 'chapter',     unlockDay: 75,  payload: { chapterId: 4 } },
+  { id: 'race_clockwork',    type: 'race',        unlockDay: 75,  payload: { raceId: 'clockwork' } },
+  // Day 90 — Clan/Guild system
+  { id: 'clan_system',       type: 'feature',     unlockDay: 90,  payload: { feature: 'clans' } },
+  // Day 120 — Battle Pass S3
+  { id: 'battle_pass_s3',    type: 'battle_pass', unlockDay: 120, payload: { season: 3 } },
+  // Day 135 — Chapter 5 (final)
+  { id: 'chapter_5',         type: 'chapter',     unlockDay: 135, payload: { chapterId: 5 } },
+  // Day 150 — Mythic content unlock (post-Ch5 endgame)
+  { id: 'mythic_content',    type: 'feature',     unlockDay: 150, payload: { feature: 'mythic' } },
+  // Day 165 — Race Steamworks
+  { id: 'race_steamworks',   type: 'race',        unlockDay: 165, payload: { raceId: 'steamworks' } },
+  // Day 180 — Battle Pass S4 (Mythic-tier)
+  { id: 'battle_pass_s4',    type: 'battle_pass', unlockDay: 180, payload: { season: 4 } }
+]);
+
+// Days-since-install accessor — falls back to 0 if FIRST_LAUNCH_KEY absent.
+function _contentDays() {
+  try {
+    if (typeof _daysSinceFirstLaunch === 'function') return _daysSinceFirstLaunch();
+  } catch (e) {}
+  return 0;
+}
+
+function getActiveContent(daysSinceInstall) {
+  const d = (typeof daysSinceInstall === 'number') ? daysSinceInstall : _contentDays();
+  return CONTENT_DROPS.filter(c => c.unlockDay <= d);
+}
+
+function isContentUnlocked(id, daysSinceInstall) {
+  const drop = CONTENT_DROPS.find(c => c.id === id);
+  if (!drop) return false;
+  const d = (typeof daysSinceInstall === 'number') ? daysSinceInstall : _contentDays();
+  return drop.unlockDay <= d;
+}
+
+// Drops in the T-3 to T-0 teaser window — used by CONTENT.3 banner system.
+function getDropsTeasing(daysSinceInstall) {
+  const d = (typeof daysSinceInstall === 'number') ? daysSinceInstall : _contentDays();
+  return CONTENT_DROPS.filter(c => c.unlockDay > d && c.unlockDay - d <= 3);
+}
+
+// Drops that JUST unlocked (today only) — used for T+0 patch-notes modal.
+function getDropsUnlockedToday(daysSinceInstall) {
+  const d = (typeof daysSinceInstall === 'number') ? daysSinceInstall : _contentDays();
+  return CONTENT_DROPS.filter(c => c.unlockDay === d);
+}
+
+function getDropById(id) {
+  return CONTENT_DROPS.find(c => c.id === id) || null;
+}
+
+if (typeof window !== 'undefined') {
+  window.CONTENT_DROPS = CONTENT_DROPS;
+  window.getActiveContent = getActiveContent;
+  window.isContentUnlocked = isContentUnlocked;
+  window.getDropsTeasing = getDropsTeasing;
+  window.getDropsUnlockedToday = getDropsUnlockedToday;
+  window.getDropById = getDropById;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CONTENT.3 — Drop event template (PRELAUNCH §8.3 + §11.8).
+//
+// Lifecycle per drop (T = drop's unlockDay):
+//   T-3 .. T-1 → teaser banner on home screen ("Coming in N days")
+//   T+0        → patch-notes modal fires once on first launch that day
+//   T+0 .. T+3 → chapter unlock pack offer (deferred to Phase 9 polish)
+//   T+7        → lapsed-user push notification (deferred — PWA service worker)
+//
+// State: per-drop "events shown" flags persist permanently. Each drop +
+// each event type fires at most once.
+// ──────────────────────────────────────────────────────────────────────────
+
+const CONTENT_EVENT_KEY = 'blocksworn_content_events';
+let contentEventState = { shown: {} };  // { 'chapter_3:patch_notes': true, ... }
+
+function loadContentEventState() {
+  try {
+    const raw = localStorage.getItem(CONTENT_EVENT_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') contentEventState = parsed;
+    }
+    if (!contentEventState.shown) contentEventState.shown = {};
+  } catch (e) { contentEventState = { shown: {} }; }
+}
+function saveContentEventState() {
+  try { localStorage.setItem(CONTENT_EVENT_KEY, JSON.stringify(contentEventState)); }
+  catch (e) {}
+}
+function _contentEventShown(dropId, eventType) {
+  return !!(contentEventState.shown && contentEventState.shown[dropId + ':' + eventType]);
+}
+function _markContentEventShown(dropId, eventType) {
+  if (!contentEventState.shown) contentEventState.shown = {};
+  contentEventState.shown[dropId + ':' + eventType] = true;
+  saveContentEventState();
+}
+
+// Pretty label for each drop type (used in teaser + patch notes UI).
+function _describeDrop(drop) {
+  if (!drop) return { title: 'NEW CONTENT', desc: '' };
+  switch (drop.type) {
+    case 'chapter':
+      return {
+        title: 'CHAPTER ' + (drop.payload && drop.payload.chapterId) + ' UNLOCKS',
+        desc:  '5 new bosses · new mechanics · new hero unlocks'
+      };
+    case 'race':
+      const raceLabel = (typeof _PACK_RACE_LABELS === 'object' && _PACK_RACE_LABELS[drop.payload && drop.payload.raceId]) || (drop.payload && drop.payload.raceId || '').toUpperCase();
+      return {
+        title: raceLabel + ' RACE BUNDLE AVAILABLE',
+        desc:  'New 5-hero faction · new element synergy · launch bundle in shop'
+      };
+    case 'battle_pass':
+      return {
+        title: 'BATTLE PASS SEASON ' + (drop.payload && drop.payload.season) + ' STARTS',
+        desc:  'Fresh 60-day track · new themes · premium tier $4.99'
+      };
+    case 'feature':
+      const f = drop.payload && drop.payload.feature;
+      const titles = { friends: 'FRIEND SYSTEM ACTIVATES', clans: 'CLAN SYSTEM UNLOCKS', tower: 'TOWER OF ENDLESS UNLOCKS', mythic: 'MYTHIC CONTENT UNLOCKS' };
+      return {
+        title: titles[f] || (f || 'NEW FEATURE').toUpperCase() + ' AVAILABLE',
+        desc:  'Tap to learn more in-game'
+      };
+    default:
+      return { title: 'NEW CONTENT UNLOCKS', desc: '' };
+  }
+}
+
+// Teaser banner — shown on home screen for drops within T-3 to T-1 window.
+// Idempotent: re-runs each menu refresh. Removes itself when window closes.
+function updateContentTeaserBanner() {
+  let banner = document.getElementById('contentTeaserBanner');
+  const teasing = (typeof getDropsTeasing === 'function') ? getDropsTeasing() : [];
+  if (teasing.length === 0) {
+    if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
+    return;
+  }
+  // Pick the soonest drop (lowest unlockDay).
+  const drop = teasing.slice().sort((a, b) => a.unlockDay - b.unlockDay)[0];
+  const days = (typeof _daysSinceFirstLaunch === 'function') ? _daysSinceFirstLaunch() : 0;
+  const daysLeft = drop.unlockDay - days;
+  const info = _describeDrop(drop);
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'contentTeaserBanner';
+    banner.style.cssText = 'position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:80;padding:8px 14px;background:linear-gradient(90deg,rgba(255,213,61,0.18),rgba(255,170,0,0.12));border:1px solid rgba(255,213,61,0.45);border-radius:10px;color:#FFD53D;font-weight:700;font-size:11px;letter-spacing:1.5px;font-family:inherit;cursor:pointer;box-shadow:0 0 16px rgba(255,213,61,0.25);max-width:320px;text-align:center';
+    document.body.appendChild(banner);
+  }
+  banner.innerHTML = '✦ COMING IN ' + daysLeft + 'd · ' + info.title;
+  banner.title = info.desc;
+  banner.onclick = function () {
+    try { showPatchNotesModal(drop, true); } catch (e) {}
+  };
+}
+
+// Patch notes modal — on T+0 visit, show one-shot modal for each newly
+// unlocked drop. Player can dismiss; flag persists across reloads.
+function maybeShowPatchNotesModal() {
+  const todayDrops = (typeof getDropsUnlockedToday === 'function') ? getDropsUnlockedToday() : [];
+  for (const drop of todayDrops) {
+    if (drop.unlockDay === 0) continue;  // skip Day 1 base content
+    if (_contentEventShown(drop.id, 'patch_notes')) continue;
+    setTimeout(function () { showPatchNotesModal(drop, false); }, 1200);
+    _markContentEventShown(drop.id, 'patch_notes');
+    break;  // one modal at a time; subsequent drops fire on next session
+  }
+}
+
+function showPatchNotesModal(drop, isPreview) {
+  if (!drop) return;
+  let host = document.getElementById('patchNotesOverlay');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'patchNotesOverlay';
+    host.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(8,5,18,0.82);backdrop-filter:blur(4px);font-family:inherit';
+    document.body.appendChild(host);
+  }
+  const info = _describeDrop(drop);
+  const days = (typeof _daysSinceFirstLaunch === 'function') ? _daysSinceFirstLaunch() : 0;
+  const daysLeft = drop.unlockDay - days;
+  const subtitle = isPreview
+    ? (daysLeft > 0 ? '✦ COMING IN ' + daysLeft + ' DAY' + (daysLeft === 1 ? '' : 'S') : '✦ AVAILABLE NOW')
+    : '✦ NEW CONTENT UNLOCKED';
+  host.innerHTML =
+    '<div style="background:#15101F;border:1px solid #FFD53D;border-radius:14px;padding:24px 24px;max-width:380px;width:88%;box-shadow:0 0 40px rgba(255,213,61,0.30);text-align:left">' +
+      '<div style="font-size:11px;color:#A8A5B8;letter-spacing:3px;margin-bottom:6px">' + subtitle + '</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#FFD53D;letter-spacing:1.5px;margin-bottom:14px">' + info.title + '</div>' +
+      '<div style="font-size:13px;color:#C8C3D8;line-height:1.55;margin-bottom:18px">' + info.desc + '</div>' +
+      (isPreview ? '' :
+        '<div style="font-size:11px;color:#A8A5B8;letter-spacing:1.5px;margin-bottom:14px">Look for the new content on the world map / shop / Tower screen.</div>') +
+      '<button id="patchNotesClose" style="width:100%;padding:12px;font-size:13px;font-weight:700;letter-spacing:2px;background:linear-gradient(180deg,#FFD53D,#E8A800);color:#1B1228;border:none;border-radius:10px;cursor:pointer">' +
+        (isPreview ? 'GOT IT' : 'EXPLORE') +
+      '</button>' +
+    '</div>';
+  document.getElementById('patchNotesClose').onclick = function () {
+    if (host && host.parentNode) host.parentNode.removeChild(host);
+  };
+  try { logEvent(EVT.content_unlocked, { id: drop.id, type: drop.type, isPreview: !!isPreview }); } catch (e) {}
+}
+
+loadContentEventState();
+
+if (typeof window !== 'undefined') {
+  window.updateContentTeaserBanner = updateContentTeaserBanner;
+  window.maybeShowPatchNotesModal = maybeShowPatchNotesModal;
+  window.showPatchNotesModal = showPatchNotesModal;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // REW.1 + BAL.3 — First-clear tracking + star rating persistence
 //
 // Two parallel localStorage maps keyed by `${chapter}.${bossIdx}`:
@@ -18543,6 +18791,40 @@ const CHAPTERS = [
       { name: 'ARCHIVAL ETERNAL', title: 'Lvl 15 · Library of All That Was Lost', hp: 28000, attackInterval: 5, img: 'Boss_15', color: '#E8D88A', stihiya: 'solar', archetype: 'assassin' },
     ]
   },
+  // CONTENT.2 — Chapter 4 placeholder (PRELAUNCH §8). Unlocks Day 75 via
+  // CONTENT_DROPS engine. Boss roster is structural skeleton — final balancing,
+  // mechanics, and art commission happens in Phase 9 / live ops content pass.
+  // HP scaled +30% over Ch3 per chapter difficulty curve §7.1 (Ch N+1 boss 1
+  // ≈ Ch N boss 5 difficulty).
+  {
+    id: 4,
+    name: 'AGE OF FORGOTTEN GIANTS',
+    contentDropId: 'chapter_4',  // gates with CONTENT_DROPS engine
+    placeholder: true,
+    bosses: [
+      { name: 'TITAN HUSK',     title: 'Lvl 16 · Sleeping Titan',         hp: 30000, attackInterval: 5, img: 'Boss_16', color: '#A88A6A', stihiya: 'grove', archetype: 'bruiser'    },
+      { name: 'CRADLEKEEPER',   title: 'Lvl 17 · The First Mother',       hp: 32000, attackInterval: 5, img: 'Boss_17', color: '#8AA8C8', stihiya: 'tide',  archetype: 'engineer'   },
+      { name: 'EMBERMAW',       title: 'Lvl 18 · Mountain That Burns',    hp: 34500, attackInterval: 5, img: 'Boss_18', color: '#FF6E28', stihiya: 'ember', archetype: 'frenzy'     },
+      { name: 'STARWEAVER',     title: 'Lvl 19 · Spinner of Constellations', hp: 36000, attackInterval: 5, img: 'Boss_19', color: '#FFE14A', stihiya: 'solar', archetype: 'hypnotist'  },
+      { name: 'GIANT-OF-NIGHT', title: 'Lvl 20 · Last of the Forgotten',  hp: 40000, attackInterval: 5, img: 'Boss_20', color: '#6E5AA8', stihiya: 'umbra', archetype: 'phoenix'    },
+    ]
+  },
+  // CONTENT.2 — Chapter 5 placeholder (PRELAUNCH §8). Unlocks Day 135.
+  // Final campaign — finale boss grants the single Legendary Ascension Stone
+  // per spec §4.2. HP scaled +30% over Ch4.
+  {
+    id: 5,
+    name: 'WHEN THE CROWN BREAKS',
+    contentDropId: 'chapter_5',
+    placeholder: true,
+    bosses: [
+      { name: 'CROWN-OF-DUST',   title: 'Lvl 21 · The Last Sovereign',     hp: 42000, attackInterval: 5, img: 'Boss_21', color: '#E8C8A0', stihiya: 'solar', archetype: 'armored'    },
+      { name: 'SHARDLORD',       title: 'Lvl 22 · Reaver of Broken Realms',hp: 44000, attackInterval: 5, img: 'Boss_22', color: '#A0C8FF', stihiya: 'tide',  archetype: 'tempo_disruptor' },
+      { name: 'SEEDREAPER',      title: 'Lvl 23 · Harvest of Endings',     hp: 47000, attackInterval: 5, img: 'Boss_23', color: '#88B868', stihiya: 'grove', archetype: 'bruiser'    },
+      { name: 'PYREKING',        title: 'Lvl 24 · Throne of Ash',          hp: 50000, attackInterval: 5, img: 'Boss_24', color: '#D04030', stihiya: 'ember', archetype: 'berserker'  },
+      { name: 'WORLD-EATER',     title: 'Lvl 25 · The End That Devours',   hp: 60000, attackInterval: 4, img: 'Boss_25', color: '#3A1A4A', stihiya: 'umbra', archetype: 'phoenix'    },
+    ]
+  },
 ];
 
 // BOSSES is now a live reference to the current chapter's bosses.
@@ -18561,6 +18843,9 @@ function setChapter(n) {
   // back to Chapter 1. Now setChapter(n) honors n with bounds + unlock guards.
   const requestedIdx = Math.max(1, Math.min(CHAPTERS.length, Number(n) || 1)) - 1;
   // Bounds + unlock guards: never bind to a locked chapter even if caller asks.
+  // CONTENT.2 — Ch4/5 are placeholder chapters gated by content-drop unlock day
+  // (75 / 135). Combined with the legacy chapter2Unlocked / chapter3Unlocked
+  // play-progression gates: BOTH must be open for the chapter to bind.
   let idx = 0;
   if (requestedIdx === 0) {
     idx = 0;
@@ -18568,10 +18853,36 @@ function setChapter(n) {
     idx = 1;
   } else if (requestedIdx === 2 && (typeof chapter3Unlocked === 'undefined' || chapter3Unlocked)) {
     idx = 2;
+  } else if (requestedIdx === 3 && _isChapterContentUnlocked(4)) {
+    idx = 3;
+  } else if (requestedIdx === 4 && _isChapterContentUnlocked(5)) {
+    idx = 4;
   }
   currentChapter = idx + 1;
   BOSSES = CHAPTERS[idx].bosses;
   applyBossEmblems();
+}
+
+// CONTENT.2 — Helper to gate Ch4/5 by content-drop unlock day. Reads from
+// CONTENT.1 schedule engine. Returns true if both day-window AND prior-chapter
+// progression gate are open. Idempotent — safe on every chapter switch.
+function _isChapterContentUnlocked(chapterId) {
+  if (chapterId <= 3) return true;  // Ch1-3 use legacy flags above
+  const dropId = 'chapter_' + chapterId;
+  if (typeof isContentUnlocked === 'function' && !isContentUnlocked(dropId)) return false;
+  // Ch4 requires Ch3 cleared (storyline gate); Ch5 requires Ch4.
+  try {
+    if (chapterId === 4) {
+      return typeof hasCompletedChapter === 'function' && hasCompletedChapter(3);
+    }
+    if (chapterId === 5) {
+      return typeof hasCompletedChapter === 'function' && hasCompletedChapter(4);
+    }
+  } catch (e) {}
+  return false;
+}
+if (typeof window !== 'undefined') {
+  window._isChapterContentUnlocked = _isChapterContentUnlocked;
 }
 
 // V18.2: apply universal per-stihiya emblems to grid/tray cell backgrounds.
@@ -48369,6 +48680,11 @@ function goToMenu() {
       // (Wed 4 AM → next Wed 4 AM with tier reached + not yet claimed),
       // hides otherwise. Re-runs every menu open so claim state stays fresh.
       try { if (typeof updateWednesdayChestBanner === 'function') updateWednesdayChestBanner(); } catch (e) {}
+      // CONTENT.3 — Drop event lifecycle. Teaser banner for T-3..T-1 drops,
+      // patch-notes modal once on T+0 first visit. Push notifs deferred to
+      // Phase 9 (PWA service worker work).
+      try { if (typeof updateContentTeaserBanner === 'function') updateContentTeaserBanner(); } catch (e) {}
+      try { if (typeof maybeShowPatchNotesModal === 'function') maybeShowPatchNotesModal(); } catch (e) {}
     }
     // V3.0 Phase 7 Block 7.1: Tower weekly reset + button visibility.
     // isTowerUnlocked gates on voidfangDefeated flag; updateTowerButtonVisibility
