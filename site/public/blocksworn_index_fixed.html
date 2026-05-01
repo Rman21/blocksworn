@@ -17590,6 +17590,43 @@ const BALANCE = Object.freeze({
       10: Object.freeze({ gold: 400, sigils: 3, cards: 2, t2Frags: 1, climax: true })
     })
   }),
+  // PINCH — Soft Pinch architecture (PRELAUNCH §6 + §11.6). Five trigger
+  // points that present skill / grind / pay paths at organic frustration
+  // moments. Each capped to prevent fatigue (per-week + one-shot patterns).
+  pinch: Object.freeze({
+    // PINCH.1 — Boss Wall (chapter finale, 2nd consecutive loss).
+    bossWall: Object.freeze({
+      defeatThreshold: 2,        // fire on Nth consecutive defeat
+      maxPerWeekPerBoss: 2,      // anti-fatigue cap
+      reinforcementPackUSD: 1.99,
+      reinforcementCards: 3,     // 3 element-specific cards
+      reinforcementEssence: 5,
+      reinforcementT1Stone: 1
+    }),
+    // PINCH.2 — Tower Death (floor 5+).
+    towerDeath: Object.freeze({
+      minFloor: 5,                  // grace below this floor
+      gemCostLadder: Object.freeze([100, 200, 400]),  // escalating per-run
+      partialRewardFraction: 0.5    // quit → keep half of run rewards
+    }),
+    // PINCH.3 — Ascension Pinch (4/5 cards). One-shot per hero.
+    ascensionPinch: Object.freeze({
+      cardsThreshold: 4,            // fire when player has 4 of needed 5
+      cardsNeeded: 5
+    }),
+    // PINCH.4 — Triggered rewarded ads.
+    ads: Object.freeze({
+      bossDefeatBonusCapPerDay: 3,  // max 3 boss-defeat-bonus ads/day
+      consecutiveLossThreshold: 2   // 2nd loss → ad offer
+    }),
+    // PINCH.5 — Streak Save (7+ day streak about to break).
+    streakSave: Object.freeze({
+      minStreakDays: 7,             // gate by streak length
+      hoursBeforeBreak: 4,          // push notification window
+      freezeGemCost: 50,            // gem-pay path
+      freeFreezesPerMonth: 1        // free-ad path daily cap
+    })
+  }),
   // ECO.1 + ECO.2 — Sink mechanics (PRELAUNCH §3.4). retrySink scales by
   // chapter so Ch1 retry is forgiving (500g) and Ch5 retry is meaningful
   // (5000g cap). miniBuff = gold-only counterpart to MEGA_BUFF for F2P
@@ -17944,6 +17981,141 @@ if (typeof window !== 'undefined') {
   window.getBossStars = getBossStars;
   window.recordBossStars = recordBossStars;
   window.computeBattleStars = computeBattleStars;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// PINCH — Soft Pinch state tracker + generic modal renderer (PRELAUNCH §6).
+//
+// Single localStorage entry tracks per-pinch counts with weekly windowing
+// for cap enforcement. Every pinch helper goes through showPinchModal()
+// so UX is consistent: 3-path layout (skill/grind/pay), F2P alternative
+// always listed first, dismiss-permanent for one-shot pinches.
+// ──────────────────────────────────────────────────────────────────────────
+
+const PINCH_STATE_KEY = 'blocksworn_pinch_state';
+let pinchState = {};  // { weekKey: 'YYYY-Www', shown: { '<pinchKey>': count }, oneShot: { '<id>': true } }
+
+function _pinchWeekKey() {
+  // ISO week — anti-fatigue caps roll over Monday 4 AM (matches Tower).
+  // Lightweight: just YYYY-Www
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  const wk = 1 + Math.round(((d - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+  return d.getFullYear() + '-W' + String(wk).padStart(2, '0');
+}
+
+function loadPinchState() {
+  try {
+    const raw = localStorage.getItem(PINCH_STATE_KEY);
+    if (!raw) { pinchState = { weekKey: _pinchWeekKey(), shown: {}, oneShot: {} }; return; }
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      pinchState = parsed;
+      // Weekly rollover — clear shown counts but keep oneShot flags.
+      const cur = _pinchWeekKey();
+      if (pinchState.weekKey !== cur) {
+        pinchState.weekKey = cur;
+        pinchState.shown = {};
+      }
+      if (!pinchState.shown)   pinchState.shown   = {};
+      if (!pinchState.oneShot) pinchState.oneShot = {};
+    }
+  } catch (e) {
+    pinchState = { weekKey: _pinchWeekKey(), shown: {}, oneShot: {} };
+  }
+}
+
+function savePinchState() {
+  try { localStorage.setItem(PINCH_STATE_KEY, JSON.stringify(pinchState)); }
+  catch (e) {}
+}
+
+function _pinchShownCount(pinchKey) {
+  return (pinchState.shown && pinchState.shown[pinchKey]) || 0;
+}
+function _pinchIncrementShown(pinchKey) {
+  if (!pinchState.shown) pinchState.shown = {};
+  pinchState.shown[pinchKey] = (pinchState.shown[pinchKey] || 0) + 1;
+  savePinchState();
+}
+function _pinchOneShotFired(id) {
+  return !!(pinchState.oneShot && pinchState.oneShot[id]);
+}
+function _pinchMarkOneShot(id) {
+  if (!pinchState.oneShot) pinchState.oneShot = {};
+  pinchState.oneShot[id] = true;
+  savePinchState();
+}
+
+// Generic 3-path pinch modal. opts: {
+//   id:        analytics + state key (e.g. 'boss_wall:1.4')
+//   title:     headline
+//   subtitle:  context line
+//   body:      HTML body (description, hero list, etc.)
+//   paths:     [{ kind: 'skill'|'grind'|'pay'|'ad', label, sub, onClick, color }]
+//   onDismiss: optional callback for non-action close
+// }
+function showPinchModal(opts) {
+  if (!opts || !Array.isArray(opts.paths) || opts.paths.length === 0) return;
+  let host = document.getElementById('pinchOverlay');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'pinchOverlay';
+    host.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(8,5,18,0.82);backdrop-filter:blur(4px);font-family:inherit';
+    document.body.appendChild(host);
+  }
+  // Build path buttons. F2P paths render first (skill > grind > ad > pay).
+  const pathOrder = { skill: 0, grind: 1, ad: 2, pay: 3 };
+  const ordered = opts.paths.slice().sort((a, b) => (pathOrder[a.kind] || 9) - (pathOrder[b.kind] || 9));
+  const pathHtml = ordered.map((p, idx) => {
+    const accent = p.color || (p.kind === 'pay' ? '#FFD53D' : p.kind === 'ad' ? '#5DCAFF' : '#7DEC8F');
+    return '<button class="pinch-path" data-path-idx="' + idx + '" ' +
+             'style="display:block;width:100%;padding:14px;font-size:13px;font-weight:700;letter-spacing:1.5px;background:linear-gradient(180deg,' + accent + 'CC,' + accent + '88);color:#1B1228;border:none;border-radius:10px;margin-bottom:10px;cursor:pointer;text-align:left">' +
+             '<div style="font-size:13px;font-weight:800;margin-bottom:2px">' + (p.label || '') + '</div>' +
+             (p.sub ? '<div style="font-size:11px;font-weight:500;opacity:0.85">' + p.sub + '</div>' : '') +
+           '</button>';
+  }).join('');
+  host.innerHTML =
+    '<div style="background:#15101F;border:1px solid #FFD53D;border-radius:14px;padding:22px 24px;max-width:380px;width:88%;box-shadow:0 0 40px rgba(255,213,61,0.30);text-align:left">' +
+      '<div style="font-size:11px;color:#A8A5B8;letter-spacing:3px;margin-bottom:4px">' + (opts.subtitle || '') + '</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#FFD53D;letter-spacing:1.5px;margin-bottom:14px">' + (opts.title || '') + '</div>' +
+      (opts.body ? '<div style="font-size:12px;color:#C8C3D8;line-height:1.55;margin-bottom:16px">' + opts.body + '</div>' : '') +
+      pathHtml +
+      '<button id="pinchDismiss" style="display:block;width:100%;padding:8px;margin-top:6px;font-size:10px;font-weight:600;letter-spacing:2px;background:transparent;color:#A8A5B8;border:none;cursor:pointer">DISMISS</button>' +
+    '</div>';
+  const dismiss = function () {
+    if (host && host.parentNode) host.parentNode.removeChild(host);
+  };
+  ordered.forEach(function (p, idx) {
+    const btn = host.querySelector('[data-path-idx="' + idx + '"]');
+    if (btn) {
+      btn.addEventListener('click', function () {
+        try { logEvent(EVT.pinch_path_chosen, { id: opts.id, kind: p.kind }); } catch (e) {}
+        dismiss();
+        if (typeof p.onClick === 'function') {
+          try { p.onClick(); } catch (e) { console.warn('pinch path action failed:', e); }
+        }
+      });
+    }
+  });
+  document.getElementById('pinchDismiss').addEventListener('click', function () {
+    try { logEvent(EVT.pinch_dismissed, { id: opts.id }); } catch (e) {}
+    dismiss();
+    if (typeof opts.onDismiss === 'function') {
+      try { opts.onDismiss(); } catch (e) {}
+    }
+  });
+  try { logEvent(EVT.pinch_shown, { id: opts.id, paths: ordered.map(p => p.kind) }); } catch (e) {}
+  _pinchIncrementShown(opts.id.split(':')[0]);  // count by base key (e.g. 'boss_wall')
+}
+
+loadPinchState();
+
+if (typeof window !== 'undefined') {
+  window.showPinchModal = showPinchModal;
+  window.pinchState = pinchState;  // dev-tool inspection
 }
 
 const ASSETS = {
@@ -20162,6 +20334,19 @@ function addHeroFragments(heroId, count) {
   heroFragments[heroId] = current + added;
   saveHeroFragmentsToStorage();
   try { flashText(`+${added} ${hero.name} FRAGMENTS`, '#FFD53D'); } catch (e) {}
+  // PINCH.3 — Ascension Pinch (PRELAUNCH §6.2). One-shot per hero: when
+  // fragment count reaches the threshold (4/5 by default), show the
+  // 3-path modal once. Subsequent grants don't re-fire — player gets the
+  // hint, then the "ASCEND" highlight stays in profile until they execute.
+  try {
+    if (typeof maybeShowAscensionPinch === 'function') {
+      const total = heroFragments[heroId];
+      if (total >= BALANCE.pinch.ascensionPinch.cardsThreshold &&
+          total <  BALANCE.pinch.ascensionPinch.cardsNeeded) {
+        setTimeout(() => maybeShowAscensionPinch(heroId), 800);
+      }
+    }
+  } catch (e) {}
   // V3.0 Phase 5 Block 5.1: mission tracking — use actual added (post-cap) not requested n
   try { if (typeof trackMissionEvent === 'function') trackMissionEvent('fragments_gained', { amount: added }); } catch (e) {}
   // V3.0 Phase 5 Block 5.2: unlock collection progress evaluation. Fragments don't
@@ -23521,16 +23706,102 @@ function checkLoginStreak() {
   try { if (typeof trackProfileDayActive === 'function') trackProfileDayActive(); } catch (e) {}
   const today = getTodayDateKey();
   if (loginStreakState.lastDate === today) return; // already logged today
+  // PINCH.5 — Streak Save (PRELAUNCH §6.2). Capture pre-reset streak BEFORE
+  // overwriting so we know if the player had a 7+ run worth offering recovery.
+  let prevStreak = loginStreakState.streakCount || 0;
+  let didReset = false;
   if (!loginStreakState.lastDate) {
     loginStreakState = { lastDate: today, streakCount: 1, claimedToday: false };
   } else {
     const gap = daysBetween(loginStreakState.lastDate, today);
     if (gap === 1) loginStreakState.streakCount += 1;
-    else if (gap > 1) loginStreakState.streakCount = 1;
+    else if (gap > 1) {
+      didReset = true;
+      loginStreakState.streakCount = 1;
+    }
     loginStreakState.lastDate = today;
     loginStreakState.claimedToday = false;
   }
   saveLoginStreak();
+  // Schedule the streak-save pinch if the player just had a 7+ streak reset.
+  // Delayed so it lands AFTER any boot-time UI (FTUE, splash, etc).
+  if (didReset && prevStreak >= BALANCE.pinch.streakSave.minStreakDays) {
+    setTimeout(() => {
+      try { maybeShowStreakSavePinch(prevStreak); }
+      catch (e) { console.warn('maybeShowStreakSavePinch failed:', e); }
+    }, 2500);
+  }
+}
+
+// PINCH.5 — Streak Save modal + restore logic.
+const STREAK_FREEZE_MONTH_KEY = 'blocksworn_streak_freeze_used';
+function _streakFreezeUsedThisMonth() {
+  try {
+    const raw = localStorage.getItem(STREAK_FREEZE_MONTH_KEY);
+    if (!raw) return false;
+    return raw === new Date().toISOString().slice(0, 7);  // YYYY-MM
+  } catch (e) { return false; }
+}
+function _markStreakFreezeUsed() {
+  try { localStorage.setItem(STREAK_FREEZE_MONTH_KEY, new Date().toISOString().slice(0, 7)); } catch (e) {}
+}
+function restoreLoginStreak(savedCount) {
+  if (!savedCount || savedCount < 1) return false;
+  loginStreakState.streakCount = Math.max(loginStreakState.streakCount, savedCount);
+  saveLoginStreak();
+  try { flashText('🔥 STREAK RESTORED · ' + savedCount + ' DAYS', '#FFAA00'); } catch (e) {}
+  try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+  return true;
+}
+function maybeShowStreakSavePinch(prevStreak) {
+  if (!prevStreak || prevStreak < BALANCE.pinch.streakSave.minStreakDays) return false;
+  const cfg = BALANCE.pinch.streakSave;
+  const adAvailable = !_streakFreezeUsedThisMonth();
+  const paths = [
+    { kind: 'skill', label: '✓ KEEP PLAYING',
+      sub: 'Today\'s login already counts — streak resumes from 1',
+      onClick: function () { /* no-op */ } }
+  ];
+  if (adAvailable) {
+    paths.push({ kind: 'ad', label: '📺 WATCH AD · FREE STREAK FREEZE',
+      sub: '1 free freeze per month — restores ' + prevStreak + '-day streak',
+      onClick: function () {
+        try {
+          if (typeof watchRewardedAd === 'function') {
+            // Inline ad-watch path: callback restores streak.
+            watchRewardedAd('streak_freeze');
+          }
+          _markStreakFreezeUsed();
+          restoreLoginStreak(prevStreak);
+        } catch (e) { console.warn('streak ad freeze failed:', e); }
+      } });
+  }
+  paths.push({ kind: 'pay', label: '💎 STREAK FREEZE · ' + cfg.freezeGemCost + ' gems',
+    sub: 'Instant restore — ' + prevStreak + '-day streak preserved',
+    onClick: function () {
+      if ((gems || 0) < cfg.freezeGemCost) {
+        try { flashText('NOT ENOUGH GEMS', '#E85D4A'); } catch (e) {}
+        return;
+      }
+      if (!spendGems(cfg.freezeGemCost)) return;
+      restoreLoginStreak(prevStreak);
+      try { logEvent(EVT.purchase_completed, { sku: 'streak_freeze', currency: 'gems', cost: cfg.freezeGemCost, restoredDays: prevStreak }); } catch (e) {}
+    } });
+  showPinchModal({
+    id: 'streak_save:' + prevStreak,
+    subtitle: prevStreak + '-DAY STREAK · ABOUT TO RESET',
+    title: 'RECOVER STREAK?',
+    body:
+      '<div style="margin-bottom:8px">You missed a day. Without action, your streak rolls back to 1.</div>' +
+      '<div style="font-size:11px;color:#A8A5B8">Streak progress feeds the 7-day reward cycle (Day 7 = 100💎 + T2 + Hero Card).</div>',
+    paths: paths
+  });
+  return true;
+}
+
+if (typeof window !== 'undefined') {
+  window.maybeShowStreakSavePinch = maybeShowStreakSavePinch;
+  window.restoreLoginStreak = restoreLoginStreak;
 }
 
 function getTodayStreakReward() {
@@ -29127,6 +29398,24 @@ const AD_REWARDS = {
     if (essences) { essences[s] = (essences[s] || 0) + 5; try { saveProgress(); } catch (e) {} }
     flashText('+5 ' + s.toUpperCase() + ' ✦', '#5DCA79');
   } },
+  // PINCH.4 — Triggered rewarded ads. Each type wires to its pinch trigger
+  // (tower retry, consecutive battle loss, streak freeze, post-defeat bonus).
+  tower_retry: { label: 'Free Tower retry', apply: function () {
+    try { gameEnded = false; hp = (typeof MAX_HP === 'number' ? MAX_HP : 3); } catch (e) {}
+    try { if (typeof launchTowerFloor === 'function') launchTowerFloor(); } catch (e) {}
+    flashText('★ FREE RETRY · KEEP CLIMBING', '#5DCAFF');
+  } },
+  streak_freeze: { label: 'Free streak freeze', apply: function () {
+    flashText('🔥 STREAK FROZEN', '#FFAA00');  // restore handled by caller (maybeShowStreakSavePinch)
+  } },
+  bonus_loot: { label: 'Boss bonus loot', apply: function () {
+    addGold(150);
+    dropRandomHeroCards(1, { silent: true });
+    flashText('★ +150 💰 +1 🃏 BONUS', '#FFAA00');
+  } },
+  consecutive_loss_card: { label: '+1 Hero Card · loss recovery', apply: function () {
+    dropRandomHeroCards(1, { silent: false });
+  } }
 };
 
 function watchRewardedAd(rewardType) {
@@ -29226,7 +29515,19 @@ const SEASON_END_WARNING_DAYS   = 1;
 function _ensureFirstLaunchDate() {
   try {
     if (!localStorage.getItem(FIRST_LAUNCH_KEY)) {
-      localStorage.setItem(FIRST_LAUNCH_KEY, _todayDateString());
+      // SHOP.1 regression mitigation — backfill for existing Ch1-done players.
+      // Without this, players who already cleared Ch1 before the day-window
+      // gate landed would be treated as "Day 0" and lose shop access until
+      // Day 7. We backfill them as Day 8 so they immediately retain access.
+      // New genuine first-launch players get today's date as before.
+      let backfill = _todayDateString();
+      try {
+        if (typeof hasCompletedChapter1 === 'function' && hasCompletedChapter1()) {
+          const eightDaysAgo = new Date(Date.now() - 8 * 86400000);
+          backfill = eightDaysAgo.toISOString().split('T')[0];
+        }
+      } catch (e) {}
+      localStorage.setItem(FIRST_LAUNCH_KEY, backfill);
     }
   } catch (e) {}
 }
@@ -39685,11 +39986,78 @@ function _showDefeatModalBody() {
       // Delay 1200ms so the defeat modal animation settles before the recovery
       // overlay layers on top. Mirrors the AD-education timing pattern.
       setTimeout(() => {
-        try { maybeShowFailureRecovery(currentBoss.name, streak); }
-        catch (e) { console.warn('maybeShowFailureRecovery failed:', e); }
+        // PINCH.1 — Boss Wall pinch fires on 2nd defeat of a chapter finale.
+        // Tries first; if shown, the failure recovery (3rd/6th/9th cadence)
+        // is naturally suppressed by streak < threshold check inside it.
+        let pinchShown = false;
+        try { pinchShown = maybeShowBossWallPinch(); }
+        catch (e) { console.warn('maybeShowBossWallPinch failed:', e); }
+        if (!pinchShown) {
+          try { maybeShowFailureRecovery(currentBoss.name, streak); }
+          catch (e) { console.warn('maybeShowFailureRecovery failed:', e); }
+        }
+      }, 1200);
+    }
+    // PINCH.2 — Tower Death pinch (separate path: tower battles excluded from
+    // boss-wall + failure-recovery branches above). Fires for floor 5+ defeats
+    // with watch-ad / gem-pay / quit options on top of existing retry economy.
+    else if (currentBoss && currentBoss._isTowerBattle &&
+             typeof towerState === 'object' && towerState &&
+             (towerState.currentFloor || 0) >= BALANCE.pinch.towerDeath.minFloor) {
+      setTimeout(() => {
+        try { maybeShowTowerDeathPinch(towerState.currentFloor); }
+        catch (e) { console.warn('maybeShowTowerDeathPinch failed:', e); }
       }, 1200);
     }
   } catch (e) { console.warn('failure recovery hook failed:', e); }
+}
+
+// PINCH.2 — Tower Death pinch (PRELAUNCH §6.2). Fires on floor 5+ defeat.
+// Layers ON TOP of existing per-day retry economy; gives an extra
+// watch-ad-free path the existing UI doesn't surface.
+function maybeShowTowerDeathPinch(floor) {
+  const cfg = BALANCE.pinch.towerDeath;
+  if (!floor || floor < cfg.minFloor) return false;
+  const attempts = (towerState && towerState.attemptsToday) || 0;
+  const gemCost = cfg.gemCostLadder[Math.min(attempts, cfg.gemCostLadder.length - 1)];
+  const adsLeft = (typeof _adsRemaining === 'function') ? _adsRemaining() : 0;
+  const paths = [];
+  // Free quit always available — partial rewards
+  paths.push({ kind: 'skill', label: '✕ QUIT · save partial rewards',
+    sub: 'Keep ' + Math.round(cfg.partialRewardFraction * 100) + '% of run rewards earned so far',
+    onClick: function () { /* default — modal closes, run ended */ } });
+  if (adsLeft > 0) {
+    paths.push({ kind: 'ad', label: '📺 WATCH AD · free retry',
+      sub: 'Counts toward daily ad cap (' + adsLeft + ' left today)',
+      onClick: function () {
+        try { if (typeof watchRewardedAd === 'function') watchRewardedAd('tower_retry'); } catch (e) {}
+      } });
+  }
+  paths.push({ kind: 'pay', label: '💎 INSTANT RETRY · ' + gemCost + ' gems',
+    sub: 'Resume from floor ' + floor + ' · escalating cost (100/200/400)',
+    onClick: function () {
+      if ((gems || 0) < gemCost) { try { flashText('NOT ENOUGH GEMS', '#E85D4A'); } catch (e) {} return; }
+      if (!spendGems(gemCost)) return;
+      try { logEvent(EVT.purchase_completed, { sku: 'tower_retry', currency: 'gems', cost: gemCost, floor }); } catch (e) {}
+      // Reset gameEnded + reset HP — let existing retry/relaunch path take over
+      try { gameEnded = false; hp = (typeof MAX_HP === 'number' ? MAX_HP : 3); } catch (e) {}
+      try { if (typeof launchTowerFloor === 'function') launchTowerFloor(); } catch (e) {}
+    } });
+  showPinchModal({
+    id: 'tower_death:' + floor,
+    subtitle: 'TOWER FLOOR ' + floor + ' · DEFEATED',
+    title: 'CONTINUE THE CLIMB?',
+    body:
+      '<div style="margin-bottom:6px">Floor ' + floor + ' cleared so far — ' +
+      (floor >= 10 ? 'best Daily climb yet!' : (floor >= 5 ? 'mid-boss territory.' : 'early floors.')) + '</div>' +
+      '<div style="font-size:11px;color:#A8A5B8">' + attempts + ' / ' + TOWER_MAX_ATTEMPTS_PER_DAY + ' attempts used today.</div>',
+    paths: paths
+  });
+  return true;
+}
+
+if (typeof window !== 'undefined') {
+  window.maybeShowTowerDeathPinch = maybeShowTowerDeathPinch;
 }
 
 // ===== 2026-04-28 — PLAYER EDUCATION · FAILURE RECOVERY (Stage spec §22.2) =====
@@ -39719,6 +40087,156 @@ function recordBossDefeat(bossName) {
   defeatStreak[bossName] = (defeatStreak[bossName] || 0) + 1;
   saveDefeatStreak();
   return defeatStreak[bossName];
+}
+
+// PINCH.1 — Boss Wall (PRELAUNCH §6.2 + §11.6). Fires on Nth consecutive
+// defeat on a CHAPTER-FINALE boss (last boss of current chapter). Shows
+// 3-path modal (try-different-squad / grind earlier bosses / Reinforcement
+// Pack $1.99 element-specific). Capped per-week per-boss to prevent fatigue.
+function maybeShowBossWallPinch() {
+  try {
+    if (typeof currentBoss === 'undefined' || !currentBoss) return false;
+    if (currentBoss._isFtueOnly || currentBoss._isTowerBattle) return false;
+    if (typeof BOSSES === 'undefined' || currentBossIdx !== BOSSES.length - 1) return false;  // chapter finale only
+    const cfg = BALANCE.pinch.bossWall;
+    const streak = defeatStreak[currentBoss.name] || 0;
+    if (streak < cfg.defeatThreshold) return false;
+    // Per-week cap per boss
+    const pinchKey = 'boss_wall:' + currentChapter + '.' + currentBossIdx;
+    if (_pinchShownCount(pinchKey) >= cfg.maxPerWeekPerBoss) return false;
+    // Identify player's heroes of the counter-element so the modal feels personalized.
+    const counterStihiya = _bossWallCounterStihiya(currentBoss.stihiya);
+    const counterHeroes = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK))
+      ? HERO_DECK.filter(h => h && h.stihiya === counterStihiya).map(h => h.name)
+      : [];
+    const counterList = counterHeroes.length > 0
+      ? counterHeroes.map(n => '<div style="padding:3px 0;color:#FFD53D">☀ ' + n + '</div>').join('')
+      : '<div style="padding:3px 0;color:#A8A5B8">No ' + counterStihiya.toUpperCase() + ' heroes in your squad — try grinding for one.</div>';
+    showPinchModal({
+      id: pinchKey,
+      subtitle: (currentBoss.stihiya || '').toUpperCase() + ' BOSS · DEFEAT #' + streak,
+      title: (currentBoss.name || 'BOSS') + ' WALL',
+      body:
+        '<div style="margin-bottom:8px">This boss is weak to <b style="color:#FFD53D">' + counterStihiya.toUpperCase() + '</b> heroes.</div>' +
+        '<div style="font-size:10px;color:#A8A5B8;letter-spacing:1.5px;margin-top:8px;margin-bottom:4px">YOUR ' + counterStihiya.toUpperCase() + ' HEROES</div>' +
+        counterList,
+      paths: [
+        { kind: 'skill', label: '↻ TRY AGAIN',
+          sub: 'Adjust your squad — ' + counterStihiya + ' deals +30% to ' + (currentBoss.stihiya || ''),
+          onClick: function () { /* dismiss only — player retries via TRY AGAIN btn */ } },
+        { kind: 'grind', label: '⚙ GRIND EARLIER BOSSES',
+          sub: 'Replay Chapter ' + currentChapter + ' bosses for cards (~30 min)',
+          onClick: function () {
+            try { goToMenu(); } catch (e) {}
+          } },
+        { kind: 'pay', label: '★ REINFORCEMENT PACK · $' + BALANCE.pinch.bossWall.reinforcementPackUSD.toFixed(2),
+          sub: BALANCE.pinch.bossWall.reinforcementCards + ' ' + counterStihiya.toUpperCase() + ' cards · ' + BALANCE.pinch.bossWall.reinforcementEssence + '✦ · 1 T1 stone — skip ~3 days',
+          onClick: function () {
+            try { buyReinforcementPack(counterStihiya); } catch (e) { console.warn('reinforcement pack failed:', e); }
+          } }
+      ]
+    });
+    return true;
+  } catch (e) {
+    console.warn('maybeShowBossWallPinch failed:', e);
+    return false;
+  }
+}
+
+// Element matchup: each boss element is weak to a counter element.
+// Mapping per BLOCKSWORN_COMBAT_REFERENCE: ember → tide, tide → grove,
+// grove → solar, solar → umbra, umbra → ember (rock-paper-scissors loop).
+function _bossWallCounterStihiya(bossStihiya) {
+  const map = { ember: 'tide', tide: 'grove', grove: 'solar', solar: 'umbra', umbra: 'ember' };
+  return map[bossStihiya] || 'solar';
+}
+
+// Reinforcement Pack — PINCH.1 pay path. Element-specific 3 cards + 5 essence
+// + 1 T1 stone for $1.99. Mock IAP — Phase 7+ wires real billing.
+function buyReinforcementPack(stihiya) {
+  if (!stihiya) { try { flashText('NO TARGET ELEMENT', '#E85D4A'); } catch (e) {} return false; }
+  const cfg = BALANCE.pinch.bossWall;
+  try { logEvent(EVT.purchase_started, { sku: 'reinforcement_pack', currency: 'usd', cost: cfg.reinforcementPackUSD, stihiya }); } catch (e) {}
+  const msg =
+    'REINFORCEMENT PACK · ' + stihiya.toUpperCase() + '\n$' + cfg.reinforcementPackUSD.toFixed(2) + '\n\n' +
+    '• ' + cfg.reinforcementCards + ' ' + stihiya.toUpperCase() + ' hero cards\n' +
+    '• ' + cfg.reinforcementEssence + ' ' + stihiya.toUpperCase() + ' essence\n' +
+    '• 1 Tier 1 ascend stone (T2 craft material)\n\n' +
+    'Element-specific. Boss-wall pinch only.\n\n' +
+    _devNotice();
+  if (!confirm(msg)) {
+    try { logEvent(EVT.purchase_cancelled, { sku: 'reinforcement_pack', stihiya }); } catch (e) {}
+    return false;
+  }
+  // Mock IAP grant — drops weighted to heroes of target stihiya.
+  try {
+    const heroPool = HERO_ROSTER.filter(h => h && h.stihiya === stihiya && !h.locked);
+    for (let i = 0; i < cfg.reinforcementCards && heroPool.length > 0; i++) {
+      const pick = heroPool[Math.floor(Math.random() * heroPool.length)];
+      addHeroFragments(pick.id, 1);
+    }
+  } catch (e) { console.warn('reinforcement card grant failed:', e); }
+  try {
+    if (typeof essences === 'object' && essences) {
+      essences[stihiya] = (essences[stihiya] || 0) + cfg.reinforcementEssence;
+      saveProgress();
+    }
+  } catch (e) {}
+  // T1 stone — closest existing analog is fragments toward T2 stone, so add 1 T2 frag.
+  // Phase 9 polish can introduce explicit T1 stone bookkeeping if needed.
+  try { _addTier2Stones(cfg.reinforcementT1Stone); } catch (e) {}
+  try { flashText('★ REINFORCEMENT · ' + stihiya.toUpperCase(), '#FFD53D'); } catch (e) {}
+  try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
+  try { logEvent(EVT.purchase_completed, { sku: 'reinforcement_pack', currency: 'usd', cost: cfg.reinforcementPackUSD, stihiya }); } catch (e) {}
+  return true;
+}
+
+if (typeof window !== 'undefined') {
+  window.maybeShowBossWallPinch = maybeShowBossWallPinch;
+  window.buyReinforcementPack = buyReinforcementPack;
+}
+
+// PINCH.3 — Ascension Pinch (PRELAUNCH §6.2). Fires the FIRST TIME a hero
+// hits 4/5 cards. One-shot per hero — once dismissed, the "ASCEND" hint
+// lives on the profile screen until executed. F2P-fastest path shown first.
+function maybeShowAscensionPinch(heroId) {
+  if (!heroId) return false;
+  const oneShotId = 'ascension:' + heroId;
+  if (_pinchOneShotFired(oneShotId)) return false;
+  const hero = HERO_ROSTER.find(h => h && h.id === heroId);
+  if (!hero) return false;
+  if (typeof isHeroAscended === 'function' && isHeroAscended(heroId)) return false;  // already T2+
+  const cur = (typeof heroFragments === 'object' && heroFragments) ? (heroFragments[heroId] || 0) : 0;
+  const need = BALANCE.pinch.ascensionPinch.cardsNeeded;
+  if (cur >= need) return false;
+  _pinchMarkOneShot(oneShotId);
+  showPinchModal({
+    id: oneShotId,
+    subtitle: 'ALMOST THERE',
+    title: (hero.name || 'HERO') + ' · TIER 2 ASCENSION',
+    body:
+      '<div style="margin-bottom:8px;font-size:13px;color:#FFD53D">█'.repeat(cur) + '<span style="opacity:0.3">█</span>'.repeat(need - cur) + ' ' + cur + '/' + need + ' cards</div>' +
+      '<div style="font-size:11px;color:#A8A5B8">One more card unlocks T2: +20% damage permanent, LV cap → 20.</div>',
+    paths: [
+      { kind: 'skill', label: '↻ PLAY · earn naturally',
+        sub: 'Win 1-2 boss battles — cards weighted to your missing heroes',
+        onClick: function () { try { goToMenu(); } catch (e) {} } },
+      { kind: 'ad', label: '📺 WATCH AD · 1 random card',
+        sub: 'Counts toward daily ad cap (5 free / 8 sub)',
+        onClick: function () {
+          try { if (typeof watchRewardedAd === 'function') watchRewardedAd('card'); } catch (e) {}
+        } },
+      { kind: 'pay', label: '📦 STANDARD PACK · ' + PACK_STANDARD_COST + ' 💰',
+        sub: 'Random card, weighted to less-owned heroes',
+        onClick: function () { try { buyStandardPack(); } catch (e) {} } }
+    ]
+  });
+  return true;
+}
+
+if (typeof window !== 'undefined') {
+  window.maybeShowAscensionPinch = maybeShowAscensionPinch;
 }
 function resetBossDefeatStreak(bossName) {
   if (!bossName) return;
