@@ -17728,6 +17728,74 @@ button.season-tier-claim:active {
   }
 </script>
 
+<!-- 2026-05-02 — SPRINT 4 B1: RevenueCat Web SDK for desktop browser players.
+     Mobile (iOS/Android) builds use @revenuecat/purchases-capacitor instead;
+     the IAP_PROVIDERS.revenuecat handler resolves both via window.Purchases.
+     Loads from CDN; falls back to mock IAP if SDK unavailable (offline / blocked). -->
+<script src="https://js.revenuecat.com/v2/purchases.js" async></script>
+
+<script type="module">
+  // 2026-05-02 — SPRINT 4 B1: RevenueCat initialization. Configures Purchases
+  // SDK with the player's anonymous Firebase UID so cross-session purchases
+  // restore correctly. Fires `revenueCatReady` event when configured;
+  // IAPProvider.revenuecat checks `window.rcReady` before attempting real
+  // purchase calls, so mock IAP keeps working until keys are filled.
+  //
+  // SETUP REQUIRED before flipping IAPProvider.ACTIVE = 'revenuecat':
+  //   1. Create RevenueCat account at revenuecat.com
+  //   2. Add Web Billing app, get public SDK key
+  //   3. Replace RC_PUBLIC_KEY_WEB below with real key (rcb_xxx...)
+  //   4. Configure products in App Store Connect / Play Console with IDs
+  //      from IAP_PRODUCT_IDS table (see main script block)
+  //   5. Set up Cloud Function webhook (see firebase/functions/index.js)
+
+  const RC_PUBLIC_KEY_WEB = 'rcb_PLACEHOLDER_REPLACE_BEFORE_PRODUCTION';
+  window.rcReady = false;
+  window.rcConfigError = null;
+
+  function _rcDispatchReady(detail) {
+    try { window.dispatchEvent(new CustomEvent('revenueCatReady', { detail: detail || {} })); }
+    catch (e) {}
+  }
+
+  // Wait for both: RevenueCat SDK loaded AND Firebase auth resolved (need UID).
+  // If RC SDK never loads (e.g. CDN blocked, offline), IAPProvider falls back
+  // to mock cleanly — gameplay continues unaffected.
+  window.addEventListener('firebaseReady', async (event) => {
+    try {
+      const uid = event && event.detail && event.detail.uid;
+      if (!uid) {
+        console.warn('[RevenueCat] firebaseReady fired without UID — RC not configured');
+        return;
+      }
+      if (typeof window.Purchases === 'undefined') {
+        console.warn('[RevenueCat] SDK not loaded yet — IAP will fall back to mock');
+        window.rcConfigError = 'sdk_not_loaded';
+        _rcDispatchReady({ ready: false, reason: 'sdk_not_loaded' });
+        return;
+      }
+      if (RC_PUBLIC_KEY_WEB.indexOf('PLACEHOLDER') !== -1) {
+        console.warn('[RevenueCat] API key not configured — IAP will fall back to mock. ' +
+                     'See Sprint 4 spec §3.4.2 for setup.');
+        window.rcConfigError = 'placeholder_key';
+        _rcDispatchReady({ ready: false, reason: 'placeholder_key' });
+        return;
+      }
+      await window.Purchases.configure({
+        apiKey: RC_PUBLIC_KEY_WEB,
+        appUserID: uid,
+      });
+      window.rcReady = true;
+      _rcDispatchReady({ ready: true, uid: uid });
+      console.log('[RevenueCat] configured for uid=' + uid.slice(0, 8));
+    } catch (e) {
+      console.warn('[RevenueCat] configure failed:', e);
+      window.rcConfigError = String(e && e.message || e);
+      _rcDispatchReady({ ready: false, reason: 'configure_failed' });
+    }
+  });
+</script>
+
 <script>
 // ──────────────────────────────────────────────────────────────────────────
 // Save-version gate (one-time global wipe for legacy player saves).
@@ -18590,28 +18658,27 @@ function _isChapterUnlockPackEligible(dropId) {
   if (owned[dropId]) return false;
   return true;
 }
-function buyChapterUnlockPack(dropId) {
+// 2026-05-02 — SPRINT 4 B1: migrated to async IAPProvider.purchase().
+async function buyChapterUnlockPack(dropId) {
   if (!_isChapterUnlockPackEligible(dropId)) {
     try { flashText('PACK NOT AVAILABLE', '#A8A5B8'); } catch (e) {}
     return false;
   }
   const cfg = MONETIZATION.packs.chapterUnlock;
-  try { logEvent(EVT.purchase_started, { sku: 'chapter_unlock_pack', dropId, currency: 'usd', cost: cfg.usd }); } catch (e) {}
   const drop = getDropById(dropId);
   const chapterId = drop && drop.payload && drop.payload.chapterId;
-  const msg =
-    'CHAPTER ' + (chapterId || '?') + ' UNLOCK PACK\n$' + cfg.usd.toFixed(2) + '\n\n' +
-    '• ' + cfg.cards + ' hero cards\n' +
-    '• ' + cfg.t2Stones + ' T2 ascend stones\n' +
-    '• ' + cfg.gold + '💰\n' +
-    '• 24h XP boost\n\n' +
-    'One-time only. Available 3 days after chapter drop.\n\n' +
-    _devNotice();
-  if (!confirm(msg)) {
-    try { logEvent(EVT.purchase_cancelled, { sku: 'chapter_unlock_pack', dropId }); } catch (e) {}
-    return false;
-  }
-  // Mock IAP — Phase 7+ wires real billing. Grant via applyReward dispatcher.
+  const success = await IAPProvider.purchase({
+    id:       IAP_PRODUCT_IDS.CHAPTER_UNLOCK_FN(chapterId || 'unknown'),
+    priceUSD: cfg.usd,
+    title:    'CHAPTER ' + (chapterId || '?') + ' UNLOCK PACK',
+    body:     '• ' + cfg.cards + ' hero cards\n' +
+              '• ' + cfg.t2Stones + ' T2 ascend stones\n' +
+              '• ' + cfg.gold + '💰\n' +
+              '• 24h XP boost\n\n' +
+              'One-time only. Available 3 days after chapter drop.',
+  });
+  if (!success) return false;
+  // Charge confirmed — grant via applyReward dispatcher.
   try {
     applyReward({
       gold:     cfg.gold,
@@ -21905,25 +21972,42 @@ function convertGoldToGems() {
 
 // Mock-IAP entry point — Phase G replaces this body with real StoreKit /
 // Stripe Checkout. Spec §3.2 + §10.3 (First-Purchase Bonus +50%).
-function purchaseGemPack(packId) {
+// 2026-05-02 — SPRINT 4 B1: migrated to async IAPProvider.purchase().
+// Mock provider preserves existing confirm() flow; revenuecat triggers real
+// platform sheet (Apple StoreKit / Google Play / Stripe). +50% First Purchase
+// Bonus computation unchanged — applied AFTER charge confirmation.
+async function purchaseGemPack(packId) {
   const pack = GEM_PACKS.find(p => p.id === packId);
-  if (!pack) { console.warn('purchaseGemPack: unknown pack', packId); return; }
+  if (!pack) { console.warn('purchaseGemPack: unknown pack', packId); return false; }
   const isFirst = !_isFirstPurchaseDone();
   const baseTotal = pack.baseGems + pack.bonusGems;
   const totalGems = isFirst ? Math.floor(baseTotal * 1.5) : baseTotal;
-  const promoLine = isFirst ? '\n+50% First Purchase Bonus → ' + totalGems + ' 💎' : '';
-  const msg = 'Buy $' + pack.price.toFixed(2) + ' → +' + baseTotal + ' 💎' + promoLine
-            + _devNotice();
-  if (!confirm(msg)) return;
-  // Mock IAP success — grant gems.
+  // SKU id maps to IAP_PRODUCT_IDS (gems_099 → blocksworn.gems.099 etc.).
+  // Pack ids in GEM_PACKS use price suffix; map cleanly.
+  const skuByPackId = {
+    gems_099:  IAP_PRODUCT_IDS.GEM_099,
+    gems_499:  IAP_PRODUCT_IDS.GEM_499,
+    gems_999:  IAP_PRODUCT_IDS.GEM_999,
+    gems_1999: IAP_PRODUCT_IDS.GEM_1999,
+    gems_4999: IAP_PRODUCT_IDS.GEM_4999,
+    gems_9999: IAP_PRODUCT_IDS.GEM_9999,
+  };
+  const productId = skuByPackId[packId] || ('blocksworn.gems.' + packId);
+  const success = await IAPProvider.purchase({
+    id:       productId,
+    priceUSD: pack.price,
+    title:    'Buy $' + pack.price.toFixed(2) + ' → +' + baseTotal + ' 💎',
+    body:     (isFirst ? '+50% First Purchase Bonus → ' + totalGems + ' 💎\n' : '') +
+              'Tap CONFIRM to complete purchase.',
+  });
+  if (!success) return false;
+  // Charge confirmed — grant gems.
   addGems(totalGems);
   flashText('+' + totalGems + ' 💎 GEMS', pack.glow);
   try { vibrate([60, 40, 60, 40, 100]); } catch (e) {}
-  // First-Purchase Bonus: 1 hero card + 7-day Mega Buff + Founder badge +
-  // celebration banner sequence. The +50% gem bonus above is the gem-pack-
-  // specific component of "+50% bonus on first item purchased" (spec §10.3).
   try { _grantFirstPurchaseBonus(); } catch (e) { console.warn('first purchase bonus failed:', e); }
   renderShopPacks();
+  return true;
 }
 
 // ===== PHASE B — PACK LINEUP (Big/Premium/Ultimate + pity + premium drop) =====
@@ -29905,28 +29989,30 @@ function claimSeasonTier(tier, track) {
   return true;
 }
 
-// Buy premium pass for current season. Cost: 2000 gems. Retroactive — doesn't
-// auto-claim anything but unlocks premium track so earned tiers can be claimed.
-function purchasePremiumPass() {
+// Buy premium pass for current season. Retroactive — doesn't auto-claim
+// anything but unlocks premium track so earned tiers can be claimed.
+// 2026-05-02 — SPRINT 4 B1: migrated to async IAPProvider.purchase(). Tries
+// real $4.99 USD path first via revenuecat; mock provider preserves gem
+// debit fallback for dev mode.
+async function purchasePremiumPass() {
   if (seasonState.premiumUnlocked) {
     try { flashText('ALREADY UNLOCKED', '#A8A5B8'); } catch (e) {}
     return false;
   }
-  if ((gems || 0) < SEASON_PREMIUM_COST) {
-    try { flashText(`NEED ${SEASON_PREMIUM_COST}💎`, '#E85D4A'); } catch (e) {}
-    return false;
-  }
-  // Spend via Phase 3 spendGems if available, else direct
-  let spent = false;
-  if (typeof spendGems === 'function') {
-    try { spent = spendGems(SEASON_PREMIUM_COST); } catch (e) { spent = false; }
-  }
-  if (!spent) {
-    // Fallback: direct debit
-    if ((gems || 0) < SEASON_PREMIUM_COST) return false;
-    gems -= SEASON_PREMIUM_COST;
-    try { saveGemsToStorage && saveGemsToStorage(); } catch (e) {}
-  }
+  // Sprint 4: real-money $4.99 SKU — gems remain accepted in mock mode and
+  // when player has enough gems on revenuecat (provider tries gems first).
+  const success = await IAPProvider.purchase({
+    id:        IAP_PRODUCT_IDS.BATTLEPASS_SEASON,
+    priceUSD:  4.99,
+    priceGems: SEASON_PREMIUM_COST,
+    title:     '✦ PREMIUM BATTLE PASS',
+    body:      'Unlock premium track for this season — every earned tier becomes claimable.',
+  });
+  if (!success) return false;
+  // If we have gems and the provider charged gems, no double-debit. The mock
+  // provider's spendGems path returns true; revenuecat's gem path mirrors it.
+  // Defensive: if gems were NOT spent (real-money path) AND we have enough,
+  // do nothing — premium grants below activate the season pass either way.
   seasonState.premiumUnlocked = true;
   saveSeasonState();
   try { flashText('✦ PREMIUM PASS ACTIVATED ✦', '#FFD53D'); } catch (e) {}
@@ -30009,24 +30095,28 @@ function _grantSeasonPassSubBonus() {
   } catch (e) {}
 }
 
-function subscribeToSeasonPass() {
+// 2026-05-02 — SPRINT 4 B1: migrated to async IAPProvider.purchase().
+// Real subscription via RevenueCat: blocksworn.sub.season_pass at $4.49/mo.
+async function subscribeToSeasonPass() {
   if (_isSeasonPassActive()) {
     try { flashText('ALREADY SUBSCRIBED', '#A8A5B8'); } catch (e) {}
     return false;
   }
-  const msg =
-    'Subscribe to Season Pass for $' + SEASON_PASS_SUB_PRICE_USD.toFixed(2) + '/month?\n\n' +
-    'Benefits:\n' +
-    '• Premium track unlocked every season\n' +
-    '• ' + SEASON_PASS_SUB_GEMS_BONUS + ' 💎 each season start (incl. now)\n' +
-    '• ' + SEASON_PASS_SUB_RETRIES + '× free Tower retries per day\n' +
-    '• ' + SEASON_PASS_SUB_DAILY_LOGIN_X + '× bigger daily login bundle\n' +
-    '• 1 random Hero Card on each renewal\n' +
-    '• Subscriber badge\n\n' +
-    'Cancel anytime — current season always completes, no penalty.\n\n' +
-    _devNotice();
-  if (!confirm(msg)) return false;
-  // Mock IAP success.
+  const success = await IAPProvider.purchase({
+    id:       IAP_PRODUCT_IDS.SEASON_PASS_SUB,
+    priceUSD: SEASON_PASS_SUB_PRICE_USD,
+    title:    'Subscribe to Season Pass · $' + SEASON_PASS_SUB_PRICE_USD.toFixed(2) + '/month',
+    body:     'Benefits:\n' +
+              '• Premium track unlocked every season\n' +
+              '• ' + SEASON_PASS_SUB_GEMS_BONUS + ' 💎 each season start (incl. now)\n' +
+              '• ' + SEASON_PASS_SUB_RETRIES + '× free Tower retries per day\n' +
+              '• ' + SEASON_PASS_SUB_DAILY_LOGIN_X + '× bigger daily login bundle\n' +
+              '• 1 random Hero Card on each renewal\n' +
+              '• Subscriber badge\n\n' +
+              'Cancel anytime — current season always completes, no penalty.',
+  });
+  if (!success) return false;
+  // Subscription activated.
   const now = new Date();
   seasonPassSub.active      = true;
   seasonPassSub.since       = seasonPassSub.since || now.toISOString();
@@ -30303,7 +30393,8 @@ if (typeof window !== 'undefined') {
 }
 
 // ----- D.1: Race Launch Bundle -----
-function buyRaceLaunchBundle(race) {
+// 2026-05-02 — SPRINT 4 B1: migrated to async IAPProvider.purchase().
+async function buyRaceLaunchBundle(race) {
   if (!_PACK_RACE_LABELS[race]) {
     try { flashText('INVALID RACE', '#E85D4A'); } catch (e) {}
     return false;
@@ -30316,19 +30407,18 @@ function buyRaceLaunchBundle(race) {
   const stih = RACE_TO_STIHIYA[race] || 'ember';
   const raceHeroes = HERO_ROSTER.filter(function (h) { return h.race === race; });
   const cardsTotal = raceHeroes.length * RACE_BUNDLE_CARDS_PER_HERO;
-  const msg =
-    label + ' LAUNCH BUNDLE\n$' + RACE_BUNDLE_USD.toFixed(2) + ' / ' + RACE_BUNDLE_GEMS + '💎\n\n' +
-    '• All ' + raceHeroes.length + ' ' + label + ' heroes UNLOCKED\n' +
-    '• Captain pre-leveled to LV' + RACE_BUNDLE_CAPTAIN_LV + '\n' +
-    '• ' + cardsTotal + ' ' + label + ' hero cards\n' +
-    '• ' + RACE_BUNDLE_ESSENCE + ' ' + stih.toUpperCase() + ' shards\n\n' +
-    'Skip 5-8 days of progression.\n\n' +
-    _devNotice();
-  if (!confirm(msg)) return false;
-  // Spend gems if affordable, else assume USD path (mock-confirm already accepted).
-  if ((gems || 0) >= RACE_BUNDLE_GEMS) {
-    if (!spendGems(RACE_BUNDLE_GEMS)) return false;
-  }
+  const success = await IAPProvider.purchase({
+    id:        IAP_PRODUCT_IDS.RACE_BUNDLE_FN(race),
+    priceUSD:  RACE_BUNDLE_USD,
+    priceGems: RACE_BUNDLE_GEMS,
+    title:     label + ' LAUNCH BUNDLE',
+    body:      '• All ' + raceHeroes.length + ' ' + label + ' heroes UNLOCKED\n' +
+               '• Captain pre-leveled to LV' + RACE_BUNDLE_CAPTAIN_LV + '\n' +
+               '• ' + cardsTotal + ' ' + label + ' hero cards\n' +
+               '• ' + RACE_BUNDLE_ESSENCE + ' ' + stih.toUpperCase() + ' shards\n\n' +
+               'Skip 5-8 days of progression.',
+  });
+  if (!success) return false;
   // Grant: unlock all heroes
   for (const h of raceHeroes) { h.unlocked = true; }
   try { saveUnlockedHeroesToStorage(); } catch (e) {}
@@ -30388,7 +30478,8 @@ function _isStarterPackEligible() {
   const days = (typeof _daysSinceFirstLaunch === 'function') ? _daysSinceFirstLaunch() : 0;
   return days >= STARTER_PACK_MIN_DAY && days <= STARTER_PACK_MAX_DAY;
 }
-function buyStarterPack() {
+// 2026-05-02 — SPRINT 4 B1: migrated to async IAPProvider.purchase().
+async function buyStarterPack() {
   if (_isStarterPackPurchased()) {
     try { flashText('STARTER PACK ALREADY OWNED', '#A8A5B8'); } catch (e) {}
     return false;
@@ -30401,20 +30492,18 @@ function buyStarterPack() {
     try { flashText(msg, '#A8A5B8'); } catch (e) {}
     return false;
   }
-  const msg =
-    "SUMMONER'S STARTER PACK\n$" + STARTER_PACK_USD.toFixed(2) + '\n\n' +
-    '• 1 random Captain UNLOCKED\n' +
-    '• ' + STARTER_PACK_GEMS + '💎 + ' + STARTER_PACK_GOLD + '💰\n' +
-    '• ' + STARTER_PACK_CARDS + ' hero cards · ' + STARTER_PACK_T2_STONES + ' T2 stone\n' +
-    '• Permanent FOUNDER badge\n\n' +
-    'One-time only. Available Day 4-14 of your account.\n\n' +
-    _devNotice();
-  try { logEvent(EVT.purchase_started, { sku: 'starter_pack', currency: 'usd', cost: STARTER_PACK_USD }); } catch (e) {}
-  if (!confirm(msg)) {
-    try { logEvent(EVT.purchase_cancelled, { sku: 'starter_pack' }); } catch (e) {}
-    return false;
-  }
-  // Mock IAP — in Phase 7+ wire to real billing. For now: stamp purchase + grant.
+  const success = await IAPProvider.purchase({
+    id:       IAP_PRODUCT_IDS.STARTER,
+    priceUSD: STARTER_PACK_USD,
+    title:    "SUMMONER'S STARTER PACK",
+    body:     '• 1 random Captain UNLOCKED\n' +
+              '• ' + STARTER_PACK_GEMS + '💎 + ' + STARTER_PACK_GOLD + '💰\n' +
+              '• ' + STARTER_PACK_CARDS + ' hero cards · ' + STARTER_PACK_T2_STONES + ' T2 stone\n' +
+              '• Permanent FOUNDER badge\n\n' +
+              'One-time only. Available Day 4-14 of your account.',
+  });
+  if (!success) return false;
+  // Charge confirmed — stamp purchase + grant.
   try { localStorage.setItem(STARTER_PACK_KEY, 'true'); } catch (e) {}
   // 1 random Captain — pick from locked captains, fall back to any locked hero
   try {
@@ -30459,25 +30548,26 @@ if (typeof window !== 'undefined') {
 }
 
 // ----- D.2: Endgame Acceleration Kit (whale tier, 1× per season) -----
-function buyEndgameKit() {
+// 2026-05-02 — SPRINT 4 B1: migrated to async IAPProvider.purchase().
+async function buyEndgameKit() {
   if (!_isEndgameKitAvailableThisSeason()) {
     try { flashText('ALREADY PURCHASED THIS SEASON', '#A8A5B8'); } catch (e) {}
     return false;
   }
-  const msg =
-    'ULTIMATE ASCENSION KIT\n$' + ENDGAME_KIT_USD.toFixed(2) + ' / ' + ENDGAME_KIT_GEMS + '💎\n\n' +
-    'Once per season. Skip 6-12 months of grind.\n\n' +
-    '• ' + ENDGAME_KIT_T3 + ' Tier 3 Stones 💠\n' +
-    '• ' + ENDGAME_KIT_T2 + ' Tier 2 Stones ⚡\n' +
-    '• ' + ENDGAME_KIT_CARDS + ' Hero Cards (random, weighted to unowned)\n' +
-    '• ' + ENDGAME_KIT_HEARTS + ' Tower Hearts ♥\n' +
-    '• 30-day Battle Pass premium\n' +
-    '• Permanent ARCHITECT FUNDER profile effect\n\n' +
-    _devNotice();
-  if (!confirm(msg)) return false;
-  if ((gems || 0) >= ENDGAME_KIT_GEMS) {
-    if (!spendGems(ENDGAME_KIT_GEMS)) return false;
-  }
+  const success = await IAPProvider.purchase({
+    id:        IAP_PRODUCT_IDS.ENDGAME_KIT,
+    priceUSD:  ENDGAME_KIT_USD,
+    priceGems: ENDGAME_KIT_GEMS,
+    title:     'ULTIMATE ASCENSION KIT',
+    body:      'Once per season. Skip 6-12 months of grind.\n\n' +
+               '• ' + ENDGAME_KIT_T3 + ' Tier 3 Stones 💠\n' +
+               '• ' + ENDGAME_KIT_T2 + ' Tier 2 Stones ⚡\n' +
+               '• ' + ENDGAME_KIT_CARDS + ' Hero Cards (random, weighted to unowned)\n' +
+               '• ' + ENDGAME_KIT_HEARTS + ' Tower Hearts ♥\n' +
+               '• 30-day Battle Pass premium\n' +
+               '• Permanent ARCHITECT FUNDER profile effect',
+  });
+  if (!success) return false;
   _addTier2Stones(ENDGAME_KIT_T2);
   _addTier3Stones(ENDGAME_KIT_T3);
   dropRandomHeroCards(ENDGAME_KIT_CARDS, { silent: true });
@@ -30685,22 +30775,23 @@ function _megaBuffHoursLeft() {
     return Math.max(0, Math.ceil(ms / 3600000));
   } catch (e) { return 0; }
 }
-function buyMegaBuff() {
+// 2026-05-02 — SPRINT 4 B1: migrated to async IAPProvider.purchase().
+async function buyMegaBuff() {
   if (_isMegaBuffActive()) {
     try { flashText('ALREADY ACTIVE', '#A8A5B8'); } catch (e) {}
     return false;
   }
-  const msg =
-    '24h MEGA BUFF\n$' + MEGA_BUFF_USD.toFixed(2) + ' / ' + MEGA_BUFF_GEMS + '💎\n\n' +
-    '• +25% gold from all sources\n' +
-    '• +50% Hero Card drops\n' +
-    '• +25% shards drops\n' +
-    '• Active for 24 hours\n\n' +
-    _devNotice();
-  if (!confirm(msg)) return false;
-  if ((gems || 0) >= MEGA_BUFF_GEMS) {
-    if (!spendGems(MEGA_BUFF_GEMS)) return false;
-  }
+  const success = await IAPProvider.purchase({
+    id:        IAP_PRODUCT_IDS.MEGA_BUFF,
+    priceUSD:  MEGA_BUFF_USD,
+    priceGems: MEGA_BUFF_GEMS,
+    title:     '24h MEGA BUFF',
+    body:      '• +25% gold from all sources\n' +
+               '• +50% Hero Card drops\n' +
+               '• +25% shards drops\n' +
+               '• Active for 24 hours',
+  });
+  if (!success) return false;
   const until = Date.now() + MEGA_BUFF_DURATION_MS;
   try { localStorage.setItem(MEGA_BUFF_KEY, String(until)); } catch (e) {}
   try { flashText('★ 24h MEGA BUFF ACTIVE', '#FFAA00'); } catch (e) {}
@@ -31677,23 +31768,19 @@ function _towerClimberPackHoursRemaining() {
   const ms = new Date(s.expiresAt).getTime() - Date.now();
   return Math.max(0, Math.floor(ms / 3600000));
 }
-function buyTowerClimberPack() {
-  try { logEvent(EVT.purchase_started, { sku: 'tower_climber_pack', currency: 'usd', cost: TOWER_CLIMBER_PACK_USD }); } catch (e) {}
-  // Mock IAP — replace with real StoreKit/Billing in Phase 8 post-launch
+// 2026-05-02 — SPRINT 4 B1: migrated to async IAPProvider.purchase().
+async function buyTowerClimberPack() {
   const c = TOWER_CLIMBER_PACK_CONTENTS;
-  const confirmed = confirm(
-    'Tower Climber\'s Pack\n\n' +
-    '• ' + c.sigilShards + ' Sigil Shards\n' +
-    '• ' + c.heartFragments + ' Heart Fragment (1/5 toward Tower Heart)\n' +
-    '• ' + c.gold + ' Gold\n' +
-    '• ' + c.heroCards + ' Hero Cards (weighted to missing)\n\n' +
-    'Buy for $' + TOWER_CLIMBER_PACK_USD.toFixed(2) + '?\n\n' +
-    _devNotice()
-  );
-  if (!confirmed) {
-    try { logEvent(EVT.purchase_cancelled, { sku: 'tower_climber_pack' }); } catch (e) {}
-    return;
-  }
+  const success = await IAPProvider.purchase({
+    id:       IAP_PRODUCT_IDS.TOWER_CLIMBER,
+    priceUSD: TOWER_CLIMBER_PACK_USD,
+    title:    "Tower Climber's Pack",
+    body:     '• ' + c.sigilShards + ' Sigil Shards\n' +
+              '• ' + c.heartFragments + ' Heart Fragment (1/5 toward Tower Heart)\n' +
+              '• ' + c.gold + ' Gold\n' +
+              '• ' + c.heroCards + ' Hero Cards (weighted to missing)',
+  });
+  if (!success) return false;
   // Grant contents
   try {
     if (typeof addGold === 'function') addGold(c.gold);
@@ -31716,6 +31803,7 @@ function buyTowerClimberPack() {
   try { showToast('Tower Climber\'s Pack claimed!'); }
   catch (e) { try { flashText('★ TOWER CLIMBER\'S PACK', '#4DD0E1'); } catch (e2) {} }
   try { renderShopPacks(); } catch (e) {}
+  return true;
 }
 
 // Expose helpers to window so HTML onclick + DevTools work
@@ -33826,40 +33914,94 @@ if (typeof window !== 'undefined') {
   try { _refreshMobileUx(); } catch (e) {}
 }
 
-// ===== IAP PROVIDER PATTERN (Phase G scaffold, 2026-04-28) =====
-// Single switch-point for swapping mock-IAP → Stripe / Apple / Google in Phase G.
-// Existing buy* functions still call mock paths inline (confirm + addGems);
-// migration to IAPProvider.purchase() can happen incrementally per function
-// without touching UI / state / spec — providers are pluggable behind one API.
+// ===== IAP PROVIDER PATTERN =====
+// 2026-04-28 (Phase G scaffold): pluggable abstraction over mock IAP.
+// 2026-05-02 (SPRINT 4 B1): replaced stripe/apple/google stubs with unified
+//   `revenuecat` provider. RevenueCat SDK (loaded in <head>) routes to:
+//     - Apple StoreKit on iOS (via Capacitor plugin)
+//     - Google Play Billing on Android (via Capacitor plugin)
+//     - Stripe Checkout on Web (built-in)
+//   under one API. Subscriptions, refunds, restore — all handled by RC.
 //
-// Phase G workflow:
-//   1. Set up Stripe/Apple/Google account
-//   2. Implement TODO bodies in IAP_PROVIDERS.{stripe,apple,google}
-//   3. Flip IAPProvider.ACTIVE
-//   4. Migrate buy* functions one at a time (e.g. purchaseGemPack first)
+// Mock provider remains for dev/portfolio: setIAPMode('mock') in console.
+//
+// Production switch:
+//   1. Fill RC_PUBLIC_KEY_WEB in <head> RevenueCat init module
+//   2. Configure products in App Store Connect / Play Console
+//   3. Configure RevenueCat dashboard offerings + webhook
+//   4. Flip IAPProvider.ACTIVE = 'revenuecat'
 //
 // All providers return Promise<bool> — true if charge succeeded, false if
-// user canceled or payment failed. UI handles re-render in either case.
+// user cancelled or payment failed. UI handles re-render in either case.
+
+// SPRINT 4 B1 — Centralized IAP product ID table. Source of truth for SKUs
+// crossing JS code, RevenueCat dashboard, App Store Connect, Play Console.
+// Per spec §3.3 — exact strings must match across all platforms or purchases
+// fail with "product not found".
+const IAP_PRODUCT_IDS = Object.freeze({
+  // Gem packs (6 SKUs, $0.99 → $99.99)
+  GEM_099:           'blocksworn.gems.099',
+  GEM_499:           'blocksworn.gems.499',
+  GEM_999:           'blocksworn.gems.999',
+  GEM_1999:          'blocksworn.gems.1999',
+  GEM_4999:          'blocksworn.gems.4999',
+  GEM_9999:          'blocksworn.gems.9999',
+  // Packs (one-time consumables)
+  TOWER_CLIMBER:     'blocksworn.pack.tower_climber',     // $0.99
+  STARTER:           'blocksworn.pack.starter',           // $2.99
+  MEGA_BUFF:         'blocksworn.pack.mega_buff',         // $1.99
+  RACE_BUNDLE_FN:    (race) => 'blocksworn.pack.race_bundle.' + race,    // $14.99 × 5 races
+  ENDGAME_KIT:       'blocksworn.pack.endgame_kit',       // $49.99
+  CHAPTER_UNLOCK_FN: (n)    => 'blocksworn.pack.chapter_unlock.' + n,    // $9.99 × 5 chapters
+  // Subscription + battle pass
+  SEASON_PASS_SUB:   'blocksworn.sub.season_pass',        // $4.49/mo
+  BATTLEPASS_SEASON: 'blocksworn.battlepass.season',      // $4.99 one-time
+});
+if (typeof window !== 'undefined') window.IAP_PRODUCT_IDS = IAP_PRODUCT_IDS;
 
 const IAPProvider = {
-  ACTIVE: 'mock',  // Phase G: 'stripe' / 'apple' / 'google'
+  // Default: 'mock' — preserves existing dev/portfolio behavior. Flip to
+  // 'revenuecat' AFTER setting RC_PUBLIC_KEY_WEB in the init module above
+  // and configuring App Store / Play / RC dashboard products.
+  // Runtime override: window.setIAPMode('mock'|'revenuecat') from dev console.
+  ACTIVE: 'mock',
 
   /**
    * Universal purchase entry. Item shape:
    *   { id, priceUSD, priceGems?, title, body }
-   * - id        SKU/product-id (must match StoreKit / Stripe / Play Console)
+   * - id        SKU/product-id (use IAP_PRODUCT_IDS constants where possible)
    * - priceUSD  USD float (e.g. 4.99)
-   * - priceGems optional gem-equivalent (player can pay in either)
-   * - title     "Premium Pack" — shown in confirm dialog header
-   * - body      multi-line summary — "10 cards, 1 T2 stone, ..."
+   * - priceGems optional gem-equivalent (player can pay in either currency)
+   * - title     "Premium Pack" — shown in confirm dialog header (mock only)
+   * - body      multi-line summary — "10 cards, 1 T2 stone, ..." (mock only)
    * @returns Promise<boolean>
    */
   async purchase(item) {
     const provider = IAP_PROVIDERS[this.ACTIVE];
-    if (!provider) throw new Error('IAP provider not configured: ' + this.ACTIVE);
+    if (!provider) {
+      console.warn('[IAP] provider not configured:', this.ACTIVE, '— falling back to mock');
+      return await IAP_PROVIDERS.mock.purchase(item);
+    }
     return await provider.purchase(item);
   },
 };
+
+// SPRINT 4 B1 — Runtime mode toggle for dev console. Persists per-session
+// only; refresh restores production default. Useful for local UI testing
+// without triggering real platform purchase sheets.
+function setIAPMode(mode) {
+  if (mode === 'mock' || mode === 'revenuecat') {
+    IAPProvider.ACTIVE = mode;
+    console.log('[IAP] mode set to:', mode);
+    return true;
+  }
+  console.warn('[IAP] invalid mode (use "mock" or "revenuecat"):', mode);
+  return false;
+}
+if (typeof window !== 'undefined') {
+  window.IAPProvider = IAPProvider;
+  window.setIAPMode = setIAPMode;
+}
 
 const IAP_PROVIDERS = {
   // ---- Mock (dev/portfolio): confirm() + immediate gem-grant simulation ----
@@ -33877,44 +34019,115 @@ const IAP_PROVIDERS = {
       return true;
     },
   },
-  // ---- Stripe Checkout (web release) — Phase G fills in body ----
-  stripe: {
+
+  // ---- 2026-05-02 SPRINT 4 B1 — RevenueCat (production) ----
+  // Routes to platform-native via:
+  //   - iOS: StoreKit (via @revenuecat/purchases-capacitor)
+  //   - Android: Play Billing (via @revenuecat/purchases-capacitor)
+  //   - Web: Stripe Checkout (built-in)
+  // Falls back to mock if SDK unavailable or RC not configured.
+  // Tries gem-affordable path first (in-game currency before real money).
+  revenuecat: {
     async purchase(item) {
-      // TODO Phase G:
-      //   const res = await fetch('/api/stripe/checkout', {
-      //     method: 'POST',
-      //     headers: { 'Content-Type': 'application/json' },
-      //     body: JSON.stringify({ sku: item.id, priceUSD: item.priceUSD })
-      //   });
-      //   const { sessionId, url } = await res.json();
-      //   window.location.href = url;  // Stripe-hosted checkout
-      //   // Webhook + return URL update server-side state, client polls.
-      console.warn('[IAP] Stripe not wired yet — using mock fallback');
-      return await IAP_PROVIDERS.mock.purchase(item);
-    },
-  },
-  // ---- Apple StoreKit (iOS via Cordova/Capacitor wrapper) ----
-  apple: {
-    async purchase(item) {
-      // TODO Phase G (cordova-plugin-purchase or @revenuecat/purchases-capacitor):
-      //   const product = await store.products(item.id);
-      //   const offer = product.getOffer();
-      //   const order = await offer.order();
-      //   return order.state === 'purchased';
-      console.warn('[IAP] Apple StoreKit not wired yet — using mock fallback');
-      return await IAP_PROVIDERS.mock.purchase(item);
-    },
-  },
-  // ---- Google Play Billing (Android native) ----
-  google: {
-    async purchase(item) {
-      // TODO Phase G: same plugin handles both Apple/Google.
-      //   Plugin auto-routes to BillingClient on Android, StoreKit on iOS.
-      console.warn('[IAP] Google Play not wired yet — using mock fallback');
-      return await IAP_PROVIDERS.mock.purchase(item);
+      // Pre-flight: SDK must be loaded AND configured. If not, fall back to
+      // mock so gameplay never breaks (e.g. CDN blocked, offline, dev mode).
+      if (!window.rcReady || typeof window.Purchases === 'undefined') {
+        console.warn('[IAP] RevenueCat not ready (rcReady=' + !!window.rcReady +
+                     ', SDK=' + (typeof window.Purchases !== 'undefined') +
+                     ') — falling back to mock');
+        return await IAP_PROVIDERS.mock.purchase(item);
+      }
+
+      // Track purchase intent BEFORE platform sheet appears.
+      try { logEvent && logEvent('purchase_started', { sku: item.id, priceUSD: item.priceUSD }); } catch (e) {}
+
+      // Try gem payment first if affordable (in-game currency over real money).
+      if (item.priceGems && (gems || 0) >= item.priceGems) {
+        try {
+          const ok = spendGems(item.priceGems);
+          if (ok) {
+            try { logEvent && logEvent('purchase_completed', { sku: item.id, currency: 'gems', amount: item.priceGems }); } catch (e) {}
+            return true;
+          }
+        } catch (e) { /* fall through to real IAP */ }
+      }
+
+      // Real IAP — fetch product and offer it via platform sheet.
+      try {
+        const offerings = await window.Purchases.getOfferings();
+        // Find package by identifier in default or current offering.
+        let pkg = null;
+        try {
+          pkg = offerings && offerings.all && offerings.all['default'] &&
+                offerings.all['default'].availablePackages &&
+                offerings.all['default'].availablePackages.find(p => p.identifier === item.id);
+        } catch (e) {}
+        if (!pkg && offerings && offerings.current) {
+          try {
+            pkg = offerings.current.availablePackages &&
+                  offerings.current.availablePackages.find(p => p.identifier === item.id);
+          } catch (e) {}
+        }
+        if (!pkg) {
+          console.warn('[IAP] product not found in RevenueCat offerings:', item.id);
+          try { logEvent && logEvent('purchase_failed', { sku: item.id, reason: 'product_not_found' }); } catch (e) {}
+          // Graceful fallback to mock — tester sees confirm() instead of error
+          return await IAP_PROVIDERS.mock.purchase(item);
+        }
+
+        // Trigger platform purchase sheet (Apple / Google / Stripe).
+        const result = await window.Purchases.purchasePackage(pkg);
+        const info = result && result.customerInfo;
+        const success = !!(
+          (info && info.activeSubscriptions && info.activeSubscriptions.includes(item.id)) ||
+          (info && info.nonSubscriptionTransactions &&
+           info.nonSubscriptionTransactions.some(t => t.productIdentifier === item.id))
+        );
+
+        if (success) {
+          try { logEvent && logEvent('purchase_completed', { sku: item.id, currency: 'usd', amount: item.priceUSD }); } catch (e) {}
+        } else {
+          try { logEvent && logEvent('purchase_cancelled', { sku: item.id }); } catch (e) {}
+        }
+        return success;
+      } catch (e) {
+        // userCancelled is expected — not an error.
+        if (e && (e.code === 'PURCHASE_CANCELLED' || e.userCancelled)) {
+          try { logEvent && logEvent('purchase_cancelled', { sku: item.id }); } catch (_) {}
+          return false;
+        }
+        console.warn('[IAP] RevenueCat purchase exception:', e);
+        try { logEvent && logEvent('purchase_failed', { sku: item.id, reason: (e && e.code) || 'unknown' }); } catch (_) {}
+        return false;
+      }
     },
   },
 };
+
+// SPRINT 4 B1 — Restore Purchases. Required by Apple/Google for prior-purchase
+// recovery (e.g. reinstall, new device). Wired to a Profile/Settings button
+// (see Sprint 4 B3). Idempotent — safe to call repeatedly.
+async function restorePurchases() {
+  if (!window.rcReady || typeof window.Purchases === 'undefined') {
+    try { flashText('Purchases unavailable in this environment', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  try {
+    const customerInfo = await window.Purchases.restorePurchases();
+    const subsCount = (customerInfo && customerInfo.activeSubscriptions && customerInfo.activeSubscriptions.length) || 0;
+    const nonSubCount = (customerInfo && customerInfo.nonSubscriptionTransactions && customerInfo.nonSubscriptionTransactions.length) || 0;
+    try { logEvent && logEvent('purchases_restored', { activeSubs: subsCount, nonSubs: nonSubCount }); } catch (e) {}
+    try { flashText('★ PURCHASES RESTORED', '#5DCA79'); } catch (e) {}
+    try { vibrate([100, 60, 200]); } catch (e) {}
+    return true;
+  } catch (e) {
+    console.warn('[IAP] restorePurchases failed:', e);
+    try { logEvent && logEvent('purchases_restore_failed', { reason: (e && e.code) || 'unknown' }); } catch (_) {}
+    try { flashText('Restore failed — try again', '#E85D4A'); } catch (_) {}
+    return false;
+  }
+}
+if (typeof window !== 'undefined') window.restorePurchases = restorePurchases;
 
 // ========= Screen + rendering =========
 // DEBT-010 (Task #1.7): Season entry removed from drawer; function retained for Phase 7+
