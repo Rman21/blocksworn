@@ -8652,6 +8652,51 @@ body.shop-locked [onclick*="goToShop"] {
 }
 .info-currency-row .label { color: #9A98A4; }
 .info-currency-row .value { color: #FFD700; font-weight: 700; }
+
+/* 2026-05-02 — SPRINT 4 B3: Account actions + legal footer (Profile screen).
+   Restore Purchases is the spec-required recovery path; Delete Account is
+   the GDPR erasure path. Legal links satisfy Apple/Google submission. */
+.info-account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 8px 12px;
+}
+.info-action-btn {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--a-text-primary, #F5F3EC);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.info-action-btn:hover { background: rgba(255, 255, 255, 0.10); border-color: rgba(255, 255, 255, 0.28); }
+.info-action-btn:active { transform: scale(0.98); }
+.info-action-danger {
+  color: #F0AAAA;
+  border-color: rgba(232, 93, 74, 0.40);
+}
+.info-action-danger:hover { background: rgba(232, 93, 74, 0.10); border-color: rgba(232, 93, 74, 0.60); }
+.info-legal-footer {
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: #6E6B7A;
+  padding: 10px 8px 4px;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.info-legal-footer a { color: #9A98A4; text-decoration: none; }
+.info-legal-footer a:hover { color: var(--a-gold-300, #FFD53D); text-decoration: underline; }
+.info-legal-sep { margin: 0 6px; color: #4E4B5A; }
+
 .info-lore-chapter {
   background: rgba(0,0,0,0.18);
   border-left: 3px solid var(--a-gold-500);
@@ -34882,6 +34927,55 @@ function _migrateChapter4UnlockForExistingFinishers() {
   } catch (e) { console.warn('Ch4 migration failed:', e); }
 }
 
+// 2026-05-02 — SPRINT 4 B3: GDPR account deletion. Two-step confirmation
+// (chained confirm() dialogs) before invoking the delete-user Cloud Function
+// + wiping local state. Surfaced via "Delete Account" button in Profile →
+// INFO tab. Per spec §9.6 + Privacy Policy §6.1.
+async function _confirmDeleteAccount() {
+  if (!confirm('Delete your account permanently?\n\nThis erases:\n' +
+               '• All save data (heroes, levels, currencies)\n' +
+               '• Purchase history\n' +
+               '• Friends + leaderboard entries\n' +
+               '• Any active subscription on this device\n\n' +
+               'This action CANNOT be undone.')) return false;
+  if (!confirm('Last chance. Tap CONFIRM to permanently delete this account.')) return false;
+  try {
+    // Server-side erase via Cloud Function (per spec §3.6 / §9.6).
+    // Auth user must be present — anonymous Auth resolves on init.
+    if (window.fb && window.fb.auth && window.fb.auth.currentUser) {
+      const uid = window.fb.auth.currentUser.uid;
+      try {
+        // The deleteUser callable function recursively wipes Firestore
+        // subcollections (purchases, refunds, gifts, friends) + Auth account.
+        // Requires firebase/functions to expose `deleteUser` as onCall.
+        // Falls back to direct Auth delete if Functions unavailable.
+        if (typeof firebase !== 'undefined' && firebase.functions) {
+          await firebase.functions().httpsCallable('deleteUser')({ uid });
+        } else {
+          // Firestore data won't fully purge without Cloud Function;
+          // user can email privacy@blocksworm.com to complete erasure.
+          console.warn('[deleteAccount] Cloud Function unavailable; Auth delete only');
+          await window.fb.auth.currentUser.delete();
+        }
+      } catch (e) {
+        console.warn('[deleteAccount] server erase failed:', e);
+        // Continue with local wipe regardless — user wants their device clean.
+      }
+    }
+    // Local wipe — every blocksworn_* localStorage key.
+    try { _wipeAllBlocksworn && _wipeAllBlocksworn(); } catch (e) {}
+    try { logEvent && logEvent('account_deleted', {}); } catch (e) {}
+    try { flashText('★ ACCOUNT DELETED', '#5DCA79'); } catch (e) {}
+    setTimeout(() => { try { location.reload(); } catch (e) {} }, 1800);
+    return true;
+  } catch (e) {
+    console.warn('[deleteAccount] failed:', e);
+    try { flashText('Delete failed — email privacy@blocksworm.com', '#E85D4A'); } catch (_) {}
+    return false;
+  }
+}
+if (typeof window !== 'undefined') window._confirmDeleteAccount = _confirmDeleteAccount;
+
 function resetProgress() {
   if (!confirm('Reset ALL progress? Essences, upgrades, and boss progress will be wiped.')) return;
   // Universal sweep — kills every blocksworn_* key in one shot, including ones
@@ -44073,6 +44167,23 @@ function renderInfoTabProfile(body) {
     html += `<div class="info-section-title">ACHIEVEMENTS</div>
       <div class="info-stat-row"><span class="label">Unlocked</span><span class="value">${unlocked} / ${TOWER_ACHIEVEMENTS.length}</span></div>`;
   }
+  // 2026-05-02 — SPRINT 4 B3: Account section. Restore Purchases (required by
+  // Apple/Google for prior-purchase recovery on reinstall) + Delete Account
+  // (GDPR right to erasure). Privacy Policy + ToS links per Apple/Google
+  // submission requirements.
+  html += `
+    <div class="info-section-title">ACCOUNT</div>
+    <div class="info-account-actions">
+      <button class="info-action-btn" onclick="restorePurchases()" type="button">↻ Restore Purchases</button>
+      <button class="info-action-btn info-action-danger" onclick="_confirmDeleteAccount()" type="button">⚠ Delete Account</button>
+    </div>
+    <div class="info-legal-footer">
+      <a href="https://www.blocksworm.com/privacy-policy" target="_blank" rel="noopener">Privacy Policy</a>
+      <span class="info-legal-sep">·</span>
+      <a href="https://www.blocksworm.com/terms" target="_blank" rel="noopener">Terms of Service</a>
+      <span class="info-legal-sep">·</span>
+      <a href="mailto:support@blocksworm.com">Support</a>
+    </div>`;
   body.innerHTML = html;
 }
 
