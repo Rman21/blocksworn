@@ -3909,6 +3909,21 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
   margin-right: 6px;
 }
 
+/* SPRINT.1 §4.8 — tier-cap-reached styling. When applied to hero-detail
+   panel: level-up button visually softens (50% opacity), ascend button
+   pulses with purple glow to draw the eye toward ascension as the only
+   way to push level cap higher. Toggled via JS in renderHeroDetailLevel. */
+.tier-cap-reached .detail-levelup-btn {
+  opacity: 0.5;
+}
+.tier-cap-reached .detail-ascend-btn {
+  animation: ascend-glow 2s ease-in-out infinite;
+}
+@keyframes ascend-glow {
+  0%, 100% { box-shadow: 0 0 0 0   rgba(168, 138, 200, 0.4); }
+  50%      { box-shadow: 0 0 16px 4px rgba(168, 138, 200, 0.8); }
+}
+
 /* ASCEND TO T2 separate row (cost chips below action row) */
 .detail-ascend-btn {
   width: 100%;
@@ -19415,8 +19430,26 @@ function getEffectiveLevelMax(heroId) {
   if (isHeroAscended(heroId))    return BALANCE.heroLevel.maxT2;
   return BALANCE.heroLevel.maxT1;
 }
+// SPRINT.1 §4.2 — true if hero is at their current tier cap (would benefit
+// from ascending). Used by hero detail UI to show ASCEND affordance + by
+// analytics to fire `tier_cap_reached` once per cap-hit.
+function isAtTierCap(heroId) {
+  const lvl = (typeof getHeroLevel === 'function') ? getHeroLevel(heroId) : 1;
+  return lvl >= getEffectiveLevelMax(heroId);
+}
+// SPRINT.1 §4.2 — returns the NEXT tier's max if hero can ascend further,
+// else null. Used by levelUpHero flash text and ASCEND button hints.
+function getNextTierMax(heroId) {
+  const cur = getEffectiveLevelMax(heroId);
+  if (cur === BALANCE.heroLevel.maxT1) return BALANCE.heroLevel.maxT2;
+  if (cur === BALANCE.heroLevel.maxT2) return BALANCE.heroLevel.maxT3;
+  if (cur === BALANCE.heroLevel.maxT3) return BALANCE.heroLevel.maxMyth;
+  return null;  // already at Mythic cap — no further ascension
+}
 if (typeof window !== 'undefined') {
   window.getEffectiveLevelMax = getEffectiveLevelMax;
+  window.isAtTierCap = isAtTierCap;
+  window.getNextTierMax = getNextTierMax;
 }
 function getMythicHeroId() {
   return (towerState && towerState.mythicHero) || null;
@@ -20765,6 +20798,14 @@ function _dismissHeliotronAftermath() {
       try { _heliotronAftermathDismissCb(); } catch (e) { console.warn('Heliotron aftermath dismiss callback failed:', e); }
       _heliotronAftermathDismissCb = null;
     }
+    // SPRINT.1 §4.11 — Endgame Kit eligibility celebration. Fires 3s after
+    // cinematic dismissal so the chapter-2-finale moment lands first. If
+    // player has 5+ heroes at LV10 already, celebration pops; else it
+    // silently no-ops (will fire from levelUpHero when 5th LV10 hits).
+    setTimeout(() => {
+      try { if (typeof _maybeShowEndgameKitEligibilityCelebration === 'function') _maybeShowEndgameKitEligibilityCelebration(); }
+      catch (e) {}
+    }, 3000);
   }, 620);
 }
 
@@ -22230,10 +22271,18 @@ function renderShopPacks() {
 
   // ----- Phase D — Bundles (Squad / Rapid / Endgame Kit + Race Launch ×5) -----
   const purchasedRaces = (typeof _getPurchasedRaceBundles === 'function') ? _getPurchasedRaceBundles() : [];
-  // SHOP.5 — Endgame Kit visibility gated on eligibility (Ch2 cleared + 5 LV10 heroes).
-  // Hidden entirely for new players to avoid whale-bait UX.
-  const endgameEligible = (typeof _isEndgameKitEligible === 'function') ? _isEndgameKitEligible() : true;
-  const endgameAvail = (typeof _isEndgameKitAvailableThisSeason === 'function') ? _isEndgameKitAvailableThisSeason() : true;
+  // SPRINT.1 §4.10 — Endgame Kit 3-state visibility:
+  //   eligible        → fully clickable kit tile
+  //   reason=cooldown → "(claimed)" disabled (whale knows it's coming back)
+  //   else            → hidden (avoids "I want it, can't have it" frustration)
+  const endgameElig = (typeof getEndgameKitEligibility === 'function')
+    ? getEndgameKitEligibility()
+    : { eligible: true, reason: null, blockers: [], lv10Count: 0 };
+  // Analytics: shop-section view fires `endgame_kit_eligibility_blocked_view`
+  // for funnel signal when player sees the shop while not eligible.
+  if (!endgameElig.eligible) {
+    try { logEvent(EVT.shop_section_viewed, { section: 'endgame_kit_blocked', blocker: endgameElig.reason }); } catch (e) {}
+  }
   const squadBundleHtml =
     '<button class="shop-bundle shop-bundle-squad" onclick="buySquadPowerPack()">' +
       '<div class="shop-bundle-title">⚔ SQUAD POWER PACK</div>' +
@@ -22246,13 +22295,26 @@ function renderShopPacks() {
       '<div class="shop-bundle-contents">' + RAPID_ASCENSION_T2 + ' ⚡ T2 · ' + RAPID_ASCENSION_T3 + ' 💠 T3 · ' + RAPID_ASCENSION_CARDS + ' cards · ' + (RAPID_ASCENSION_ESSENCE_PER * 5) + ' shards · ' + RAPID_ASCENSION_GOLD + '💰</div>' +
       '<div class="shop-bundle-cost">$' + RAPID_ASCENSION_USD.toFixed(2) + ' / ' + RAPID_ASCENSION_GEMS + '💎</div>' +
     '</button>';
-  const endgameBundleHtml = endgameEligible
-    ? '<button class="shop-bundle shop-bundle-endgame" ' + (endgameAvail ? '' : 'disabled') + ' onclick="buyEndgameKit()">' +
-        '<div class="shop-bundle-title">👑 ULTIMATE ASCENSION KIT' + (endgameAvail ? '' : ' (claimed)') + '</div>' +
+  let endgameBundleHtml = '';
+  if (endgameElig.eligible) {
+    // Eligible — full clickable tile
+    endgameBundleHtml =
+      '<button class="shop-bundle shop-bundle-endgame" onclick="buyEndgameKit()">' +
+        '<div class="shop-bundle-title">👑 ULTIMATE ASCENSION KIT</div>' +
         '<div class="shop-bundle-contents">' + ENDGAME_KIT_T3 + ' 💠 T3 · ' + ENDGAME_KIT_T2 + ' ⚡ T2 · ' + ENDGAME_KIT_CARDS + ' cards · ' + ENDGAME_KIT_HEARTS + ' ♥ · BP premium · ARCHITECT badge</div>' +
         '<div class="shop-bundle-cost">$' + ENDGAME_KIT_USD.toFixed(2) + ' / ' + ENDGAME_KIT_GEMS + '💎</div>' +
-      '</button>'
-    : '';  // SHOP.5 — hide entirely for ineligible players
+      '</button>';
+  } else if (endgameElig.reason === 'cooldown') {
+    // Cooldown — keep visible as "(claimed)" disabled so whale knows it's coming back
+    endgameBundleHtml =
+      '<button class="shop-bundle shop-bundle-endgame" disabled>' +
+        '<div class="shop-bundle-title">👑 ULTIMATE ASCENSION KIT (claimed)</div>' +
+        '<div class="shop-bundle-contents">Available again next season</div>' +
+      '</button>';
+  } else {
+    // chapter / levels blocker — hide entirely (no whale-bait for ineligibles)
+    endgameBundleHtml = '';
+  }
   // SHOP.6 — Race Bundle now hides for races already F2P-unlocked (no upside
   // to bundle if player has heroes via play) AND drops to $14.99. Race-banner
   // cosmetic mention added to desc as the new exclusive perk.
@@ -24157,7 +24219,10 @@ function loadHeroLevelsFromStorage() {
     if (!raw) { heroLevels = {}; return; }
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') {
-      // Sanitize: only keep valid numeric levels within bounds
+      // Sanitize: only keep valid numeric levels within bounds (absolute Mythic cap)
+      // SPRINT.1 §4.7 — tier-aware migration is a SEPARATE step, run AFTER
+      // loadTowerState() so isHeroAscended/T3/Mythic predicates work.
+      // See _migrateHeroLevelsToTierCaps() below.
       const clean = {};
       for (const id in parsed) {
         const v = Math.floor(Number(parsed[id]));
@@ -24168,6 +24233,41 @@ function loadHeroLevelsFromStorage() {
       heroLevels = {};
     }
   } catch (e) { console.warn('loadHeroLevelsFromStorage failed:', e); heroLevels = {}; }
+}
+
+// SPRINT.1 §4.7 — Tier-aware save migration. Clamps each saved hero level
+// to its current tier's effective cap. Runs ONCE on boot AFTER loadTowerState
+// so ascension predicates (isHeroMythic / isHeroAscendedT3 / isHeroAscended)
+// have valid state to read. Without this ordering, all heroes would be
+// treated as T1 → over-aggressive clamp (existing T2/T3 testers all dropped
+// to LV10).
+//
+// No gold refund per spec §3.3 — over-spent gold is sunk cost. Console log
+// + analytics event surface the clamp for support / patch notes.
+function _migrateHeroLevelsToTierCaps() {
+  if (typeof heroLevels !== 'object' || !heroLevels) return;
+  let migrationDirty = false;
+  const migrationLog = [];
+  for (const id in heroLevels) {
+    const v = heroLevels[id] | 0;
+    let effective;
+    try { effective = getEffectiveLevelMax(id); }
+    catch (e) { effective = BALANCE.heroLevel.maxMyth; }  // fallback to absolute ceiling
+    if (v > effective) {
+      migrationLog.push(id + ': ' + v + '→' + effective);
+      heroLevels[id] = effective;
+      migrationDirty = true;
+    }
+  }
+  if (migrationDirty) {
+    console.log('[BAL.1 MIGRATION] Clamped ' + migrationLog.length +
+                ' hero(es) to tier cap:', migrationLog.join(', '));
+    try { saveHeroLevelsToStorage(); } catch (e) { console.warn('migration save failed:', e); }
+    try { logEvent(EVT.hero_leveled, { kind: 'migration_clamp', count: migrationLog.length }); } catch (e) {}
+  }
+}
+if (typeof window !== 'undefined') {
+  window._migrateHeroLevelsToTierCaps = _migrateHeroLevelsToTierCaps;
 }
 
 function getHeroLevel(heroId) {
@@ -24267,9 +24367,24 @@ function levelUpHero(heroId) {
   const lvl = getHeroLevel(heroId);
   const effMax = getEffectiveLevelMax(heroId);
   if (lvl >= effMax) {
-    // BAL.1 — at tier cap but not Mythic ceiling = ascend prompt, not "MAX".
-    const isMythCap = effMax >= BALANCE.heroLevel.maxMyth;
-    try { flashText(isMythCap ? '⭐ MAX LEVEL REACHED' : '✦ ASCEND TO RAISE CAP', '#A8A5B8'); } catch(e){}
+    // SPRINT.1 §4.5 — level-specific ASCEND hint via getNextTierMax.
+    // Points player toward the literal next milestone (LV20 / LV30 / LV40).
+    const nextMax = getNextTierMax(heroId);
+    if (nextMax) {
+      try { flashText('⚡ ASCEND TO REACH LV' + nextMax, '#A88AC8'); } catch(e){}
+    } else {
+      try { flashText('⭐ MYTHIC MAX LEVEL', '#FFD53D'); } catch(e){}
+    }
+    // SPRINT.1 §5 — tier_cap_reached analytics. Fires on every cap-hit attempt
+    // (player education + churn signal — repeated taps = "I want this hero
+    // ascended"). Cheap event, no debounce needed.
+    try {
+      const tier = (effMax === BALANCE.heroLevel.maxT1) ? 'T1'
+                 : (effMax === BALANCE.heroLevel.maxT2) ? 'T2'
+                 : (effMax === BALANCE.heroLevel.maxT3) ? 'T3'
+                 : 'Mythic';
+      logEvent(EVT.hero_leveled, { kind: 'tier_cap_reached', heroId, tier, level: lvl });
+    } catch (e) {}
     return false;
   }
   const cost = getLevelUpCost(heroId);
@@ -24293,6 +24408,10 @@ function levelUpHero(heroId) {
   try { if (typeof trackMissionEvent === 'function') trackMissionEvent('hero_leveled'); } catch(e){}
   // V3.0 Phase 7 Block 7.5: Season XP reward (+50 per level-up)
   try { if (typeof addSeasonXP === 'function') addSeasonXP(50); } catch(e){}
+  // SPRINT.1 §4.11 — Endgame Kit eligibility check on each successful level-up.
+  // Idempotent — only fires the FIRST time conditions become eligible.
+  // Catches the "5th hero hits LV10" moment specifically.
+  try { if (typeof _maybeShowEndgameKitEligibilityCelebration === 'function') _maybeShowEndgameKitEligibilityCelebration(); } catch (e) {}
   return true;
 }
 
@@ -27127,6 +27246,10 @@ function loadTowerState() {
   } catch (e) { console.warn('loadTowerState:', e); }
 }
 loadTowerState();
+// SPRINT.1 §4.7 — tier-aware migration NOW (after towerState loaded so
+// ascension predicates work). Critical ordering — without this, all heroes
+// would be over-clamped to T1 max (LV10).
+try { _migrateHeroLevelsToTierCaps(); } catch (e) { console.warn('hero levels migration failed:', e); }
 // 2026-04-29 — Race-Pure Challenge cleared set (Player Education Stage 15).
 loadRacePureCleared();
 // Apply cosmetic frames on initial load (re-applied on title change too).
@@ -29640,26 +29763,107 @@ function _markRaceBundlePurchased(race) {
 //   2. 5+ heroes at LV10 (proof of ongoing engagement)
 //   3. Not yet purchased this season (existing cooldown)
 // Hidden for new players entirely — no whale-bait shown to F2P early game.
-function _isEndgameKitEligible() {
+// SPRINT.1 §4.9 — Endgame Kit eligibility constants
+const ENDGAME_KIT_MIN_LV10_HEROES        = 5;
+const ENDGAME_KIT_ELIGIBILITY_SEEN_KEY   = 'blocksworn_endgame_kit_eligibility_seen';
+
+// SPRINT.1 §4.9 — Rich eligibility check. Returns:
+//   { eligible: bool, reason: 'chapter'|'levels'|'cooldown'|null, blockers: [...], lv10Count }
+// Used by:
+//   - 3-state shop render (eligible/cooldown→claimed/ineligible→hidden)
+//   - _maybeShowEndgameKitEligibilityCelebration (one-shot when blockers clear)
+//   - endgame_kit_eligibility_blocked_view analytics (funnel signal)
+function getEndgameKitEligibility() {
+  const blockers = [];
+  // Gate 1: Chapter 2 done — uses generic hasCompletedChapter(2) helper added
+  // in Phase 2 REW.2. chapter3Unlocked (set on HELIOTRON defeat) is the same
+  // signal but the generic helper is preferred for symmetry with Ch3/4/5.
+  let ch2Done = false;
+  try { ch2Done = (typeof hasCompletedChapter === 'function') && hasCompletedChapter(2); } catch (e) {}
+  if (!ch2Done) blockers.push('Defeat HELIOTRON (Chapter 2 finale)');
+  // Gate 2: 5+ heroes at LV10 (= ready for T2 ascension wave)
+  let lv10Count = 0;
   try {
-    if (typeof hasCompletedChapter !== 'function' || !hasCompletedChapter(2)) return false;
-    if (typeof heroLevels !== 'object' || !heroLevels) return false;
-    const lv10Count = Object.values(heroLevels).filter(v => (v | 0) >= 10).length;
-    if (lv10Count < 5) return false;
-    return true;
-  } catch (e) { return false; }
-}
-function _isEndgameKitAvailableThisSeason() {
-  // Cooldown gate (legacy — 1 per season). Composed with eligibility gate
-  // so a player who's eligible but already bought sees "claimed", and a
-  // player who's not eligible doesn't see the kit at all (UI render branch).
+    if (typeof HERO_ROSTER !== 'undefined' && Array.isArray(HERO_ROSTER)) {
+      for (const hero of HERO_ROSTER) {
+        if (!hero || !hero.unlocked) continue;
+        const lvl = getHeroLevel(hero.id);
+        if (lvl >= 10) lv10Count++;
+      }
+    }
+  } catch (e) {}
+  if (lv10Count < ENDGAME_KIT_MIN_LV10_HEROES) {
+    const need = ENDGAME_KIT_MIN_LV10_HEROES - lv10Count;
+    blockers.push('Reach LV10 with ' + need + ' more hero' + (need === 1 ? '' : 'es') +
+                  ' (' + lv10Count + '/' + ENDGAME_KIT_MIN_LV10_HEROES + ')');
+  }
+  // Gate 3: seasonal cooldown (legacy — 1 per season)
+  let seasonalAvailable = true;
   try {
     const lastSeason = parseInt(localStorage.getItem(ENDGAME_KIT_KEY) || '0', 10);
-    return lastSeason !== (seasonState.seasonId || 1);
-  } catch (e) { return true; }
+    seasonalAvailable = lastSeason !== ((seasonState && seasonState.seasonId) || 1);
+  } catch (e) {}
+  if (!seasonalAvailable) blockers.push('Already purchased this season (resets next season)');
+
+  const eligible = blockers.length === 0;
+  let reason = null;
+  if (!eligible) {
+    if (!ch2Done) reason = 'chapter';
+    else if (lv10Count < ENDGAME_KIT_MIN_LV10_HEROES) reason = 'levels';
+    else reason = 'cooldown';
+  }
+  return { eligible, reason, blockers, lv10Count };
+}
+
+// SPRINT.1 §4.9 — Backward-compat boolean wrapper for prior call-sites.
+// _isEndgameKitEligible (Phase 4 SHOP.5) → returns true only when blockers
+// list is empty. _isEndgameKitAvailableThisSeason → same now (cooldown is
+// just one of the blockers, no longer a separate boolean check).
+function _isEndgameKitEligible() {
+  return getEndgameKitEligibility().eligible;
+}
+function _isEndgameKitAvailableThisSeason() {
+  return getEndgameKitEligibility().eligible;
 }
 if (typeof window !== 'undefined') {
+  window.getEndgameKitEligibility = getEndgameKitEligibility;
   window._isEndgameKitEligible = _isEndgameKitEligible;
+}
+
+// SPRINT.1 §4.11 — Celebration banner the FIRST time player becomes
+// eligible for Endgame Kit. One-shot per save via _ELIGIBILITY_SEEN_KEY.
+// Reuses _showAntiFomoPopup for visual consistency. Wired from 3 hooks:
+//   1. HELIOTRON aftermath dismissal (Ch2 finale clears Gate 1)
+//   2. levelUpHero post-success (incremental Gate 2 progression)
+//   3. Boot path (catches saves where eligibility predates this code)
+function _maybeShowEndgameKitEligibilityCelebration() {
+  try {
+    const elig = getEndgameKitEligibility();
+    if (!elig.eligible) return false;
+    if (localStorage.getItem(ENDGAME_KIT_ELIGIBILITY_SEEN_KEY) === 'true') return false;
+    localStorage.setItem(ENDGAME_KIT_ELIGIBILITY_SEEN_KEY, 'true');
+    if (typeof _showAntiFomoPopup === 'function') {
+      _showAntiFomoPopup({
+        title: '👑 ULTIMATE ASCENSION KIT UNLOCKED',
+        body:
+          '<div style="font-family:var(--a-display-font);font-size:13px;line-height:1.6;color:#E8E5F5;text-align:center;">' +
+            '<p style="margin:0 0 12px;">You\'ve proven yourself.</p>' +
+            '<p style="margin:0 0 12px;">The <strong style="color:#FFD53D">Ultimate Ascension Kit</strong> is now available in the Bazaar.</p>' +
+            '<p style="margin:0 0 8px;font-size:11px;color:#A8A5B8;">' + ENDGAME_KIT_T3 + ' T3 Stones · ' + ENDGAME_KIT_T2 + ' T2 Stones · ' + ENDGAME_KIT_CARDS + ' Hero Cards · ' + ENDGAME_KIT_HEARTS + ' Hearts · ARCHITECT badge</p>' +
+            '<p style="margin:0;font-size:11px;color:#A8A5B8;">Once per season — careful planning rewards.</p>' +
+          '</div>',
+        ctaLabel: 'VIEW IN SHOP',
+        ctaAction: function () { try { goToShop(); } catch (e) {} },
+        glow: '#FFD53D',
+        kind: 'endgame_kit_eligible',
+      });
+    }
+    try { logEvent(EVT.shop_section_viewed, { section: 'endgame_kit_eligibility_unlocked' }); } catch (e) {}
+    return true;
+  } catch (e) { console.warn('[SHOP.5] eligibility celebration:', e); return false; }
+}
+if (typeof window !== 'undefined') {
+  window._maybeShowEndgameKitEligibilityCelebration = _maybeShowEndgameKitEligibilityCelebration;
 }
 
 // ----- D.1: Race Launch Bundle -----
@@ -31241,6 +31445,14 @@ _ensureFirstLaunchDate();
 // win and reopens after the cooldown — without this hook, unlock would
 // only fire on Lich-aftermath dismissal which has already happened.
 try { _evaluateShopUnlockOnLaunch(); } catch (e) {}
+// SPRINT.1 §4.11 — Boot eligibility check for saves where Endgame Kit
+// became eligible BEFORE this code shipped (e.g., existing testers who
+// already cleared HELIOTRON + 5 LV10 heroes). 5s delay so player sees
+// home screen / FTUE first; celebration lands when they're settled.
+setTimeout(function () {
+  try { if (typeof _maybeShowEndgameKitEligibilityCelebration === 'function') _maybeShowEndgameKitEligibilityCelebration(); }
+  catch (e) {}
+}, 5000);
 
 // ===== PROFILE PAGE — P0 Foundation (2026-04-28) =====
 // Per BLOCKSWORN_PROFILE_PAGE.md spec. State + BackendProvider abstraction +
@@ -51776,6 +51988,17 @@ function renderHeroDetailLevel(hero) {
   const atMax = lvl >= effMax;
   const isMythCap = effMax >= BALANCE.heroLevel.maxMyth;
   const cost = getLevelUpCost(heroId);
+  // SPRINT.1 §4.8 — toggle .tier-cap-reached class on hero detail modal.
+  // Drives CSS softening of LEVEL UP button + glow on ASCEND button when
+  // hero is at tier cap (and could ascend further). At Mythic ceiling the
+  // class is NOT applied — there's no further ascension to nudge.
+  try {
+    const detailModal = document.getElementById('heroDetailModal');
+    if (detailModal) {
+      if (atMax && !isMythCap) detailModal.classList.add('tier-cap-reached');
+      else                     detailModal.classList.remove('tier-cap-reached');
+    }
+  } catch (e) {}
   // Level value + progress bar — bound to current tier's cap, not absolute Mythic.
   const valEl = document.getElementById('detailLevelValue');
   if (valEl) valEl.textContent = `${lvl} / ${effMax}`;
