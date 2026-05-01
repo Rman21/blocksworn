@@ -16405,8 +16405,48 @@ button.season-tier-claim:active {
              permanent entry point. Visibility gated by updateSeasonButtonVisibility()
              during FTUE (matches Tower/Daily button gating). -->
         <button class="a-btn-ghost" id="seasonBtn" onclick="aCloseHubDrawer(); goToSeason();">✦ BATTLE PASS</button>
+        <!-- 2026-05-02 — Settings entry: opens main-menu Settings modal with
+             Audio + Reset All Progression. Distinct from in-combat ⚙ pause
+             menu (which has Profile/Codex/Audio/Help/Exit Battle). -->
+        <button class="a-btn-ghost" onclick="aCloseHubDrawer(); openMainMenuSettings();">⚙ SETTINGS</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- 2026-05-02 — Main-menu Settings modal. Surfaced from burger drawer.
+     Reuses .settings-menu CSS classes (defined alongside the in-combat
+     pause menu). Items: Audio Settings (delegates to existing
+     openAudioSettings()), Reset All Progression (calls resetProgress()). -->
+<div class="settings-menu-overlay" id="mainMenuSettingsOverlay" onclick="closeMainMenuSettings()"></div>
+<div class="settings-menu" id="mainMenuSettingsMenu" aria-hidden="true" role="dialog" aria-labelledby="mainMenuSettingsTitle">
+  <div class="settings-menu-header">
+    <span id="mainMenuSettingsTitle" class="settings-menu-header-title">⚙ Settings</span>
+    <button type="button" class="settings-menu-close" onclick="closeMainMenuSettings()" aria-label="Close settings">×</button>
+  </div>
+  <div class="settings-menu-list">
+    <button type="button" class="settings-menu-item" onclick="closeMainMenuSettings(); openAudioSettings();">
+      <span class="settings-menu-item-icon" aria-hidden="true">🔊</span>
+      <div class="settings-menu-item-content">
+        <div class="settings-menu-item-label">Audio</div>
+        <div class="settings-menu-item-description">Mute / unmute sound</div>
+      </div>
+    </button>
+    <button type="button" class="settings-menu-item" onclick="closeMainMenuSettings(); _restorePurchasesFromSettings();">
+      <span class="settings-menu-item-icon" aria-hidden="true">↻</span>
+      <div class="settings-menu-item-content">
+        <div class="settings-menu-item-label">Restore Purchases</div>
+        <div class="settings-menu-item-description">Recover prior purchases on this device</div>
+      </div>
+    </button>
+    <div class="settings-menu-divider" role="separator"></div>
+    <button type="button" class="settings-menu-item danger" onclick="closeMainMenuSettings(); _resetAllProgressionFromSettings();">
+      <span class="settings-menu-item-icon" aria-hidden="true">⚠</span>
+      <div class="settings-menu-item-content">
+        <div class="settings-menu-item-label">Reset All Progression</div>
+        <div class="settings-menu-item-description">Wipe heroes, currencies, save data — irreversible</div>
+      </div>
+    </button>
   </div>
 </div>
 
@@ -43709,6 +43749,58 @@ function openAudioSettings() {
 function closeAudioSettings() {
   const modal = document.getElementById('audioSettingsModal');
   if (modal) modal.setAttribute('aria-hidden', 'true');
+}
+
+// 2026-05-02 — Main-menu Settings open/close + handlers. Distinct from the
+// in-combat ⚙ pause menu (which uses #settingsMenu via openSettings()). The
+// hub-drawer SETTINGS button calls openMainMenuSettings() — opens
+// #mainMenuSettingsMenu modal containing: Audio, Restore Purchases, Reset
+// All Progression. Reuses .settings-menu* CSS classes for visual parity.
+function openMainMenuSettings() {
+  const overlay = document.getElementById('mainMenuSettingsOverlay');
+  const menu = document.getElementById('mainMenuSettingsMenu');
+  if (overlay) overlay.classList.add('show');
+  if (menu) menu.setAttribute('aria-hidden', 'false');
+  try { logEvent && logEvent('settings_opened', { from: 'main_menu' }); } catch (e) {}
+}
+function closeMainMenuSettings() {
+  const overlay = document.getElementById('mainMenuSettingsOverlay');
+  const menu = document.getElementById('mainMenuSettingsMenu');
+  if (overlay) overlay.classList.remove('show');
+  if (menu) menu.setAttribute('aria-hidden', 'true');
+}
+// Restore Purchases shim — Sprint 4 B1 exposed restorePurchases() on window.
+// Wrapped so non-browser stub branches (no IAPProvider) don't crash.
+function _restorePurchasesFromSettings() {
+  try {
+    if (typeof restorePurchases === 'function') {
+      Promise.resolve(restorePurchases()).catch(e => console.warn('restorePurchases:', e));
+    } else {
+      try { flashText('Purchases unavailable in this environment', '#A8A5B8'); } catch (e) {}
+    }
+  } catch (e) { console.warn('_restorePurchasesFromSettings failed:', e); }
+}
+// Reset All Progression — wraps existing resetProgress() so the analytics
+// signal differentiates "reset from settings" vs other call sites. The
+// resetProgress() function itself shows the native confirm() dialog.
+function _resetAllProgressionFromSettings() {
+  try { logEvent && logEvent('settings_reset_invoked', { from: 'main_menu' }); } catch (e) {}
+  try {
+    if (typeof resetProgress === 'function') {
+      resetProgress();
+    } else {
+      console.warn('resetProgress not available');
+    }
+  } catch (e) { console.warn('_resetAllProgressionFromSettings failed:', e); }
+}
+if (typeof window !== 'undefined') {
+  window.openMainMenuSettings = openMainMenuSettings;
+  window.closeMainMenuSettings = closeMainMenuSettings;
+  window._restorePurchasesFromSettings = _restorePurchasesFromSettings;
+  window._resetAllProgressionFromSettings = _resetAllProgressionFromSettings;
+  // Also expose resetProgress for direct reuse (was already callable inline
+  // from #infoModal button at line ~17499; this makes it discoverable).
+  if (typeof resetProgress === 'function') window.resetProgress = resetProgress;
 }
 
 // Help — pure stub modal (Q4: polish pass at the end fills it in).
