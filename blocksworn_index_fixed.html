@@ -17762,7 +17762,12 @@ const MONETIZATION = Object.freeze({
     // banner cosmetic (not buyable separately). Conditional hide when race
     // already F2P-unlocked.
     raceBundle: Object.freeze({ usd: 14.99, gems: 1500, cardsPerHero: 1,
-                                essence: 10, captainLv: 5, banner: 'race_banner' })
+                                essence: 10, captainLv: 5, banner: 'race_banner' }),
+    // Phase 9 — Chapter Unlock Pack (PRELAUNCH §8.3 T+0 monetization wedge).
+    // Available 3-day window after each chapter drops via CONTENT.3 engine.
+    // Designed to ride emotional spike of new content launch.
+    chapterUnlock: Object.freeze({ usd: 9.99, gems: 1100, cards: 50, t2Stones: 5,
+                                   gold: 1000, durationMs: 3 * 24 * 60 * 60 * 1000 })
   }),
   pity: Object.freeze({
     threshold: 30, premiumDropBoost: 1.30,
@@ -18274,11 +18279,26 @@ function showPatchNotesModal(drop, isPreview) {
   const subtitle = isPreview
     ? (daysLeft > 0 ? '✦ COMING IN ' + daysLeft + ' DAY' + (daysLeft === 1 ? '' : 'S') : '✦ AVAILABLE NOW')
     : '✦ NEW CONTENT UNLOCKED';
+  // Phase 9 — Chapter Unlock Pack tile (T+0 to T+3 window for chapter drops).
+  // Rides the emotional spike of new content launch per spec §8.3.
+  let chapterPackTile = '';
+  if (!isPreview && drop.type === 'chapter' &&
+      (typeof _isChapterUnlockPackEligible === 'function') &&
+      _isChapterUnlockPackEligible(drop.id)) {
+    const pkCfg = MONETIZATION.packs.chapterUnlock;
+    chapterPackTile =
+      '<button onclick="buyChapterUnlockPack(\'' + drop.id + '\')" style="display:block;width:100%;padding:14px;margin-bottom:14px;font-size:13px;font-weight:700;letter-spacing:1.5px;background:linear-gradient(135deg,rgba(255,170,0,0.22),rgba(255,213,61,0.14));color:#FFD53D;border:1px solid #FFAA00;border-radius:10px;cursor:pointer;text-align:left">' +
+        '<div style="font-size:13px;font-weight:800;letter-spacing:2px;color:#FFAA00;margin-bottom:4px">★ CHAPTER UNLOCK PACK · 3 DAYS</div>' +
+        '<div style="font-size:11px;color:#C8C3D8;line-height:1.4">' + pkCfg.cards + ' cards · ' + pkCfg.t2Stones + ' T2 stones · ' + pkCfg.gold + '💰 + 24h XP boost</div>' +
+        '<div style="font-size:14px;font-weight:800;color:#FFD53D;margin-top:6px">$' + pkCfg.usd.toFixed(2) + '</div>' +
+      '</button>';
+  }
   host.innerHTML =
     '<div style="background:#15101F;border:1px solid #FFD53D;border-radius:14px;padding:24px 24px;max-width:380px;width:88%;box-shadow:0 0 40px rgba(255,213,61,0.30);text-align:left">' +
       '<div style="font-size:11px;color:#A8A5B8;letter-spacing:3px;margin-bottom:6px">' + subtitle + '</div>' +
       '<div style="font-size:20px;font-weight:800;color:#FFD53D;letter-spacing:1.5px;margin-bottom:14px">' + info.title + '</div>' +
       '<div style="font-size:13px;color:#C8C3D8;line-height:1.55;margin-bottom:18px">' + info.desc + '</div>' +
+      chapterPackTile +
       (isPreview ? '' :
         '<div style="font-size:11px;color:#A8A5B8;letter-spacing:1.5px;margin-bottom:14px">Look for the new content on the world map / shop / Tower screen.</div>') +
       '<button id="patchNotesClose" style="width:100%;padding:12px;font-size:13px;font-weight:700;letter-spacing:2px;background:linear-gradient(180deg,#FFD53D,#E8A800);color:#1B1228;border:none;border-radius:10px;cursor:pointer">' +
@@ -18289,6 +18309,90 @@ function showPatchNotesModal(drop, isPreview) {
     if (host && host.parentNode) host.parentNode.removeChild(host);
   };
   try { logEvent(EVT.content_unlocked, { id: drop.id, type: drop.type, isPreview: !!isPreview }); } catch (e) {}
+}
+
+// Phase 9 — Chapter Unlock Pack (PRELAUNCH §8.3 monetization wedge).
+// Eligible for 3 days after a chapter drops; one-shot per chapter.
+const CHAPTER_UNLOCK_PACK_KEY = 'blocksworn_chapter_unlock_pack_purchased';
+
+function _getPurchasedChapterPacks() {
+  try {
+    const raw = localStorage.getItem(CHAPTER_UNLOCK_PACK_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === 'object') ? parsed : {};
+  } catch (e) { return {}; }
+}
+function _markChapterPackPurchased(dropId) {
+  try {
+    const owned = _getPurchasedChapterPacks();
+    owned[dropId] = Date.now();
+    localStorage.setItem(CHAPTER_UNLOCK_PACK_KEY, JSON.stringify(owned));
+  } catch (e) {}
+}
+function _isChapterUnlockPackEligible(dropId) {
+  if (!dropId) return false;
+  const drop = (typeof getDropById === 'function') ? getDropById(dropId) : null;
+  if (!drop || drop.type !== 'chapter') return false;
+  if (typeof isContentUnlocked === 'function' && !isContentUnlocked(dropId)) return false;
+  // Within 3-day window of drop unlock (per MONETIZATION.packs.chapterUnlock.durationMs)
+  const days = (typeof _daysSinceFirstLaunch === 'function') ? _daysSinceFirstLaunch() : 0;
+  const windowDays = MONETIZATION.packs.chapterUnlock.durationMs / 86400000;
+  if (days - drop.unlockDay > windowDays) return false;
+  // Not already purchased
+  const owned = _getPurchasedChapterPacks();
+  if (owned[dropId]) return false;
+  return true;
+}
+function buyChapterUnlockPack(dropId) {
+  if (!_isChapterUnlockPackEligible(dropId)) {
+    try { flashText('PACK NOT AVAILABLE', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  const cfg = MONETIZATION.packs.chapterUnlock;
+  try { logEvent(EVT.purchase_started, { sku: 'chapter_unlock_pack', dropId, currency: 'usd', cost: cfg.usd }); } catch (e) {}
+  const drop = getDropById(dropId);
+  const chapterId = drop && drop.payload && drop.payload.chapterId;
+  const msg =
+    'CHAPTER ' + (chapterId || '?') + ' UNLOCK PACK\n$' + cfg.usd.toFixed(2) + '\n\n' +
+    '• ' + cfg.cards + ' hero cards\n' +
+    '• ' + cfg.t2Stones + ' T2 ascend stones\n' +
+    '• ' + cfg.gold + '💰\n' +
+    '• 24h XP boost\n\n' +
+    'One-time only. Available 3 days after chapter drop.\n\n' +
+    _devNotice();
+  if (!confirm(msg)) {
+    try { logEvent(EVT.purchase_cancelled, { sku: 'chapter_unlock_pack', dropId }); } catch (e) {}
+    return false;
+  }
+  // Mock IAP — Phase 7+ wires real billing. Grant via applyReward dispatcher.
+  try {
+    applyReward({
+      gold:     cfg.gold,
+      cards:    cfg.cards,
+      t2Stones: cfg.t2Stones
+    });
+  } catch (e) { console.warn('chapter pack applyReward failed:', e); }
+  // 24h XP boost — re-uses Mega Buff key with 24h since it provides the right
+  // gold/frag mults; cleaner Phase 9+ would introduce a dedicated XP buff.
+  try {
+    const until = Date.now() + 24 * 60 * 60 * 1000;
+    if (typeof MEGA_BUFF_KEY !== 'undefined') {
+      const cur = parseInt(localStorage.getItem(MEGA_BUFF_KEY) || '0', 10);
+      if (until > cur) localStorage.setItem(MEGA_BUFF_KEY, String(until));
+    }
+  } catch (e) {}
+  _markChapterPackPurchased(dropId);
+  try { flashText('★ CHAPTER UNLOCK PACK · GRANTED', '#FFAA00'); } catch (e) {}
+  try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
+  try { logEvent(EVT.purchase_completed, { sku: 'chapter_unlock_pack', dropId, currency: 'usd', cost: cfg.usd }); } catch (e) {}
+  return true;
+}
+
+if (typeof window !== 'undefined') {
+  window.buyChapterUnlockPack = buyChapterUnlockPack;
+  window._isChapterUnlockPackEligible = _isChapterUnlockPackEligible;
 }
 
 loadContentEventState();
@@ -32567,12 +32671,14 @@ function renderSeasonScreen() {
     daysEl.textContent = `${daysLeft}d left`;
   }
   // Premium button/status
+  // SHOP.4 (Phase 9 polish) — clarifies "one-time" vs subscription so the
+  // two buy options are obviously distinct. Subscription tile renders below.
   if (premBtn) {
     if (seasonState.premiumUnlocked) {
       premBtn.style.display = 'none';
     } else {
       premBtn.style.display = '';
-      premBtn.textContent = `UNLOCK PREMIUM · ${SEASON_PREMIUM_COST}💎`;
+      premBtn.textContent = `ONE-TIME PREMIUM · ${SEASON_PREMIUM_COST}💎 (this season only)`;
     }
   }
   if (premStatus) {
