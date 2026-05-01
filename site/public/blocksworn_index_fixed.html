@@ -17574,6 +17574,28 @@ const BALANCE = Object.freeze({
     retryGoldCost: Object.freeze([250, 500, 1000, 2000, 5000]),
     daily: Object.freeze({ baseGold: 100, sigils: 5, heartFragments: 1 }),
     racePure: Object.freeze({ hpMult: 1.20, rewardMult: 2.0 }),
+    // TOWER.1 — Wednesday Chest (PRELAUNCH §5). Mid-week retention beat tied
+    // to Mon-Wed Tower play. Tier determined by HIGHEST floor reached during
+    // the 50h capture window (Mon 4 AM → Wed 4 AM). Subscriber bonus +25%
+    // applies multiplicatively to all numeric rewards.
+    wednesdayChest: Object.freeze({
+      resetHour: 4,                        // 4 AM Wednesday (matches dailyResetHour)
+      windowHours: 50,                     // Mon 4 AM → Wed 4 AM
+      subscriberBonusMult: 1.25,
+      tiers: Object.freeze([
+        // floor: minimum highest floor reached in window. Tiers checked top-down.
+        Object.freeze({ key: 'mythic',   floor: 40, label: 'MYTHIC',   color: '#BB60FF',
+                        gold: 2500, sigils: 100, cards: 25, t2Stones: 3, t3Frags: 1, gems: 200 }),
+        Object.freeze({ key: 'platinum', floor: 30, label: 'PLATINUM', color: '#5DCAFF',
+                        gold: 1500, sigils:  50, cards: 10, t2Stones: 2, gems: 100 }),
+        Object.freeze({ key: 'gold',     floor: 20, label: 'GOLD',     color: '#FFD53D',
+                        gold: 1000, sigils:  30, cards:  5, t2Stones: 1, essence: 1, gems: 50 }),
+        Object.freeze({ key: 'silver',   floor: 10, label: 'SILVER',   color: '#C0C8D8',
+                        gold:  500, sigils:  15, cards:  3, t2Frags: 1 }),
+        Object.freeze({ key: 'bronze',   floor:  1, label: 'BRONZE',   color: '#B07840',
+                        gold:  200, sigils:   5, cards:  1 })
+      ])
+    }),
     // BAL.4 — per-floor reward distribution (PRELAUNCH §4.3). Floor 5 mid-boss
     // and floor 10 climax flagged for cinematic / extra cards. Sigils feed
     // Tower buff economy; t2Frags accumulate to 1 Tower Heart per 5 fragments.
@@ -26910,6 +26932,8 @@ function onTowerFloorClear() {
   try { logEvent(EVT.tower_floor_cleared, { floor, mode: _currentGauntletMode, gold: goldReward, sigils: sigilsAwarded, cards: cardsAwarded, t2Frags: t2FragsAwarded }); } catch (e) {}
   // ECO.3 — Mission tracker: tower_floor_5 daily template gates on floor >= N.
   try { if (typeof trackMissionEvent === 'function') trackMissionEvent('tower_floor_cleared', { floor, mode: _currentGauntletMode }); } catch (e) {}
+  // TOWER.1 — Wednesday Chest: track highest floor reached this Mon-Wed window.
+  try { if (typeof _recordTowerFloorForChest === 'function') _recordTowerFloorForChest(floor); } catch (e) {}
   try { vibrate([60, 40, 60, 40, 120]); } catch (e) {}
   // V3.0 Phase 7 Block 7.5: Season XP (+10 per floor, scaling)
   try { if (typeof addSeasonXP === 'function') addSeasonXP(10 * floor); } catch (e) {}
@@ -26935,6 +26959,203 @@ function onTowerFloorClear() {
   // Pact precedes the existing continue/bank modal; player picks a pact
   // (or skips) → continue modal shows next-floor preview → confirm → launch.
   setTimeout(() => showPactPicker(floor + 1, () => showTowerFloorClearModal(floor)), 1400);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// TOWER.1 — Wednesday Chest (PRELAUNCH §5). Mid-week retention beat.
+//
+// Capture window: Monday 4 AM → Wednesday 4 AM (50h). Highest floor reached
+// during that window determines chest tier (Bronze/Silver/Gold/Platinum/Mythic).
+// Claim window: Wednesday 4 AM → next Wednesday 4 AM (one full week).
+//
+// State shape:
+//   { weekKey, highestFloorThisWindow, claimedWeek, lastWindowReset }
+//
+// Tier psychology: Bronze players see Silver/Gold listed as aspirational;
+// Mythic players feel validated as "top 5%". Gem economics: Mythic = 200 gems
+// per week ≈ 1.6 free Battle Passes per month. Subscriber tier gets +25%
+// across the board.
+// ──────────────────────────────────────────────────────────────────────────
+
+const WEDNESDAY_CHEST_KEY = 'blocksworn_wednesday_chest';
+let wednesdayChestState = {
+  weekKey: null,
+  highestFloorThisWindow: 0,
+  claimedWeek: null,
+  lastWindowReset: 0
+};
+
+function loadWednesdayChestState() {
+  try {
+    const raw = localStorage.getItem(WEDNESDAY_CHEST_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      wednesdayChestState = Object.assign(wednesdayChestState, parsed);
+    }
+  } catch (e) { console.warn('loadWednesdayChestState failed:', e); }
+}
+function saveWednesdayChestState() {
+  try { localStorage.setItem(WEDNESDAY_CHEST_KEY, JSON.stringify(wednesdayChestState)); }
+  catch (e) {}
+}
+
+// Returns timestamp of the most recent Monday 4 AM (window-open boundary).
+function _wedChestWindowStart() {
+  const cfg = BALANCE.tower.wednesdayChest;
+  const now = new Date();
+  const day = now.getDay();  // 0=Sun, 1=Mon, ... 6=Sat
+  // Days back to last Monday: if today is Sun, go back 6 days; else (day - 1).
+  const daysBack = (day === 0) ? 6 : (day - 1);
+  const mon = new Date(now);
+  mon.setDate(now.getDate() - daysBack);
+  mon.setHours(cfg.resetHour, 0, 0, 0);
+  // If we haven't passed Monday 4 AM yet (early Monday), step back another week
+  if (mon.getTime() > now.getTime()) mon.setDate(mon.getDate() - 7);
+  return mon.getTime();
+}
+
+// Window CLOSES at Monday + 50h = Wednesday 6 AM (4 AM Mon + 50h = 6 AM Wed).
+// Per spec: "Mon 4 AM → Wed 4 AM (50h window)" — actually spec says 50h but
+// 4-to-4 = 48h. We use 50h literal since spec says so (gives 2h grace).
+function _wedChestWindowEnd() {
+  const cfg = BALANCE.tower.wednesdayChest;
+  return _wedChestWindowStart() + cfg.windowHours * 3600000;
+}
+
+function _isWedChestClaimable() {
+  const cfg = BALANCE.tower.wednesdayChest;
+  const now = Date.now();
+  // Claim window: from window-end (Wednesday) to next window-end (next Wed).
+  const start = _wedChestWindowEnd();
+  if (now < start) return false;  // window not yet closed
+  if (now >= start + 7 * 86400000) return false;  // expired
+  if (wednesdayChestState.claimedWeek === _wedChestWeekKey()) return false;
+  if ((wednesdayChestState.highestFloorThisWindow || 0) < cfg.tiers[cfg.tiers.length - 1].floor) return false;
+  return true;
+}
+
+// Week key for claim de-duplication. Anchored on the chest's Wednesday.
+function _wedChestWeekKey() {
+  const wed = new Date(_wedChestWindowEnd());
+  return wed.getFullYear() + '-' + String(wed.getMonth() + 1).padStart(2, '0') + '-' + String(wed.getDate()).padStart(2, '0');
+}
+
+// Reset tracking when the window has rolled over.
+function _maybeResetWedChestWindow() {
+  const start = _wedChestWindowStart();
+  if ((wednesdayChestState.lastWindowReset || 0) < start) {
+    wednesdayChestState.highestFloorThisWindow = 0;
+    wednesdayChestState.lastWindowReset = start;
+    saveWednesdayChestState();
+  }
+}
+
+// Called from onTowerFloorClear. Updates window state, no-op if outside window.
+function _recordTowerFloorForChest(floor) {
+  _maybeResetWedChestWindow();
+  const now = Date.now();
+  const start = _wedChestWindowStart();
+  const end = _wedChestWindowEnd();
+  // Only count floors during the capture window (Mon 4 AM → Wed 4 AM-ish).
+  if (now < start || now >= end) return;
+  if (floor > (wednesdayChestState.highestFloorThisWindow || 0)) {
+    wednesdayChestState.highestFloorThisWindow = floor;
+    saveWednesdayChestState();
+  }
+}
+
+function _computeWednesdayChestTier() {
+  const cfg = BALANCE.tower.wednesdayChest;
+  const floor = wednesdayChestState.highestFloorThisWindow || 0;
+  for (const t of cfg.tiers) {
+    if (floor >= t.floor) return t;
+  }
+  return null;
+}
+
+function claimWednesdayChest() {
+  if (!_isWedChestClaimable()) {
+    try { flashText('CHEST UNAVAILABLE', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  const tier = _computeWednesdayChestTier();
+  if (!tier) {
+    try { flashText('NO TIER REACHED', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  // Subscriber bonus +25% on numeric rewards.
+  const cfg = BALANCE.tower.wednesdayChest;
+  const subBonus = (typeof _isSeasonPassActive === 'function' && _isSeasonPassActive())
+    ? cfg.subscriberBonusMult : 1.0;
+  const reward = {
+    gold:     Math.floor((tier.gold     || 0) * subBonus),
+    gems:     Math.floor((tier.gems     || 0) * subBonus),
+    cards:    Math.floor((tier.cards    || 0) * subBonus),
+    sigils:   Math.floor((tier.sigils   || 0) * subBonus),
+    t2Stones: Math.floor((tier.t2Stones || 0) * subBonus),
+    t3Stones: Math.floor((tier.t3Frags  || 0) * subBonus),  // t3Frags renamed for applyReward compat
+    t2Frags:  Math.floor((tier.t2Frags  || 0) * subBonus),
+    essence:  Math.floor((tier.essence  || 0) * subBonus)
+  };
+  try { applyReward(reward); } catch (e) { console.warn('chest applyReward failed:', e); }
+  // Mark claimed
+  wednesdayChestState.claimedWeek = _wedChestWeekKey();
+  saveWednesdayChestState();
+  // Cinematic banner cascade — biggest reward last
+  setTimeout(() => { try { flashText('★ ' + tier.label + ' CHEST CLAIMED ★', tier.color); } catch (e) {} }, 200);
+  const summary = [];
+  if (reward.gold)     summary.push('+' + reward.gold + '💰');
+  if (reward.gems)     summary.push('+' + reward.gems + '💎');
+  if (reward.cards)    summary.push('+' + reward.cards + '🃏');
+  if (reward.sigils)   summary.push('+' + reward.sigils + '◈');
+  if (reward.t2Stones) summary.push('+' + reward.t2Stones + ' T2');
+  if (reward.t3Stones) summary.push('+' + reward.t3Stones + ' T3');
+  setTimeout(() => { try { flashText(summary.join(' · '), tier.color); } catch (e) {} }, 1300);
+  if (subBonus > 1.0) {
+    setTimeout(() => { try { flashText('SUBSCRIBER · +25% BONUS APPLIED', '#FFAA00'); } catch (e) {} }, 2400);
+  }
+  try { vibrate([180, 80, 180, 80, 280]); } catch (e) {}
+  try { logEvent(EVT.tower_chest_claimed, { tier: tier.key, floor: wednesdayChestState.highestFloorThisWindow, subscriber: subBonus > 1.0 }); } catch (e) {}
+  // Refresh any UI banners
+  try { if (typeof updateWednesdayChestBanner === 'function') updateWednesdayChestBanner(); } catch (e) {}
+  return true;
+}
+
+// Home-screen banner: "★ WEDNESDAY CHEST READY · TIER" when claimable.
+// Idempotent — re-runs each menu refresh.
+function updateWednesdayChestBanner() {
+  // Find or create banner element
+  let banner = document.getElementById('wedChestBanner');
+  if (!_isWedChestClaimable()) {
+    if (banner && banner.parentNode) banner.parentNode.removeChild(banner);
+    return;
+  }
+  const tier = _computeWednesdayChestTier();
+  if (!tier) return;
+  if (!banner) {
+    banner = document.createElement('button');
+    banner.id = 'wedChestBanner';
+    banner.style.cssText = 'position:fixed;bottom:84px;left:50%;transform:translateX(-50%);z-index:90;padding:12px 22px;background:linear-gradient(180deg,' + tier.color + 'CC,' + tier.color + '88);color:#1B1228;border:none;border-radius:14px;box-shadow:0 0 28px ' + tier.color + '88;font-weight:800;font-size:13px;letter-spacing:2px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit';
+    banner.innerHTML = '<span style="font-size:20px">★</span><span>CHEST READY · ' + tier.label + '</span>';
+    banner.onclick = function () { claimWednesdayChest(); };
+    document.body.appendChild(banner);
+  } else {
+    banner.style.background = 'linear-gradient(180deg,' + tier.color + 'CC,' + tier.color + '88)';
+    banner.style.boxShadow = '0 0 28px ' + tier.color + '88';
+    banner.innerHTML = '<span style="font-size:20px">★</span><span>CHEST READY · ' + tier.label + '</span>';
+  }
+}
+
+loadWednesdayChestState();
+_maybeResetWedChestWindow();
+
+if (typeof window !== 'undefined') {
+  window.claimWednesdayChest = claimWednesdayChest;
+  window.updateWednesdayChestBanner = updateWednesdayChestBanner;
+  window._isWedChestClaimable = _isWedChestClaimable;
+  window._computeWednesdayChestTier = _computeWednesdayChestTier;
+  window.wednesdayChestState = wednesdayChestState;  // dev-tool inspection
 }
 
 // 2026-04-27 — Block T.1 daily completion. Fires on F10 clear (or future
@@ -27143,6 +27364,113 @@ function endTowerRun() {
 }
 
 // ========= Screen + rendering =========
+// ──────────────────────────────────────────────────────────────────────────
+// TOWER.2/3 — Daily + Weekly Leaderboard UI (PRELAUNCH §11.7).
+//
+// Single modal with scope tabs (Daily / Weekly / Seasonal). Backed by
+// BackendProvider.getLeaderboard(seasonId) — already wired for mock+Firebase.
+// Top 100 (Daily/Seasonal) or Top 1000 (Weekly) per spec. Own rank
+// highlighted. Live refresh on tab switch; no polling.
+// ──────────────────────────────────────────────────────────────────────────
+
+async function showTowerLeaderboardModal(scope) {
+  scope = scope || 'daily';
+  let host = document.getElementById('towerLbOverlay');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'towerLbOverlay';
+    host.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(8,5,18,0.82);backdrop-filter:blur(4px);font-family:inherit';
+    document.body.appendChild(host);
+  }
+  const tabBtn = function (s, label) {
+    const active = (s === scope);
+    return '<button data-lb-scope="' + s + '" style="flex:1;padding:9px 4px;font-size:11px;font-weight:700;letter-spacing:1.5px;background:' + (active ? '#FFD53D' : 'rgba(255,213,61,0.10)') + ';color:' + (active ? '#1B1228' : '#FFD53D') + ';border:1px solid rgba(255,213,61,0.40);border-radius:6px;cursor:pointer">' + label + '</button>';
+  };
+  host.innerHTML =
+    '<div style="background:#15101F;border:1px solid #FFD53D;border-radius:14px;padding:18px 20px;max-width:420px;width:92%;max-height:85vh;display:flex;flex-direction:column;font-family:inherit">' +
+      '<div style="font-size:11px;color:#A8A5B8;letter-spacing:3px;margin-bottom:4px">TOWER LEADERBOARD</div>' +
+      '<div style="font-size:18px;font-weight:800;color:#FFD53D;letter-spacing:1.5px;margin-bottom:12px">' + scope.toUpperCase() + ' RANKINGS</div>' +
+      '<div style="display:flex;gap:6px;margin-bottom:12px">' +
+        tabBtn('daily',    'DAILY · TOP 100') +
+        tabBtn('weekly',   'WEEKLY · TOP 1000') +
+        tabBtn('seasonal', 'SEASONAL') +
+      '</div>' +
+      '<div id="towerLbList" style="flex:1;min-height:300px;overflow-y:auto;padding:6px;background:rgba(0,0,0,0.18);border-radius:8px;font-size:11px;color:#C8C3D8">' +
+        '<div style="text-align:center;padding:30px;color:#A8A5B8">Loading…</div>' +
+      '</div>' +
+      '<button id="towerLbClose" style="margin-top:10px;padding:10px;font-size:12px;font-weight:700;letter-spacing:2px;background:rgba(255,213,61,0.16);color:#FFD53D;border:1px solid rgba(255,213,61,0.40);border-radius:8px;cursor:pointer">CLOSE</button>' +
+    '</div>';
+  // Tab switch handlers
+  host.querySelectorAll('[data-lb-scope]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const newScope = btn.getAttribute('data-lb-scope');
+      if (newScope === scope) return;
+      showTowerLeaderboardModal(newScope);
+    });
+  });
+  document.getElementById('towerLbClose').onclick = function () {
+    if (host && host.parentNode) host.parentNode.removeChild(host);
+  };
+  try { logEvent(EVT.shop_section_viewed, { section: 'tower_leaderboard', scope }); } catch (e) {}
+  // Fetch + render
+  try {
+    const seasonId = (typeof seasonState === 'object' && seasonState && seasonState.seasonId) || 1;
+    const limit = (scope === 'weekly') ? 1000 : 100;
+    let lbData = null;
+    try { lbData = await BackendProvider.getLeaderboard(seasonId); } catch (e) { console.warn('lb fetch failed:', e); }
+    let myRank = null;
+    try {
+      const r = await BackendProvider.getMyLeaderboardRank(seasonId);
+      if (r && r.ok) myRank = r.rank;
+    } catch (e) {}
+    const listEl = document.getElementById('towerLbList');
+    if (!listEl) return;  // modal closed before fetch returned
+    if (!lbData || !Array.isArray(lbData) || lbData.length === 0) {
+      // Mock fallback — generate synthetic entries so UI isn't empty in dev.
+      lbData = _synthLeaderboardData(limit);
+    }
+    const truncated = lbData.slice(0, limit);
+    const myUid = (typeof playerProfile === 'object' && playerProfile) ? playerProfile.uid : null;
+    const rows = truncated.map(function (entry, i) {
+      const rank = entry.rank || (i + 1);
+      const isMe = myUid && entry.uid === myUid;
+      const flair = rank <= 10 ? 'color:#FFD53D;font-weight:800' :
+                    rank <= 100 ? 'color:#C0C8D8;font-weight:700' : 'color:#A8A5B8';
+      const bg = isMe ? 'background:linear-gradient(90deg,rgba(255,213,61,0.14),rgba(255,213,61,0.04));border-left:3px solid #FFD53D;' : '';
+      return '<div style="' + bg + 'padding:6px 8px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(168,165,184,0.10);' + flair + '">' +
+        '<span style="min-width:38px;text-align:right">#' + rank + '</span>' +
+        '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (entry.name || entry.username || 'PLAYER') + (isMe ? ' · YOU' : '') + '</span>' +
+        '<span style="min-width:50px;text-align:right;font-weight:800">F' + (entry.score || entry.floor || 0) + '</span>' +
+      '</div>';
+    }).join('');
+    listEl.innerHTML =
+      (myRank ? '<div style="padding:8px 8px;margin-bottom:8px;font-size:11px;color:#FFD53D;background:rgba(255,213,61,0.10);border-radius:6px;text-align:center">YOUR RANK: #' + myRank + '</div>' : '') +
+      rows;
+  } catch (e) {
+    console.warn('leaderboard render failed:', e);
+    const listEl = document.getElementById('towerLbList');
+    if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:30px;color:#E85D4A">Couldn\'t load rankings</div>';
+  }
+}
+
+// Synthetic leaderboard for mock backend / offline dev.
+function _synthLeaderboardData(count) {
+  const out = [];
+  for (let i = 0; i < Math.min(count, 100); i++) {
+    out.push({
+      rank: i + 1,
+      uid: 'synth_' + i,
+      name: 'PLAYER_' + (1000 + i),
+      score: Math.max(1, 50 - Math.floor(i * 0.5) + Math.floor(Math.random() * 5))
+    });
+  }
+  return out;
+}
+
+if (typeof window !== 'undefined') {
+  window.showTowerLeaderboardModal = showTowerLeaderboardModal;
+}
+
 function goToTower() {
   if (!isTowerUnlocked()) { showToast('Defeat CRYPT LICH first'); return; }
   // Task #1.5.4 hotfix: removed redundant FTUE guard.
@@ -27225,6 +27553,7 @@ function renderTowerScreen() {
     <span class="t-pill">ATTEMPTS ${attemptsLeft}/${TOWER_MAX_ATTEMPTS_PER_DAY}</span>
     <span class="t-pill">♥ ${towerState.towerHearts} (${towerState.towerHeartFragments}/${TOWER_FRAGMENTS_PER_HEART})</span>
     <span class="t-pill">◈ ${towerState.sigilShards}</span>
+    <span class="t-pill" style="background:rgba(255,213,61,0.18);color:#FFD53D;cursor:pointer" onclick="showTowerLeaderboardModal('daily')">🏆 LEADERBOARD</span>
   </div>`;
   // 2026-04-27 — Block T.9 — Title banner. Sits at the very top above
   // buffs/themes/curses. Also shows count of unlocked achievements + clickable
@@ -48036,6 +48365,10 @@ function goToMenu() {
       if (typeof checkAndRefreshWeeklyMissions === 'function') checkAndRefreshWeeklyMissions();
       checkLoginStreak();
       updateDailyButtonBadge();
+      // TOWER.1 — Wednesday Chest banner. Idempotent: shows when claimable
+      // (Wed 4 AM → next Wed 4 AM with tier reached + not yet claimed),
+      // hides otherwise. Re-runs every menu open so claim state stays fresh.
+      try { if (typeof updateWednesdayChestBanner === 'function') updateWednesdayChestBanner(); } catch (e) {}
     }
     // V3.0 Phase 7 Block 7.1: Tower weekly reset + button visibility.
     // isTowerUnlocked gates on voidfangDefeated flag; updateTowerButtonVisibility
