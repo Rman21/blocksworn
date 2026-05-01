@@ -4147,6 +4147,136 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   text-align: center;
   margin: 6px 0 14px;
 }
+/* ===== SHOP.1-REV — Welcome Gift + Tower Climber's Pack styles ===== */
+
+/* Welcome Gift Modal (overlay + card) */
+.welcome-gift-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8, 6, 18, 0.92);
+  display: none;
+  z-index: 10000;
+  align-items: center; justify-content: center;
+  padding: 20px;
+}
+.welcome-gift-overlay.active { display: flex; }
+.welcome-gift-overlay.claimed { animation: wg-fade-out 0.6s ease-out forwards; }
+@keyframes wg-fade-out {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+.welcome-gift-card {
+  background: linear-gradient(160deg, #1A1432, #0F0B22);
+  border: 2px solid #FFD53D;
+  border-radius: 16px;
+  padding: 24px 20px;
+  max-width: 340px; width: 100%;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(255, 213, 61, 0.4);
+}
+.welcome-gift-title {
+  font-family: var(--a-display-font, sans-serif);
+  font-size: 16px; font-weight: bold;
+  color: #FFD53D; margin-bottom: 8px;
+  letter-spacing: 1.5px;
+}
+.welcome-gift-sub {
+  font-size: 12px; color: #A8A5B8;
+  margin-bottom: 18px; font-style: italic;
+}
+.welcome-gift-items {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 22px;
+}
+.wgi {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 213, 61, 0.08);
+  border: 1px solid rgba(255, 213, 61, 0.3);
+  border-radius: 8px; padding: 10px 14px;
+}
+.wgi-icon { font-size: 22px; }
+.wgi-amt {
+  font-family: var(--a-display-font, sans-serif);
+  font-size: 18px; font-weight: bold;
+  color: #FFD53D;
+}
+.wgi-name {
+  font-size: 11px; color: #C8C5D8;
+  letter-spacing: 0.8px;
+  flex-grow: 1; text-align: right;
+}
+.welcome-gift-claim {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(180deg, #FFD53D, #C8A02D);
+  border: none; border-radius: 10px;
+  font-family: var(--a-display-font, sans-serif);
+  font-size: 16px; font-weight: bold;
+  color: #1A1432;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.welcome-gift-claim:hover  { transform: translateY(-1px); }
+.welcome-gift-claim:active { transform: scale(0.98); }
+
+/* Welcome Gift Banner (in-shop, dismissed-but-unclaimed) */
+.welcome-gift-banner {
+  display: flex; align-items: center; gap: 10px;
+  background: linear-gradient(90deg, rgba(255, 213, 61, 0.15), rgba(255, 213, 61, 0.05));
+  border: 1px solid #FFD53D;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.wgb-icon { font-size: 22px; }
+.wgb-text {
+  flex-grow: 1;
+  font-size: 12px; color: #FFD53D;
+  letter-spacing: 0.5px;
+}
+.wgb-cta {
+  padding: 6px 14px;
+  background: #FFD53D; color: #1A1432;
+  border: none; border-radius: 6px;
+  font-weight: bold; font-size: 11px;
+  cursor: pointer;
+}
+
+/* Tower Climber's Pack — featured tile styling */
+.shop-tower-climber-pack {
+  position: relative;
+  border-color: #4DD0E1 !important;
+  background: linear-gradient(160deg, rgba(77, 208, 225, 0.18), rgba(77, 208, 225, 0.04)) !important;
+}
+.shop-tower-climber-pack.pulse-glow {
+  animation: tcp-pulse 1.4s ease-in-out 3;
+}
+@keyframes tcp-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(77, 208, 225, 0.5); }
+  50%      { box-shadow: 0 0 24px 6px rgba(77, 208, 225, 0.7); }
+}
+.shop-tcp-badge {
+  position: absolute;
+  top: -8px; right: 8px;
+  padding: 3px 8px;
+  background: #4DD0E1; color: #0A0815;
+  font-size: 10px; font-weight: bold;
+  border-radius: 4px;
+  letter-spacing: 0.8px;
+}
+
+/* Shop nav button pulse (until first shop visit post-unlock) */
+.shop-nav-pulse {
+  animation: nav-pulse 1.6s ease-in-out infinite;
+}
+@keyframes nav-pulse {
+  0%, 100% { box-shadow: 0 0 0 0   rgba(255, 213, 61, 0.4); }
+  50%      { box-shadow: 0 0 12px 3px rgba(255, 213, 61, 0.7); }
+}
+
+/* ===== End SHOP.1-REV styles ===== */
+
 .shop-pack-btn {
   display: grid;
   grid-template-columns: 48px 1fr auto;
@@ -20572,6 +20702,10 @@ function _dismissCryptLichAftermath(opts) {
       try { _cryptLichAftermathDismissCb(); } catch (e) { console.warn('Crypt Lich aftermath dismiss callback failed:', e); }
       _cryptLichAftermathDismissCb = null;
     }
+    // SHOP.1-REV §4.3 — shop unlock hook. If 24h floor already met, unlock
+    // fires now. If not, _evaluateShopUnlockOnLaunch picks it up next launch.
+    try { if (typeof _onShopMaybeUnlocked === 'function') _onShopMaybeUnlocked(); }
+    catch (e) { console.warn('shop unlock hook failed:', e); }
   }, 620);
 }
 
@@ -21753,6 +21887,24 @@ function buyUltimatePack() {
 }
 
 // Render the pack catalog into shopSectionOffers. Called from goToShop().
+// SHOP.1-REV §4.10 — Minimal shop mode. Active during first 7 days
+// post-shop-unlock OR until first cash purchase (whichever first).
+// In minimal mode, shop shows: Tower Climber's Pack, Standard Pack, Cosmetics
+// only. Gem packs / race packs / Big/Premium/Ultimate / Battle Pass / Mega
+// Buff / Endgame Kit / Race Bundles / Starter Pack all hidden until full unlock.
+function _isMinimalShopMode() {
+  try {
+    if (typeof _isFirstPurchaseDone === 'function' && _isFirstPurchaseDone()) return false;
+    const unlockTs = localStorage.getItem(SHOP_UNLOCK_TIMESTAMP_KEY);
+    if (!unlockTs) return true;
+    const daysSinceUnlock = (Date.now() - new Date(unlockTs).getTime()) / 86400000;
+    return daysSinceUnlock < 7;
+  } catch (e) { return true; }
+}
+if (typeof window !== 'undefined') {
+  window._isMinimalShopMode = _isMinimalShopMode;
+}
+
 function renderShopPacks() {
   const host = document.getElementById('shopSectionOffers');
   if (!host) return;
@@ -21760,6 +21912,32 @@ function renderShopPacks() {
   const stdAffordable  = goldNow >= PACK_STANDARD_COST;
   const raceAffordable = goldNow >= PACK_RACE_COST;
   const races = ['pirate', 'rock', 'shark', 'crocodile', 'spark'];
+
+  // SHOP.1-REV §4.10 — Minimal mode flag. Each section below conditionally
+  // hidden when minimal === true. Tower Climber's Pack, Standard Pack, and
+  // cosmetics stay visible.
+  const minimal = _isMinimalShopMode();
+
+  // SHOP.1-REV §4.11 — Tower Climber's Pack featured tile (top of shop, 7-day window).
+  let towerClimberHtml = '';
+  if (_isTowerClimberPackVisible()) {
+    const hoursLeft = _towerClimberPackHoursRemaining();
+    const daysLeft = Math.max(1, Math.ceil(hoursLeft / 24));
+    const c = TOWER_CLIMBER_PACK_CONTENTS;
+    towerClimberHtml =
+      '<button class="shop-pack-btn shop-tower-climber-pack" onclick="buyTowerClimberPack()">' +
+        '<span class="shop-tcp-badge">FEATURED · ' + daysLeft + 'd LEFT</span>' +
+        '<span class="shop-pack-emoji">🗼</span>' +
+        '<span class="shop-pack-name">TOWER CLIMBER\'S PACK</span>' +
+        '<span class="shop-pack-desc">' +
+          '<div>• ' + c.sigilShards + ' Sigil Shards</div>' +
+          '<div>• ' + c.heartFragments + ' Heart Fragment (1/5 of Heart)</div>' +
+          '<div>• ' + c.gold + ' Gold</div>' +
+          '<div>• ' + c.heroCards + ' Hero Cards (weighted)</div>' +
+        '</span>' +
+        '<span class="shop-pack-cost">$' + TOWER_CLIMBER_PACK_USD.toFixed(2) + '</span>' +
+      '</button>';
+  }
 
   // ----- Section 1: Gem Packs (mock-IAP) + First-Purchase banner -----
   const isFirst = !_isFirstPurchaseDone();
@@ -22108,29 +22286,40 @@ function renderShopPacks() {
         '<div class="shop-bundle-cost">$' + STARTER_PACK_USD.toFixed(2) + '</div>' +
       '</button>'
     : '';
+  // SHOP.1-REV §4.10 — minimal mode hides all sections except:
+  //   Tower Climber's Pack (top featured tile)
+  //   Standard Hero Pack
+  //   Hero card pity bar
+  //   Cosmetics
+  // Sections still rendered in minimal mode for player education without
+  // adding visual noise: first-purchase banner (when applicable), buff
+  // banner (when active), welcome-gift slot via _renderWelcomeGiftBannerIfPending.
   host.innerHTML =
+    towerClimberHtml +
     firstPurchaseBannerHtml +
     buffActiveBanner +
-    starterHtml +
-    subTileHtml +
-    weeklyOfferHtml +
-    dropBoostHtml +
-    '<div class="shop-pack-divider">💎 GEM PACKS · Premium currency</div>' +
-    gemPacksHtml +
-    '<div class="shop-pack-divider">⚡ BIG / PREMIUM / ULTIMATE</div>' +
-    bigPackHtml +
-    premiumPackHtml +
-    ultimatePackHtml +
-    '<div class="shop-pack-divider">🎁 BUNDLES · Skip the grind</div>' +
-    squadBundleHtml +
-    rapidBundleHtml +
-    endgameBundleHtml +
-    '<div class="shop-pack-divider">🏴 RACE LAUNCH BUNDLES · 1× per race</div>' +
-    '<div class="shop-race-bundle-grid">' + raceBundleCardsHtml + '</div>' +
-    '<div class="shop-pack-divider">⏱ CONVENIENCE · 1-day bundles + boosts</div>' +
-    megaBuffHtml +
-    squadBoostHtml +
-    dailyGiftHtml +
+    (minimal ? '' : starterHtml) +
+    (minimal ? '' : subTileHtml) +
+    (minimal ? '' : weeklyOfferHtml) +
+    (minimal ? '' : dropBoostHtml) +
+    (minimal ? '' :
+      '<div class="shop-pack-divider">💎 GEM PACKS · Premium currency</div>' +
+      gemPacksHtml +
+      '<div class="shop-pack-divider">⚡ BIG / PREMIUM / ULTIMATE</div>' +
+      bigPackHtml +
+      premiumPackHtml +
+      ultimatePackHtml +
+      '<div class="shop-pack-divider">🎁 BUNDLES · Skip the grind</div>' +
+      squadBundleHtml +
+      rapidBundleHtml +
+      endgameBundleHtml +
+      '<div class="shop-pack-divider">🏴 RACE LAUNCH BUNDLES · 1× per race</div>' +
+      '<div class="shop-race-bundle-grid">' + raceBundleCardsHtml + '</div>' +
+      '<div class="shop-pack-divider">⏱ CONVENIENCE · 1-day bundles + boosts</div>' +
+      megaBuffHtml +
+      squadBoostHtml +
+      dailyGiftHtml
+    ) +
     '<div class="shop-pack-divider">📺 WATCH ADS · Free rewards (capped)</div>' +
     adCenterHtml +
     '<div class="shop-pack-divider">📦 HERO CARD PACKS · Earnable with gold</div>' +
@@ -22141,10 +22330,12 @@ function renderShopPacks() {
       '<span class="shop-pack-desc">1 random hero card · weighted to less-owned</span>' +
       '<span class="shop-pack-cost">' + PACK_STANDARD_COST + ' 💰</span>' +
     '</button>' +
-    '<div class="shop-pack-divider">RACE PACKS</div>' +
-    '<div class="shop-pack-grid">' + raceCardsHtml + '</div>' +
-    '<div class="shop-pack-divider">🔁 CONVERT</div>' +
-    goldToGemsHtml +
+    (minimal ? '' :
+      '<div class="shop-pack-divider">RACE PACKS</div>' +
+      '<div class="shop-pack-grid">' + raceCardsHtml + '</div>' +
+      '<div class="shop-pack-divider">🔁 CONVERT</div>' +
+      goldToGemsHtml
+    ) +
     '<div class="shop-pack-footer">Hero cards stockpile toward Tier 2 / Tier 3 / Mythic ascension. All cards earnable through play.</div>' +
     '<div class="shop-cosmetics-header">COSMETICS · Pure visual · No gameplay impact</div>' +
     cosmeticHtml +
@@ -23879,36 +24070,42 @@ function goToShop() {
     try { flashText('FINISH THE TUTORIAL FIRST', '#8A88A0'); } catch(e){}
     return;
   }
-  // 2026-04-29 — Shop gated on Chapter 1 completion (Crypt Lich defeat).
-  // The original 7-day trust window was replaced with a content-progression
-  // gate so new players reach the shop after they've experienced the core
-  // game loop, not on a calendar timer. Days-since-launch lock kept as a
-  // secondary layer (currently dormant via SHOP_LOCK_DAYS = 0).
+  // SHOP.1-REV §4.2 — lock-aware gate with contextual hint per _shopLockReason.
   try {
     if (typeof _isShopLocked === 'function' && _isShopLocked()) {
-      let msg = 'SHOP UNLOCKS AFTER CHAPTER 1';
-      try {
-        if (typeof hasCompletedChapter1 === 'function' && hasCompletedChapter1()) {
-          // Ch1 done → only the days-window is still gating. Show day count.
-          const days = SHOP_LOCK_DAYS - _daysSinceFirstLaunch();
-          if (days > 0) msg = 'SHOP UNLOCKS IN ' + days + 'd';
-        }
-      } catch (e) {}
+      const reason = (typeof _shopLockReason === 'function') ? _shopLockReason() : null;
+      let msg = 'SHOP LOCKED';
+      if (reason === 'lich') msg = 'DEFEAT THE CRYPT LICH FIRST';
+      else if (reason === 'cooldown') {
+        const hrs = Math.ceil(SHOP_UNLOCK_MIN_HOURS - _hoursSinceFirstLaunch());
+        msg = 'SHOP UNLOCKS IN ' + hrs + 'h';
+      }
       try { flashText(msg, '#A8A5B8'); } catch (e) {}
       return;
     }
   } catch (e) {}
-  // Refresh balances in shop header
+
+  // SHOP.1-REV §4.2 — first-visit welcome flow. Intercepts before normal
+  // shop entry so welcome modal + gift modal layer in the right order.
+  try {
+    if (_isFirstShopVisit()) {
+      _grantWelcomeGiftIfNeeded();   // idempotent, sets state
+      _showShopWelcomeModal();        // routes to gift modal then shop
+      return;
+    }
+  } catch (e) { console.warn('[SHOP.1-REV] welcome flow error:', e); }
+
+  // Normal shop entry
   try {
     const sg = document.getElementById('shopGoldCount'); if (sg) sg.textContent = String(gold);
     const sgm = document.getElementById('shopGemCount'); if (sgm) sgm.textContent = String(gems);
   } catch (e) {}
   showScreen('shop');
-  // 2026-04-27 — Block H.5 — populate shop with Pack catalog (HERO_COMPENDIUM §11.2).
-  // Replaces the "coming soon" placeholder. F2P-only — gold purchases.
   try { renderShopPacks(); } catch (e) { console.warn('renderShopPacks failed:', e); }
-  // ANALYTICS.3 — shop_opened event drives funnel (open → section view → purchase).
+  // ANALYTICS.3 — shop_opened event drives funnel.
   try { logEvent(EVT.shop_opened, { day: _daysSinceFirstLaunch() }); } catch (e) {}
+  // SHOP.1-REV §4.2 — if welcome gift was dismissed-but-unclaimed, show inline banner.
+  try { _renderWelcomeGiftBannerIfPending(); } catch (e) {}
 }
 
 // Load gems at parse time, alongside Phase 0 gold/energy
@@ -30407,11 +30604,16 @@ const LAST_DAILY_POPUP_KEY      = 'blocksworn_last_daily_popup';
 const SHOP_REVEALED_KEY         = 'blocksworn_shop_revealed';
 const RENEWAL_WARNING_KEY       = 'blocksworn_renewal_warning_for';
 const SEASON_END_WARNING_KEY    = 'blocksworn_season_end_warning_for';
-// SHOP.1 — Progressive shop reveal (PRELAUNCH §11.5). Day-window restored
-// as the PRIMARY gate for soft-launch UX (was Ch1-only since 2026-04-29).
-// Day 1-3 → shop button hidden entirely. Day 4-6 → button visible but
-// disabled with "Day 7" tooltip. Day 7+ → full access (Ch1 still gates
-// some sections via _isShopLocked secondary check below).
+// SHOP.1-REV — Lich-gated shop reveal + welcome gift (supersedes Phase F
+// Day-7 strict gate per SHOP_1_REV_LICH_GATED_REVEAL.md §1.3). Shop unlocks
+// when Crypt Lich defeated AND ≥24h since first install (whichever later).
+// New keys for this block:
+const SHOP_FIRST_VISIT_KEY      = 'blocksworn_shop_first_visit_done';
+const WELCOME_GIFT_STATE_KEY    = 'blocksworn_welcome_gift_state';
+const TOWER_CLIMBER_PACK_KEY    = 'blocksworn_tower_climber_pack';
+const SHOP_UNLOCK_TIMESTAMP_KEY = 'blocksworn_shop_unlock_ts';
+const SHOP_UNLOCK_MIN_HOURS     = 24;
+// DEPRECATED — superseded by _isShopLocked() Lich-gate. Kept for legacy refs only.
 const SHOP_LOCK_DAYS            = MONETIZATION.shopReveal ? MONETIZATION.shopReveal.minDayEnabled : 7;
 const SUBSCRIPTION_WARNING_DAYS = 3;
 const SEASON_END_WARNING_DAYS   = 1;
@@ -30444,40 +30646,82 @@ function _daysSinceFirstLaunch() {
     return Math.max(0, Math.floor(ms / 86400000));
   } catch (e) { return 999; }
 }
-function _isShopLocked() {
-  // SHOP.1 — Day-window is the primary gate (PRELAUNCH §11.5). Ch1 completion
-  // gate retained as secondary OR-layer so even at Day 7+ a player who hasn't
-  // beaten Crypt Lich sees the lock message instead of the full shop.
+// SHOP.1-REV §4.1 — hours-since-install for 24h cooldown floor. Falls back to
+// 9999 (treat-as-elapsed) if FIRST_LAUNCH_KEY corrupt — shop's primary Lich
+// gate stays as the real protection.
+function _hoursSinceFirstLaunch() {
   try {
-    if (typeof hasCompletedChapter1 === 'function' && !hasCompletedChapter1()) return true;
-  } catch (e) {}
-  return _daysSinceFirstLaunch() < SHOP_LOCK_DAYS;
+    const raw = localStorage.getItem(FIRST_LAUNCH_KEY);
+    if (!raw) return 0;
+    const start = new Date(raw + 'T00:00:00');
+    const ms = Date.now() - start.getTime();
+    return Math.max(0, ms / 3600000);
+  } catch (e) { return 9999; }
 }
-// SHOP.1 — Three-state shop button helper. Drives nav rendering: 'hidden'
-// removes the button entirely (Day 1-3), 'disabled' shows it greyed-out
-// with "Day 7" tooltip (Day 4-6), 'enabled' is the normal state.
-function _shopButtonState() {
-  const days = _daysSinceFirstLaunch();
-  const cfg = (typeof MONETIZATION !== 'undefined' && MONETIZATION.shopReveal) || { minDayDisabled: 4, minDayEnabled: 7 };
-  if (days < cfg.minDayDisabled) return 'hidden';
-  if (days < cfg.minDayEnabled)  return 'disabled';
-  return 'enabled';
+// SHOP.1-REV §4.1 — Two conditions must BOTH be true to UNLOCK:
+//   1. Crypt Lich defeated (Chapter 1 complete flag)
+//   2. ≥24h since first install (anti-impulse floor)
+// Locked = NOT (both unlock conditions met).
+function _isShopLocked() {
+  try {
+    const lichDefeated = (typeof hasCompletedChapter1 === 'function')
+      ? hasCompletedChapter1()
+      : (localStorage.getItem('blocksworn_chapter_1_complete') === 'true');
+    const enoughTime = _hoursSinceFirstLaunch() >= SHOP_UNLOCK_MIN_HOURS;
+    return !(lichDefeated && enoughTime);
+  } catch (e) { return false; /* fail open if storage broken */ }
 }
-// SHOP.1 — Apply button state to all shop nav buttons. Called on app boot
-// + on day-rollover. Idempotent: re-runs each menu refresh.
+// SHOP.1-REV §4.1 — Human-readable lock reason for UI hints.
+//   'lich'     — Crypt Lich not yet defeated (primary gate)
+//   'cooldown' — Lich defeated but <24h since install
+//   null       — shop is unlocked
+function _shopLockReason() {
+  try {
+    const lichDefeated = (typeof hasCompletedChapter1 === 'function')
+      ? hasCompletedChapter1() : false;
+    if (!lichDefeated) return 'lich';
+    const hoursLeft = SHOP_UNLOCK_MIN_HOURS - _hoursSinceFirstLaunch();
+    if (hoursLeft > 0) return 'cooldown';
+    return null;
+  } catch (e) { return null; }
+}
+// SHOP.1-REV §4.4 — Called when shop unlock conditions might have just been
+// met. Idempotent. Records unlock timestamp first time both gates pass.
+// Triggers shop-button pulse-glow until first visit.
+function _onShopMaybeUnlocked() {
+  try {
+    if (_isShopLocked()) return; // gates not yet met
+    if (localStorage.getItem(SHOP_UNLOCK_TIMESTAMP_KEY)) return; // already unlocked
+    localStorage.setItem(SHOP_UNLOCK_TIMESTAMP_KEY, new Date().toISOString());
+    _applyShopLockState(); // refresh body class
+    // Visual cue: shop nav button starts pulse-glow until first visit
+    try { _startShopButtonPulse(); } catch (e) {}
+    // Analytics
+    try { logEvent(EVT.shop_opened, { trigger: 'lich_or_cooldown_resolved', kind: 'shop_unlocked' }); } catch (e) {}
+  } catch (e) { console.warn('[SHOP.1-REV] unlock hook:', e); }
+}
+// SHOP.1-REV §4.4 — Run on every launch — handles "24h elapsed since Lich"
+// case where player closes app right after Lich win and reopens after cooldown.
+function _evaluateShopUnlockOnLaunch() {
+  try { _onShopMaybeUnlocked(); } catch (e) {}
+}
+// SHOP.1-REV §4.10 — Apply visual disabled state via body class + nav button
+// dimming. Per spec §6.1 A1: button stays VISIBLE in nav even when locked
+// (disabled visual only). Hidden state from prior Phase 4 dropped per spec.
 function _applyShopButtonStateUI() {
   try {
-    const state = _shopButtonState();
+    const locked = _isShopLocked();
     document.querySelectorAll('[data-nav="shop"]').forEach((el) => {
-      // Hidden: display:none. Disabled: pointer-events disabled, opacity dim.
-      // Enabled: clear both inline styles.
-      el.style.display = (state === 'hidden') ? 'none' : '';
-      if (state === 'disabled') {
-        el.style.pointerEvents = 'none';
-        el.style.opacity = '0.45';
-        const days = _daysSinceFirstLaunch();
-        const cfg = (MONETIZATION && MONETIZATION.shopReveal) || { minDayEnabled: 7 };
-        el.title = 'Shop opens on Day ' + cfg.minDayEnabled + ' (' + (cfg.minDayEnabled - days) + 'd left)';
+      el.style.display = '';  // SHOP.1-REV: always visible
+      if (locked) {
+        el.style.pointerEvents = '';  // tap allowed — fires lock toast
+        el.style.opacity = '0.55';
+        const reason = _shopLockReason();
+        if (reason === 'lich') el.title = 'Defeat the Crypt Lich first';
+        else if (reason === 'cooldown') {
+          const hrs = Math.ceil(SHOP_UNLOCK_MIN_HOURS - _hoursSinceFirstLaunch());
+          el.title = 'Shop unlocks in ' + hrs + 'h';
+        } else el.title = '';
       } else {
         el.style.pointerEvents = '';
         el.style.opacity = '';
@@ -30493,8 +30737,23 @@ function _applyShopLockState() {
     _applyShopButtonStateUI();
   } catch (e) {}
 }
+// SHOP.1-REV §4.9 — Pulse-glow on shop nav button until first shop visit.
+function _startShopButtonPulse() {
+  document.querySelectorAll('[data-nav="shop"]').forEach(function (btn) {
+    btn.classList.add('shop-nav-pulse');
+  });
+}
+function _stopShopButtonPulse() {
+  document.querySelectorAll('[data-nav="shop"]').forEach(function (btn) {
+    btn.classList.remove('shop-nav-pulse');
+  });
+}
 if (typeof window !== 'undefined') {
-  window._shopButtonState = _shopButtonState;
+  window._isShopLocked = _isShopLocked;
+  window._shopLockReason = _shopLockReason;
+  window._hoursSinceFirstLaunch = _hoursSinceFirstLaunch;
+  window._onShopMaybeUnlocked = _onShopMaybeUnlocked;
+  window._evaluateShopUnlockOnLaunch = _evaluateShopUnlockOnLaunch;
   window._applyShopButtonStateUI = _applyShopButtonStateUI;
 }
 
@@ -30552,31 +30811,287 @@ function _markDailyPopupShown() {
   try { localStorage.setItem(LAST_DAILY_POPUP_KEY, _todayDateString()); } catch (e) {}
 }
 
-function _pickDailyPopupContent() {
-  // Priority order (each returns a content object or null).
-  // 1. First-shop reveal (one-time, once Chapter 1 is cleared).
-  //    2026-04-29 — Switched from a day-7 calendar gate to Ch1-completion
-  //    gate so the announcement lines up with the actual unlock event.
-  let _ch1Done = false;
-  try { _ch1Done = (typeof hasCompletedChapter1 === 'function') && hasCompletedChapter1(); } catch (e) {}
-  if (_ch1Done) {
-    try {
-      if (localStorage.getItem(SHOP_REVEALED_KEY) !== 'true') {
-        return {
-          title: '🛒 SHOP UNLOCKED',
-          body: 'Welcome to the Blocksworn Shop. Optional rewards for additional support — never required to progress. All heroes earnable through play.',
-          ctaLabel: 'VISIT SHOP',
-          ctaAction: function () {
-            try { localStorage.setItem(SHOP_REVEALED_KEY, 'true'); } catch (e) {}
-            try { goToShop(); } catch (e) {}
-          },
-          glow: '#FFD53D',
-          kind: 'shop_reveal',
-        };
-      }
-    } catch (e) {}
+// ──────────────────────────────────────────────────────────────────────────
+// SHOP.1-REV §4.5-4.9 — Welcome flow + Welcome Gift + Tower Climber's Pack
+//
+// Order of player-facing flow on FIRST shop visit (post-unlock):
+//   goToShop() detects _isFirstShopVisit() →
+//     _grantWelcomeGiftIfNeeded() (idempotent) →
+//     _showShopWelcomeModal() (Anti-FOMO popup, "VISIT BAZAAR" CTA) →
+//     CTA: showScreen('shop') + renderShopPacks() →
+//     _showWelcomeGiftModal() (overlay with [CLAIM] button) →
+//     _claimWelcomeGift() — grants 500g + 5 sigils + 1 hero card →
+//     1s after claim: _pulseTowerClimberPack() (attention cue)
+//
+// DISMISS path: SHOP_FIRST_VISIT_KEY already saved → modal won't re-fire.
+//   Welcome gift state stays { granted:true, claimed:false } → banner shows
+//   on next shop visit via _renderWelcomeGiftBannerIfPending().
+// ──────────────────────────────────────────────────────────────────────────
+
+// SHOP.1-REV §4.6 — Welcome Gift state
+function _isFirstShopVisit() {
+  try { return localStorage.getItem(SHOP_FIRST_VISIT_KEY) !== 'true'; }
+  catch (e) { return false; }
+}
+function _grantWelcomeGiftIfNeeded() {
+  try {
+    const raw = localStorage.getItem(WELCOME_GIFT_STATE_KEY);
+    if (raw) {
+      const state = JSON.parse(raw);
+      if (state.granted) return; // already granted
+    }
+    const newState = { granted: true, claimed: false, grantedAt: new Date().toISOString() };
+    localStorage.setItem(WELCOME_GIFT_STATE_KEY, JSON.stringify(newState));
+    try { logEvent(EVT.purchase_started, { sku: 'welcome_gift', kind: 'granted' }); } catch (e) {}
+  } catch (e) { console.warn('[SHOP.1-REV] grant gift:', e); }
+}
+function _isWelcomeGiftPending() {
+  try {
+    const raw = localStorage.getItem(WELCOME_GIFT_STATE_KEY);
+    if (!raw) return false;
+    const state = JSON.parse(raw);
+    return state.granted && !state.claimed;
+  } catch (e) { return false; }
+}
+function _markWelcomeGiftClaimed() {
+  try {
+    const raw = localStorage.getItem(WELCOME_GIFT_STATE_KEY);
+    const state = raw ? JSON.parse(raw) : { granted: true, claimed: false };
+    state.claimed = true;
+    state.claimedAt = new Date().toISOString();
+    localStorage.setItem(WELCOME_GIFT_STATE_KEY, JSON.stringify(state));
+  } catch (e) {}
+}
+
+// SHOP.1-REV §4.5 — First-visit welcome modal. Reuses _showAntiFomoPopup.
+function _showShopWelcomeModal() {
+  // Mark first visit flag immediately to prevent re-trigger on bounce
+  try { localStorage.setItem(SHOP_FIRST_VISIT_KEY, 'true'); } catch (e) {}
+  try { localStorage.setItem(SHOP_REVEALED_KEY, 'true'); } catch (e) {}
+  try { _stopShopButtonPulse(); } catch (e) {}
+  try { logEvent(EVT.shop_section_viewed, { section: 'welcome_modal', source: 'first_visit' }); } catch (e) {}
+
+  _showAntiFomoPopup({
+    title: '⚜  THE BAZAAR OPENS  ⚜',
+    body:
+      '<div style="font-family:var(--a-display-font);font-size:13px;line-height:1.6;color:#E8E5F5;text-align:center;">' +
+        '<p style="margin:0 0 10px;">You defeated the <strong style="color:#9B59D6">Crypt Lich</strong>.<br>The summoner\'s gates open.</p>' +
+        '<p style="margin:0 0 10px;color:#FFD53D;font-weight:bold;">Everything here is optional.<br>Your skill is enough.</p>' +
+        '<p style="margin:0;font-size:11px;color:#A8A5B8;">No item makes you stronger<br>than mastering your heroes.</p>' +
+      '</div>',
+    ctaLabel: 'VISIT BAZAAR',
+    ctaAction: function () {
+      try {
+        const sg = document.getElementById('shopGoldCount'); if (sg) sg.textContent = String(gold);
+        const sgm = document.getElementById('shopGemCount'); if (sgm) sgm.textContent = String(gems);
+      } catch (e) {}
+      showScreen('shop');
+      try { renderShopPacks(); } catch (e) {}
+      // 200ms delay → smoother feel
+      setTimeout(function () {
+        try { _showWelcomeGiftModal(); } catch (e) {}
+      }, 200);
+    },
+    glow: '#FFD53D',
+    kind: 'shop_welcome',
+  });
+}
+
+// SHOP.1-REV §4.7 — Welcome Gift Modal (overlay with [CLAIM]).
+function _showWelcomeGiftModal() {
+  if (!_isWelcomeGiftPending()) return;
+  let overlay = document.getElementById('welcomeGiftOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'welcomeGiftOverlay';
+    overlay.className = 'welcome-gift-overlay';
+    document.body.appendChild(overlay);
   }
-  // 2. Subscription renewal warning (3 days before expiry)
+  overlay.innerHTML =
+    '<div class="welcome-gift-card">' +
+      '<div class="welcome-gift-title">🎁 BAZAAR WELCOME GIFT</div>' +
+      '<div class="welcome-gift-sub">A token for your victory.</div>' +
+      '<div class="welcome-gift-items">' +
+        '<div class="wgi"><span class="wgi-icon">💰</span><span class="wgi-amt">500</span><span class="wgi-name">GOLD</span></div>' +
+        '<div class="wgi"><span class="wgi-icon">✨</span><span class="wgi-amt">5</span><span class="wgi-name">SIGIL SHARDS</span></div>' +
+        '<div class="wgi"><span class="wgi-icon">🃏</span><span class="wgi-amt">1</span><span class="wgi-name">RANDOM HERO CARD</span></div>' +
+      '</div>' +
+      '<button class="welcome-gift-claim" onclick="_claimWelcomeGift()">CLAIM</button>' +
+    '</div>';
+  overlay.classList.add('active');
+}
+
+function _claimWelcomeGift() {
+  if (!_isWelcomeGiftPending()) return;
+  // Grant items
+  try {
+    if (typeof addGold === 'function') addGold(500);
+    else if (typeof gold === 'number') { gold += 500; try { saveGoldToStorage(); } catch(e){} }
+  } catch (e) { console.warn('gold grant:', e); }
+  try {
+    if (typeof towerState !== 'undefined' && towerState) {
+      towerState.sigilShards = (towerState.sigilShards || 0) + 5;
+      try { saveTowerState(); } catch(e){}
+    }
+  } catch (e) { console.warn('sigil grant:', e); }
+  try {
+    if (typeof dropRandomHeroCards === 'function') dropRandomHeroCards(1, { weighted: true });
+  } catch (e) { console.warn('card grant:', e); }
+  // Mark claimed
+  _markWelcomeGiftClaimed();
+  try { logEvent(EVT.purchase_completed, { sku: 'welcome_gift', currency: 'free' }); } catch (e) {}
+  // Animate dismissal
+  const overlay = document.getElementById('welcomeGiftOverlay');
+  if (overlay) {
+    overlay.classList.add('claimed');
+    setTimeout(function () {
+      overlay.classList.remove('active', 'claimed');
+      overlay.innerHTML = '';
+    }, 600);
+  }
+  // 1-second delay → pulse-glow on Tower Climber's Pack to draw attention
+  setTimeout(function () {
+    try { _pulseTowerClimberPack(); } catch (e) {}
+  }, 1000);
+  // Refresh balance display
+  try {
+    const sg = document.getElementById('shopGoldCount'); if (sg) sg.textContent = String(gold);
+  } catch (e) {}
+  try { renderShopPacks(); } catch (e) {}
+}
+
+// SHOP.1-REV §4.7 — Pending banner (dismissed-but-unclaimed)
+function _renderWelcomeGiftBannerIfPending() {
+  const host = document.getElementById('shopSectionOffers');
+  if (!host) return;
+  if (!_isWelcomeGiftPending()) return;
+  if (host.querySelector('.welcome-gift-banner')) return;  // don't double-render
+  const banner = document.createElement('div');
+  banner.className = 'welcome-gift-banner';
+  banner.innerHTML =
+    '<span class="wgb-icon">🎁</span>' +
+    '<span class="wgb-text">You have an unclaimed welcome gift</span>' +
+    '<button class="wgb-cta" onclick="_showWelcomeGiftModal()">CLAIM</button>';
+  host.insertBefore(banner, host.firstChild);
+}
+
+// SHOP.1-REV §4.9 — Pulse-glow attention cue on Tower Climber's Pack
+function _pulseTowerClimberPack() {
+  const el = document.querySelector('.shop-tower-climber-pack');
+  if (!el) return;
+  el.classList.add('pulse-glow');
+  // Remove after 4.2s (3 cycles × 1.4s)
+  setTimeout(function () {
+    if (el && el.classList) el.classList.remove('pulse-glow');
+  }, 4200);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// SHOP.1-REV §4.8 — Tower Climber's Pack ($0.99 mock IAP, one-time, 7-day window)
+// First cash purchase target. Themed to Tower because player just unlocked
+// Tower → currencies relevant. Window starts on FIRST RENDER (player-facing
+// time, not unlock-time). After purchase OR expiry → hidden permanently.
+// ──────────────────────────────────────────────────────────────────────────
+
+const TOWER_CLIMBER_PACK_USD          = 0.99;
+const TOWER_CLIMBER_PACK_WINDOW_DAYS  = 7;
+const TOWER_CLIMBER_PACK_CONTENTS = {
+  sigilShards:    10,
+  heartFragments: 1,    // 1/5 of a Tower Heart
+  gold:           200,
+  heroCards:      5     // weighted to missing
+};
+
+function _getTowerClimberPackState() {
+  try {
+    const raw = localStorage.getItem(TOWER_CLIMBER_PACK_KEY);
+    if (!raw) return { purchased: false, firstShownAt: null, expiresAt: null };
+    return JSON.parse(raw);
+  } catch (e) { return { purchased: false, firstShownAt: null, expiresAt: null }; }
+}
+function _saveTowerClimberPackState(state) {
+  try { localStorage.setItem(TOWER_CLIMBER_PACK_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function _isTowerClimberPackVisible() {
+  const s = _getTowerClimberPackState();
+  if (s.purchased) return false;
+  // First view → set 7-day expiry
+  if (!s.firstShownAt) {
+    s.firstShownAt = new Date().toISOString();
+    const expires = new Date(Date.now() + TOWER_CLIMBER_PACK_WINDOW_DAYS * 86400000);
+    s.expiresAt = expires.toISOString();
+    _saveTowerClimberPackState(s);
+    return true;
+  }
+  // Check expiry
+  if (s.expiresAt && Date.now() > new Date(s.expiresAt).getTime()) return false;
+  return true;
+}
+function _towerClimberPackHoursRemaining() {
+  const s = _getTowerClimberPackState();
+  if (!s.expiresAt) return null;
+  const ms = new Date(s.expiresAt).getTime() - Date.now();
+  return Math.max(0, Math.floor(ms / 3600000));
+}
+function buyTowerClimberPack() {
+  try { logEvent(EVT.purchase_started, { sku: 'tower_climber_pack', currency: 'usd', cost: TOWER_CLIMBER_PACK_USD }); } catch (e) {}
+  // Mock IAP — replace with real StoreKit/Billing in Phase 8 post-launch
+  const c = TOWER_CLIMBER_PACK_CONTENTS;
+  const confirmed = confirm(
+    'Tower Climber\'s Pack\n\n' +
+    '• ' + c.sigilShards + ' Sigil Shards\n' +
+    '• ' + c.heartFragments + ' Heart Fragment (1/5 toward Tower Heart)\n' +
+    '• ' + c.gold + ' Gold\n' +
+    '• ' + c.heroCards + ' Hero Cards (weighted to missing)\n\n' +
+    'Buy for $' + TOWER_CLIMBER_PACK_USD.toFixed(2) + '?\n\n' +
+    _devNotice()
+  );
+  if (!confirmed) {
+    try { logEvent(EVT.purchase_cancelled, { sku: 'tower_climber_pack' }); } catch (e) {}
+    return;
+  }
+  // Grant contents
+  try {
+    if (typeof addGold === 'function') addGold(c.gold);
+    if (typeof towerState !== 'undefined' && towerState) {
+      towerState.sigilShards = (towerState.sigilShards || 0) + c.sigilShards;
+      towerState.towerHeartFragments = (towerState.towerHeartFragments || 0) + c.heartFragments;
+      try { saveTowerState(); } catch (e) {}
+    }
+    if (typeof dropRandomHeroCards === 'function') dropRandomHeroCards(c.heroCards, { weighted: true });
+  } catch (e) { console.warn('pack grant:', e); }
+  // Mark purchased
+  const s = _getTowerClimberPackState();
+  s.purchased = true;
+  s.purchasedAt = new Date().toISOString();
+  _saveTowerClimberPackState(s);
+  // First-purchase milestone
+  try { if (typeof _markFirstPurchaseDone === 'function') _markFirstPurchaseDone(); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
+  try { logEvent(EVT.purchase_completed, { sku: 'tower_climber_pack', currency: 'usd', cost: TOWER_CLIMBER_PACK_USD }); } catch (e) {}
+  try { showToast('Tower Climber\'s Pack claimed!'); }
+  catch (e) { try { flashText('★ TOWER CLIMBER\'S PACK', '#4DD0E1'); } catch (e2) {} }
+  try { renderShopPacks(); } catch (e) {}
+}
+
+// Expose helpers to window so HTML onclick + DevTools work
+if (typeof window !== 'undefined') {
+  window.buyTowerClimberPack = buyTowerClimberPack;
+  window._claimWelcomeGift = _claimWelcomeGift;
+  window._showWelcomeGiftModal = _showWelcomeGiftModal;
+  window._isWelcomeGiftPending = _isWelcomeGiftPending;
+  window._isFirstShopVisit = _isFirstShopVisit;
+  window._isTowerClimberPackVisible = _isTowerClimberPackVisible;
+  window._renderWelcomeGiftBannerIfPending = _renderWelcomeGiftBannerIfPending;
+}
+
+function _pickDailyPopupContent() {
+  // SHOP.1-REV §4.13 — Day-7 / Ch1-only first-shop reveal block REMOVED.
+  // Welcome flow now triggers from first shop visit after Lich-defeat + 24h
+  // gates pass. See _showShopWelcomeModal (called from goToShop).
+  // Priority order below (each returns a content object or null).
+
+  // 1. Subscription renewal warning (3 days before expiry)
   try {
     if (_isSeasonPassActive() && seasonPassSub.autoRenew && seasonPassSub.expiresAt) {
       const days = _seasonPassDaysRemaining();
@@ -30721,6 +31236,11 @@ function _maybeShowChapterCompletePopup() {
 
 // Bootstrap — record first-launch date on first ever visit.
 _ensureFirstLaunchDate();
+// SHOP.1-REV §4.4 — Re-evaluate shop unlock on every launch. Handles the
+// "24h elapsed since Lich" case where player closes app right after Lich
+// win and reopens after the cooldown — without this hook, unlock would
+// only fire on Lich-aftermath dismissal which has already happened.
+try { _evaluateShopUnlockOnLaunch(); } catch (e) {}
 
 // ===== PROFILE PAGE — P0 Foundation (2026-04-28) =====
 // Per BLOCKSWORN_PROFILE_PAGE.md spec. State + BackendProvider abstraction +
