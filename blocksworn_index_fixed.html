@@ -17694,17 +17694,45 @@ const MONETIZATION = Object.freeze({
     premium:  Object.freeze({ gems: 500, cards: 10, t2Stones: 1, t3Chance: 0.05,
                               goldBonus: 50, essenceBonus: 5 }),
     ultimate: Object.freeze({ gems: 1100, cards: 25, t2Stones: 2, t3Stones: 1,
-                              goldBonus: 100, essenceBonus: 20, dropBoostDays: 7 })
+                              goldBonus: 100, essenceBonus: 20, dropBoostDays: 7 }),
+    // SHOP.2 — Starter Pack (Day 4-14 only, one-shot per install). Heavy F2P→P
+    // conversion lever per PRELAUNCH §11.5. Founder badge is permanent profile cosmetic.
+    starter: Object.freeze({ usd: 2.99, captains: 1, gems: 500, cards: 25, t2Stones: 1,
+                             gold: 5000, badge: 'founder', minDay: 4, maxDay: 14 }),
+    // SHOP.6 — Race Launch Bundle. Spec drop $19.99 → $14.99 + race-exclusive
+    // banner cosmetic (not buyable separately). Conditional hide when race
+    // already F2P-unlocked.
+    raceBundle: Object.freeze({ usd: 14.99, gems: 1500, cardsPerHero: 1,
+                                essence: 10, captainLv: 5, banner: 'race_banner' })
   }),
-  pity: Object.freeze({ threshold: 30, premiumDropBoost: 1.30 }),
+  pity: Object.freeze({
+    threshold: 30, premiumDropBoost: 1.30,
+    // SHOP.3 — separate T3 pity tracker for Premium-pack streaks (per spec
+    // "T3 Stone has separate pity tracker (Premium pack)").
+    t3Threshold: 50
+  }),
   buffs: Object.freeze({
     mega:       Object.freeze({ usd: 1.99, gems: 200, durationMs: 24*60*60*1000,
                                 goldMult: 1.25, fragMult: 1.50 }),
     squadBoost: Object.freeze({ usd: 4.99, gems: 500, cooldownMs: 24*60*60*1000, levels: 1 }),
+    // SHOP.7 — Gold Rush 24h. Replaces Squad Level Boost in shop UI.
+    // Stacks MULTIPLICATIVELY with Mega Buff (verify: 1.25 × 2.0 = 2.5×).
+    // Includes 1 free Tower retry — Phase 6 TOWER.5 reads this flag.
+    goldRush:   Object.freeze({ usd: 4.99, gems: 500, durationMs: 24*60*60*1000,
+                                cooldownMs: 24*60*60*1000,
+                                goldMult: 2.00, essenceMult: 1.50, freeTowerRetries: 1 }),
     squadPower: Object.freeze({ usd: 9.99, gems: 1100, t2: 3, cards: 25, gold: 1000,
                                 essencePer: 20 })
   }),
-  firstPurchase: Object.freeze({ freeBuffMs: 7*24*60*60*1000 })
+  firstPurchase: Object.freeze({ freeBuffMs: 7*24*60*60*1000 }),
+  // SHOP.1 — Progressive shop reveal (PRELAUNCH §11.5). Day 1-3 hidden,
+  // Day 4-6 disabled with "Day 7" tooltip, Day 7+ full shop. accountAge
+  // measured via _daysSinceFirstLaunch helper.
+  shopReveal: Object.freeze({
+    minDayHidden:   0,   // Day 0-3 → button hidden
+    minDayDisabled: 4,   // Day 4-6 → button disabled
+    minDayEnabled:  7    // Day 7+  → full access
+  })
 });
 
 if (typeof window !== 'undefined') {
@@ -20353,6 +20381,7 @@ function buyStandardPack() {
   // Phase B: increment pity counter; force-T2 at threshold (per spec §3.4).
   try { if (typeof _incrementPackPity === 'function') _incrementPackPity(); } catch (e) {}
   showPackRevealModal({ kind: 'standard', dropped });
+  try { logEvent(EVT.purchase_completed, { sku: 'standard_pack', currency: 'gold', cost: PACK_STANDARD_COST }); } catch (e) {}
   return true;
 }
 
@@ -20751,6 +20780,70 @@ function _onRareDropResetPity() {
   // Big/Premium/Ultimate purchases all guarantee a T2 (rare) so pity resets.
   _setPackPityCounter(0);
 }
+
+// SHOP.3 — T3 pity tracker (separate from T2 pity). Premium pack purchases
+// without T3 drop accumulate; at threshold the next premium pack is forced
+// to drop a T3 stone. Per spec: "T3 Stone has separate pity tracker".
+const PACK_T3_PITY_KEY = 'blocksworn_pack_t3_pity_counter';
+function _getPackT3PityCounter() {
+  try { return parseInt(localStorage.getItem(PACK_T3_PITY_KEY) || '0', 10) || 0; } catch (e) { return 0; }
+}
+function _setPackT3PityCounter(n) {
+  try { localStorage.setItem(PACK_T3_PITY_KEY, String(Math.max(0, n))); } catch (e) {}
+}
+// Returns { gotT3 } where gotT3=true means the caller should grant a bonus
+// T3 stone (and reset). Caller decides whether to also award the natural
+// pack T3 chance — pity grants the extra one when threshold is hit.
+function _incrementPackT3Pity() {
+  let n = _getPackT3PityCounter() + 1;
+  if (n >= MONETIZATION.pity.t3Threshold) {
+    n = 0;
+    _setPackT3PityCounter(0);
+    setTimeout(() => { try { flashText('★ T3 PITY BONUS · 💠 STONE', '#5DCAFF'); } catch (e) {} }, 1100);
+    return { gotT3: true };
+  }
+  _setPackT3PityCounter(n);
+  return { gotT3: false };
+}
+function _resetPackT3Pity() { _setPackT3PityCounter(0); }
+
+// SHOP.3 — Pity explainer modal. Tappable from both pity bars.
+function showPityInfo() {
+  let host = document.getElementById('pityInfoOverlay');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'pityInfoOverlay';
+    host.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(8,5,18,0.78);backdrop-filter:blur(4px);font-family:inherit;cursor:pointer';
+    document.body.appendChild(host);
+  }
+  const t2Count = _getPackPityCounter();
+  const t2Left = Math.max(0, PACK_PITY_THRESHOLD - t2Count);
+  const t3Count = _getPackT3PityCounter();
+  const t3Left = Math.max(0, MONETIZATION.pity.t3Threshold - t3Count);
+  host.innerHTML =
+    '<div style="background:#15101F;border:1px solid #FFD53D;border-radius:14px;padding:22px 24px;max-width:380px;width:88%;box-shadow:0 0 40px rgba(255,213,61,0.30);text-align:left;cursor:default" onclick="event.stopPropagation()">' +
+      '<div style="font-size:20px;font-weight:800;color:#FFD53D;letter-spacing:2px;margin-bottom:6px">ANTI-RNG SAFETY NETS</div>' +
+      '<div style="font-size:11px;color:#A8A5B8;letter-spacing:2px;margin-bottom:14px">PITY · TWO PARALLEL TRACKS</div>' +
+      '<div style="font-size:13px;color:#C8C3D8;line-height:1.55;margin-bottom:14px">Tracks how many packs you\'ve opened without a guaranteed rare drop. At threshold, the next pack of that type forces the bonus.</div>' +
+      '<div style="border:1px solid rgba(255,213,61,0.40);border-radius:8px;padding:10px;margin-bottom:10px">' +
+        '<div style="font-size:13px;font-weight:700;color:#FFD53D;margin-bottom:4px">⚡ T2 PITY · Standard / Race packs</div>' +
+        '<div style="font-size:11px;color:#A8A5B8">' + t2Count + ' / ' + PACK_PITY_THRESHOLD + ' · T2 STONE GUARANTEED IN ' + t2Left + ' MORE PACK' + (t2Left === 1 ? '' : 'S') + '</div>' +
+      '</div>' +
+      '<div style="border:1px solid rgba(93,202,255,0.40);border-radius:8px;padding:10px;margin-bottom:14px">' +
+        '<div style="font-size:13px;font-weight:700;color:#5DCAFF;margin-bottom:4px">💠 T3 PITY · Premium packs only</div>' +
+        '<div style="font-size:11px;color:#A8A5B8">' + t3Count + ' / ' + MONETIZATION.pity.t3Threshold + ' · T3 STONE GUARANTEED IN ' + t3Left + ' MORE PREMIUM PACK' + (t3Left === 1 ? '' : 'S') + '</div>' +
+      '</div>' +
+      '<button id="pityInfoClose" class="btn" style="width:100%;padding:10px;font-size:12px;font-weight:700;letter-spacing:2px;background:rgba(255,213,61,0.16);color:#FFD53D;border:1px solid rgba(255,213,61,0.40);border-radius:8px;cursor:pointer">CLOSE</button>' +
+    '</div>';
+  const dismiss = () => { if (host && host.parentNode) host.parentNode.removeChild(host); };
+  host.onclick = dismiss;
+  document.getElementById('pityInfoClose').onclick = dismiss;
+  try { logEvent(EVT.shop_section_viewed, { section: 'pity_info' }); } catch (e) {}
+}
+if (typeof window !== 'undefined') {
+  window.showPityInfo = showPityInfo;
+  window._getPackT3PityCounter = _getPackT3PityCounter;
+}
 function _incrementPackPity() {
   // Standard / Race packs increment pity. At threshold, force-grant a T2 stone
   // bonus AND reset (per spec §3.4 anti-RNG protection: "After 30 packs without
@@ -20810,9 +20903,20 @@ function buyPremiumPack() {
   const dropped = dropRandomHeroCards(PACK_PREMIUM_CARDS, { silent: true });
   _addTier2Stones(PACK_PREMIUM_T2_STONES);
   let t3 = 0;
+  // SHOP.3 — Two paths to T3 from a Premium pack:
+  //   1. Natural roll (PACK_PREMIUM_T3_CHANCE = 5%)
+  //   2. Pity threshold hit (every 50 premium packs without T3)
+  // Pity ALSO resets on natural roll (don't double-count consecutive grants).
   if (Math.random() < PACK_PREMIUM_T3_CHANCE) {
     _addTier3Stones(1);
     t3 = 1;
+    if (typeof _resetPackT3Pity === 'function') _resetPackT3Pity();
+  } else {
+    const pity = (typeof _incrementPackT3Pity === 'function') ? _incrementPackT3Pity() : { gotT3: false };
+    if (pity.gotT3) {
+      _addTier3Stones(1);
+      t3 = 1;
+    }
   }
   if (typeof gold !== 'undefined') {
     gold += PACK_PREMIUM_GOLD_BONUS;
@@ -20830,6 +20934,7 @@ function buyPremiumPack() {
                         gold: PACK_PREMIUM_GOLD_BONUS,
                         essence: PACK_PREMIUM_ESSENCE_BONUS, stihiya: randStih });
   try { _grantFirstPurchaseBonus(); } catch (e) {}
+  try { logEvent(EVT.purchase_completed, { sku: 'premium_pack', currency: 'gems', cost: PACK_PREMIUM_GEMS_COST, t3 }); } catch (e) {}
   return true;
 }
 
@@ -20935,14 +21040,26 @@ function renderShopPacks() {
   const bigGemsAfford = gemsNow >= PACK_BIG_GEMS_COST;
   const premiumAfford = gemsNow >= PACK_PREMIUM_GEMS_COST;
   const ultimateAfford = gemsNow >= PACK_ULTIMATE_GEMS_COST;
-  // Pity progress (anti-RNG: standard/race packs accumulate, T2 stone forced at 30).
+  // SHOP.3 — Pity bar UX overhaul. Two parallel pity tracks (T2 from
+  // standard/race, T3 from premium) shown side by side with tap-to-explain.
+  // Per spec: "Pity bar shows 'T2 STONE GUARANTEED — N packs left'".
   const pityCount = _getPackPityCounter();
   const pityPct = Math.min(100, Math.round((pityCount / PACK_PITY_THRESHOLD) * 100));
+  const pityT2Left = Math.max(0, PACK_PITY_THRESHOLD - pityCount);
+  const t3Count = (typeof _getPackT3PityCounter === 'function') ? _getPackT3PityCounter() : 0;
+  const t3Threshold = MONETIZATION.pity.t3Threshold;
+  const t3Pct = Math.min(100, Math.round((t3Count / t3Threshold) * 100));
+  const t3Left = Math.max(0, t3Threshold - t3Count);
   const pityHtml =
-    '<div class="shop-pity-bar" title="Anti-RNG: every 30 standard/race packs without rare → 1 free T2 stone">' +
-      '<span class="label">PITY</span>' +
+    '<div class="shop-pity-bar" onclick="showPityInfo()" style="cursor:pointer">' +
+      '<span class="label">⚡ T2 PITY</span>' +
       '<span class="track"><span class="fill" style="width:' + pityPct + '%"></span></span>' +
-      '<span class="count">' + pityCount + ' / ' + PACK_PITY_THRESHOLD + '</span>' +
+      '<span class="count">T2 GUARANTEED IN ' + pityT2Left + ' PACK' + (pityT2Left === 1 ? '' : 'S') + '</span>' +
+    '</div>' +
+    '<div class="shop-pity-bar" onclick="showPityInfo()" style="cursor:pointer;margin-top:6px">' +
+      '<span class="label">💠 T3 PITY</span>' +
+      '<span class="track"><span class="fill" style="width:' + t3Pct + '%;background:linear-gradient(90deg,#5DCAFF,#A8E0FF)"></span></span>' +
+      '<span class="count">T3 GUARANTEED IN ' + t3Left + ' PREMIUM</span>' +
     '</div>';
   // Premium drop rate banner (active only after Ultimate Pack purchase, 7 days).
   const dropActive = _isPremiumDropActive();
@@ -21072,6 +21189,9 @@ function renderShopPacks() {
   const buffHrs       = (typeof _megaBuffHoursLeft === 'function') ? _megaBuffHoursLeft() : 0;
   const squadAvail    = (typeof _squadBoostAvailable === 'function') ? _squadBoostAvailable() : true;
   const squadCdHrs    = (typeof _squadBoostHoursLeft === 'function') ? _squadBoostHoursLeft() : 0;
+  // SHOP.7 — Gold Rush availability + cooldown.
+  const goldRushActive = (typeof _isGoldRushActive === 'function') && _isGoldRushActive();
+  const goldRushCooldown = (typeof _goldRushOnCooldown === 'function') && _goldRushOnCooldown();
   const dailyClaimed  = (typeof _isDailyGiftPurchasedToday === 'function') ? _isDailyGiftPurchasedToday() : false;
   const todayGift     = (typeof getTodayDailyGift === 'function') ? getTodayDailyGift() : null;
   const adsLeft       = (typeof _adsRemaining === 'function') ? _adsRemaining() : 0;
@@ -21090,16 +21210,24 @@ function renderShopPacks() {
         '<div class="shop-conv-contents">+25% gold · +50% Hero Cards · +25% shards · 24h</div>' +
         '<div class="shop-conv-cost">$' + MEGA_BUFF_USD.toFixed(2) + ' / ' + MEGA_BUFF_GEMS + '💎</div>' +
       '</button>';
-  const squadBoostHtml = squadAvail
-    ? '<button class="shop-conv shop-conv-squad" onclick="buySquadLevelBoost()">' +
-        '<div class="shop-conv-title">⚔ SQUAD LEVEL BOOST</div>' +
-        '<div class="shop-conv-contents">+' + SQUAD_BOOST_LEVELS + ' level to all active squad heroes · 1× per day</div>' +
-        '<div class="shop-conv-cost">$' + SQUAD_BOOST_USD.toFixed(2) + ' / ' + SQUAD_BOOST_GEMS + '💎</div>' +
+  // SHOP.7 — Squad Boost replaced with Gold Rush in shop UI per PRELAUNCH §11.5.
+  // Legacy buySquadLevelBoost function kept for save compat; just hidden from UI.
+  // Gold Rush: +100% gold + +50% essence + 1 free Tower retry, stacks on Mega.
+  const squadBoostHtml = goldRushActive
+    ? '<button class="shop-conv shop-conv-squad" disabled>' +
+        '<div class="shop-conv-title">★ GOLD RUSH · ACTIVE</div>' +
+        '<div class="shop-conv-contents">+100% gold · +50% essence · 1 free Tower retry</div>' +
+        '<div class="shop-conv-cooldown">' + (typeof _goldRushHoursLeft === 'function' ? _goldRushHoursLeft() : 0) + 'h LEFT</div>' +
       '</button>'
-    : '<button class="shop-conv shop-conv-squad" disabled>' +
-        '<div class="shop-conv-title">⚔ SQUAD LEVEL BOOST</div>' +
-        '<div class="shop-conv-contents">On cooldown</div>' +
-        '<div class="shop-conv-cooldown">Available in ' + squadCdHrs + 'h</div>' +
+    : goldRushCooldown
+    ? '<button class="shop-conv shop-conv-squad" disabled>' +
+        '<div class="shop-conv-title">★ GOLD RUSH</div>' +
+        '<div class="shop-conv-contents">On cooldown — daily cap 1</div>' +
+      '</button>'
+    : '<button class="shop-conv shop-conv-squad" onclick="buyGoldRush()">' +
+        '<div class="shop-conv-title">★ GOLD RUSH 24h</div>' +
+        '<div class="shop-conv-contents">+100% gold · +50% essence · 1 free Tower retry · stacks on Mega</div>' +
+        '<div class="shop-conv-cost">$' + GOLD_RUSH_USD.toFixed(2) + ' / ' + GOLD_RUSH_GEMS + '💎</div>' +
       '</button>';
   let dailyGiftContents = '';
   if (todayGift) {
@@ -21142,6 +21270,9 @@ function renderShopPacks() {
 
   // ----- Phase D — Bundles (Squad / Rapid / Endgame Kit + Race Launch ×5) -----
   const purchasedRaces = (typeof _getPurchasedRaceBundles === 'function') ? _getPurchasedRaceBundles() : [];
+  // SHOP.5 — Endgame Kit visibility gated on eligibility (Ch2 cleared + 5 LV10 heroes).
+  // Hidden entirely for new players to avoid whale-bait UX.
+  const endgameEligible = (typeof _isEndgameKitEligible === 'function') ? _isEndgameKitEligible() : true;
   const endgameAvail = (typeof _isEndgameKitAvailableThisSeason === 'function') ? _isEndgameKitAvailableThisSeason() : true;
   const squadBundleHtml =
     '<button class="shop-bundle shop-bundle-squad" onclick="buySquadPowerPack()">' +
@@ -21155,33 +21286,50 @@ function renderShopPacks() {
       '<div class="shop-bundle-contents">' + RAPID_ASCENSION_T2 + ' ⚡ T2 · ' + RAPID_ASCENSION_T3 + ' 💠 T3 · ' + RAPID_ASCENSION_CARDS + ' cards · ' + (RAPID_ASCENSION_ESSENCE_PER * 5) + ' shards · ' + RAPID_ASCENSION_GOLD + '💰</div>' +
       '<div class="shop-bundle-cost">$' + RAPID_ASCENSION_USD.toFixed(2) + ' / ' + RAPID_ASCENSION_GEMS + '💎</div>' +
     '</button>';
-  const endgameBundleHtml =
-    '<button class="shop-bundle shop-bundle-endgame" ' + (endgameAvail ? '' : 'disabled') + ' onclick="buyEndgameKit()">' +
-      '<div class="shop-bundle-title">👑 ULTIMATE ASCENSION KIT' + (endgameAvail ? '' : ' (claimed)') + '</div>' +
-      '<div class="shop-bundle-contents">' + ENDGAME_KIT_T3 + ' 💠 T3 · ' + ENDGAME_KIT_T2 + ' ⚡ T2 · ' + ENDGAME_KIT_CARDS + ' cards · ' + ENDGAME_KIT_HEARTS + ' ♥ · BP premium · ARCHITECT badge</div>' +
-      '<div class="shop-bundle-cost">$' + ENDGAME_KIT_USD.toFixed(2) + ' / ' + ENDGAME_KIT_GEMS + '💎</div>' +
-    '</button>';
-  const raceBundleCardsHtml = ['pirate', 'rock', 'shark', 'crocodile', 'spark'].map(function (r) {
+  const endgameBundleHtml = endgameEligible
+    ? '<button class="shop-bundle shop-bundle-endgame" ' + (endgameAvail ? '' : 'disabled') + ' onclick="buyEndgameKit()">' +
+        '<div class="shop-bundle-title">👑 ULTIMATE ASCENSION KIT' + (endgameAvail ? '' : ' (claimed)') + '</div>' +
+        '<div class="shop-bundle-contents">' + ENDGAME_KIT_T3 + ' 💠 T3 · ' + ENDGAME_KIT_T2 + ' ⚡ T2 · ' + ENDGAME_KIT_CARDS + ' cards · ' + ENDGAME_KIT_HEARTS + ' ♥ · BP premium · ARCHITECT badge</div>' +
+        '<div class="shop-bundle-cost">$' + ENDGAME_KIT_USD.toFixed(2) + ' / ' + ENDGAME_KIT_GEMS + '💎</div>' +
+      '</button>'
+    : '';  // SHOP.5 — hide entirely for ineligible players
+  // SHOP.6 — Race Bundle now hides for races already F2P-unlocked (no upside
+  // to bundle if player has heroes via play) AND drops to $14.99. Race-banner
+  // cosmetic mention added to desc as the new exclusive perk.
+  const raceBundleCardsHtml = ['pirate', 'rock', 'shark', 'crocodile', 'spark'].filter(function (r) {
+    return !_isRaceF2PUnlocked(r);
+  }).map(function (r) {
     const owned = purchasedRaces.includes(r);
     const color = _PACK_RACE_COLORS[r] || '#FFD53D';
     const lbl = _PACK_RACE_LABELS[r];
     if (owned) {
       return '<button class="shop-race-bundle-card" disabled style="--rb-color:' + color + '">' +
                '<div class="name">' + lbl + ' BUNDLE</div>' +
-               '<div class="desc">✓ OWNED</div>' +
+               '<div class="desc">✓ OWNED · banner equipped</div>' +
                '<div class="cost">—</div>' +
              '</button>';
     }
     return '<button class="shop-race-bundle-card" style="--rb-color:' + color + '" onclick="buyRaceLaunchBundle(\'' + r + '\')">' +
              '<div class="name">' + lbl + ' BUNDLE</div>' +
-             '<div class="desc">5 heroes · LV5 cap · 10✦ · 5 cards</div>' +
+             '<div class="desc">5 heroes · LV5 cap · 10✦ · 5 cards · race banner</div>' +
              '<div class="cost">$' + RACE_BUNDLE_USD.toFixed(2) + '</div>' +
            '</button>';
   }).join('');
 
+  // SHOP.2 — Starter Pack tile (Day 4-14 only, one-shot). Top of shop for
+  // prominence — this is the F2P→P conversion lever.
+  const starterEligible = (typeof _isStarterPackEligible === 'function') && _isStarterPackEligible();
+  const starterHtml = starterEligible
+    ? '<button class="shop-bundle shop-bundle-endgame" onclick="buyStarterPack()" style="border-color:#FFAA00;background:linear-gradient(135deg,rgba(255,170,0,0.18),rgba(255,213,61,0.12))">' +
+        '<div class="shop-bundle-title">★ SUMMONER\'S STARTER PACK · 1× ONLY</div>' +
+        '<div class="shop-bundle-contents">1 random Captain · ' + STARTER_PACK_GEMS + '💎 · ' + STARTER_PACK_CARDS + ' cards · ' + STARTER_PACK_T2_STONES + ' T2 · ' + STARTER_PACK_GOLD + '💰 · FOUNDER badge</div>' +
+        '<div class="shop-bundle-cost">$' + STARTER_PACK_USD.toFixed(2) + '</div>' +
+      '</button>'
+    : '';
   host.innerHTML =
     firstPurchaseBannerHtml +
     buffActiveBanner +
+    starterHtml +
     subTileHtml +
     weeklyOfferHtml +
     dropBoostHtml +
@@ -22977,6 +23125,8 @@ function goToShop() {
   // 2026-04-27 — Block H.5 — populate shop with Pack catalog (HERO_COMPENDIUM §11.2).
   // Replaces the "coming soon" placeholder. F2P-only — gold purchases.
   try { renderShopPacks(); } catch (e) { console.warn('renderShopPacks failed:', e); }
+  // ANALYTICS.3 — shop_opened event drives funnel (open → section view → purchase).
+  try { logEvent(EVT.shop_opened, { day: _daysSinceFirstLaunch() }); } catch (e) {}
 }
 
 // Load gems at parse time, alongside Phase 0 gold/energy
@@ -28018,11 +28168,23 @@ const ENDGAME_KIT_KEY              = 'blocksworn_endgame_kit_last_season';
 const ARCHITECT_BADGE_KEY          = 'blocksworn_architect_badge';
 const WEEKLY_OFFER_PURCHASED_KEY   = 'blocksworn_weekly_offer_purchased';
 
-const RACE_BUNDLE_USD              = 19.99;
-const RACE_BUNDLE_GEMS             = 2000;
-const RACE_BUNDLE_CARDS_PER_HERO   = 1;     // 5 heroes × 1 = 5 cards total
-const RACE_BUNDLE_ESSENCE          = 10;
-const RACE_BUNDLE_CAPTAIN_LV       = 5;
+// SHOP.6 — Race Bundle reads from MONETIZATION.packs.raceBundle. Price drop
+// $19.99 → $14.99 per PRELAUNCH §11.5; race-exclusive banner cosmetic added
+// (granted on purchase, not buyable separately).
+const RACE_BUNDLE_USD              = MONETIZATION.packs.raceBundle.usd;
+const RACE_BUNDLE_GEMS             = MONETIZATION.packs.raceBundle.gems;
+const RACE_BUNDLE_CARDS_PER_HERO   = MONETIZATION.packs.raceBundle.cardsPerHero;
+const RACE_BUNDLE_ESSENCE          = MONETIZATION.packs.raceBundle.essence;
+const RACE_BUNDLE_CAPTAIN_LV       = MONETIZATION.packs.raceBundle.captainLv;
+const RACE_BUNDLE_BANNER_BASE      = MONETIZATION.packs.raceBundle.banner;
+
+// SHOP.6 — Race is "F2P-unlocked" when at least one hero of that race is
+// already unlocked through play. Bundle hides for those races (player has
+// no upside). Race id matches HERO_ROSTER `race` field.
+function _isRaceF2PUnlocked(raceId) {
+  if (typeof HERO_ROSTER === 'undefined' || !Array.isArray(HERO_ROSTER)) return false;
+  return HERO_ROSTER.some(h => h && h.race === raceId && h.unlocked);
+}
 
 const ENDGAME_KIT_USD              = 49.99;
 const ENDGAME_KIT_GEMS             = 5000;
@@ -28101,11 +28263,31 @@ function _markRaceBundlePurchased(race) {
   if (!arr.includes(race)) arr.push(race);
   try { localStorage.setItem(RACE_BUNDLE_PURCHASED_KEY, JSON.stringify(arr)); } catch (e) {}
 }
+// SHOP.5 — Endgame Kit eligibility (PRELAUNCH §11.5). Visible only when:
+//   1. Chapter 2 cleared (so player has experienced mid-difficulty)
+//   2. 5+ heroes at LV10 (proof of ongoing engagement)
+//   3. Not yet purchased this season (existing cooldown)
+// Hidden for new players entirely — no whale-bait shown to F2P early game.
+function _isEndgameKitEligible() {
+  try {
+    if (typeof hasCompletedChapter !== 'function' || !hasCompletedChapter(2)) return false;
+    if (typeof heroLevels !== 'object' || !heroLevels) return false;
+    const lv10Count = Object.values(heroLevels).filter(v => (v | 0) >= 10).length;
+    if (lv10Count < 5) return false;
+    return true;
+  } catch (e) { return false; }
+}
 function _isEndgameKitAvailableThisSeason() {
+  // Cooldown gate (legacy — 1 per season). Composed with eligibility gate
+  // so a player who's eligible but already bought sees "claimed", and a
+  // player who's not eligible doesn't see the kit at all (UI render branch).
   try {
     const lastSeason = parseInt(localStorage.getItem(ENDGAME_KIT_KEY) || '0', 10);
     return lastSeason !== (seasonState.seasonId || 1);
   } catch (e) { return true; }
+}
+if (typeof window !== 'undefined') {
+  window._isEndgameKitEligible = _isEndgameKitEligible;
 }
 
 // ----- D.1: Race Launch Bundle -----
@@ -28154,11 +28336,114 @@ function buyRaceLaunchBundle(race) {
     try { saveProgress(); } catch (e) {}
   }
   _markRaceBundlePurchased(race);
-  try { flashText('★ ' + label + ' BUNDLE', '#FFD53D'); } catch (e) {}
+  // SHOP.6 — Race-exclusive banner cosmetic (per spec: "not buyable separately").
+  // Cosmetic id format: `<base>_<race>` so each race has its own banner.
+  try {
+    const bannerId = RACE_BUNDLE_BANNER_BASE + '_' + race;
+    const c = (typeof _ensureCosmeticState === 'function') ? _ensureCosmeticState() : null;
+    if (c && Array.isArray(c.owned) && !c.owned.includes(bannerId)) {
+      c.owned.push(bannerId);
+      try { if (typeof saveCosmeticState === 'function') saveCosmeticState(); } catch (e) {}
+    }
+  } catch (e) { console.warn('SHOP.6 race banner grant failed:', e); }
+  try { flashText('★ ' + label + ' BUNDLE · banner unlocked', '#FFD53D'); } catch (e) {}
   try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
   try { _grantFirstPurchaseBonus(); } catch (e) {}
+  try { logEvent(EVT.purchase_completed, { sku: 'race_bundle', race, currency: 'gems', cost: RACE_BUNDLE_GEMS }); } catch (e) {}
   renderShopPacks();
   return true;
+}
+
+// SHOP.2 — Starter Pack (PRELAUNCH §11.5). Day 4-14 only, one-shot per
+// install. Heavy F2P→P conversion lever. Founder badge persists permanently
+// as a profile cosmetic. Pack disappears after purchase or Day 14.
+const STARTER_PACK_KEY = 'blocksworn_starter_pack_purchased';
+const STARTER_PACK_USD       = MONETIZATION.packs.starter.usd;
+const STARTER_PACK_GEMS      = MONETIZATION.packs.starter.gems;
+const STARTER_PACK_CARDS     = MONETIZATION.packs.starter.cards;
+const STARTER_PACK_T2_STONES = MONETIZATION.packs.starter.t2Stones;
+const STARTER_PACK_GOLD      = MONETIZATION.packs.starter.gold;
+const STARTER_PACK_BADGE     = MONETIZATION.packs.starter.badge;
+const STARTER_PACK_MIN_DAY   = MONETIZATION.packs.starter.minDay;
+const STARTER_PACK_MAX_DAY   = MONETIZATION.packs.starter.maxDay;
+
+function _isStarterPackPurchased() {
+  try { return localStorage.getItem(STARTER_PACK_KEY) === 'true'; }
+  catch (e) { return false; }
+}
+function _isStarterPackEligible() {
+  if (_isStarterPackPurchased()) return false;
+  const days = (typeof _daysSinceFirstLaunch === 'function') ? _daysSinceFirstLaunch() : 0;
+  return days >= STARTER_PACK_MIN_DAY && days <= STARTER_PACK_MAX_DAY;
+}
+function buyStarterPack() {
+  if (_isStarterPackPurchased()) {
+    try { flashText('STARTER PACK ALREADY OWNED', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  if (!_isStarterPackEligible()) {
+    const days = (typeof _daysSinceFirstLaunch === 'function') ? _daysSinceFirstLaunch() : 0;
+    const msg = (days < STARTER_PACK_MIN_DAY)
+      ? 'STARTER PACK OPENS DAY ' + STARTER_PACK_MIN_DAY
+      : 'STARTER PACK EXPIRED · DAY ' + STARTER_PACK_MAX_DAY + ' WAS FINAL';
+    try { flashText(msg, '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  const msg =
+    "SUMMONER'S STARTER PACK\n$" + STARTER_PACK_USD.toFixed(2) + '\n\n' +
+    '• 1 random Captain UNLOCKED\n' +
+    '• ' + STARTER_PACK_GEMS + '💎 + ' + STARTER_PACK_GOLD + '💰\n' +
+    '• ' + STARTER_PACK_CARDS + ' hero cards · ' + STARTER_PACK_T2_STONES + ' T2 stone\n' +
+    '• Permanent FOUNDER badge\n\n' +
+    'One-time only. Available Day 4-14 of your account.\n\n' +
+    _devNotice();
+  try { logEvent(EVT.purchase_started, { sku: 'starter_pack', currency: 'usd', cost: STARTER_PACK_USD }); } catch (e) {}
+  if (!confirm(msg)) {
+    try { logEvent(EVT.purchase_cancelled, { sku: 'starter_pack' }); } catch (e) {}
+    return false;
+  }
+  // Mock IAP — in Phase 7+ wire to real billing. For now: stamp purchase + grant.
+  try { localStorage.setItem(STARTER_PACK_KEY, 'true'); } catch (e) {}
+  // 1 random Captain — pick from locked captains, fall back to any locked hero
+  try {
+    const locked = HERO_ROSTER.filter(h => h && !h.unlocked && !h.locked);
+    const captains = locked.filter(h => h.newRole === 'captain');
+    const pool = captains.length > 0 ? captains : locked;
+    if (pool.length > 0) {
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      pick.unlocked = true;
+      try { saveUnlockedHeroesToStorage(); } catch (e) {}
+      try { setTimeout(() => flashText('★ ' + (pick.name || 'CAPTAIN') + ' UNLOCKED', '#FFD53D'), 600); } catch (e) {}
+    }
+  } catch (e) { console.warn('starter captain grant failed:', e); }
+  // Currency + cards + T2 — uses applyReward dispatcher (Phase 2)
+  try {
+    applyReward({
+      gold:     STARTER_PACK_GOLD,
+      gems:     STARTER_PACK_GEMS,
+      cards:    STARTER_PACK_CARDS,
+      t2Stones: STARTER_PACK_T2_STONES
+    });
+  } catch (e) { console.warn('starter applyReward failed:', e); }
+  // Founder badge — permanent profile cosmetic
+  try {
+    const c = (typeof _ensureCosmeticState === 'function') ? _ensureCosmeticState() : null;
+    if (c && Array.isArray(c.owned) && !c.owned.includes(STARTER_PACK_BADGE)) {
+      c.owned.push(STARTER_PACK_BADGE);
+      try { if (typeof saveCosmeticState === 'function') saveCosmeticState(); } catch (e) {}
+    }
+  } catch (e) {}
+  try { flashText('★ FOUNDER BADGE EARNED', '#FFAA00'); } catch (e) {}
+  try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
+  try { logEvent(EVT.purchase_completed, { sku: 'starter_pack', currency: 'usd', cost: STARTER_PACK_USD }); } catch (e) {}
+  renderShopPacks();
+  return true;
+}
+
+if (typeof window !== 'undefined') {
+  window.buyStarterPack = buyStarterPack;
+  window._isStarterPackEligible = _isStarterPackEligible;
 }
 
 // ----- D.2: Endgame Acceleration Kit (whale tier, 1× per season) -----
@@ -28482,13 +28767,81 @@ function buyMiniBuff() {
   return true;
 }
 
-// Combined buff multipliers — when both Mega and Mini are active, take the
-// HIGHER mult (stacks NOT, per spec §3.4). Returns 1.0 when neither active.
+// SHOP.7 — Gold Rush 24h (replaces legacy Squad Level Boost in shop UI).
+// Per spec PRELAUNCH §11.5: +100% gold + +50% essence + 1 free Tower retry,
+// STACKS multiplicatively with Mega Buff (1.25 × 2.0 = 2.5×). Daily cap 1.
+const GOLD_RUSH_KEY              = 'blocksworn_gold_rush_until';
+const GOLD_RUSH_LAST_KEY         = 'blocksworn_gold_rush_last';
+const GOLD_RUSH_FREE_RETRIES_KEY = 'blocksworn_gold_rush_free_retries';
+const GOLD_RUSH_USD              = MONETIZATION.buffs.goldRush.usd;
+const GOLD_RUSH_GEMS             = MONETIZATION.buffs.goldRush.gems;
+const GOLD_RUSH_DURATION_MS      = MONETIZATION.buffs.goldRush.durationMs;
+const GOLD_RUSH_COOLDOWN_MS      = MONETIZATION.buffs.goldRush.cooldownMs;
+const GOLD_RUSH_GOLD_MULT        = MONETIZATION.buffs.goldRush.goldMult;
+const GOLD_RUSH_ESSENCE_MULT     = MONETIZATION.buffs.goldRush.essenceMult;
+const GOLD_RUSH_FREE_RETRIES     = MONETIZATION.buffs.goldRush.freeTowerRetries;
+
+function _isGoldRushActive() {
+  try {
+    const raw = localStorage.getItem(GOLD_RUSH_KEY);
+    if (!raw) return false;
+    return parseInt(raw, 10) > Date.now();
+  } catch (e) { return false; }
+}
+function _goldRushHoursLeft() {
+  try {
+    const raw = localStorage.getItem(GOLD_RUSH_KEY);
+    if (!raw) return 0;
+    return Math.max(0, Math.ceil((parseInt(raw, 10) - Date.now()) / 3600000));
+  } catch (e) { return 0; }
+}
+function _goldRushOnCooldown() {
+  try {
+    const raw = localStorage.getItem(GOLD_RUSH_LAST_KEY);
+    if (!raw) return false;
+    return (Date.now() - parseInt(raw, 10)) < GOLD_RUSH_COOLDOWN_MS;
+  } catch (e) { return false; }
+}
+function buyGoldRush() {
+  if (_isGoldRushActive()) {
+    try { flashText('GOLD RUSH ALREADY ACTIVE', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  if (_goldRushOnCooldown()) {
+    try { flashText('ON COOLDOWN', '#A8A5B8'); } catch (e) {}
+    return false;
+  }
+  // Gem-pay path (preferred when available); falls through to USD prompt
+  // for IAP integration in Phase 7+.
+  if ((gems || 0) >= GOLD_RUSH_GEMS) {
+    if (!spendGems(GOLD_RUSH_GEMS)) return false;
+  } else {
+    try { flashText('NOT ENOUGH GEMS · $' + GOLD_RUSH_USD.toFixed(2) + ' IAP', '#E85D4A'); } catch (e) {}
+    try { logEvent(EVT.purchase_started, { sku: 'gold_rush', currency: 'usd', cost: GOLD_RUSH_USD }); } catch (e) {}
+    return false;
+  }
+  const now = Date.now();
+  try { localStorage.setItem(GOLD_RUSH_KEY,      String(now + GOLD_RUSH_DURATION_MS)); } catch (e) {}
+  try { localStorage.setItem(GOLD_RUSH_LAST_KEY, String(now)); } catch (e) {}
+  try { localStorage.setItem(GOLD_RUSH_FREE_RETRIES_KEY, String(GOLD_RUSH_FREE_RETRIES)); } catch (e) {}
+  try { flashText('★ GOLD RUSH 24h · +100% GOLD · +50% ESSENCE', '#FFAA00'); } catch (e) {}
+  try { vibrate([120, 60, 120]); } catch (e) {}
+  try { _grantFirstPurchaseBonus(); } catch (e) {}
+  try { logEvent(EVT.purchase_completed, { sku: 'gold_rush', currency: 'gems', cost: GOLD_RUSH_GEMS }); } catch (e) {}
+  try { if (typeof renderShopPacks === 'function') renderShopPacks(); } catch (e) {}
+  return true;
+}
+
+// Combined buff multipliers — Mega and Mini are EXCLUSIVE (max wins, per
+// spec §3.4). Gold Rush STACKS multiplicatively on top (per spec §11.5
+// "Stacks multiplicatively with Mega Buff" — verify 1.25 × 2.0 = 2.5×).
 function _activeBuffGoldMult() {
-  let m = 1.0;
-  try { if (_isMegaBuffActive()) m = Math.max(m, MEGA_BUFF_GOLD_MULT); } catch (e) {}
-  try { if (_isMiniBuffActive()) m = Math.max(m, MINI_BUFF_GOLD_MULT); } catch (e) {}
-  return m;
+  let baseMult = 1.0;
+  try { if (_isMegaBuffActive()) baseMult = Math.max(baseMult, MEGA_BUFF_GOLD_MULT); } catch (e) {}
+  try { if (_isMiniBuffActive()) baseMult = Math.max(baseMult, MINI_BUFF_GOLD_MULT); } catch (e) {}
+  let goldRushMult = 1.0;
+  try { if (_isGoldRushActive()) goldRushMult = GOLD_RUSH_GOLD_MULT; } catch (e) {}
+  return baseMult * goldRushMult;
 }
 function _activeBuffFragMult() {
   let m = 1.0;
@@ -28496,12 +28849,23 @@ function _activeBuffFragMult() {
   try { if (_isMiniBuffActive()) m = Math.max(m, MINI_BUFF_FRAG_MULT); } catch (e) {}
   return m;
 }
+function _activeBuffEssenceMult() {
+  // SHOP.7 — Gold Rush bumps essence (legacy Mega Buff already gives +25%
+  // essence on login streak via separate hook; Gold Rush is a more powerful
+  // 24h boost that stacks with it).
+  let m = 1.0;
+  try { if (_isGoldRushActive()) m = Math.max(m, GOLD_RUSH_ESSENCE_MULT); } catch (e) {}
+  return m;
+}
 
 if (typeof window !== 'undefined') {
   window.buyMiniBuff = buyMiniBuff;
+  window.buyGoldRush = buyGoldRush;
   window._isMiniBuffActive = _isMiniBuffActive;
+  window._isGoldRushActive = _isGoldRushActive;
   window._activeBuffGoldMult = _activeBuffGoldMult;
   window._activeBuffFragMult = _activeBuffFragMult;
+  window._activeBuffEssenceMult = _activeBuffEssenceMult;
 }
 
 // ECO.1 — Battle Retry sink (PRELAUNCH §3.4 SINK 1). On chapter-boss defeat
@@ -28850,12 +29214,12 @@ const LAST_DAILY_POPUP_KEY      = 'blocksworn_last_daily_popup';
 const SHOP_REVEALED_KEY         = 'blocksworn_shop_revealed';
 const RENEWAL_WARNING_KEY       = 'blocksworn_renewal_warning_for';
 const SEASON_END_WARNING_KEY    = 'blocksworn_season_end_warning_for';
-// 2026-04-29 — Shop unlock gate. Replaced the 7-day-since-launch trust
-// window with a content-progression gate (Chapter 1 complete = Crypt Lich
-// defeated). Days-since-launch path stays dormant via SHOP_LOCK_DAYS=0 in
-// case a future release wants to layer a trust window on top of the Ch1
-// gate (flip the constant + the OR check below would do it).
-const SHOP_LOCK_DAYS            = 0;
+// SHOP.1 — Progressive shop reveal (PRELAUNCH §11.5). Day-window restored
+// as the PRIMARY gate for soft-launch UX (was Ch1-only since 2026-04-29).
+// Day 1-3 → shop button hidden entirely. Day 4-6 → button visible but
+// disabled with "Day 7" tooltip. Day 7+ → full access (Ch1 still gates
+// some sections via _isShopLocked secondary check below).
+const SHOP_LOCK_DAYS            = MONETIZATION.shopReveal ? MONETIZATION.shopReveal.minDayEnabled : 7;
 const SUBSCRIPTION_WARNING_DAYS = 3;
 const SEASON_END_WARNING_DAYS   = 1;
 
@@ -28876,19 +29240,57 @@ function _daysSinceFirstLaunch() {
   } catch (e) { return 999; }
 }
 function _isShopLocked() {
-  // 2026-04-29 — Primary gate is Chapter 1 completion (Crypt Lich defeat).
-  // Days-since-launch trust window kept as a secondary OR-layer (dormant
-  // when SHOP_LOCK_DAYS = 0). Either gate locks the shop until satisfied.
+  // SHOP.1 — Day-window is the primary gate (PRELAUNCH §11.5). Ch1 completion
+  // gate retained as secondary OR-layer so even at Day 7+ a player who hasn't
+  // beaten Crypt Lich sees the lock message instead of the full shop.
   try {
     if (typeof hasCompletedChapter1 === 'function' && !hasCompletedChapter1()) return true;
   } catch (e) {}
   return _daysSinceFirstLaunch() < SHOP_LOCK_DAYS;
 }
+// SHOP.1 — Three-state shop button helper. Drives nav rendering: 'hidden'
+// removes the button entirely (Day 1-3), 'disabled' shows it greyed-out
+// with "Day 7" tooltip (Day 4-6), 'enabled' is the normal state.
+function _shopButtonState() {
+  const days = _daysSinceFirstLaunch();
+  const cfg = (typeof MONETIZATION !== 'undefined' && MONETIZATION.shopReveal) || { minDayDisabled: 4, minDayEnabled: 7 };
+  if (days < cfg.minDayDisabled) return 'hidden';
+  if (days < cfg.minDayEnabled)  return 'disabled';
+  return 'enabled';
+}
+// SHOP.1 — Apply button state to all shop nav buttons. Called on app boot
+// + on day-rollover. Idempotent: re-runs each menu refresh.
+function _applyShopButtonStateUI() {
+  try {
+    const state = _shopButtonState();
+    document.querySelectorAll('[data-nav="shop"]').forEach((el) => {
+      // Hidden: display:none. Disabled: pointer-events disabled, opacity dim.
+      // Enabled: clear both inline styles.
+      el.style.display = (state === 'hidden') ? 'none' : '';
+      if (state === 'disabled') {
+        el.style.pointerEvents = 'none';
+        el.style.opacity = '0.45';
+        const days = _daysSinceFirstLaunch();
+        const cfg = (MONETIZATION && MONETIZATION.shopReveal) || { minDayEnabled: 7 };
+        el.title = 'Shop opens on Day ' + cfg.minDayEnabled + ' (' + (cfg.minDayEnabled - days) + 'd left)';
+      } else {
+        el.style.pointerEvents = '';
+        el.style.opacity = '';
+        el.title = '';
+      }
+    });
+  } catch (e) { console.warn('_applyShopButtonStateUI failed:', e); }
+}
 function _applyShopLockState() {
   try {
     if (_isShopLocked()) document.body.classList.add('shop-locked');
     else document.body.classList.remove('shop-locked');
+    _applyShopButtonStateUI();
   } catch (e) {}
+}
+if (typeof window !== 'undefined') {
+  window._shopButtonState = _shopButtonState;
+  window._applyShopButtonStateUI = _applyShopButtonStateUI;
 }
 
 // ----- Anti-FOMO modal (single CTA + prominent DISMISS) -----
