@@ -28674,6 +28674,346 @@ if (typeof window !== 'undefined') {
     { get: () => _phase5StartingPressureBonus, set: v => { _phase5StartingPressureBonus = v; } });
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 5 PR #5.B — POLISH LAYER
+// Per BLOCKSWORN_COMBAT_V21_PHASE_5_POLISH_MONETIZATION.md §6.
+// 1. showTierUpCinematic — 4-sec mini-cutscene with stat pulse
+// 2. showMythicAscensionCinematic — 6-sec full-screen takeover
+// 3. REACTIVITY_AUDIO map (10 archetypes) wired into showReactivityFX
+// 4. Stagger entry polish: gold particles + screen shake + gong (extends P2)
+// 5. Damage number CSS classes (crit / stagger / mythic / mitigated)
+// 6. Skip-cinematics setting (per spec §14.5 — first-time always plays)
+//
+// Audio: defensive — wraps any future playSFX() global. No-op if missing.
+// All visuals lazy-DOM with idempotent style injection.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P5 §14.5: skip-cinematics setting.
+// localStorage-backed boolean; first-time always plays per spec, subsequent
+// can be skipped. Tier-up + Mythic check before rendering.
+const PHASE5_SKIP_CINEMATICS_KEY = 'blocksworn_skip_cinematics';
+const PHASE5_TIER_UP_SEEN_KEY    = 'blocksworn_tier_up_cinematic_seen';
+const PHASE5_MYTHIC_SEEN_KEY     = 'blocksworn_mythic_cinematic_seen';
+
+function _phase5SkipCinematics() {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem(PHASE5_SKIP_CINEMATICS_KEY) === '1';
+  } catch (e) { return false; }
+}
+function setSkipCinematics(skip) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    if (skip) localStorage.setItem(PHASE5_SKIP_CINEMATICS_KEY, '1');
+    else localStorage.removeItem(PHASE5_SKIP_CINEMATICS_KEY);
+  } catch (e) {}
+}
+function _phase5HasSeenCinematic(key) {
+  try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }
+}
+function _phase5MarkSeenCinematic(key) {
+  try { localStorage.setItem(key, '1'); } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §6.3: archetype audio mapping.
+// Pure metadata — actual playback uses any existing playSFX() global if
+// available, else no-op. Wired into showReactivityFX (PR #4.D) via
+// _phase5PlayReactivityAudio wrapper.
+const REACTIVITY_AUDIO = Object.freeze({
+  berserker:       'sfx_drum_heavy',
+  armored:         'sfx_metal_clang',
+  phoenix:         'sfx_flame_whoosh',
+  assassin:        'sfx_blade_draw',
+  bruiser:         'sfx_low_rumble',
+  hypnotist:       'sfx_ethereal_whisper',
+  engineer:        'sfx_gear_grind',
+  frenzy:          'sfx_animal_roar',
+  tempo_disruptor: 'sfx_time_glitch',
+  battery:         'sfx_electric_crackle',
+  void:            'sfx_void_hum',
+  tower_voidfang:  'sfx_void_hum',
+});
+
+function _phase5PlayReactivityAudio(archetype) {
+  try {
+    const sfxId = REACTIVITY_AUDIO[archetype];
+    if (!sfxId) return;
+    if (typeof playSFX === 'function') playSFX(sfxId);
+    // else: graceful no-op — actual sound system lives outside this single file.
+  } catch (e) {}
+}
+
+// Wrap showReactivityFX (PR #4.D) so audio fires alongside visual flash.
+// Idempotent — the wrap flag prevents double-wrap on hot reload.
+try {
+  if (typeof showReactivityFX === 'function' && !showReactivityFX._phase5AudioWrap) {
+    const _origShowReactivityFX = showReactivityFX;
+    const wrapped = function (archetype, eventType) {
+      try { _origShowReactivityFX(archetype, eventType); } catch (e) {}
+      try { _phase5PlayReactivityAudio(archetype); } catch (e) {}
+    };
+    wrapped._phase5AudioWrap = true;
+    showReactivityFX = wrapped;
+    if (typeof window !== 'undefined') window.showReactivityFX = wrapped;
+  }
+} catch (e) { console.warn('[P5 reactivity audio wrap] failed:', e); }
+
+// 2026-05-02 — COMBAT v2.1 P5 §6.4: stagger entry polish.
+// Extends Phase 2 showStaggerEntryFX with screen shake + gold particle
+// burst from boss portrait + low-pitched gong (if SFX system available).
+// Idempotent wrap — preserves existing flash + slowmo behavior.
+function _phase5SpawnGoldParticles(count, originSelector) {
+  if (typeof document === 'undefined') return;
+  const origin = (typeof originSelector === 'string')
+                 ? document.querySelector(originSelector) : originSelector;
+  if (!origin) return;
+  const rect = origin.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.style.cssText = 'position:fixed;width:6px;height:6px;border-radius:50%;' +
+                      'background:radial-gradient(circle,#FFD700 30%,#FFA500 70%,transparent 100%);' +
+                      'pointer-events:none;z-index:8800;left:' + cx + 'px;top:' + cy + 'px;' +
+                      'box-shadow:0 0 8px #FFD700;will-change:transform,opacity;';
+    document.body.appendChild(p);
+    const angle = Math.random() * Math.PI * 2;
+    const dist  = 60 + Math.random() * 120;
+    const dur   = 600 + Math.random() * 400;
+    const dx    = Math.cos(angle) * dist;
+    const dy    = Math.sin(angle) * dist;
+    p.animate([
+      { transform: 'translate(0,0) scale(1)',     opacity: 1 },
+      { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(0.3)', opacity: 0 },
+    ], { duration: dur, easing: 'cubic-bezier(0.2,0.8,0.4,1)' });
+    setTimeout(() => { try { p.remove(); } catch (e) {} }, dur + 50);
+  }
+}
+
+// Idempotent wrap of showStaggerEntryFX (existed since P2.D).
+try {
+  if (typeof showStaggerEntryFX === 'function' && !showStaggerEntryFX._phase5PolishWrap) {
+    const _origStaggerFx = showStaggerEntryFX;
+    const wrappedStagger = function () {
+      try { _origStaggerFx(); } catch (e) {}
+      // Inject screen-shake CSS once
+      if (typeof document !== 'undefined' && !document.getElementById('phase5StaggerShakeStyle')) {
+        const s = document.createElement('style');
+        s.id = 'phase5StaggerShakeStyle';
+        s.textContent =
+          '@keyframes phase5-shake { ' +
+            '0%,100% { transform: translate(0,0); } ' +
+            '20% { transform: translate(-6px,3px); } ' +
+            '40% { transform: translate(5px,-4px); } ' +
+            '60% { transform: translate(-4px,-2px); } ' +
+            '80% { transform: translate(3px,5px); } ' +
+          '} ' +
+          '.phase5-stagger-shake { animation: phase5-shake 600ms ease-in-out; }';
+        document.head.appendChild(s);
+      }
+      try { document.body.classList.add('phase5-stagger-shake'); } catch (e) {}
+      setTimeout(() => { try { document.body.classList.remove('phase5-stagger-shake'); } catch (e) {} }, 620);
+      // Gold particle burst from boss portrait
+      try { _phase5SpawnGoldParticles(40, '#bossImgWrap'); } catch (e) {}
+      // Gong sound (defensive)
+      try { if (typeof playSFX === 'function') playSFX('sfx_stagger_gong'); } catch (e) {}
+    };
+    wrappedStagger._phase5PolishWrap = true;
+    showStaggerEntryFX = wrappedStagger;
+    if (typeof window !== 'undefined') window.showStaggerEntryFX = wrappedStagger;
+  }
+} catch (e) { console.warn('[P5 stagger polish wrap] failed:', e); }
+
+// 2026-05-02 — COMBAT v2.1 P5 §6.1: tier-up cinematic.
+// 4-second mini-cutscene with hero portrait + new ability + stat pulse.
+// First-time always plays; subsequent skippable via setting.
+function showTierUpCinematic(heroId) {
+  if (typeof document === 'undefined' || !heroId) return;
+  if (typeof HERO_ROSTER === 'undefined' || !Array.isArray(HERO_ROSTER)) return;
+  const hero = HERO_ROSTER.find(h => h && h.id === heroId);
+  if (!hero) return;
+  // Skip if user opted out AND has seen at least once.
+  const hasSeen = _phase5HasSeenCinematic(PHASE5_TIER_UP_SEEN_KEY);
+  if (_phase5SkipCinematics() && hasSeen) return;
+  _phase5MarkSeenCinematic(PHASE5_TIER_UP_SEEN_KEY);
+
+  const tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[heroId]) || 0;
+  const tierKey = tier === 1 ? 't1' : tier === 2 ? 't2' : tier === 3 ? 't3' : 't0';
+  const tierKeyUp = tierKey.toUpperCase();
+  const ability = (typeof HERO_TIER_ABILITIES !== 'undefined' && HERO_TIER_ABILITIES[heroId])
+                  ? HERO_TIER_ABILITIES[heroId][tierKey] : null;
+  const dmgMult = (typeof TIER_DAMAGE_MULT !== 'undefined' && TIER_DAMAGE_MULT[tierKeyUp])
+                  ? TIER_DAMAGE_MULT[tierKeyUp] : 1.0;
+  const dmgPct  = Math.round((dmgMult - 1) * 100);
+
+  let overlay = document.getElementById('phase5TierUpCinematic');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'phase5TierUpCinematic';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;z-index:9700;' +
+                           'background:radial-gradient(circle at center, rgba(168,138,200,0.65) 0%, rgba(0,0,0,0.92) 70%);' +
+                           'align-items:center;justify-content:center;font-family:inherit;' +
+                           'opacity:0;transition:opacity 300ms ease-out;backdrop-filter:blur(8px);';
+    document.body.appendChild(overlay);
+    // Inject keyframes once
+    if (!document.getElementById('phase5TierUpStyle')) {
+      const s = document.createElement('style');
+      s.id = 'phase5TierUpStyle';
+      s.textContent =
+        '@keyframes p5tuc-portrait-grow { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } } ' +
+        '@keyframes p5tuc-text-rise { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } } ' +
+        '.p5tuc-portrait { animation: p5tuc-portrait-grow 600ms ease-out forwards; } ' +
+        '.p5tuc-text { animation: p5tuc-text-rise 500ms ease-out forwards; opacity: 0; } ' +
+        '.p5tuc-text-d1 { animation-delay: 400ms; } ' +
+        '.p5tuc-text-d2 { animation-delay: 700ms; } ' +
+        '.p5tuc-text-d3 { animation-delay: 1000ms; }';
+      document.head.appendChild(s);
+    }
+  }
+  overlay.innerHTML =
+    '<div style="text-align:center;color:#fff;max-width:480px;padding:24px;">' +
+      '<div class="p5tuc-portrait" style="width:140px;height:140px;margin:0 auto 14px;border-radius:50%;' +
+        'border:4px solid #A88AC8;background:#1a1830;box-shadow:0 0 48px rgba(168,138,200,0.6);' +
+        'display:flex;align-items:center;justify-content:center;font-size:60px;">⚡</div>' +
+      '<div class="p5tuc-text p5tuc-text-d1" style="font-size:11px;letter-spacing:0.18em;color:#A88AC8;margin-bottom:4px;">★ ASCENDED ★</div>' +
+      '<div class="p5tuc-text p5tuc-text-d1" style="font-size:22px;font-weight:700;color:#A88AC8;letter-spacing:0.06em;margin-bottom:14px;">' + (hero.name || heroId) + '</div>' +
+      '<div class="p5tuc-text p5tuc-text-d2" style="font-size:10px;letter-spacing:0.14em;color:#FFD53D;margin-bottom:4px;">NEW ABILITY UNLOCKED</div>' +
+      '<div class="p5tuc-text p5tuc-text-d2" style="font-size:16px;font-weight:700;color:#FFD53D;margin-bottom:6px;">' + ((ability && ability.name) || 'POWER UP') + '</div>' +
+      ((ability && ability.description)
+        ? '<div class="p5tuc-text p5tuc-text-d2" style="font-size:11px;line-height:1.5;opacity:0.85;margin-bottom:14px;">"' + ability.description + '"</div>'
+        : '') +
+      '<div class="p5tuc-text p5tuc-text-d3" style="font-size:13px;font-weight:700;color:#5DCA79;letter-spacing:0.06em;">' +
+        (dmgPct > 0 ? '+' + dmgPct + '% DAMAGE' : 'NEW MECHANIC') + '</div>' +
+    '</div>';
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+  // Defensive audio
+  try { if (typeof playSFX === 'function') playSFX('sfx_ascend_tone'); } catch (e) {}
+  // Auto-dismiss after 4 sec
+  setTimeout(() => { overlay.style.opacity = '0'; }, 3500);
+  setTimeout(() => { overlay.style.display = 'none'; }, 4000);
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §6.2: Mythic ascension cinematic.
+// 6-second full-screen takeover. Cosmic background + portrait swap +
+// particle burst + permanent UI hint. First-time always plays.
+function showMythicAscensionCinematic(heroId) {
+  if (typeof document === 'undefined' || !heroId) return;
+  if (typeof HERO_ROSTER === 'undefined' || !Array.isArray(HERO_ROSTER)) return;
+  const hero = HERO_ROSTER.find(h => h && h.id === heroId);
+  if (!hero) return;
+  const hasSeen = _phase5HasSeenCinematic(PHASE5_MYTHIC_SEEN_KEY);
+  if (_phase5SkipCinematics() && hasSeen) return;
+  _phase5MarkSeenCinematic(PHASE5_MYTHIC_SEEN_KEY);
+
+  const ability = (typeof HERO_TIER_ABILITIES !== 'undefined' && HERO_TIER_ABILITIES[heroId])
+                  ? HERO_TIER_ABILITIES[heroId].mythic : null;
+
+  let overlay = document.getElementById('phase5MythicCinematic');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'phase5MythicCinematic';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;z-index:9750;' +
+                           'background:radial-gradient(ellipse at center, rgba(255,165,0,0.5) 0%, rgba(255,90,58,0.3) 35%, rgba(0,0,0,0.95) 75%);' +
+                           'align-items:center;justify-content:center;font-family:inherit;' +
+                           'opacity:0;transition:opacity 500ms ease-out;backdrop-filter:blur(12px);';
+    document.body.appendChild(overlay);
+    if (!document.getElementById('phase5MythicStyle')) {
+      const s = document.createElement('style');
+      s.id = 'phase5MythicStyle';
+      s.textContent =
+        '@keyframes p5myth-aura { 0% { box-shadow: 0 0 20px #FFA500; } 50% { box-shadow: 0 0 80px #FFD700, 0 0 120px #FF5A3A; } 100% { box-shadow: 0 0 20px #FFA500; } } ' +
+        '@keyframes p5myth-rise { from { transform: translateY(40px) scale(0.6); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } } ' +
+        '@keyframes p5myth-glow { 0%,100% { text-shadow: 0 0 12px #FFD700; } 50% { text-shadow: 0 0 32px #FFA500, 0 0 48px #FF5A3A; } } ' +
+        '.p5myth-portrait { animation: p5myth-rise 800ms ease-out forwards, p5myth-aura 2.5s ease-in-out infinite 800ms; } ' +
+        '.p5myth-banner { animation: p5myth-rise 600ms ease-out forwards, p5myth-glow 2s ease-in-out infinite 600ms; opacity: 0; animation-delay: 1200ms; } ' +
+        '.p5myth-ability { animation: p5myth-rise 600ms ease-out forwards; opacity: 0; animation-delay: 2200ms; } ' +
+        '.p5myth-tagline { animation: p5myth-rise 600ms ease-out forwards; opacity: 0; animation-delay: 3500ms; }';
+      document.head.appendChild(s);
+    }
+  }
+  overlay.innerHTML =
+    '<div style="text-align:center;color:#fff;max-width:520px;padding:32px;">' +
+      '<div class="p5myth-portrait" style="width:180px;height:180px;margin:0 auto 18px;border-radius:50%;' +
+        'border:5px solid #FFA500;background:radial-gradient(circle,#FFD700 0%,#FF5A3A 60%,#1a0808 100%);' +
+        'display:flex;align-items:center;justify-content:center;font-size:80px;color:#fff;">✦</div>' +
+      '<div class="p5myth-banner" style="font-size:11px;letter-spacing:0.22em;color:#FFA500;margin-bottom:6px;">★★★ MYTHIC ASCENSION COMPLETE ★★★</div>' +
+      '<div class="p5myth-banner" style="font-size:26px;font-weight:700;color:#FFD700;letter-spacing:0.08em;margin-bottom:18px;">' + (hero.name || heroId).toUpperCase() + '</div>' +
+      '<div class="p5myth-ability" style="font-size:11px;letter-spacing:0.14em;color:#FFA500;margin-bottom:6px;">RULE-BREAKING ABILITY</div>' +
+      '<div class="p5myth-ability" style="font-size:18px;font-weight:700;color:#FFD700;margin-bottom:10px;">' + ((ability && ability.name) || 'TRANSCENDENCE') + '</div>' +
+      ((ability && ability.description)
+        ? '<div class="p5myth-ability" style="font-size:12px;line-height:1.5;opacity:0.9;margin-bottom:24px;">"' + ability.description + '"</div>'
+        : '') +
+      '<div class="p5myth-tagline" style="font-size:10px;letter-spacing:0.18em;color:#FF5A3A;">★ LEGENDARY CHAMPION OF YOUR SAVE ★</div>' +
+    '</div>';
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+  try { if (typeof playSFX === 'function') playSFX('sfx_mythic_transcend'); } catch (e) {}
+  try { if (typeof vibrate === 'function') vibrate([200, 80, 200, 80, 200, 80, 400]); } catch (e) {}
+  // Particle burst at 1s mark
+  setTimeout(() => { try { _phase5SpawnGoldParticles(60, '#phase5MythicCinematic'); } catch (e) {} }, 1000);
+  // Auto-dismiss after 6 sec
+  setTimeout(() => { overlay.style.opacity = '0'; }, 5500);
+  setTimeout(() => { overlay.style.display = 'none'; }, 6000);
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §6.5: damage number CSS classes.
+// Inject styles for crit / stagger / mythic / mitigated variants.
+// Existing flashText uses base color; these variants compose.
+function _phase5InjectDamageNumberStyles() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('phase5DmgNumStyle')) return;
+  const s = document.createElement('style');
+  s.id = 'phase5DmgNumStyle';
+  s.textContent =
+    '.dmg-crit { font-size: 1.4em !important; color: #FFD700 !important; transform: rotate(-3deg); ' +
+      'text-shadow: 0 0 12px #FFA500, 0 0 24px #FF6E28; font-weight: 900 !important; } ' +
+    '.dmg-stagger { color: #FFD53D !important; font-size: 1.25em !important; ' +
+      'text-shadow: 0 0 16px #FFD700, 0 2px 4px rgba(0,0,0,0.5); } ' +
+    '.dmg-mythic { background: linear-gradient(45deg,#FF5A3A,#FFA500,#FFD700,#9B59D6); ' +
+      '-webkit-background-clip: text; background-clip: text; color: transparent; font-size: 1.5em; ' +
+      'animation: p5dmg-shimmer 1s ease-in-out infinite; } ' +
+    '@keyframes p5dmg-shimmer { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.5); } } ' +
+    '.dmg-mitigated { color: #5DCA79 !important; font-size: 0.85em !important; opacity: 0.85; ' +
+      'font-weight: 600 !important; }';
+  document.head.appendChild(s);
+}
+try { if (typeof setTimeout === 'function') setTimeout(_phase5InjectDamageNumberStyles, 0); } catch (e) {}
+
+// 2026-05-02 — COMBAT v2.1 P5 §6.6: boss defeat polish.
+// Lightweight wrapper that spawns gold particles + extends slow-mo on boss
+// HP=0. Doesn't replace existing onBossDefeated chain — just visual polish.
+function _phase5BossDefeatPolish() {
+  if (typeof document === 'undefined') return;
+  // 1.5-second slow-mo via body class (existing CSS may handle stagger-slowmo;
+  // we add a heavier variant for victory).
+  if (!document.getElementById('phase5VictorySlowmoStyle')) {
+    const s = document.createElement('style');
+    s.id = 'phase5VictorySlowmoStyle';
+    s.textContent =
+      '.phase5-victory-slowmo .a-battle * { animation-duration: 2x !important; transition-duration: 2x !important; } ' +
+      '.phase5-victory-slowmo { filter: saturate(1.4) brightness(1.1); }';
+    document.head.appendChild(s);
+  }
+  document.body.classList.add('phase5-victory-slowmo');
+  setTimeout(() => { try { document.body.classList.remove('phase5-victory-slowmo'); } catch (e) {} }, 1500);
+  // Gold particles from boss portrait
+  try { _phase5SpawnGoldParticles(80, '#bossImgWrap'); } catch (e) {}
+}
+
+if (typeof window !== 'undefined') {
+  window.showTierUpCinematic                = showTierUpCinematic;
+  window.showMythicAscensionCinematic       = showMythicAscensionCinematic;
+  window.REACTIVITY_AUDIO                   = REACTIVITY_AUDIO;
+  window._phase5PlayReactivityAudio         = _phase5PlayReactivityAudio;
+  window._phase5SpawnGoldParticles          = _phase5SpawnGoldParticles;
+  window._phase5BossDefeatPolish            = _phase5BossDefeatPolish;
+  window._phase5InjectDamageNumberStyles    = _phase5InjectDamageNumberStyles;
+  window.setSkipCinematics                  = setSkipCinematics;
+  window._phase5SkipCinematics              = _phase5SkipCinematics;
+  window.PHASE5_SKIP_CINEMATICS_KEY         = PHASE5_SKIP_CINEMATICS_KEY;
+}
+
 // Console helpers
 if (typeof window !== 'undefined') {
   window.BOSS_PHASES         = BOSS_PHASES;
@@ -45521,6 +45861,9 @@ async function onBossDefeated() {
   }
   // POLISH v1 · PHASE 5 — fire 5-beat cinematic only on final death (after revive checks)
   try { vPlayBossDieFx(); } catch(e){}
+  // 2026-05-02 — COMBAT v2.1 P5 PR #5.B §6.6: defeat polish (slow-mo + gold particles).
+  // Lightweight wrapper — fires alongside existing vPlayBossDieFx chain.
+  try { if (typeof _phase5BossDefeatPolish === 'function') _phase5BossDefeatPolish(); } catch (e) {}
   // 2026-04-27 — Audio A.2.7: victory chime + heroUnlock layered (per spec §4.1 boss death).
   // SFX ascend plays first; then boss music silenced for 1s; then victory.mp3
   // begins (per spec §8.2 quick crossfade). Player exit to menu auto-switches
@@ -57336,6 +57679,9 @@ function commitMythicAscension(heroId) {
     // Fire centralized hook so other systems can observe the commitment.
     try { if (typeof _firePhase3Hook === 'function') _firePhase3Hook('onSpawn', { mythicHeroId: heroId }); } catch (e) {}
     try { if (typeof logEvent === 'function') logEvent('mythic_ascension_committed', { heroId }); } catch (e) {}
+    // 2026-05-02 — COMBAT v2.1 P5 PR #5.B §6.2: Mythic ascension cinematic.
+    // 6-second full-screen takeover. First-time always plays; setting-skippable later.
+    try { if (typeof showMythicAscensionCinematic === 'function') showMythicAscensionCinematic(heroId); } catch (e) {}
   }
   return success;
 }
