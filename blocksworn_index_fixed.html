@@ -27496,6 +27496,390 @@ function showBossPhaseDialog(dialogId) {
   console.log('[phase dialog placeholder]', dialogId);
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 4 PR #4.B — REACTIVITY HANDLERS + DISPATCHER
+// Per BLOCKSWORN_COMBAT_V21_PHASE_4_BOSS_RECALC.md §4 + §5.
+// 22 reactivity event handlers (10 archetypes × 2 gates + voidfang × 2).
+// New maybePhaseTransition uses telegraph→execute pattern: 3-second
+// wind-up banner → handler call → log entry. Each handler mutates
+// bespoke boss state vars consumed by Phase 4 modifier wiring (PR #4.C).
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P4 §5.6: boss state variables driven by reactivity events.
+// Each is reset on battle init via _resetReactivityState() (called from the
+// existing battle-init reset chain alongside Phase 1/2/3 resets).
+let bossShieldCount             = 0;     // armored — extra shield stacks (separate from player shieldCount)
+let bossStaggerImmuneTurns      = 0;     // berserker p2_p3 — Pressure cap blocks Stagger trigger
+let bossFireAuraActive          = false; // phoenix p2_p3 — per-turn HP tick
+let bossFireAuraDmg             = 0;
+let bossStealthTurns            = 0;     // assassin p1_p2 — boss invisible 1 turn
+let bossNextAttackBonus         = 1.0;   // bruiser/assassin — single-shot multiplier
+let bossBackstabChainTurns      = 0;     // assassin p2_p3 — 3-strike pattern
+let bossDualSuggestActive       = false; // hypnotist p1_p2 — suggest 2 heroes
+let squadSilencedTurns          = 0;     // hypnotist p2_p3 — block hero ULTs
+let frenzyMaxStacks             = 5;     // frenzy default; p1_p2 raises to 8
+let frenzyMaulComboActive       = false; // frenzy p2_p3 — forced 3-turn maul
+let frenzyMaulInterval          = 0;
+let skipPlayerTurnsCount        = 0;     // tempo_disruptor p1_p2 — skip N player turns
+let bossChargeRateMult          = 1.0;   // battery p1_p2 — boss supercharge speedup
+let pressureGainMult            = 1.0;   // voidfang p2_p3 — player pressure gain debuff
+
+// 2026-05-02 — COMBAT v2.1 P4 §5.1: reactivity event handler registry.
+// Each handler is invoked once per phase-gate crossing via dispatcher.
+// Banner color matches archetype palette (per spec §5.3 + §6.1 CSS).
+// FX hook is a no-op until PR #4.D wires showReactivityFX(); guarded for
+// forward compat.
+const REACTIVITY_HANDLERS = {
+  // ── BERSERKER (§4.1) ──────────────────────────────────────────────
+  berserker_p1_p2: function() {
+    bossAttackDmgMult = (typeof bossAttackDmgMult === 'number' ? bossAttackDmgMult : 1) * 1.20;
+    try { flashStateBanner('ENRAGED · +20% DAMAGE', '#FF4D1F'); } catch (e) {}
+    try { vibrate([100, 50, 100]); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('berserker', 'enrage'); } catch (e) {}
+  },
+  berserker_p2_p3: function() {
+    bossStaggerImmuneTurns = 3;
+    try { flashStateBanner('BERSERK · STAGGER LOCKED 3T', '#FF4D1F'); } catch (e) {}
+    try { vibrate([200, 100, 200]); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('berserker', 'stagger_lock'); } catch (e) {}
+  },
+
+  // ── ARMORED (§4.2) ────────────────────────────────────────────────
+  armored_p1_p2: function() {
+    bossShieldCount += 2;
+    try { flashStateBanner('SHIELDS UP · +2 LAYERS', '#5DA8E8'); } catch (e) {}
+    try { vibrate([120, 80, 120, 80, 120]); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('armored', 'shields_up'); } catch (e) {}
+  },
+  armored_p2_p3: function() {
+    // Convert ~30% of current grid cells to void (per spec §4.2).
+    if (typeof grid === 'undefined' || typeof SIZE === 'undefined') return;
+    const cells = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      const v = grid[r][c];
+      if (v && (typeof v !== 'string' || !v.startsWith('void'))) cells.push([r, c]);
+    }
+    const target = Math.floor(cells.length * 0.30);
+    let converted = 0;
+    while (converted < target && cells.length > 0) {
+      const idx = Math.floor(Math.random() * cells.length);
+      const [r, c] = cells.splice(idx, 1)[0];
+      grid[r][c] = 'void_3';
+      converted++;
+    }
+    try { if (typeof render === 'function') render(); } catch (e) {}
+    try { flashStateBanner('VOID CONVERSION · 30% BOARD', '#5DA8E8'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('armored', 'void_convert'); } catch (e) {}
+  },
+
+  // ── PHOENIX (§4.3) ────────────────────────────────────────────────
+  phoenix_p1_p2: function() {
+    // Spec §4.3: revive (heal +20% of max HP).
+    if (typeof bossMaxHP !== 'number' || typeof bossHP !== 'number') return;
+    const heal = Math.floor(bossMaxHP * 0.20);
+    bossHP = Math.min(bossMaxHP, bossHP + heal);
+    try { flashStateBanner('PHOENIX REKINDLES · +' + heal + ' HP', '#E8B84A'); } catch (e) {}
+    try { vibrate([80, 40, 80, 40, 80]); } catch (e) {}
+    try { if (typeof renderBossHP === 'function') renderBossHP(); } catch (e) {}
+    try { if (typeof updateBossHpUI === 'function') updateBossHpUI(); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('phoenix', 'revive'); } catch (e) {}
+  },
+  phoenix_p2_p3: function() {
+    bossFireAuraActive = true;
+    bossFireAuraDmg = 3;
+    try { flashStateBanner('PHOENIX FIRE AURA · 3 HP/T', '#E8B84A'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('phoenix', 'fire_aura'); } catch (e) {}
+  },
+
+  // ── ASSASSIN (§4.4) ───────────────────────────────────────────────
+  assassin_p1_p2: function() {
+    bossStealthTurns = 1;
+    bossNextAttackBonus = Math.max(bossNextAttackBonus, 1.50);
+    try { flashStateBanner('STEALTH · STRIKE INCOMING', '#9B59D6'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('assassin', 'stealth'); } catch (e) {}
+  },
+  assassin_p2_p3: function() {
+    bossBackstabChainTurns = 3;
+    try { flashStateBanner('BACKSTAB CHAIN · 3 STRIKES', '#9B59D6'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('assassin', 'chain'); } catch (e) {}
+  },
+
+  // ── BRUISER (§4.5) ────────────────────────────────────────────────
+  bruiser_p1_p2: function() {
+    bossNextAttackBonus = Math.max(bossNextAttackBonus, 1.50);
+    try { flashStateBanner('HEAVY STRIKE · +50% DMG', '#5DCA79'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('bruiser', 'wind_up'); } catch (e) {}
+  },
+  bruiser_p2_p3: function() {
+    if (typeof grid === 'undefined' || typeof SIZE === 'undefined') return;
+    let spawned = 0;
+    const attempts = 40;
+    for (let a = 0; a < attempts && spawned < 5; a++) {
+      const r = Math.floor(Math.random() * SIZE);
+      const c = Math.floor(Math.random() * SIZE);
+      if (!grid[r][c]) { grid[r][c] = 'void_2'; spawned++; }
+    }
+    try { if (typeof render === 'function') render(); } catch (e) {}
+    try { flashStateBanner('VOID RAIN · ' + spawned + ' CELLS SCATTER', '#5DCA79'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('bruiser', 'void_rain'); } catch (e) {}
+  },
+
+  // ── HYPNOTIST (§4.6) ──────────────────────────────────────────────
+  hypnotist_p1_p2: function() {
+    bossDualSuggestActive = true;
+    try { flashStateBanner('DUAL SUGGESTION · 2 HEROES', '#9B59D6'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('hypnotist', 'dual_suggest'); } catch (e) {}
+  },
+  hypnotist_p2_p3: function() {
+    squadSilencedTurns = 2;
+    try { flashStateBanner('SILENCE · 2T NO ULTS', '#9B59D6'); } catch (e) {}
+    try { vibrate([300, 150, 300]); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('hypnotist', 'silence'); } catch (e) {}
+  },
+
+  // ── ENGINEER (§4.7) ───────────────────────────────────────────────
+  engineer_p1_p2: function() {
+    if (typeof grid === 'undefined' || typeof SIZE === 'undefined') return;
+    if (typeof engineerLockedCells === 'undefined') return;
+    const cells = [];
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      const v = grid[r][c];
+      if (v && (typeof v !== 'string' || !v.startsWith('void'))) cells.push(r + '_' + c);
+    }
+    let locked = 0;
+    for (let i = 0; i < 4 && cells.length > 0; i++) {
+      const idx = Math.floor(Math.random() * cells.length);
+      const k = cells.splice(idx, 1)[0];
+      // Reuse existing engineerLockedCells Map (key → turns until unlock).
+      // Use a long duration (40) as proxy for "permanent until phase end".
+      try { engineerLockedCells.set(k, 40); locked++; } catch (e) {}
+    }
+    try { flashStateBanner('LOCKDOWN · ' + locked + ' CELLS WELDED', '#B87333'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('engineer', 'lockdown'); } catch (e) {}
+  },
+  engineer_p2_p3: function() {
+    // Spec §4.7 wants 2 electrified rows. Existing engineer state has single
+    // engineerElectrifiedRow — PR #4.C extends to engineerElectrifiedRows array.
+    // Foundation-only: pick 2 distinct rows + flag both. Consumer reads either
+    // engineerElectrifiedRow (legacy) or engineerElectrifiedRows (new) per #4.C.
+    if (typeof SIZE === 'undefined') return;
+    const rows = [];
+    while (rows.length < 2 && rows.length < SIZE) {
+      const r = Math.floor(Math.random() * SIZE);
+      if (!rows.includes(r)) rows.push(r);
+    }
+    try { engineerElectrifiedRows = rows.slice(); } catch (e) {}
+    // Legacy single-row fallback so #4.B works even without #4.C wiring.
+    if (typeof engineerElectrifiedRow !== 'undefined') {
+      try { engineerElectrifiedRow = rows[0]; } catch (e) {}
+      try { engineerElectrifiedTurns = 99; } catch (e) {}
+    }
+    try { flashStateBanner('ELECTRIFIED ROWS · CRITICAL MASS', '#B87333'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('engineer', 'electrify'); } catch (e) {}
+  },
+
+  // ── FRENZY (§4.8) ─────────────────────────────────────────────────
+  frenzy_p1_p2: function() {
+    frenzyMaxStacks = 8;
+    try { flashStateBanner('MAX FRENZY · 8 STACKS', '#FF6E28'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('frenzy', 'max_stacks'); } catch (e) {}
+  },
+  frenzy_p2_p3: function() {
+    frenzyMaulComboActive = true;
+    frenzyMaulInterval = 3;
+    try { flashStateBanner('MAUL CHAIN · EVERY 3T', '#FF6E28'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('frenzy', 'maul'); } catch (e) {}
+  },
+
+  // ── TEMPO DISRUPTOR (§4.9) ────────────────────────────────────────
+  tempo_disruptor_p1_p2: function() {
+    skipPlayerTurnsCount = 1;
+    try { flashStateBanner('TIME RIFT · SKIP NEXT TURN', '#78C8FF'); } catch (e) {}
+    try { vibrate([400, 200, 400]); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('tempo_disruptor', 'time_rift'); } catch (e) {}
+  },
+  tempo_disruptor_p2_p3: function() {
+    if (typeof grid === 'undefined' || typeof SIZE === 'undefined') return;
+    let wiped = 0;
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+      const v = grid[r][c];
+      if (v && (typeof v !== 'string' || !v.startsWith('void'))) {
+        grid[r][c] = null;
+        wiped++;
+      }
+    }
+    try { if (typeof chargedCells !== 'undefined' && chargedCells.clear) chargedCells.clear(); } catch (e) {}
+    try { if (typeof render === 'function') render(); } catch (e) {}
+    try { flashStateBanner('BOARD RESET · ' + wiped + ' CELLS WIPED', '#78C8FF'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('tempo_disruptor', 'reset'); } catch (e) {}
+  },
+
+  // ── BATTERY (§4.10) ───────────────────────────────────────────────
+  battery_p1_p2: function() {
+    bossChargeRateMult = 1.50;
+    try { flashStateBanner('OVERCHARGE · +50% RATE', '#FFD75A'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('battery', 'overcharge'); } catch (e) {}
+  },
+  battery_p2_p3: function() {
+    try {
+      if (typeof applyChannelDamage === 'function') {
+        applyChannelDamage('signature', 40, { source: 'battery_detonate' });
+      }
+    } catch (e) { console.warn('battery detonate failed:', e); }
+    try { flashStateBanner('DETONATE · 40 HP IMPACT', '#FFD75A'); } catch (e) {}
+    try { vibrate([300, 100, 300, 100, 500]); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('battery', 'detonate'); } catch (e) {}
+  },
+
+  // ── VOIDFANG (Tower fallback) ─────────────────────────────────────
+  tower_voidfang_p1_p2: function() {
+    bossAttackDmgMult = (typeof bossAttackDmgMult === 'number' ? bossAttackDmgMult : 1) * 1.30;
+    try { flashStateBanner('VOID HUNGER · +30% DAMAGE', '#444'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('void', 'hunger'); } catch (e) {}
+  },
+  tower_voidfang_p2_p3: function() {
+    pressureGainMult = (typeof pressureGainMult === 'number' ? pressureGainMult : 1) * 0.70;
+    try { flashStateBanner('VOID DREAD · -30% PRESSURE GAIN', '#444'); } catch (e) {}
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('void', 'dread'); } catch (e) {}
+  },
+};
+
+// Engineer 2-row variant — populated by engineer_p2_p3, consumed by PR #4.C.
+let engineerElectrifiedRows = [];
+
+// 2026-05-02 — COMBAT v2.1 P4 §5.2: reactivity event dispatcher.
+// Replaces firePhase's effects-array iteration with a telegraph→execute flow:
+//   Step 1: showReactivityTelegraph(eventId)  // 3-second wind-up (PR #4.D wires)
+//   Step 2: setTimeout REACTIVITY_TELEGRAPH_MS → handler() + log
+// Telegraph is non-blocking — gameplay continues, banner overlays the screen.
+let _phase4LastReactivityFiredAt = 0;
+function triggerReactivityEvent(eventId) {
+  const handler = REACTIVITY_HANDLERS[eventId];
+  if (!handler) {
+    console.warn('[Phase 4] No handler for reactivity event:', eventId);
+    return;
+  }
+  // Step 1: telegraph wind-up (3s). PR #4.D ships the visual.
+  try { if (typeof showReactivityTelegraph === 'function') showReactivityTelegraph(eventId); } catch (e) {}
+  _phase4LastReactivityFiredAt = Date.now();
+  // FTUE intro on first telegraph (PR #4.D wires the dialog itself).
+  try { if (typeof _maybeTriggerTelegraphIntro === 'function') _maybeTriggerTelegraphIntro(); } catch (e) {}
+
+  // Step 2: execute after telegraph window.
+  setTimeout(() => {
+    try { handler(); } catch (e) { console.error('[Phase 4] reactivity handler error:', eventId, e); }
+    // FTUE intro on first reactivity firing (PR #4.D wires the dialog itself).
+    try { if (typeof _maybeTriggerReactivityIntro === 'function') _maybeTriggerReactivityIntro(); } catch (e) {}
+    // Battle-event log breadcrumb for analytics + Death Flashback log.
+    try {
+      if (typeof logBattleEvent === 'function') {
+        const label = eventId.toUpperCase().replace(/_/g, ' ');
+        logBattleEvent('reactivity', 'BOSS ADAPTS', label, '#FFD53D');
+      }
+    } catch (e) {}
+    try { if (typeof logEvent === 'function') logEvent('boss_reactivity_fired', { eventId }); } catch (e) {}
+  }, REACTIVITY_TELEGRAPH_MS);
+}
+
+// 2026-05-02 — COMBAT v2.1 P4 §5.2: maybePhaseTransition rewrite.
+// Replaces legacy effects-array iteration. New shape:
+//   - Iterates BOSS_PHASES[currentBoss.name] entries
+//   - Skips already-fired (battlePhasesTriggered Set, existing infra)
+//   - On crossing threshold: triggerReactivityEvent(phase.reactivity)
+// Single-fire per call (don't double-fire if multiple gates cross same frame).
+// Legacy `effects` arrays are still tolerated (firePhase shim) — covers the
+// Voidfang shroud override path until #4.D audit.
+function maybePhaseTransition() {
+  // FTUE lockout — preserved from legacy implementation (Block 6.1).
+  if (typeof isFtueActive === 'function' && isFtueActive()) return;
+  // Floor 1 (Trial) suppression — preserved. Voidfang exception preserved.
+  const _isVoidfang = currentBoss && currentBoss.name === 'VOIDFANG';
+  if (typeof currentFloorId !== 'undefined' && currentFloorId === 1 && !_isVoidfang) return;
+  if (!currentBoss || !currentBoss.name) return;
+  const phases = BOSS_PHASES[currentBoss.name];
+  if (!phases || phases.length === 0) return;
+  if (typeof bossMaxHP !== 'number' || !bossMaxHP) return;
+
+  const hpPct = (bossHP / bossMaxHP) * 100;
+  for (const phase of phases) {
+    const key = currentBoss.name + ':' + phase.threshold;
+    if (battlePhasesTriggered.has(key)) continue;
+    if (hpPct > phase.threshold) continue;       // not yet at threshold
+    battlePhasesTriggered.add(key);
+
+    // Camera shake + cinematic transition reused from legacy firePhase.
+    try { if (typeof hitBoss === 'function') hitBoss(true); } catch (e) {}
+    try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+    try {
+      const idx = phases.indexOf(phase);
+      const phaseNum = (idx >= 0 ? idx : 0) + 2;
+      if (typeof vPlayPhaseTransition === 'function') {
+        vPlayPhaseTransition(phaseNum, '');
+      }
+    } catch (e) { /* fallback */ }
+
+    // FTUE intro on first phase gate crossing (PR #4.D wires the dialog).
+    try { if (typeof _maybeTriggerPhaseIntro === 'function') _maybeTriggerPhaseIntro(); } catch (e) {}
+
+    // New shape: dispatch via reactivity registry.
+    if (phase.reactivity) {
+      triggerReactivityEvent(phase.reactivity);
+      return;   // single fire per call (spec §13.2)
+    }
+    // Legacy shape: fall back to firePhase (handles `effects` array).
+    if (Array.isArray(phase.effects)) {
+      try { firePhase(phase); } catch (e) { console.warn('[Phase 4] legacy firePhase failed:', e); }
+      return;
+    }
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P4 §5.8: battle-init reactivity state reset.
+// Called from existing battle-init reset chain alongside resetStaggerState (P2)
+// + _resetPhase3*State (P3). Idempotent.
+function _resetReactivityState() {
+  bossShieldCount             = 0;
+  bossStaggerImmuneTurns      = 0;
+  bossFireAuraActive          = false;
+  bossFireAuraDmg             = 0;
+  bossStealthTurns            = 0;
+  bossNextAttackBonus         = 1.0;
+  bossBackstabChainTurns      = 0;
+  bossDualSuggestActive       = false;
+  squadSilencedTurns          = 0;
+  frenzyMaxStacks             = 5;
+  frenzyMaulComboActive       = false;
+  frenzyMaulInterval          = 0;
+  skipPlayerTurnsCount        = 0;
+  bossChargeRateMult          = 1.0;
+  pressureGainMult            = 1.0;
+  engineerElectrifiedRows     = [];
+  _phase4LastReactivityFiredAt = 0;
+  // battlePhasesTriggered already cleared in startBossBattle (existing infra).
+}
+
+if (typeof window !== 'undefined') {
+  window.REACTIVITY_HANDLERS         = REACTIVITY_HANDLERS;
+  window.triggerReactivityEvent      = triggerReactivityEvent;
+  window._resetReactivityState       = _resetReactivityState;
+  // State vars exposed for devtools inspection + PR #4.C wiring sites.
+  Object.defineProperty(window, 'bossShieldCount',         { get: () => bossShieldCount,         set: v => { bossShieldCount = v; } });
+  Object.defineProperty(window, 'bossStaggerImmuneTurns',  { get: () => bossStaggerImmuneTurns,  set: v => { bossStaggerImmuneTurns = v; } });
+  Object.defineProperty(window, 'bossFireAuraActive',      { get: () => bossFireAuraActive,      set: v => { bossFireAuraActive = v; } });
+  Object.defineProperty(window, 'bossFireAuraDmg',         { get: () => bossFireAuraDmg,         set: v => { bossFireAuraDmg = v; } });
+  Object.defineProperty(window, 'bossStealthTurns',        { get: () => bossStealthTurns,        set: v => { bossStealthTurns = v; } });
+  Object.defineProperty(window, 'bossNextAttackBonus',     { get: () => bossNextAttackBonus,     set: v => { bossNextAttackBonus = v; } });
+  Object.defineProperty(window, 'bossBackstabChainTurns',  { get: () => bossBackstabChainTurns,  set: v => { bossBackstabChainTurns = v; } });
+  Object.defineProperty(window, 'bossDualSuggestActive',   { get: () => bossDualSuggestActive,   set: v => { bossDualSuggestActive = v; } });
+  Object.defineProperty(window, 'squadSilencedTurns',      { get: () => squadSilencedTurns,      set: v => { squadSilencedTurns = v; } });
+  Object.defineProperty(window, 'frenzyMaxStacks',         { get: () => frenzyMaxStacks,         set: v => { frenzyMaxStacks = v; } });
+  Object.defineProperty(window, 'frenzyMaulComboActive',   { get: () => frenzyMaulComboActive,   set: v => { frenzyMaulComboActive = v; } });
+  Object.defineProperty(window, 'skipPlayerTurnsCount',    { get: () => skipPlayerTurnsCount,    set: v => { skipPlayerTurnsCount = v; } });
+  Object.defineProperty(window, 'bossChargeRateMult',      { get: () => bossChargeRateMult,      set: v => { bossChargeRateMult = v; } });
+  Object.defineProperty(window, 'pressureGainMult',        { get: () => pressureGainMult,        set: v => { pressureGainMult = v; } });
+  Object.defineProperty(window, 'engineerElectrifiedRows', { get: () => engineerElectrifiedRows, set: v => { engineerElectrifiedRows = v; } });
+}
+
 // Console helpers
 if (typeof window !== 'undefined') {
   window.BOSS_PHASES         = BOSS_PHASES;
@@ -42301,6 +42685,10 @@ function startBossBattle() {
   try { if (typeof _resetPhase3TankState === 'function') _resetPhase3TankState(); } catch (e) {}
   // 2026-05-02 — COMBAT v2.1 P3 PR #3.C: reset Captain state + prompt Mythic threshold.
   try { if (typeof _resetPhase3CaptainState === 'function') _resetPhase3CaptainState(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.B §5.8: reset reactivity state alongside
+  // Phase 1/2/3 resets. Clears all 13 boss state vars + engineerElectrifiedRows.
+  // battlePhasesTriggered already cleared above (legacy infra).
+  try { if (typeof _resetReactivityState === 'function') _resetReactivityState(); } catch (e) {}
   try { if (typeof registerPhase3HeroHooks === 'function') registerPhase3HeroHooks(); } catch (e) {}
   try { if (typeof _maybePromptMythicStaggerThreshold === 'function') _maybePromptMythicStaggerThreshold(); } catch (e) {}
   revivesRemaining = currentBoss.revives || 0;
@@ -42423,6 +42811,10 @@ function startBossBattle() {
   try { if (typeof _resetPhase3TankState === 'function') _resetPhase3TankState(); } catch (e) {}
   // 2026-05-02 — COMBAT v2.1 P3 PR #3.C: reset Captain state + prompt Mythic threshold.
   try { if (typeof _resetPhase3CaptainState === 'function') _resetPhase3CaptainState(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.B §5.8: reset reactivity state alongside
+  // Phase 1/2/3 resets. Clears all 13 boss state vars + engineerElectrifiedRows.
+  // battlePhasesTriggered already cleared above (legacy infra).
+  try { if (typeof _resetReactivityState === 'function') _resetReactivityState(); } catch (e) {}
   try { if (typeof registerPhase3HeroHooks === 'function') registerPhase3HeroHooks(); } catch (e) {}
   try { if (typeof _maybePromptMythicStaggerThreshold === 'function') _maybePromptMythicStaggerThreshold(); } catch (e) {}
   attackCountdown = _arch.attackCD;                    // override cadence from archetype
