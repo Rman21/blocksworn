@@ -27886,6 +27886,333 @@ if (typeof window !== 'undefined') {
   Object.defineProperty(window, 'engineerElectrifiedRows', { get: () => engineerElectrifiedRows, set: v => { engineerElectrifiedRows = v; } });
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 4 PR #4.D — UI SURFACES + FTUE INTROS
+// Per BLOCKSWORN_COMBAT_V21_PHASE_4_BOSS_RECALC.md §6 + §7.
+// 1. showReactivityTelegraph — 3-second wind-up banner with countdown
+// 2. showReactivityFX — archetype-tinted screen flash on event fire
+// 3. renderBossPhaseIndicator — top-right phase chip (P1/P2/P3)
+// 4. showBossIntelOverlay — pre-battle 1-2s popup
+// 5. renderSquadTTKForecast — squad-select TTK estimate
+// 6. _computeSquadEffectiveDPS — heuristic for forecast
+// 7. 3 FTUE dialogs (tut_phase_intro, tut_reactivity_intro, tut_telegraph_intro)
+// 8. 3 trigger hooks (callsites declared in PR #4.B + maybePhaseTransition)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P4 §5.3: archetype color palette for telegraph
+// banner border + reactivity FX tint.
+const REACTIVITY_ARCHETYPE_COLORS = Object.freeze({
+  berserker:       '#FF4D1F',
+  armored:         '#5DA8E8',
+  phoenix:         '#E8B84A',
+  assassin:        '#9B59D6',
+  bruiser:         '#5DCA79',
+  hypnotist:       '#9B59D6',
+  engineer:        '#B87333',
+  frenzy:          '#FF6E28',
+  tempo_disruptor: '#78C8FF',
+  battery:         '#FFD75A',
+  void:            '#444',
+  tower_voidfang:  '#444',
+});
+
+function _archetypeFromEventId(eventId) {
+  if (!eventId) return 'void';
+  const m = String(eventId).match(/^([a-z_]+?)_p[12]_p[23]$/);
+  return m ? m[1] : 'void';
+}
+
+// 2026-05-02 — COMBAT v2.1 P4 §5.3 + §6.1: 3-second wind-up telegraph banner.
+// Lazily-built DOM. Visible top-center of viewport. Counts down 3 → 2 → 1 → !
+// then fires the handler (orchestrated by triggerReactivityEvent in PR #4.B).
+// Non-blocking — gameplay continues during the wind-up.
+let _phase4TelegraphTimer = null;
+function _ensureReactivityTelegraphBanner() {
+  if (typeof document === 'undefined') return null;
+  let banner = document.getElementById('reactivityTelegraphBanner');
+  if (banner) return banner;
+  banner = document.createElement('div');
+  banner.id = 'reactivityTelegraphBanner';
+  banner.className = 'reactivity-telegraph-banner';
+  banner.style.cssText = 'display:none;position:fixed;top:18%;left:50%;transform:translateX(-50%);' +
+                         'background:linear-gradient(135deg,rgba(255,77,31,0.92),rgba(255,140,0,0.92));' +
+                         'border:2px solid #FFD53D;padding:14px 26px;border-radius:8px;' +
+                         'font-size:1.2em;font-weight:bold;letter-spacing:0.05em;color:#fff;' +
+                         'box-shadow:0 0 32px rgba(255,213,61,0.6);z-index:9400;' +
+                         'pointer-events:none;font-family:inherit;';
+  banner.innerHTML = '<span class="rtb-icon" style="margin-right:8px;">⚠</span>' +
+                     '<span class="rtb-label">BOSS ADAPTING</span>' +
+                     '<span class="rtb-countdown" id="rtbCountdown" style="margin-left:12px;color:#FFD700;font-variant-numeric:tabular-nums;">3</span>';
+  document.body.appendChild(banner);
+  // Add pulse animation via injected style (idempotent guard).
+  if (!document.getElementById('phase4TelegraphStyle')) {
+    const s = document.createElement('style');
+    s.id = 'phase4TelegraphStyle';
+    s.textContent =
+      '@keyframes rtb-pulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.05); } }' +
+      '.reactivity-telegraph-banner { animation: rtb-pulse 0.5s ease-in-out infinite alternate; }' +
+      '.rtb-firing { animation: rtb-fire 0.6s ease-out forwards !important; }' +
+      '@keyframes rtb-fire { 0% { transform: translateX(-50%) scale(1); opacity: 1; } ' +
+      '50% { transform: translateX(-50%) scale(1.5); opacity: 1; box-shadow: 0 0 80px #FFD53D; } ' +
+      '100% { transform: translateX(-50%) scale(2); opacity: 0; } }';
+    document.head.appendChild(s);
+  }
+  return banner;
+}
+
+function showReactivityTelegraph(eventId) {
+  if (typeof document === 'undefined') return;
+  const banner = _ensureReactivityTelegraphBanner();
+  if (!banner) return;
+  // Tint border by archetype.
+  const archetype = _archetypeFromEventId(eventId);
+  const color = REACTIVITY_ARCHETYPE_COLORS[archetype] || '#FFD53D';
+  banner.style.borderColor = color;
+  banner.style.boxShadow = '0 0 32px ' + color + '99';
+  banner.classList.remove('rtb-firing');
+  banner.style.display = 'block';
+
+  let secs = 3;
+  const cdEl = banner.querySelector('#rtbCountdown');
+  if (cdEl) cdEl.textContent = secs;
+  if (_phase4TelegraphTimer) clearInterval(_phase4TelegraphTimer);
+  _phase4TelegraphTimer = setInterval(() => {
+    secs--;
+    if (cdEl) cdEl.textContent = secs > 0 ? secs : '!';
+    if (secs <= 0) {
+      clearInterval(_phase4TelegraphTimer);
+      _phase4TelegraphTimer = null;
+      banner.classList.add('rtb-firing');
+      setTimeout(() => { banner.style.display = 'none'; banner.classList.remove('rtb-firing'); }, REACTIVITY_BANNER_DURATION_MS);
+    }
+  }, 1000);
+}
+
+// 2026-05-02 — COMBAT v2.1 P4 §5.3 + §6.1: archetype-tinted screen flash.
+// Brief 500ms screen overlay when handler fires (after telegraph completes).
+function showReactivityFX(archetype, eventType) {
+  if (typeof document === 'undefined') return;
+  const color = REACTIVITY_ARCHETYPE_COLORS[archetype] || '#FFD53D';
+  let overlay = document.getElementById('reactivityFxOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'reactivityFxOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9200;' +
+                            'opacity:0;transition:opacity 200ms ease-out;mix-blend-mode:screen;';
+    document.body.appendChild(overlay);
+  }
+  overlay.style.background = 'radial-gradient(circle at center, ' + color + '55 0%, transparent 70%)';
+  overlay.style.opacity = '0.85';
+  setTimeout(() => { overlay.style.opacity = '0'; }, 320);
+}
+
+// 2026-05-02 — COMBAT v2.1 P4 §6.2: phase indicator chip on boss portrait.
+// Top-right of boss image wrap. Updates on every render tick. Phases driven
+// by getCurrentBossPhase (PR #4.A foundation).
+function _ensureBossPhaseIndicator() {
+  if (typeof document === 'undefined') return null;
+  let el = document.getElementById('bossPhaseIndicator');
+  if (el) return el;
+  const wrap = document.getElementById('bossImgWrap');
+  if (!wrap) return null;
+  el = document.createElement('div');
+  el.id = 'bossPhaseIndicator';
+  el.style.cssText = 'position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.7);' +
+                     'border:1px solid #FFD53D;padding:3px 8px;border-radius:6px;' +
+                     'font-size:10px;letter-spacing:0.10em;font-weight:700;' +
+                     'color:#5DCA79;pointer-events:none;z-index:5;font-family:inherit;';
+  el.innerHTML = '<span class="bpi-icon" style="margin-right:4px;">▰▱▱</span><span class="bpi-text">PHASE 1</span>';
+  // Ensure parent positioned (legacy bossImgWrap may not have explicit position).
+  const cs = (typeof getComputedStyle === 'function') ? getComputedStyle(wrap) : null;
+  if (cs && cs.position === 'static') wrap.style.position = 'relative';
+  wrap.appendChild(el);
+  return el;
+}
+
+function renderBossPhaseIndicator() {
+  const el = _ensureBossPhaseIndicator();
+  if (!el) return;
+  if (typeof currentBoss === 'undefined' || !currentBoss || typeof bossHP !== 'number' || bossHP <= 0) {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = 'block';
+  const phase = (typeof getCurrentBossPhase === 'function') ? getCurrentBossPhase() : 'p1';
+  const visuals = {
+    p1: { icon: '▰▱▱', text: 'PHASE 1', color: '#5DCA79' },
+    p2: { icon: '▰▰▱', text: 'PHASE 2', color: '#FFD53D' },
+    p3: { icon: '▰▰▰', text: 'PHASE 3', color: '#FF4D1F' },
+  };
+  const v = visuals[phase] || visuals.p1;
+  const iconEl = el.querySelector('.bpi-icon');
+  const textEl = el.querySelector('.bpi-text');
+  if (iconEl) iconEl.textContent = v.icon;
+  if (textEl) textEl.textContent = v.text;
+  el.style.color = v.color;
+  el.style.borderColor = v.color;
+}
+
+// 2026-05-02 — COMBAT v2.1 P4 §6.3: pre-battle boss intel overlay.
+// Shown for ~3 seconds at battle start. Reads boss data: archetype + matchup
+// + reactivities + roleTier. Reactivity event labels derived from BOSS_PHASES.
+function showBossIntelOverlay(boss) {
+  if (typeof document === 'undefined' || !boss) return;
+  // Skip for FTUE / training dummy / Tower (no reactivity narrative there).
+  if (boss._isFtueOnly || boss._isTrainingDummy) return;
+  if (boss._isTowerBattle) return;
+  // Lazy build.
+  let overlay = document.getElementById('bossIntelOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'bossIntelOverlay';
+    overlay.style.cssText = 'position:fixed;top:18%;left:50%;transform:translateX(-50%);' +
+                            'background:linear-gradient(180deg,rgba(26,24,48,0.96),rgba(13,12,26,0.96));' +
+                            'border:2px solid #FFD53D;border-radius:12px;padding:16px 22px;max-width:420px;' +
+                            'color:#fff;font-family:inherit;font-size:12px;line-height:1.5;' +
+                            'box-shadow:0 0 32px rgba(255,213,61,0.4);z-index:9300;pointer-events:none;' +
+                            'opacity:0;transition:opacity 300ms ease-out;';
+    document.body.appendChild(overlay);
+  }
+  const archetypeData = (typeof BOSS_ARCHETYPES !== 'undefined') ? BOSS_ARCHETYPES[boss.archetype] : null;
+  const matchupData = (typeof ARCHETYPE_MATCHUP !== 'undefined') ? ARCHETYPE_MATCHUP[boss.archetype] : null;
+  const phases = (typeof BOSS_PHASES !== 'undefined') ? BOSS_PHASES[boss.name] : null;
+  const ttkSec = (typeof BOSS_TTK_TARGETS !== 'undefined' && boss.roleTier) ? (BOSS_TTK_TARGETS[boss.roleTier] || 360) : 360;
+  const ttkMin = (ttkSec / 60).toFixed(1);
+  const fmtReact = (eid) => eid ? eid.toUpperCase().replace(/_/g, ' ').replace(/^([A-Z_ ]+) P\d P\d$/i, '$1') : '—';
+  const r1 = (phases && phases[0]) ? fmtReact(phases[0].reactivity) : '—';
+  const r2 = (phases && phases[1]) ? fmtReact(phases[1].reactivity) : '—';
+  overlay.innerHTML =
+    '<div style="font-size:14px;font-weight:700;color:#FFD53D;letter-spacing:0.08em;margin-bottom:8px;">⚔ ' + (boss.name || '—') + '</div>' +
+    '<div style="opacity:0.85;margin-bottom:3px;">Archetype: <b>' + ((archetypeData && archetypeData.label) || (boss.archetype || '—').toUpperCase()) + '</b></div>' +
+    '<div style="opacity:0.85;margin-bottom:3px;">Role tier: <b>' + ((boss.roleTier || 'gatekeeper').toUpperCase()) + '</b> (TTK ' + ttkMin + ' min)</div>' +
+    (matchupData ? ('<div style="opacity:0.85;margin-bottom:3px;">Strong vs: <b style="color:#5DCA79;">' + (matchupData.strong || []).join(', ').toUpperCase() + '</b></div>' +
+                    '<div style="opacity:0.85;margin-bottom:3px;">Weak vs: <b style="color:#FF4D1F;">' + (matchupData.weak || []).join(', ').toUpperCase() + '</b></div>') : '') +
+    '<div style="margin-top:6px;color:#FFD53D;font-size:11px;">P2 Adapt: <b>' + r1 + '</b></div>' +
+    '<div style="color:#FFD53D;font-size:11px;">P3 Adapt: <b>' + r2 + '</b></div>';
+  overlay.style.display = 'block';
+  // Fade in after a tick (so transition fires).
+  requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+  setTimeout(() => { overlay.style.opacity = '0'; }, 2700);
+  setTimeout(() => { overlay.style.display = 'none'; }, 3300);
+}
+
+// 2026-05-02 — COMBAT v2.1 P4 §6.4: squad TTK forecast.
+// Heuristic: sum per-hero baseline DPS × tier multiplier × stagger boost factor.
+// Used in Squad Select header to show estimated time-to-kill against current
+// boss preview. Approximate — calibration loop runs in P5 telemetry.
+function _computeSquadEffectiveDPS() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return 100;
+  let base = 0;
+  const T = (typeof TIER_DAMAGE_MULT !== 'undefined') ? TIER_DAMAGE_MULT : null;
+  for (const h of HERO_DECK) {
+    if (!h) continue;
+    let tierKey = 'T0';
+    const tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[h.id]) || 0;
+    if (typeof isHeroMythic === 'function' && isHeroMythic(h.id)) tierKey = 'Mythic';
+    else if (tier >= 3) tierKey = 'T3';
+    else if (tier >= 2) tierKey = 'T2';
+    else if (tier >= 1) tierKey = 'T1';
+    const mult = (T && T[tierKey]) ? T[tierKey] : 1.0;
+    base += 20 * mult;   // 20 = baseline per-hero DPS heuristic
+  }
+  // Stagger boost factor — assume ~1 stagger per minute boosting 1.5×
+  // (Phase 2 STAGGER cap × Phase 3 tier curve composes here).
+  const staggerBoost = 1.5;
+  return Math.max(1, Math.round(base * staggerBoost));
+}
+
+function renderSquadTTKForecast(targetBoss) {
+  if (typeof document === 'undefined') return;
+  let el = document.getElementById('squadTTKForecast');
+  if (!el) {
+    // Lazy mount near squad mit header (existing #squadMitValue host).
+    const host = document.getElementById('squadMitValue') || document.body;
+    el = document.createElement('div');
+    el.id = 'squadTTKForecast';
+    el.style.cssText = 'margin-top:6px;font-size:11px;letter-spacing:0.05em;' +
+                       'color:#FFD53D;opacity:0.85;font-family:inherit;';
+    if (host.parentNode) host.parentNode.appendChild(el); else document.body.appendChild(el);
+  }
+  // Resolve target boss: explicit param, currentBoss, or current chapter's first.
+  let boss = targetBoss;
+  if (!boss && typeof currentBoss !== 'undefined') boss = currentBoss;
+  if (!boss && typeof BOSSES !== 'undefined' && BOSSES.length > 0) boss = BOSSES[0];
+  if (!boss || !boss.hp) { el.style.display = 'none'; return; }
+  const dps = _computeSquadEffectiveDPS();
+  const ttkSec = boss.hp / dps;
+  const ttkMin = (ttkSec / 60).toFixed(1);
+  el.style.display = 'block';
+  el.innerHTML = '<span style="margin-right:4px;">⏱</span>EST. TTK vs <b>' + (boss.name || '—') + '</b>: ~' + ttkMin + ' min';
+}
+
+// 2026-05-02 — COMBAT v2.1 P4 §7: 3 FTUE dialogs registered + trigger gates.
+// Dialogs use shared chronicler portrait + Phase 1/2/3 trigger convention
+// (seenDialogs + Ch1 + !isFtueActive). Triggers are called from PR #4.B
+// triggerReactivityEvent (telegraph + reactivity intros) and from
+// maybePhaseTransition (phase intro).
+function _registerPhase4Dialogs() {
+  try {
+    if (typeof DIALOGS === 'undefined' || !DIALOGS) return;
+    const phase4 = {
+      tut_phase_intro: {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_chronicler',
+        text: 'Bosses fight in three phases. At 70% and 35% HP, the boss ADAPTS — changes its attack pattern. Watch the telegraph (3 seconds). Plan your response.',
+      },
+      tut_reactivity_intro: {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#FF4D1F', portraitKey: 'hero_chronicler',
+        text: "ADAPTATION! The boss just gained a new ability. This is not damage you missed — this is the boss responding to pressure. Adjust your strategy.",
+      },
+      tut_telegraph_intro: {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_chronicler',
+        text: 'Three seconds of warning before any major boss adaptation. Use this time to position cells, ready ULTs, or absorb shields. Combat is fair — you always know what is coming.',
+      },
+    };
+    for (const [id, def] of Object.entries(phase4)) {
+      if (!DIALOGS[id]) DIALOGS[id] = def;
+    }
+  } catch (e) { console.warn('[P4 dialog reg] failed:', e); }
+}
+try { if (typeof setTimeout === 'function') setTimeout(_registerPhase4Dialogs, 0); } catch (e) {}
+
+function _phase4FtueGateOk(dialogId) {
+  try {
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return false;
+    if (seenDialogs.has(dialogId)) return false;
+    if (typeof isFtueActive === 'function' && isFtueActive()) return false;
+    if (typeof currentChapter !== 'undefined' && currentChapter !== 1) return false;
+    return true;
+  } catch (e) { return false; }
+}
+
+function _maybeTriggerPhaseIntro() {
+  if (!_phase4FtueGateOk('tut_phase_intro')) return;
+  setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_phase_intro'); } catch (e) {} }, 600);
+}
+
+function _maybeTriggerReactivityIntro() {
+  if (!_phase4FtueGateOk('tut_reactivity_intro')) return;
+  setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_reactivity_intro'); } catch (e) {} }, 800);
+}
+
+function _maybeTriggerTelegraphIntro() {
+  if (!_phase4FtueGateOk('tut_telegraph_intro')) return;
+  setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_telegraph_intro'); } catch (e) {} }, 400);
+}
+
+if (typeof window !== 'undefined') {
+  window.showReactivityTelegraph        = showReactivityTelegraph;
+  window.showReactivityFX               = showReactivityFX;
+  window.renderBossPhaseIndicator       = renderBossPhaseIndicator;
+  window.showBossIntelOverlay           = showBossIntelOverlay;
+  window.renderSquadTTKForecast         = renderSquadTTKForecast;
+  window._computeSquadEffectiveDPS      = _computeSquadEffectiveDPS;
+  window._registerPhase4Dialogs         = _registerPhase4Dialogs;
+  window._maybeTriggerPhaseIntro        = _maybeTriggerPhaseIntro;
+  window._maybeTriggerReactivityIntro   = _maybeTriggerReactivityIntro;
+  window._maybeTriggerTelegraphIntro    = _maybeTriggerTelegraphIntro;
+  window.REACTIVITY_ARCHETYPE_COLORS    = REACTIVITY_ARCHETYPE_COLORS;
+}
+
 // Console helpers
 if (typeof window !== 'undefined') {
   window.BOSS_PHASES         = BOSS_PHASES;
@@ -42697,6 +43024,14 @@ function startBossBattle() {
     if (!_isFtueOnly && !_isTower && typeof maybeFireBossVoiceIntro === 'function') {
       maybeFireBossVoiceIntro();
     }
+    // 2026-05-02 — COMBAT v2.1 P4 PR #4.D §6.3: pre-battle boss intel overlay.
+    // Shows archetype + role tier + matchup + reactivities for ~3 seconds at
+    // battle start. FTUE / training-dummy / Tower fights skip via internal gate.
+    try {
+      if (!_isFtueOnly && !_isTower && typeof showBossIntelOverlay === 'function') {
+        showBossIntelOverlay(currentBoss);
+      }
+    } catch (e) { console.warn('[P4 boss intel] failed:', e); }
     // PHASE 3 BLOCK 1 — Signature Combo cinematic. Reset per-battle one-shot flag
     // and fire if a combo is active. Skipped for FTUE/Tower like voice lines.
     _signatureComboCinemaShown = false;
@@ -51791,6 +52126,9 @@ function renderBossHP() {
   // POLISH v1 · PHASE 3 — update lag-bar (догоняет с задержкой)
   const lag = document.getElementById('bossHpLag');
   if (lag) lag.style.width = pct + '%';
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.D §6.2: phase indicator chip update.
+  // Shows P1/P2/P3 chip on boss portrait based on current HP ratio.
+  try { if (typeof renderBossPhaseIndicator === 'function') renderBossPhaseIndicator(); } catch (e) {}
   // Lives indicator: shown for any revive-boss across all its lives (current + remaining).
   const hasRevives = currentBoss && (currentBoss.revives || 0) > 0;
   const reviveMark = hasRevives ? ` · ${'🔥'.repeat(revivesRemaining + 1)}` : '';
@@ -57330,6 +57668,10 @@ function renderSquadMitigationHeader() {
   // Fires alongside mitigation header so the entire squad summary refreshes
   // atomically on each squad-roster repaint.
   try { if (typeof renderSquadPressureForecast === 'function') renderSquadPressureForecast(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.D §6.4: TTK forecast against next boss.
+  // Heuristic — calibration loop in P5 telemetry. Targets currentBoss in battle,
+  // first chapter boss otherwise.
+  try { if (typeof renderSquadTTKForecast === 'function') renderSquadTTKForecast(); } catch (e) {}
 }
 
 // 2026-05-02 — COMBAT v2.1 P1 §5.4.2 + §5.4.3: post-render injection of
