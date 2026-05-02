@@ -20945,6 +20945,18 @@ function applyBossDefeatProgression(bossNumber) {
       } catch (e) { console.warn('Chapter 4 finale reward chain failed:', e); }
     }, (squadBumped ? 1500 : 250) + 2200);
   }
+  // 2026-05-02 — SPRINT 3B B3 T4: boss defeat bonus pinch (3/day cap).
+  // Fires AFTER all standard reward chains have settled. FTUE/Tower bosses
+  // skip via guards inside maybeShowBossDefeatBonusPinch. Delay 4500ms so it
+  // lands after the victory celebration banners cascade (matches Ch3 finale
+  // timing — Ch1-2 are faster but the extra wait is harmless).
+  try {
+    if (typeof maybeShowBossDefeatBonusPinch === 'function') {
+      setTimeout(function () {
+        try { maybeShowBossDefeatBonusPinch(); } catch (e) {}
+      }, 4500);
+    }
+  } catch (e) { console.warn('B3 T4 trigger failed:', e); }
 }
 
 // Block B3: lightweight celebration overlay — uses existing flashText for the toast
@@ -25352,6 +25364,213 @@ if (typeof window !== 'undefined') {
   window.restoreLoginStreak = restoreLoginStreak;
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// 2026-05-02 — SPRINT 3B B3: Triggered Ads at emotional moments (3 missing
+// trigger points). Existing infrastructure already covers Tower Death pinch
+// (line 42773 maybeShowTowerDeathPinch) + Streak Save pinch (above
+// maybeShowStreakSavePinch). This block adds:
+//   T2 — Consecutive battle loss (2nd in a row): "watch ad → +1 hero card"
+//   T3 — Daily login claim:                      "watch ad → DOUBLE today's reward"
+//   T4 — Boss defeat bonus (3/day cap):          "watch ad → +150 gold + 1 hero card"
+// All three reuse showPinchModal + watchRewardedAd / _showMockAdOverlay
+// (the existing pinch + rewarded-ad pipeline). Per-trigger daily caps stored
+// in localStorage so cap math is independent of the global ADS_DAILY_CAP_FREE.
+// Per spec SPRINT_3B_MONETIZATION_POLISH.md §5.2.2 / §5.2.3 / §5.2.4.
+// ──────────────────────────────────────────────────────────────────────────
+
+const TRIGGER_AD_CAPS_KEY = 'blocksworn_trigger_ads_today';
+const TRIGGER_AD_DAILY_CAPS = Object.freeze({
+  consecutive_loss:   2,   // 2× per day max — frustration recovery
+  daily_login_double: 1,   // once per day (per claim)
+  boss_defeat_bonus:  3,   // 3× per day across all bosses
+});
+
+function _getTriggerAdsTodayState() {
+  try {
+    const raw = localStorage.getItem(TRIGGER_AD_CAPS_KEY);
+    const today = (typeof _todayDateString === 'function') ? _todayDateString() : new Date().toISOString().slice(0, 10);
+    if (!raw) return { date: today, counts: {} };
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.date !== today) return { date: today, counts: {} };
+    return parsed;
+  } catch (e) {
+    const today = (typeof _todayDateString === 'function') ? _todayDateString() : new Date().toISOString().slice(0, 10);
+    return { date: today, counts: {} };
+  }
+}
+
+function _saveTriggerAdsTodayState(state) {
+  try { localStorage.setItem(TRIGGER_AD_CAPS_KEY, JSON.stringify(state)); } catch (e) {}
+}
+
+function _canShowTriggerAd(triggerType) {
+  const cap = TRIGGER_AD_DAILY_CAPS[triggerType];
+  if (!cap) return false;
+  const state = _getTriggerAdsTodayState();
+  return (state.counts[triggerType] || 0) < cap;
+}
+
+function _markTriggerAdShown(triggerType) {
+  const state = _getTriggerAdsTodayState();
+  state.counts[triggerType] = (state.counts[triggerType] || 0) + 1;
+  _saveTriggerAdsTodayState(state);
+}
+
+// Session counter for consecutive battle losses (NOT persisted — resets on
+// app restart, which is fine: only "this play session" matters for the 2nd
+// loss frustration trigger).
+let _consecutiveBattleLosses = 0;
+function _incrementConsecutiveBattleLosses() {
+  _consecutiveBattleLosses++;
+  return _consecutiveBattleLosses;
+}
+function _resetConsecutiveBattleLosses() {
+  _consecutiveBattleLosses = 0;
+}
+if (typeof window !== 'undefined') {
+  window._resetConsecutiveBattleLosses = _resetConsecutiveBattleLosses;
+}
+
+// T2 — Consecutive battle loss pinch. Fires after 2nd straight defeat in
+// chapter-mode (NOT Tower — it has its own retry economy). Provides a
+// "watch ad → +1 hero card" path so frustrated players get a small bone.
+function maybeShowConsecutiveLossPinch() {
+  try {
+    if (_consecutiveBattleLosses < 2) return false;
+    if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isFtueOnly) return false;
+    if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle) return false;
+    if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle) return false;
+    if (!_canShowTriggerAd('consecutive_loss')) return false;
+    const adsLeft = (typeof _adsRemaining === 'function') ? _adsRemaining() : 0;
+    if (adsLeft <= 0) return false;
+    const paths = [
+      { kind: 'skill', label: '✓ TRY AGAIN',
+        sub: 'Restart from scratch — your warband\'s ready',
+        onClick: function () { /* default — modal closes */ } },
+      { kind: 'ad', label: '📺 WATCH AD · +1 HERO CARD',
+        sub: 'Two losses in a row deserves a consolation',
+        onClick: function () {
+          _markTriggerAdShown('consecutive_loss');
+          try { if (typeof watchRewardedAd === 'function') watchRewardedAd('consecutive_loss_card'); } catch (e) {}
+        } },
+    ];
+    showPinchModal({
+      id: 'consecutive_loss:' + (currentBoss && currentBoss.name ? currentBoss.name : 'unknown'),
+      subtitle: '2 LOSSES IN A ROW',
+      title: 'TOUGH FIGHT — TAKE A CARD?',
+      body:
+        '<div style="margin-bottom:8px">Two defeats back-to-back. The grid is unforgiving today.</div>' +
+        '<div style="font-size:11px;color:#A8A5B8">A free hero card might shift the next attempt — weighted toward heroes you don\'t own yet.</div>',
+      paths: paths
+    });
+    return true;
+  } catch (e) { console.warn('maybeShowConsecutiveLossPinch failed:', e); return false; }
+}
+
+// T3 — Daily login claim "double the reward" pinch. Fires immediately after
+// claimLoginStreakReward distributes today's bundle. Watching the ad re-grants
+// the same items, effectively doubling. Lowest-friction triggered placement
+// (player just got a free reward — no loss aversion needed).
+function maybeShowDailyLoginDoublePinch(reward, mult) {
+  try {
+    if (!reward) return false;
+    if (!_canShowTriggerAd('daily_login_double')) return false;
+    const adsLeft = (typeof _adsRemaining === 'function') ? _adsRemaining() : 0;
+    if (adsLeft <= 0) return false;
+    // Build a human-readable summary of what doubling grants.
+    const m = (typeof mult === 'number' && mult > 0) ? mult : 1;
+    const parts = [];
+    if (reward.gold)           parts.push('+' + Math.floor(reward.gold * m) + '💰');
+    if (reward.gems)           parts.push('+' + Math.floor(reward.gems * m) + '💎');
+    if (reward.essencesRandom) parts.push('+' + reward.essencesRandom + '🔮');
+    if (reward.heroCard)       parts.push('+1🃏');
+    const summary = parts.length ? parts.join(' · ') : 'Today\'s bundle, again';
+    const paths = [
+      { kind: 'skill', label: '✓ KEEP THIS REWARD',
+        sub: 'Already claimed — see you tomorrow',
+        onClick: function () { /* no-op */ } },
+      { kind: 'ad', label: '📺 WATCH AD · DOUBLE TODAY\'S REWARD',
+        sub: summary,
+        onClick: function () {
+          _markTriggerAdShown('daily_login_double');
+          if (typeof _showMockAdOverlay === 'function' && typeof _incrementAdsWatched === 'function') {
+            _showMockAdOverlay(summary, function () {
+              _incrementAdsWatched();
+              try {
+                if (reward.gold) addGold(Math.floor(reward.gold * m));
+                if (reward.gems) addGems(Math.floor(reward.gems * m));
+                if (reward.essencesRandom) {
+                  const stihs = ['ember','tide','grove','solar','umbra'];
+                  const s = stihs[Math.floor(Math.random() * stihs.length)];
+                  if (typeof essences !== 'undefined' && essences) {
+                    essences[s] = (essences[s] || 0) + Math.floor(reward.essencesRandom * m);
+                    try { saveProgress(); } catch (e) {}
+                  }
+                }
+                if (reward.heroCard && typeof dropRandomHeroCards === 'function') {
+                  dropRandomHeroCards(1, { silent: false });
+                }
+                try { flashText('★ DOUBLED', '#FFD53D'); } catch (e) {}
+              } catch (e) { console.warn('daily login double apply failed:', e); }
+            });
+          }
+        } },
+    ];
+    showPinchModal({
+      id: 'daily_login_double',
+      subtitle: 'DAILY LOGIN BONUS',
+      title: 'DOUBLE TODAY\'S REWARD?',
+      body:
+        '<div style="margin-bottom:8px">You just claimed today\'s bundle. Watch a short ad and we\'ll grant the same again.</div>' +
+        '<div style="font-size:11px;color:#A8A5B8">Doubling: ' + summary + '</div>',
+      paths: paths
+    });
+    return true;
+  } catch (e) { console.warn('maybeShowDailyLoginDoublePinch failed:', e); return false; }
+}
+
+// T4 — Boss defeat bonus pinch. Fires after standard boss-defeat reward chain
+// (3/day cap across all bosses). Watching the ad grants +150 gold + 1 hero
+// card via the existing AD_REWARDS.bonus_loot reward. Skipped during FTUE
+// (Pyredrake/Grunt) and Tower battles (have their own pinch flows).
+function maybeShowBossDefeatBonusPinch() {
+  try {
+    if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isFtueOnly) return false;
+    if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle) return false;
+    if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle) return false;
+    if (!_canShowTriggerAd('boss_defeat_bonus')) return false;
+    const adsLeft = (typeof _adsRemaining === 'function') ? _adsRemaining() : 0;
+    if (adsLeft <= 0) return false;
+    const paths = [
+      { kind: 'skill', label: '✓ ENJOY VICTORY',
+        sub: 'Move on — next boss awaits',
+        onClick: function () { /* no-op */ } },
+      { kind: 'ad', label: '📺 WATCH AD · +150💰 +1🃏',
+        sub: 'Bonus loot for the win — counts toward daily ad cap',
+        onClick: function () {
+          _markTriggerAdShown('boss_defeat_bonus');
+          try { if (typeof watchRewardedAd === 'function') watchRewardedAd('bonus_loot'); } catch (e) {}
+        } },
+    ];
+    showPinchModal({
+      id: 'boss_defeat_bonus:' + (currentBoss && currentBoss.name ? currentBoss.name : 'unknown'),
+      subtitle: 'VICTORY BONUS',
+      title: 'EXTRA LOOT FROM THIS WIN?',
+      body: '<div style="margin-bottom:8px">Watch a short ad to grab a victory bonus on top of your standard rewards.</div>',
+      paths: paths
+    });
+    return true;
+  } catch (e) { console.warn('maybeShowBossDefeatBonusPinch failed:', e); return false; }
+}
+
+if (typeof window !== 'undefined') {
+  window.maybeShowConsecutiveLossPinch = maybeShowConsecutiveLossPinch;
+  window.maybeShowDailyLoginDoublePinch = maybeShowDailyLoginDoublePinch;
+  window.maybeShowBossDefeatBonusPinch = maybeShowBossDefeatBonusPinch;
+  window._canShowTriggerAd = _canShowTriggerAd;
+  window._markTriggerAdShown = _markTriggerAdShown;
+}
+
 function getTodayStreakReward() {
   if (loginStreakState.streakCount < 1) return null;
   const cycleDay = ((loginStreakState.streakCount - 1) % 7) + 1;
@@ -25397,6 +25616,17 @@ function claimLoginStreakReward() {
   try { flashText(`🗓 DAY ${cycleDay} REWARD CLAIMED!`, '#FFD53D'); } catch (e) {}
   try { vibrate([80, 60, 120]); } catch (e) {}
   try { updateDailyButtonBadge(); } catch (e) {}
+  // 2026-05-02 — SPRINT 3B B3 T3: offer "watch ad → DOUBLE today's reward"
+  // pinch immediately after claim. Reward + multiplier captured above so the
+  // pinch can re-grant the same items on ad-watch. Subscriber multiplier is
+  // already applied; doubling re-multiplies on top (intentional generosity).
+  try {
+    if (typeof maybeShowDailyLoginDoublePinch === 'function') {
+      setTimeout(function () {
+        try { maybeShowDailyLoginDoublePinch(reward, mult); } catch (e) {}
+      }, 1500);
+    }
+  } catch (e) { console.warn('B3 T3 trigger failed:', e); }
   return true;
 }
 
@@ -42001,6 +42231,9 @@ function hitBoss(isCombo = false) {
 
 async function onBossDefeated() {
   if (gameEnded) return;
+  // 2026-05-02 — SPRINT 3B B3 T2: reset consecutive-loss counter on victory
+  // so the next loss-streak starts from zero. Idempotent.
+  try { if (typeof _resetConsecutiveBattleLosses === 'function') _resetConsecutiveBattleLosses(); } catch (e) {}
   // Profile P2 — track lifetime wins (covers all paths: story / tower / FTUE).
   try { if (typeof trackProfileBattleWon === 'function') trackProfileBattleWon(); } catch (e) {}
   // 2026-04-30 — Mobile UX Fix v0.1 §6: increment battle counter so the
@@ -42663,6 +42896,25 @@ function showVictoryModal() {
 
 function showDefeatModal() {
   gameEnded = true;
+  // 2026-05-02 — SPRINT 3B B3 T2: increment consecutive-loss counter
+  // (chapter mode only — Tower has its own retry economy + pinch). Schedule
+  // pinch offer if this is the 2nd straight loss; fires AFTER defeat modal
+  // settles + AFTER any Battle Retry path the existing maybeShowBattleRetry
+  // hook chains. Counter resets on victory or quit-to-menu.
+  try {
+    const _isTower = (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTowerBattle);
+    if (!_isTower && typeof _incrementConsecutiveBattleLosses === 'function') {
+      const lossCount = _incrementConsecutiveBattleLosses();
+      if (lossCount >= 2) {
+        // Defer so defeat modal renders first; player sees defeat → 2.5s
+        // later sees the pinch. Quick enough to feel reactive, slow enough
+        // to read the defeat stats.
+        setTimeout(function () {
+          try { if (typeof maybeShowConsecutiveLossPinch === 'function') maybeShowConsecutiveLossPinch(); } catch (e) {}
+        }, 2500);
+      }
+    }
+  } catch (e) { console.warn('B3 T2 trigger failed:', e); }
   // 2026-04-29 — Race-Pure: clear run flag on defeat so the next attempt
   // starts clean (player may retry from the modal).
   try { _currentRacePureRace = null; } catch (e) {}
