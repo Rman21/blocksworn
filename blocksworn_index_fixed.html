@@ -55659,6 +55659,245 @@ if (typeof window !== 'undefined') {
   window.renderCaptainMarkBadge         = renderCaptainMarkBadge;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 3 PR #3.D — MYTHIC PER-SAVE CONSTRAINT
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_3_HERO_TIERS.md §5.1 + §5.2 + §5.3.
+// "ONE Mythic per save" identity-defining commitment.
+//
+// Existing infrastructure (line ~20439): isHeroMythic, getMythicHeroId,
+// canAscendMythic, ascendHeroMythic — all use towerState.mythicHero as the
+// save-wide single slot. towerState IS persisted save-wide via saveTowerState
+// + TOWER_STATE_KEY localStorage (despite the name "tower" — it's the global
+// progression bag, not per-run).
+//
+// PR #3.D adds:
+//   1. Spec-named API: canAscendToMythic / commitMythicAscension (§5.1)
+//   2. Mirror localStorage key MYTHIC_HERO_ID_KEY — single source of truth
+//      that survives independent of towerState format changes (defensive)
+//   3. _migrateMythicFromTowerState() — sync towerState.mythicHero ↔
+//      MYTHIC_HERO_ID_KEY (bidirectional, idempotent)
+//   4. Commitment modal per §5.2 — 3-second cooldown, hero portrait, ability
+//      description, "one-time choice" warning
+//   5. _promptMythicCommitment(heroId, onConfirm) — wraps existing ascendHeroMythic
+//      with the commitment moment per spec §5.2
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P3 §5.1: per-save Mythic key.
+// Stores the single Mythic hero id at save-wide scope, independent of
+// towerState. Migration helper keeps the two in sync. Reads prefer this key
+// when available (forward-compatible if towerState ever gets per-run scope).
+const MYTHIC_HERO_ID_KEY = 'blocksworn_mythic_hero_id';
+
+function _readMythicHeroIdFromStorage() {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    return localStorage.getItem(MYTHIC_HERO_ID_KEY) || null;
+  } catch (e) { return null; }
+}
+
+function _writeMythicHeroIdToStorage(heroId) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    if (heroId) localStorage.setItem(MYTHIC_HERO_ID_KEY, heroId);
+    else localStorage.removeItem(MYTHIC_HERO_ID_KEY);
+  } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §5.3: bidirectional migration. Called at boot
+// and again on each ascension commit. Idempotent — running twice is safe.
+//   1. If localStorage has key, towerState should mirror it (forward direction)
+//   2. If towerState has mythic but localStorage empty, backfill localStorage
+//   3. Conflict (both set, different ids): towerState wins (in-memory canonical)
+function _migrateMythicFromTowerState() {
+  try {
+    const fromStorage = _readMythicHeroIdFromStorage();
+    const fromTower = (typeof towerState !== 'undefined' && towerState && towerState.mythicHero) || null;
+    if (!fromStorage && !fromTower) return null;
+    if (fromStorage && !fromTower) {
+      // Storage has it but towerState doesn't — restore to towerState.
+      if (typeof towerState !== 'undefined' && towerState) {
+        towerState.mythicHero = fromStorage;
+        try { if (typeof saveTowerState === 'function') saveTowerState(); } catch (e) {}
+      }
+      return fromStorage;
+    }
+    if (!fromStorage && fromTower) {
+      // towerState has it but storage doesn't — backfill storage.
+      _writeMythicHeroIdToStorage(fromTower);
+      return fromTower;
+    }
+    // Both set. towerState wins — the in-memory state is canonical.
+    if (fromStorage !== fromTower) _writeMythicHeroIdToStorage(fromTower);
+    return fromTower;
+  } catch (e) {
+    console.warn('[P3 Mythic migrate] failed:', e);
+    return null;
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §5.1: spec-named API.
+// canAscendToMythic returns { ok, reason, existingHeroId } shape per spec.
+// Wraps existing canAscendMythic (which checks resources + single-slot via
+// getMythicMissing) but normalizes the return contract for new callers.
+function canAscendToMythic(heroId) {
+  if (!heroId) return { ok: false, reason: 'no_hero_id' };
+  const existing = (typeof getMythicHeroId === 'function') ? getMythicHeroId() : null;
+  if (existing && existing === heroId) return { ok: false, reason: 'already_mythic' };
+  if (existing && existing !== heroId) return { ok: false, reason: 'mythic_already_chosen', existingHeroId: existing };
+  // Resource check via existing pipeline.
+  const missing = (typeof getMythicMissing === 'function') ? getMythicMissing(heroId) : null;
+  if (missing && missing.length > 0) return { ok: false, reason: 'resources', missing };
+  return { ok: true };
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §5.1: spec-named commitment API.
+// Wraps ascendHeroMythic with localStorage write so the per-save key stays
+// in sync. Returns boolean ok. UI commitment modal calls this on confirm.
+function commitMythicAscension(heroId) {
+  const verdict = canAscendToMythic(heroId);
+  if (!verdict.ok) return false;
+  let success = false;
+  try {
+    if (typeof ascendHeroMythic === 'function') success = !!ascendHeroMythic(heroId);
+  } catch (e) { console.warn('[P3 Mythic commit] ascendHeroMythic threw:', e); success = false; }
+  if (success) {
+    _writeMythicHeroIdToStorage(heroId);
+    // Fire centralized hook so other systems can observe the commitment.
+    try { if (typeof _firePhase3Hook === 'function') _firePhase3Hook('onSpawn', { mythicHeroId: heroId }); } catch (e) {}
+    try { if (typeof logEvent === 'function') logEvent('mythic_ascension_committed', { heroId }); } catch (e) {}
+  }
+  return success;
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §5.2: commitment moment modal.
+// "One-time choice per save" — 3-second cooldown before CONFIRM button
+// enables (prevents misclicks during the high-emotional-investment moment).
+// onConfirm callback fires only on confirmed ascension. Cancel just closes.
+function _ensureMythicCommitmentModal() {
+  if (typeof document === 'undefined') return null;
+  let modal = document.getElementById('mythicCommitmentModal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'mythicCommitmentModal';
+  modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9300;background:rgba(0,0,0,0.85);' +
+                       'align-items:center;justify-content:center;backdrop-filter:blur(10px);';
+  modal.innerHTML = '<div style="background:linear-gradient(180deg,#1a1830,#0a0814);' +
+                       'border:3px solid #FFD53D;border-radius:18px;padding:28px 32px;max-width:480px;width:90%;' +
+                       'box-shadow:0 0 64px rgba(255,213,61,0.55);color:#fff;font-family:inherit;text-align:center;">' +
+                     '<div style="font-size:11px;letter-spacing:0.18em;color:#FFA500;margin-bottom:8px;">★ MYTHIC ASCENSION ★</div>' +
+                     '<div id="mythicHeroName" style="font-size:22px;font-weight:700;color:#FFD53D;letter-spacing:0.06em;margin-bottom:4px;">HERO</div>' +
+                     '<div id="mythicHeroRole" style="font-size:11px;letter-spacing:0.14em;opacity:0.7;margin-bottom:18px;">ROLE</div>' +
+                     '<div style="background:rgba(255,213,61,0.08);border:1px solid rgba(255,213,61,0.3);border-radius:10px;padding:12px;margin-bottom:14px;">' +
+                       '<div style="font-size:10px;letter-spacing:0.14em;color:#FFA500;margin-bottom:6px;">MYTHIC ABILITY</div>' +
+                       '<div id="mythicAbilityName" style="font-size:14px;font-weight:700;color:#FFD53D;margin-bottom:4px;">ABILITY</div>' +
+                       '<div id="mythicAbilityDesc" style="font-size:12px;line-height:1.4;opacity:0.85;">desc</div>' +
+                     '</div>' +
+                     '<div style="font-size:11px;line-height:1.5;opacity:0.8;margin-bottom:18px;">' +
+                       '<b style="color:#FF8C00;">This is a one-time choice per save.</b><br>' +
+                       'Once ascended, no other hero can reach Mythic in this save file.</div>' +
+                     '<div style="display:flex;gap:10px;justify-content:center;">' +
+                       '<button id="mythicCancelBtn" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:8px;padding:10px 20px;cursor:pointer;font-size:12px;letter-spacing:0.06em;">CANCEL</button>' +
+                       '<button id="mythicConfirmBtn" style="background:linear-gradient(180deg,#FFA500,#FF6E28);border:none;color:#fff;border-radius:8px;padding:10px 22px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:0.06em;opacity:0.4;" disabled>CONFIRM <span id="mythicCooldown">(3s)</span></button>' +
+                     '</div></div>';
+  document.body.appendChild(modal);
+  return modal;
+}
+
+let _mythicCommitmentCooldownTimer = null;
+function _promptMythicCommitment(heroId, onConfirm) {
+  if (!heroId) return;
+  if (typeof HERO_ROSTER === 'undefined' || !Array.isArray(HERO_ROSTER)) return;
+  const hero = HERO_ROSTER.find(h => h && h.id === heroId);
+  if (!hero) return;
+  const verdict = canAscendToMythic(heroId);
+  if (!verdict.ok && verdict.reason !== 'resources') {
+    // Already-mythic / already-chosen branches — no commitment moment needed.
+    return verdict;
+  }
+  const modal = _ensureMythicCommitmentModal();
+  if (!modal) return;
+  const nameEl = modal.querySelector('#mythicHeroName');
+  const roleEl = modal.querySelector('#mythicHeroRole');
+  const abNameEl = modal.querySelector('#mythicAbilityName');
+  const abDescEl = modal.querySelector('#mythicAbilityDesc');
+  const confirmBtn = modal.querySelector('#mythicConfirmBtn');
+  const cancelBtn = modal.querySelector('#mythicCancelBtn');
+  const cdEl = modal.querySelector('#mythicCooldown');
+  if (nameEl) nameEl.textContent = hero.name || heroId;
+  if (roleEl) roleEl.textContent = ((hero.race || '').toUpperCase() + ' · ' + (hero.newRole || '').toUpperCase()).replace(/^\s+·\s+/, '');
+  // Pull Mythic ability text from HERO_TIER_ABILITIES (PR #3.A foundation).
+  let abName = '—', abDesc = 'Rule-breaking power.';
+  try {
+    if (typeof HERO_TIER_ABILITIES !== 'undefined' && HERO_TIER_ABILITIES[heroId] && HERO_TIER_ABILITIES[heroId].mythic) {
+      abName = HERO_TIER_ABILITIES[heroId].mythic.name || abName;
+      abDesc = HERO_TIER_ABILITIES[heroId].mythic.description || abDesc;
+    }
+  } catch (e) {}
+  if (abNameEl) abNameEl.textContent = abName;
+  if (abDescEl) abDescEl.textContent = abDesc;
+  // Reset confirm button to disabled / cooldown state per §5.2.
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = '0.4';
+    confirmBtn.style.cursor = 'wait';
+  }
+  let remaining = 3;
+  if (cdEl) cdEl.textContent = '(' + remaining + 's)';
+  if (_mythicCommitmentCooldownTimer) clearInterval(_mythicCommitmentCooldownTimer);
+  _mythicCommitmentCooldownTimer = setInterval(() => {
+    remaining--;
+    if (cdEl) cdEl.textContent = remaining > 0 ? '(' + remaining + 's)' : '';
+    if (remaining <= 0) {
+      clearInterval(_mythicCommitmentCooldownTimer);
+      _mythicCommitmentCooldownTimer = null;
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.style.opacity = '1';
+        confirmBtn.style.cursor = 'pointer';
+      }
+    }
+  }, 1000);
+  if (confirmBtn) {
+    confirmBtn.onclick = () => {
+      if (confirmBtn.disabled) return;
+      modal.style.display = 'none';
+      const ok = commitMythicAscension(heroId);
+      if (ok && typeof onConfirm === 'function') onConfirm(heroId);
+    };
+  }
+  if (cancelBtn) {
+    cancelBtn.onclick = () => {
+      if (_mythicCommitmentCooldownTimer) { clearInterval(_mythicCommitmentCooldownTimer); _mythicCommitmentCooldownTimer = null; }
+      modal.style.display = 'none';
+    };
+  }
+  modal.style.display = 'flex';
+  // FTUE intro — first-time-only.
+  try { if (typeof _maybeTriggerMythicIntro === 'function') _maybeTriggerMythicIntro(); } catch (e) {}
+  return verdict;
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §5: boot migration + initial sync.
+// Run once on script load (after towerState is initialized). Idempotent.
+function _bootMigratePhase3Mythic() {
+  try { _migrateMythicFromTowerState(); } catch (e) {}
+}
+// Defer until next tick so towerState definition has resolved.
+try {
+  if (typeof setTimeout === 'function') setTimeout(_bootMigratePhase3Mythic, 0);
+} catch (e) {}
+
+if (typeof window !== 'undefined') {
+  window.MYTHIC_HERO_ID_KEY             = MYTHIC_HERO_ID_KEY;
+  window.canAscendToMythic              = canAscendToMythic;
+  window.commitMythicAscension          = commitMythicAscension;
+  window._migrateMythicFromTowerState   = _migrateMythicFromTowerState;
+  window._readMythicHeroIdFromStorage   = _readMythicHeroIdFromStorage;
+  window._writeMythicHeroIdToStorage    = _writeMythicHeroIdToStorage;
+  window._promptMythicCommitment        = _promptMythicCommitment;
+  window._bootMigratePhase3Mythic       = _bootMigratePhase3Mythic;
+}
+
 // Block H.3 — Tier 2 ability previews (HERO_COMPENDIUM §2-6).
 // Used by tier progression strip + ability list to show what T2 unlocks.
 const HERO_T2_ABILITIES = {
@@ -56659,22 +56898,21 @@ function onTryAscendMythic() {
     try { showToast('Need:\n  • ' + reasons); } catch (e) { try { alert('Need:\n  • ' + reasons); } catch (e2) {} }
     return;
   }
-  const ok = confirm(
-    `MYTHIC ASCENSION — ${hero.name}\n\n` +
-    `Cost (per spec §10):\n` +
-    `  • ${MYTHIC_CARDS_COST} ${hero.name} Hero Cards\n` +
-    `  • ${MYTHIC_ASCEND_COST} LEGENDARY Stone (rarest resource in the game)\n` +
-    `  • ${MYTHIC_GOLD_COST} gold\n` +
-    `  • ${MYTHIC_ESSENCE_COST} ${hero.stihiya} essence\n\n` +
-    `Effect: +30% additional damage (T2 × T3 × Mythic = 1.872×, +87%)\n\n` +
-    `⚠ ONE MYTHIC PER SAVE — IRREVERSIBLE.\n` +
-    `${hero.name} becomes your legendary champion forever.\n\n` +
-    `Continue?`
-  );
-  if (!ok) return;
+  // 2026-05-02 — COMBAT v2.1 P3 §5.2: high-emotional-investment commitment
+  // moment. Replaces the native confirm() with a cinematic modal showing the
+  // hero name, role, Mythic ability, and the irreversible "one per save"
+  // warning. 3-second cooldown before CONFIRM enables (anti-misclick).
+  // commitMythicAscension() wraps ascendHeroMythic() with localStorage sync.
+  if (typeof _promptMythicCommitment === 'function') {
+    _promptMythicCommitment(detailHeroId, () => {
+      // Cinematic + haptic fire inside ascendHeroMythic itself; refresh UI.
+      try { openHeroDetail(detailHeroId); } catch (e) {}
+      try { if (typeof vRenderRoster === 'function') vRenderRoster(); } catch (e) {}
+    });
+    return;
+  }
+  // Fallback (shouldn't fire — _promptMythicCommitment is shipped in PR #3.D).
   if (ascendHeroMythic(detailHeroId)) {
-    // Cinematic + haptic now fire inside ascendHeroMythic itself so console
-    // tests see the celebration too. Just refresh UI here.
     try { openHeroDetail(detailHeroId); } catch (e) {}
     try { if (typeof vRenderRoster === 'function') vRenderRoster(); } catch (e) {}
   }
