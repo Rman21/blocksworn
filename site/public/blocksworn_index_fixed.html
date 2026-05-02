@@ -941,6 +941,191 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
   color: rgba(168, 165, 184, 0.95);
 }
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   COMBAT v2.1 PHASE 2 PR #2.D — UI surfaces (Pressure Meter,
+   Boss State Banner, Stagger entry FX, Recovery banner, Hero
+   Detail Pressure Contribution, Squad Pressure Forecast).
+   Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_2_STAGGER_LOOP.md §4.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* §4.1 — Pressure meter (above boss portrait). Horizontal gold bar
+   with 4 segment markers. Anticipation pulse at >= 90 fill. */
+.boss-pressure-container {
+  margin: 6px 0 4px;
+  padding: 0 4px;
+}
+.boss-pressure-container.bp-hidden { display: none; }
+.bp-bar {
+  height: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 215, 0, 0.40);
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+}
+.bp-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #FFE066, #FFAA00);
+  transition: width 0.30s ease-out;
+  border-radius: 3px;
+}
+.bp-fill.bp-tier-mid  { background: linear-gradient(90deg, #FFD700, #FF8C00); }
+.bp-fill.bp-tier-high { background: linear-gradient(90deg, #FF8C00, #FF4500); }
+.bp-fill.bp-anticipating {
+  animation: pressurePulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes pressurePulse {
+  from { box-shadow: 0 0 4px rgba(255, 215, 0, 0.55); }
+  to   { box-shadow: 0 0 18px rgba(255, 215, 0, 0.95), 0 0 28px rgba(255, 165, 0, 0.65); }
+}
+.bp-segment {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.20);
+  pointer-events: none;
+}
+.bp-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: rgba(255, 215, 0, 0.85);
+  font-family: var(--a-font-display, 'Cinzel', serif);
+}
+.bp-icon { font-size: 11px; }
+.bp-text { color: rgba(255, 255, 255, 0.65); }
+.bp-value { margin-left: auto; color: var(--a-gold-300, #FFD700); }
+
+/* §4.3 — Boss state banner (Stagger / Recovery indicator near boss). */
+.boss-state-banner {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin: 4px 0;
+  border-radius: 4px;
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.boss-state-banner.bsb-stagger {
+  display: flex;
+  background: linear-gradient(90deg, rgba(255, 215, 0, 0.20), rgba(255, 140, 0, 0.16));
+  border: 1px solid rgba(255, 215, 0, 0.55);
+  color: #FFD700;
+  animation: bsbStaggerPulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes bsbStaggerPulse {
+  from { box-shadow: 0 0 4px rgba(255, 215, 0, 0.45); }
+  to   { box-shadow: 0 0 14px rgba(255, 215, 0, 0.85); }
+}
+.boss-state-banner.bsb-recovery {
+  display: flex;
+  background: linear-gradient(90deg, rgba(255, 69, 0, 0.20), rgba(232, 93, 74, 0.16));
+  border: 1px solid rgba(255, 69, 0, 0.55);
+  color: #FF8C5A;
+}
+.bsb-counter { margin-left: auto; opacity: 0.85; }
+
+/* §4.3 — Stagger entry FX: gold flash overlay on battle screen. */
+.a-battle.stagger-entry-flash::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  background: radial-gradient(ellipse at center, rgba(255, 215, 0, 0.28) 0%, transparent 70%);
+  pointer-events: none;
+  animation: staggerFlash 0.42s ease-out forwards;
+}
+@keyframes staggerFlash {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+/* Stagger slow-mo: throttles transition durations on ULT/board animations */
+body.stagger-slowmo * {
+  transition-duration: calc(var(--orig-transition-duration, 0.3s) * 1.4) !important;
+  animation-duration:  calc(var(--orig-animation-duration,  0.3s) * 1.4) !important;
+}
+/* Boss portrait Stagger glow — gold pulsing border throughout window. */
+.v-battle-boss-portrait.boss-staggered,
+#bossImgWrap.boss-staggered {
+  box-shadow: 0 0 18px rgba(255, 215, 0, 0.65), inset 0 0 16px rgba(255, 165, 0, 0.40);
+  border: 2px solid rgba(255, 215, 0, 0.85);
+  animation: bossStaggeredPulse 1.0s ease-in-out infinite alternate;
+}
+@keyframes bossStaggeredPulse {
+  from { box-shadow: 0 0 12px rgba(255, 215, 0, 0.50), inset 0 0 10px rgba(255, 165, 0, 0.30); }
+  to   { box-shadow: 0 0 22px rgba(255, 215, 0, 0.90), inset 0 0 18px rgba(255, 165, 0, 0.55); }
+}
+
+/* §4.4 — Recovery state: red telegraph border on boss portrait. */
+.v-battle-boss-portrait.boss-recovering,
+#bossImgWrap.boss-recovering {
+  box-shadow: 0 0 16px rgba(255, 69, 0, 0.60);
+  border: 2px solid rgba(255, 69, 0, 0.75);
+  animation: bossRecoveringPulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes bossRecoveringPulse {
+  from { box-shadow: 0 0 8px rgba(255, 69, 0, 0.45); }
+  to   { box-shadow: 0 0 22px rgba(255, 69, 0, 0.90); }
+}
+
+/* §4.6 — Hero Detail Modal Pressure Contribution section */
+.detail-pressure-contrib {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 215, 0, 0.18);
+  border-radius: 8px;
+}
+.ptc-header {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD700);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.ptc-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.ptc-row .ptc-label { color: rgba(255, 255, 255, 0.55); }
+.ptc-row .ptc-value { color: var(--a-gold-300, #FFD700); font-weight: 700; }
+.ptc-hint {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 10px;
+  color: rgba(168, 165, 184, 0.75);
+  letter-spacing: 0.4px;
+}
+
+/* §4.7 — Squad Pressure Forecast row inside #vMitigationHeader */
+.squad-pressure-forecast {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 11px;
+  color: var(--a-gold-300, #FFD700);
+  letter-spacing: 0.3px;
+}
+.spf-icon { font-size: 13px; }
+.spf-aux { color: rgba(168, 165, 184, 0.80); margin-left: auto; }
+
 /* §5.3 — Tier Mitigation Roadmap (Hero Detail Modal) */
 .tier-mit-roadmap {
   margin-top: 14px;
@@ -16802,6 +16987,15 @@ button.season-tier-claim:active {
       </div>
       <div class="smh-bar"><div class="smh-fill" id="squadMitFill"></div></div>
       <div class="smh-hint">Damage reduction across all 4 channels</div>
+      <!-- 2026-05-02 — COMBAT v2.1 P2 §4.7: Pressure-per-turn forecast.
+           renderSquadPressureForecast() estimates avg per-turn pressure
+           gain + projected Stagger frequency. Updates on squad change. -->
+      <div class="squad-pressure-forecast" id="squadPressureForecast">
+        <span class="spf-icon" aria-hidden="true">⚡</span>
+        <span class="spf-label">PRESSURE/TURN:</span>
+        <span class="spf-value" id="spfValue">~0</span>
+        <span class="spf-aux" id="spfAux">— Stagger every ∞ turns</span>
+      </div>
     </div>
 
     <!-- 2026-04-29 — Player Education Stage 15 — All-One-Race entry banner.
@@ -16911,6 +17105,26 @@ button.season-tier-claim:active {
       <div class="v-battle-boss-info">
         <div class="v-battle-boss-name" id="bossName">—</div>
         <div class="v-battle-boss-lvl" id="bossLevel">—</div>
+        <!-- 2026-05-02 — COMBAT v2.1 P2 §4.1: Pressure meter above HP bar.
+             renderPressureMeter() updates fill + tier coloring + anticipation
+             pulse on every addPressure() call. Hidden during Recovery state. -->
+        <div class="boss-pressure-container" id="bossPressureContainer">
+          <div class="bp-bar">
+            <div class="bp-fill" id="bpFill"></div>
+            <div class="bp-segment" style="left: 25%;"></div>
+            <div class="bp-segment" style="left: 50%;"></div>
+            <div class="bp-segment" style="left: 75%;"></div>
+          </div>
+          <div class="bp-label">
+            <span class="bp-icon" aria-hidden="true">⚡</span>
+            <span class="bp-text">PRESSURE</span>
+            <span class="bp-value" id="bpValue">0 / 100</span>
+          </div>
+        </div>
+        <!-- 2026-05-02 — COMBAT v2.1 P2 §4.3-4.4: Boss state banner. Shows
+             ⚡ STAGGER · NT during Stagger window OR ⚠ REVENGE INCOMING NT
+             during Recovery telegraph. Hidden during Active state. -->
+        <div class="boss-state-banner" id="bossStateBanner" aria-live="polite"></div>
         <div class="v-progress hp">
           <div class="v-progress-fill v-progress-lag" id="bossHpLag" style="width:100%"></div>
           <div class="v-progress-fill hp" id="bossHpFill" style="width:100%"></div>
@@ -17994,8 +18208,15 @@ button.season-tier-claim:active {
     <button class="btn btn-ascend-t3 detail-ascend-t3-btn" id="detailAscendT3Btn" onclick="onTryAscendT3()" style="display:none;">★ ASCEND TO T3</button>
     <button class="btn btn-ascend-mythic detail-ascend-mythic-btn" id="detailAscendMythicBtn" onclick="onTryAscendMythic()" style="display:none;">✦ MYTHIC ASCENSION</button>
 
-    <!-- Legacy 4-tier XP UPGRADES (engine system) — hidden per spec §1.1, state preserved in code -->
+    <!-- Legacy 4-tier XP UPGRADES (engine system) — hidden per spec §1.1, state preserved in code.
+         2026-05-02 — COMBAT v2.1 P1 PR #1.C repurposed this slot to render
+         the Tier Mitigation Roadmap. Style="display:none" gets unset by
+         renderTierMitigationCurve() when v2.1 is active. -->
     <div class="detail-tiers" id="detailTiers" style="display:none;"></div>
+    <!-- 2026-05-02 — COMBAT v2.1 P2 §4.6: per-hero Pressure Contribution
+         estimate. renderPressureContribution(hero) populates with
+         per-turn avg + tier-upgrade preview. -->
+    <div class="detail-pressure-contrib" id="detailPressureContrib"></div>
   </div>
 </div>
 
@@ -36538,6 +36759,178 @@ if (typeof window !== 'undefined') {
   window.showOverflowRewardFX       = showOverflowRewardFX;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 2 PR #2.D — UI RENDER FUNCTIONS
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_2_STAGGER_LOOP.md §4.
+// Pressure meter + state banner + entry FX + Hero Detail + Squad Forecast.
+// All gated defensively — missing DOM elements → no-op (graceful degradation).
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P2 §4.1: Pressure meter render.
+// Reads global bossPressure (set by addPressure in #2.B). Tier coloring
+// shifts with fill: low/mid/high. Anticipation pulse at >= 90.
+function renderPressureMeter() {
+  const fill   = document.getElementById('bpFill');
+  const value  = document.getElementById('bpValue');
+  const wrap   = document.getElementById('bossPressureContainer');
+  if (!fill || !value) return;
+  const pct = Math.min(100, (bossPressure / PRESSURE_MAX) * 100);
+  fill.style.width = pct + '%';
+  value.textContent = bossPressure + ' / ' + PRESSURE_MAX;
+  // Tier coloring
+  fill.classList.toggle('bp-tier-mid',  bossPressure >= 50 && bossPressure < 90);
+  fill.classList.toggle('bp-tier-high', bossPressure >= 90);
+  // Anticipation pulse near full
+  fill.classList.toggle('bp-anticipating', bossPressure >= 90);
+  // Hide during Recovery (player is bracing — no fillable meter)
+  if (wrap) {
+    wrap.classList.toggle('bp-hidden', bossState === BOSS_STATE_RECOVERY);
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P2 §4.3-4.4: Boss state banner render.
+// Active = hidden. Stagger = gold "⚡ STAGGER · NT". Recovery = red
+// "⚠ REVENGE INCOMING NT". Updates countdown live via tickStaggerState.
+function renderBossStateBanner() {
+  const el = document.getElementById('bossStateBanner');
+  if (!el) return;
+  el.classList.remove('bsb-active', 'bsb-stagger', 'bsb-recovery');
+  switch (bossState) {
+    case BOSS_STATE_STAGGER:
+      el.classList.add('bsb-stagger');
+      el.innerHTML = '<span class="bsb-icon">⚡</span><span>STAGGER</span>'
+                   + '<span class="bsb-counter">· ' + staggerTurnsRemaining + 'T</span>';
+      break;
+    case BOSS_STATE_RECOVERY:
+      el.classList.add('bsb-recovery');
+      el.innerHTML = '<span class="bsb-icon">⚠</span><span>REVENGE INCOMING</span>'
+                   + '<span class="bsb-counter">' + recoveryTurnsRemaining + 'T</span>';
+      break;
+    case BOSS_STATE_ACTIVE:
+    default:
+      // CSS handles visibility (display:none on the bare element)
+      el.innerHTML = '';
+      break;
+  }
+  // Boss portrait state classes — drives gold/red glow CSS.
+  try {
+    const portrait = document.getElementById('bossImgWrap');
+    if (portrait) {
+      portrait.classList.toggle('boss-staggered',  bossState === BOSS_STATE_STAGGER);
+      portrait.classList.toggle('boss-recovering', bossState === BOSS_STATE_RECOVERY);
+    }
+  } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P2 §4.3: Stagger entry FX.
+// 1. Battle screen gold flash overlay (CSS ::before pseudo, 420ms)
+// 2. Slow-mo throttle on transitions/animations (800ms)
+// 3. Boss portrait gold pulsing border (drops on Stagger exit via render)
+function showStaggerEntryFX() {
+  try {
+    const battle = document.querySelector('.a-battle');
+    if (battle) {
+      battle.classList.add('stagger-entry-flash');
+      setTimeout(() => { try { battle.classList.remove('stagger-entry-flash'); } catch (e) {} }, 420);
+    }
+  } catch (e) {}
+  try {
+    document.body.classList.add('stagger-slowmo');
+    setTimeout(() => { try { document.body.classList.remove('stagger-slowmo'); } catch (e) {} }, 800);
+  } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P2 §4.4: Recovery entry FX.
+// Boss portrait flips to red pulsing border (CSS class). Banner already
+// renders via renderBossStateBanner. Optional ominous narrator cue.
+function showRecoveryEntryFX() {
+  try { speakNarrator('warning'); } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P2 §4.6 + §4.7: per-hero Pressure estimate.
+// Used by both Hero Detail Modal and Squad Pressure Forecast.
+// Approximation: role profile × tier × level scalars. Not real-time
+// accurate — informative for tactical previews ("this squad will Stagger
+// every X turns").
+function _estimateHeroPressureContribution(hero) {
+  if (!hero) return 0;
+  let baseContrib = 6;  // generic baseline
+  // Striker (warrior) — line clears, decent pressure
+  if (hero.role === 'striker' && hero.subRole !== 'hunter') baseContrib = 8;
+  // Hunter — burst pressure (detonate procs)
+  else if (hero.subRole === 'hunter' || hero.newRole === 'hunter') baseContrib = 12;
+  // Mage — moderate via combos
+  else if (hero.role === 'weaver' && !(hero.isCaptain || hero.captainOf || hero.newRole === 'captain')) baseContrib = 6;
+  // Captain — synergy multiplier (P3 will fully wire)
+  else if (hero.isCaptain || hero.captainOf || hero.newRole === 'captain') baseContrib = 10;
+  // Tank — low direct, P3 adds damage→pressure
+  else if (hero.role === 'guard') baseContrib = 4;
+  // Tier scaling (10% per tier)
+  const tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[hero.id]) || 0;
+  const tierMult = 1 + (Math.min(3, tier) * 0.10);
+  // Level scaling (~0.5% per level)
+  const lvl = (typeof getHeroLevel === 'function') ? getHeroLevel(hero.id) : 1;
+  const lvlMult = 1 + ((lvl - 1) * 0.005);
+  return Math.round(baseContrib * tierMult * lvlMult);
+}
+
+// 2026-05-02 — COMBAT v2.1 P2 §4.6: Hero Detail Pressure Contribution.
+// Renders into #detailPressureContrib. Called from renderHeroDetailStats
+// after the Tier Mitigation Roadmap.
+function renderPressureContribution(hero) {
+  const host = document.getElementById('detailPressureContrib');
+  if (!host || !hero) return;
+  const total = _estimateHeroPressureContribution(hero);
+  const tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[hero.id]) || 0;
+  const upgradeHint = (tier < 3)
+    ? ('Tier upgrade (T' + tier + ' → T' + (tier + 1) + '): +10% gain')
+    : 'Max tier — Mythic ascension adds new contribution path (P3+)';
+  host.innerHTML =
+    '<div class="ptc-header">Pressure Contribution (avg)</div>' +
+    '<div class="ptc-row">' +
+      '<span class="ptc-label">Per turn:</span>' +
+      '<span class="ptc-value">⚡ ~' + total + '</span>' +
+    '</div>' +
+    '<div class="ptc-hint">' + upgradeHint + '</div>';
+}
+
+// 2026-05-02 — COMBAT v2.1 P2 §4.7: Squad Select Pressure Forecast.
+// Sums per-hero estimates across active squad; computes avg turns to
+// first Stagger (PRESSURE_MAX / total). "∞" when no squad / 0 total.
+function renderSquadPressureForecast() {
+  const v = document.getElementById('spfValue');
+  const a = document.getElementById('spfAux');
+  if (!v || !a) return;
+  let total = 0;
+  let sources = [];
+  if (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK) && HERO_DECK.length > 0) {
+    sources = HERO_DECK;
+  } else if (typeof activeSquad !== 'undefined' && Array.isArray(activeSquad) && typeof HERO_ROSTER !== 'undefined') {
+    sources = activeSquad.map(id => HERO_ROSTER.find(h => h && h.id === id)).filter(Boolean);
+  }
+  for (const h of sources) {
+    if (!h) continue;
+    total += _estimateHeroPressureContribution(h);
+  }
+  v.textContent = '~' + total;
+  if (total > 0) {
+    const turns = (PRESSURE_MAX / total).toFixed(1);
+    a.textContent = '— Stagger every ~' + turns + ' turns';
+  } else {
+    a.textContent = '— Stagger every ∞ turns';
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.renderPressureMeter         = renderPressureMeter;
+  window.renderBossStateBanner       = renderBossStateBanner;
+  window.showStaggerEntryFX          = showStaggerEntryFX;
+  window.showRecoveryEntryFX         = showRecoveryEntryFX;
+  window.renderPressureContribution  = renderPressureContribution;
+  window.renderSquadPressureForecast = renderSquadPressureForecast;
+  window._estimateHeroPressureContribution = _estimateHeroPressureContribution;
+}
+
 function getEffectivePeriod(hero) {
   if (hero.role !== 'weaver' || !hero.period) return hero.period;
   return Math.max(1, hero.period - getHeroStats(hero).periodReduction);
@@ -54458,6 +54851,8 @@ function renderHeroDetailStats(hero) {
   // Modal has #detailTiers slot (legacy 4-tier XP UPGRADES, hidden).
   // We unhide it and repurpose for the Roadmap when v2.1 is active.
   try { renderTierMitigationCurve(hero); } catch (e) { console.warn('renderTierMitigationCurve failed:', e); }
+  // 2026-05-02 — COMBAT v2.1 P2 §4.6: Pressure Contribution preview.
+  try { renderPressureContribution(hero); } catch (e) { console.warn('renderPressureContribution failed:', e); }
 }
 
 // 2026-05-02 — COMBAT v2.1 P1 §5.3: Tier Mitigation Roadmap preview.
@@ -54516,6 +54911,10 @@ function renderSquadMitigationHeader() {
   const fill = (mit / MITIGATION_CAP) * 100;
   v.textContent = pct + '%';
   f.style.width = Math.max(0, Math.min(100, fill)) + '%';
+  // 2026-05-02 — COMBAT v2.1 P2 §4.7: Squad Pressure Forecast row update.
+  // Fires alongside mitigation header so the entire squad summary refreshes
+  // atomically on each squad-roster repaint.
+  try { if (typeof renderSquadPressureForecast === 'function') renderSquadPressureForecast(); } catch (e) {}
 }
 
 // 2026-05-02 — COMBAT v2.1 P1 §5.4.2 + §5.4.3: post-render injection of
