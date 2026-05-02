@@ -27234,9 +27234,26 @@ const DIALOG_LINES = {
   // ONCE per install (gated by seenDialogs.has). Suppressed during FTUE so
   // FTUE's own scripted onboarding never collides. Routed through playDialog,
   // which inherits the dialog defer-queue (no plate/banner overlap).
-  'tut_boss_attack_intro':  { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_chronicler', text: "The boss attacks every few turns. When the countdown above reaches zero, it scatters VOID cells across your board — uncleared, immovable, hostile space." },
+  // 2026-05-02 — COMBAT v2.1 P1 §6.2: rewritten for the new system.
+  // Mentions both VOID spawn AND signature damage (telegraphed). Old text
+  // implied void-only attack — no longer accurate now that bossAttack()
+  // also fires applyChannelDamage('signature', ...) at the countdown.
+  'tut_boss_attack_intro':  { speaker: 'YOUR CHRONICLER', speakerColor: '#FF8C00', portraitKey: 'hero_chronicler', text: "The boss attacks every few turns. When the countdown reaches zero, two threats activate: VOID cells scatter across your board — and a SIGNATURE STRIKE deals direct damage. Watch the telegraph. Position your squad to absorb the blow." },
   'tut_void_cells':         { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_chronicler', text: "Void cells cannot be cleared like elements. They block placement. Plan around them — leave room for your next pieces." },
-  'tut_hp_loss':            { speaker: 'YOUR CHRONICLER', speakerColor: '#E85D4A', portraitKey: 'hero_chronicler', text: "When no piece can fit a corner of your board, that cell becomes a DEAD ZONE — and you lose 1 HP per dead zone each turn. Tight corners and trapped spaces cost lives." },
+  // 2026-05-02 — COMBAT v2.1 P1 §6.1: tut_hp_loss DELETED. Old text said
+  // "1 HP per dead zone" — wrong in the v2.1 system (5 HP per pocket,
+  // mitigated). Replaced by tut_deadzone_intro + tut_mitigation_intro
+  // below. Trigger site at line ~48805 also removed in PR #1.B.
+  // 2026-05-02 — COMBAT v2.1 P1 §6.3: 5 new channel intros. Each fires
+  // the FIRST time the matching damage channel hits the player during
+  // Ch1 (gated by seenDialogs + currentChapter check inside trigger).
+  // tut_mitigation_intro fires alongside any first-damage event when
+  // squad mitigation > 0.
+  'tut_mitigation_intro':   { speaker: 'YOUR CHRONICLER', speakerColor: '#5DCA79', portraitKey: 'hero_chronicler', text: "Every hit is reduced by your squad's MITIGATION. Tank heroes give the most. Watch the shield icon — that percent of every damage hit is absorbed before reaching your HP." },
+  'tut_deadzone_intro':     { speaker: 'YOUR CHRONICLER', speakerColor: '#E85D4A', portraitKey: 'hero_chronicler', text: "When no piece can fit a board corner, that cell becomes a DEAD ZONE. Each new dead zone costs 5 HP — reduced by your mitigation. Keep your edges clean." },
+  'tut_void_tick_intro':    { speaker: 'YOUR CHRONICLER', speakerColor: '#9B59E8', portraitKey: 'hero_chronicler', text: "Void cells aren't just dead space. Each one ticks small damage at end of turn. Clear them, or pay the toll. Tempo wins this game." },
+  'tut_signature_intro':    { speaker: 'YOUR CHRONICLER', speakerColor: '#FF8C00', portraitKey: 'hero_chronicler', text: "When the boss countdown hits zero, it strikes — a SIGNATURE ATTACK. Heavy damage. Telegraphed in advance. This boss hits for 12 HP. Bigger bosses hit harder." },
+  'tut_grid_saturation_intro': { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD700', portraitKey: 'hero_chronicler', text: "If your board fills past 75%, you take pressure damage every turn. Don't hoard cells. Clear lines. Keep room to breathe." },
   'tut_phoenix_revive':     { speaker: 'YOUR CHRONICLER', speakerColor: '#E8B84A', portraitKey: 'hero_chronicler', text: "The Phoenix burns twice. Even ash is patient. Strike again — only the second death is final." },
   'tut_squad_grew_to_5':    { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_chronicler', text: "A fifth slot opens. Your squad grows. Before you face the Lich, fill the empty seat — five hearts beat stronger than four." },
   'tut_pre_lich_check':     { speaker: 'YOUR CHRONICLER', speakerColor: '#9B59D6', portraitKey: 'hero_chronicler', text: "An empty slot in your squad. The Lich does not forgive incomplete cohorts. Open the SQUAD screen and add your fifth hero before this fight." },
@@ -35924,9 +35941,12 @@ function applyChannelDamage(channel, rawDmg, meta) {
   // Save HP UI refresh (renderHP wired in PR #1.C with 0..100 scale UI).
   try { if (typeof renderHP === 'function') renderHP(); } catch (e) {}
 
-  // PR #1.D wires FTUE intro triggers here. Hook stays for that PR:
-  // try { if (typeof _maybeTriggerChannelIntro === 'function') _maybeTriggerChannelIntro(channel); } catch (e) {}
-  // try { if (typeof _maybeTriggerMitigationIntro === 'function') _maybeTriggerMitigationIntro(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P1 PR #1.D §6.4: FTUE intro triggers wired.
+  // Channel-specific intro fires first (700ms delay), mitigation intro
+  // chains 800ms later if squad has mitigation > 0. Both gated by
+  // seenDialogs (once per install) + Ch1 + !isFtueActive.
+  try { if (typeof _maybeTriggerChannelIntro === 'function') _maybeTriggerChannelIntro(channel); } catch (e) {}
+  try { if (typeof _maybeTriggerMitigationIntro === 'function') _maybeTriggerMitigationIntro(); } catch (e) {}
 
   // Analytics breadcrumb (Sprint 4 B2 Sentry forward exists in logEvent already).
   try { if (typeof logEvent === 'function') logEvent('channel_damage', {
@@ -36024,6 +36044,50 @@ if (typeof window !== 'undefined') {
   window.applyBossSignatureDamage = applyBossSignatureDamage;
   window.channelLabel            = channelLabel;
   window._getBossSignatureTier   = _getBossSignatureTier;
+}
+
+// 2026-05-02 — COMBAT v2.1 P1 PR #1.D §6.4: FTUE channel-intro triggers.
+// Fire the FIRST time each damage channel hits the player during Ch1.
+// Gated by seenDialogs (once per install) + currentChapter === 1 +
+// !isFtueActive (skip during scripted FTUE flow so it doesn't collide).
+// Mitigation intro fires on first damage event if squad mit > 0.
+function _maybeTriggerChannelIntro(channel) {
+  try {
+    if (typeof isFtueActive === 'function' && isFtueActive()) return;
+    if (typeof currentChapter === 'undefined' || currentChapter !== 1) return;
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return;
+    const dialogId = ({
+      'deadzone':   'tut_deadzone_intro',
+      'void_tick':  'tut_void_tick_intro',
+      'signature':  'tut_signature_intro',
+      'saturation': 'tut_grid_saturation_intro',
+    })[channel];
+    if (!dialogId || seenDialogs.has(dialogId)) return;
+    setTimeout(() => {
+      try { if (typeof playDialog === 'function') playDialog(dialogId); } catch (e) {}
+    }, 700);
+  } catch (e) { console.warn('_maybeTriggerChannelIntro failed:', e); }
+}
+
+// Mitigation intro — fires on FIRST damage taken (regardless of channel) if
+// squad mitigation > 0. Slight delay (1500ms) puts it AFTER the channel
+// intro so the player reads them in narrative order.
+function _maybeTriggerMitigationIntro() {
+  try {
+    if (typeof isFtueActive === 'function' && isFtueActive()) return;
+    if (typeof currentChapter === 'undefined' || currentChapter !== 1) return;
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return;
+    if (seenDialogs.has('tut_mitigation_intro')) return;
+    if (typeof getSquadMitigation !== 'function' || getSquadMitigation() <= 0) return;
+    setTimeout(() => {
+      try { if (typeof playDialog === 'function') playDialog('tut_mitigation_intro'); } catch (e) {}
+    }, 1500);
+  } catch (e) { console.warn('_maybeTriggerMitigationIntro failed:', e); }
+}
+
+if (typeof window !== 'undefined') {
+  window._maybeTriggerChannelIntro    = _maybeTriggerChannelIntro;
+  window._maybeTriggerMitigationIntro = _maybeTriggerMitigationIntro;
 }
 
 function getEffectivePeriod(hero) {
