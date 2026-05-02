@@ -29490,6 +29490,394 @@ if (typeof window !== 'undefined') {
   window._maybeTriggerPuzzleStageIntro      = _maybeTriggerPuzzleStageIntro;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 5 PR #5.E — MONETIZATION FRAMEWORK + FINAL PURGE
+// Per BLOCKSWORN_COMBAT_V21_PHASE_5_POLISH_MONETIZATION.md §5 + §7 + §14.6.
+//
+// Sprint 4 B1 already shipped a working shop UI with:
+//   - MONETIZATION const + chapterUnlock/standard/race/big/premium packs
+//   - PACK_PITY_THRESHOLD pity system
+//   - dropRandomHeroCards(count, opts) helper
+//   - buyStandardPack / buyRacePack purchase flows
+//
+// Phase 5 ADDS a metadata layer on top (HERO_CARD_PACKS / ASCENSION_BUNDLES /
+// MYTHIC_PASS / TOWER_BOOSTS / COSMETIC_TIER_PACKS / RESOURCE_PACKS / SHOP_TABS)
+// that v2.2 wires into a 6-tab shop UI rewrite. Real-currency IAP product IDs
+// also defer to v2.2 (App Store / Play Store registration).
+//
+// Ethical safeguards (per spec §5.4) ship in this PR:
+//   - trackSpending + soft alerts at $50/$100/$200
+//   - Per-pack pity counter API (extends existing pity system)
+//
+// Final artifact purge (per spec §7 + §14.6 mitigation): conservative pass.
+// localStorage cleanup keys idempotent. Aggressive function/CSS removal
+// deferred to v2.2 standalone "deadcode pass" PR with full regression smoke.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P5 §5.2.1: hero card pack metadata.
+// Gold-cost variants wired to existing dropRandomHeroCards(); IAP variants
+// scaffolded for v2.2 (need RevenueCat product IDs registered first).
+const HERO_CARD_PACKS = Object.freeze({
+  starter: {
+    id: 'starter',
+    name: 'STARTER CARD PACK',
+    cost: { gold: 200 },
+    contents: { cards: 5, guaranteedRare: false },
+    pity: { drawsToGuarantee: 10 },
+    description: 'Random hero cards. Pity: T2 stone every 10 packs.',
+  },
+  pirate: {
+    id: 'pirate',
+    name: 'PIRATE FLEET PACK',
+    cost: { gold: 400 },
+    contents: { cards: 5, raceFilter: 'pirate', guaranteedRare: true },
+    pity: { drawsToGuarantee: 5 },
+    description: '5 pirate hero cards. Guaranteed rare every 5 packs.',
+  },
+  rock: {
+    id: 'rock',
+    name: 'ROCK BAND PACK',
+    cost: { gold: 400 },
+    contents: { cards: 5, raceFilter: 'rock', guaranteedRare: true },
+    pity: { drawsToGuarantee: 5 },
+    description: '5 rock band hero cards. Guaranteed rare every 5 packs.',
+  },
+  shark: {
+    id: 'shark',
+    name: 'SHARKS PACK',
+    cost: { gold: 400 },
+    contents: { cards: 5, raceFilter: 'shark', guaranteedRare: true },
+    pity: { drawsToGuarantee: 5 },
+    description: '5 sharks hero cards. Guaranteed rare every 5 packs.',
+  },
+  crocodile: {
+    id: 'crocodile',
+    name: 'CROCODILES PACK',
+    cost: { gold: 400 },
+    contents: { cards: 5, raceFilter: 'crocodile', guaranteedRare: true },
+    pity: { drawsToGuarantee: 5 },
+    description: '5 crocodiles hero cards. Guaranteed rare every 5 packs.',
+  },
+  spark: {
+    id: 'spark',
+    name: 'SPARKS PACK',
+    cost: { gold: 400 },
+    contents: { cards: 5, raceFilter: 'spark', guaranteedRare: true },
+    pity: { drawsToGuarantee: 5 },
+    description: '5 sparks hero cards. Guaranteed rare every 5 packs.',
+  },
+  // Real-currency variant — IAP wired in v2.2 once App Store products registered.
+  premium_iap: {
+    id: 'premium_iap',
+    name: 'GUARANTEED RARE',
+    cost: { realCurrency: '$2.99', productId: 'com.blocksworn.pack_guaranteed_rare' },
+    contents: { cards: 10, guaranteedRare: true, guaranteedHero: true },
+    description: '10 cards · Guaranteed hero unlock + rare drop.',
+    deferred: true,    // v2.2 IAP wire-up
+  },
+});
+
+// 2026-05-02 — COMBAT v2.1 P5 §5.2.2: ascension bundle metadata.
+// Gold paths only in MVP. Real-currency bundles ($4.99-$9.99) defer to v2.2.
+// Generated per-hero × tier from HERO_ROSTER (avoids 100+ static entries).
+function _phase5GenerateAscensionBundles() {
+  const out = {};
+  if (typeof HERO_ROSTER === 'undefined' || !Array.isArray(HERO_ROSTER)) return out;
+  for (const h of HERO_ROSTER) {
+    if (!h || !h.id) continue;
+    out['t2_' + h.id] = {
+      id: 't2_' + h.id, heroId: h.id, tier: 2,
+      name: h.name + ' T2 BUNDLE',
+      cost: { realCurrency: '$4.99', productId: 'com.blocksworn.ascend_t2_' + h.id },
+      contents: { cards: 5, stones: 1, gold: 200, essence: 5 },
+      description: 'Direct path to T2 ascension for ' + h.name,
+      deferred: true,    // v2.2 IAP wire-up
+    };
+    out['t3_' + h.id] = {
+      id: 't3_' + h.id, heroId: h.id, tier: 3,
+      name: h.name + ' T3 BUNDLE',
+      cost: { realCurrency: '$9.99', productId: 'com.blocksworn.ascend_t3_' + h.id },
+      contents: { cards: 10, stones: 1, gold: 500, essence: 10 },
+      description: 'Direct path to T3 ascension for ' + h.name,
+      deferred: true,
+    };
+  }
+  return Object.freeze(out);
+}
+const ASCENSION_BUNDLES = _phase5GenerateAscensionBundles();
+
+// 2026-05-02 — COMBAT v2.1 P5 §5.2.3: Mythic Pass monthly subscription.
+// Real-currency only. Wires to RevenueCat in v2.2.
+const MYTHIC_PASS = Object.freeze({
+  monthly: {
+    id: 'mythic_pass_monthly',
+    name: 'MYTHIC PASS',
+    cost: { realCurrency: '$14.99/month', productId: 'com.blocksworn.mythic_pass_monthly' },
+    benefits: {
+      legendaryStones: 1,
+      mythicResetOption: 1,
+      towerXPBoost: 1.50,
+      cosmeticPortrait: 'mythic_aura',
+      bonusDailyXP: 25,
+    },
+    description: 'Premium ascension support + 1 Mythic reset per month',
+    note: 'Mythic Pass does NOT grant Mythic ability for free. Earn vs pay parity preserved.',
+    deferred: true,
+  },
+});
+
+// 2026-05-02 — COMBAT v2.1 P5 §5.2.4: Tower seasonal boosts.
+const TOWER_BOOSTS = Object.freeze({
+  seasonal_xp: {
+    id: 'tower_xp_seasonal',
+    name: 'TOWER XP BOOST',
+    cost: { realCurrency: '$4.99/season', productId: 'com.blocksworn.tower_xp_boost_seasonal' },
+    benefits: { towerXPMult: 2.00 },
+    duration: 'until season end',
+    description: '×2 XP from Tower battles for the entire season',
+    deferred: true,
+  },
+});
+
+// 2026-05-02 — COMBAT v2.1 P5 §5.2.5: cosmetic tier visuals.
+const COSMETIC_TIER_PACKS = Object.freeze({
+  thorgar_mythic_aura: {
+    id: 'thorgar_mythic_aura',
+    name: 'THORGAR MYTHIC AURA',
+    cost: { realCurrency: '$2.99', productId: 'com.blocksworn.cosmetic_thorgar_mythic_aura' },
+    benefits: { cosmetic: 'mythic_aura', heroId: 'pirate_warrior' },
+    description: 'Permanent gold aura on Thorgar (cosmetic only, no stat change)',
+    requires: 'Thorgar at Mythic tier',
+    deferred: true,
+  },
+  pirate_fleet_skin: {
+    id: 'pirate_fleet_skin',
+    name: 'CRIMSON FLEET SKIN PACK',
+    cost: { realCurrency: '$7.99', productId: 'com.blocksworn.cosmetic_pirate_fleet_skin' },
+    benefits: { cosmetic: 'crimson_fleet', heroIds: ['pirate_warrior', 'pirate_hunter', 'pirate_mage', 'pirate_tank', 'pirate_captain'] },
+    description: 'Alternate art for all 5 pirate heroes',
+    deferred: true,
+  },
+});
+
+// 2026-05-02 — COMBAT v2.1 P5 §5.1: resource convenience packs (gold paths).
+const RESOURCE_PACKS = Object.freeze({
+  gold_500: {
+    id: 'gold_500', name: '+500 GOLD',
+    cost: { realCurrency: '$0.99', productId: 'com.blocksworn.gold_500' },
+    grants: { gold: 500 },
+    description: 'Spendable gold currency',
+    deferred: true,
+  },
+  essence_bundle: {
+    id: 'essence_bundle', name: 'ESSENCE BUNDLE',
+    cost: { realCurrency: '$2.99', productId: 'com.blocksworn.essence_bundle' },
+    grants: { essence: { ember: 25, tide: 25, grove: 25, solar: 25, umbra: 25 } },
+    description: '+25 of each elemental essence',
+    deferred: true,
+  },
+});
+
+// 2026-05-02 — COMBAT v2.1 P5 §5.3: 6-tab shop structure scaffold.
+// renderShop() rewrite using SHOP_TABS deferred to v2.2 (existing Sprint 4 B1
+// shop UI still functional). Phase 5 ships the data structure so v2.2 can
+// rewire without changing the metadata.
+const SHOP_TABS = Object.freeze([
+  { id: 'cards',     label: 'CARD PACKS',  data: HERO_CARD_PACKS    },
+  { id: 'bundles',   label: 'ASCENSION',   data: ASCENSION_BUNDLES  },
+  { id: 'pass',      label: 'MYTHIC PASS', data: MYTHIC_PASS        },
+  { id: 'tower',     label: 'TOWER',       data: TOWER_BOOSTS       },
+  { id: 'cosmetics', label: 'COSMETICS',   data: COSMETIC_TIER_PACKS},
+  { id: 'resources', label: 'RESOURCES',   data: RESOURCE_PACKS     },
+]);
+
+// 2026-05-02 — COMBAT v2.1 P5 §5.2.1: per-pack pity counter API.
+// Existing PACK_PITY_THRESHOLD (Sprint 4 B1) tracks a SINGLE counter across
+// all standard/race packs. Phase 5 adds per-pack-id pity tracking so each
+// pack respects its own drawsToGuarantee threshold.
+const PHASE5_PACK_PITY_KEY = 'blocksworn_p5_pack_pity';
+
+function _phase5GetPackPityState() {
+  try {
+    if (typeof localStorage === 'undefined') return {};
+    const raw = localStorage.getItem(PHASE5_PACK_PITY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+function _phase5BumpPackPity(packId, hadRare) {
+  try {
+    const state = _phase5GetPackPityState();
+    if (hadRare) state[packId] = 0;
+    else state[packId] = (state[packId] || 0) + 1;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(PHASE5_PACK_PITY_KEY, JSON.stringify(state));
+    }
+  } catch (e) {}
+}
+function _phase5GetPackPityCounter(packId) {
+  const state = _phase5GetPackPityState();
+  return state[packId] || 0;
+}
+function _phase5IsPityTriggered(packId) {
+  const pack = HERO_CARD_PACKS[packId];
+  if (!pack || !pack.pity || !pack.pity.drawsToGuarantee) return false;
+  return _phase5GetPackPityCounter(packId) + 1 >= pack.pity.drawsToGuarantee;
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §5.4: spending tracker + soft alerts.
+// Ethical safeguard: $50/$100/$200 thresholds → friendly reminder modal.
+// Wired into IAP success callback (Sprint 4 B1 RevenueCat hook). Defensive —
+// no-op if no IAP system loaded.
+const PHASE5_SPENDING_KEY = 'blocksworn_p5_total_spent';
+const PHASE5_SPENDING_ALERT_KEY = 'blocksworn_p5_spending_alerts_shown';
+
+function trackSpending(usdAmount) {
+  if (typeof usdAmount !== 'number' || usdAmount <= 0) return;
+  try {
+    const cur = _phase5GetTotalSpent();
+    const next = cur + usdAmount;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(PHASE5_SPENDING_KEY, String(next));
+    }
+    // Soft alerts
+    [50, 100, 200].forEach(threshold => {
+      if (cur < threshold && next >= threshold) {
+        try { _phase5MaybeShowSpendingAlert(threshold); } catch (e) {}
+      }
+    });
+    try { if (typeof logEvent === 'function') logEvent('p5_spending_tracked', { usdAmount, totalSpent: next }); } catch (e) {}
+  } catch (e) { console.warn('[P5E trackSpending] failed:', e); }
+}
+function _phase5GetTotalSpent() {
+  try {
+    if (typeof localStorage === 'undefined') return 0;
+    const raw = localStorage.getItem(PHASE5_SPENDING_KEY);
+    return raw ? parseFloat(raw) : 0;
+  } catch (e) { return 0; }
+}
+function _phase5MaybeShowSpendingAlert(threshold) {
+  // Skip if already shown for this threshold
+  let shownSet;
+  try {
+    const raw = (typeof localStorage !== 'undefined') ? localStorage.getItem(PHASE5_SPENDING_ALERT_KEY) : null;
+    shownSet = new Set(raw ? JSON.parse(raw) : []);
+  } catch (e) { shownSet = new Set(); }
+  if (shownSet.has(threshold)) return;
+  shownSet.add(threshold);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(PHASE5_SPENDING_ALERT_KEY, JSON.stringify([...shownSet]));
+    }
+  } catch (e) {}
+  // Show modal
+  if (typeof document === 'undefined') return;
+  let modal = document.getElementById('phase5SpendingAlert');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'phase5SpendingAlert';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9800;' +
+                         'background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);' +
+                         'align-items:center;justify-content:center;font-family:inherit;';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML =
+    '<div style="background:linear-gradient(180deg,#1a1830,#0a0814);border:2px solid #FFA500;border-radius:14px;' +
+      'padding:24px 28px;max-width:440px;width:90%;color:#fff;text-align:center;' +
+      'box-shadow:0 0 32px rgba(255,165,0,0.4);">' +
+      '<div style="font-size:11px;letter-spacing:0.18em;color:#FFA500;margin-bottom:8px;">SPENDING REMINDER</div>' +
+      '<div style="font-size:18px;font-weight:700;color:#FFD700;margin-bottom:14px;">$' + threshold + '+ INVESTED</div>' +
+      '<div style="font-size:13px;line-height:1.6;opacity:0.9;margin-bottom:18px;">' +
+        'You\'ve invested <b style="color:#FFD700;">$' + threshold + '</b> in Blocksworn. We appreciate your support! ' +
+        'Remember to play responsibly — the game is fully completable without purchases.' +
+      '</div>' +
+      '<button id="p5SpendingOk" style="background:linear-gradient(180deg,#FFA500,#FF6E28);border:none;color:#fff;' +
+        'border-radius:6px;padding:10px 24px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:0.06em;">OK · CONTINUE</button>' +
+    '</div>';
+  modal.style.display = 'flex';
+  modal.querySelector('#p5SpendingOk').onclick = () => { modal.style.display = 'none'; };
+  try { if (typeof logEvent === 'function') logEvent('p5_spending_alert_shown', { threshold }); } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §7 + §14.6: conservative artifact purge.
+// Sprint 4 B1 + Phase 1 already gutted artifact mechanics (state, functions,
+// T4 ARCANE RESONANCE). Final purge here is intentionally CONSERVATIVE per
+// spec §14.6 risk mitigation — aggressive function/CSS removal would risk
+// breaking unknown reference paths in a 20MB single-file codebase.
+//
+// What this PR does:
+//   1. localStorage cleanup keys (idempotent — won't reset on re-run)
+//   2. Documents the deferred aggressive purge plan
+//
+// What v2.2 will do (separate "deadcode pass" PR with full regression smoke):
+//   - Remove all artifact CSS sections (Block H.10 references)
+//   - Remove dead artifact functions (computeArtifactEffects shim, equipArtifact, etc.)
+//   - Remove shop tabs referencing artifacts (already removed from new SHOP_TABS)
+//   - Remove any FTUE dialogs about artifacts
+function _phase5FinalArtifactCleanup() {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    // Idempotent — only clean if keys exist
+    const keys = [
+      'blocksworn_equipped_artifacts',
+      'blocksworn_artifact_inventory',
+      'blocksworn_artifact_history',
+      'blocksworn_artifact_pity',
+    ];
+    let removed = 0;
+    for (const k of keys) {
+      if (localStorage.getItem(k) !== null) {
+        localStorage.removeItem(k);
+        removed++;
+      }
+    }
+    if (removed > 0) {
+      try { if (typeof logEvent === 'function') logEvent('p5_artifact_cleanup', { keysRemoved: removed }); } catch (e) {}
+      console.log('[Phase 5 final cleanup] removed', removed, 'artifact storage keys');
+    }
+  } catch (e) {}
+}
+// Run once on script load (idempotent — safe to re-run on hot reload).
+try { if (typeof setTimeout === 'function') setTimeout(_phase5FinalArtifactCleanup, 0); } catch (e) {}
+
+// 2026-05-02 — COMBAT v2.1 P5 §5.3: defensive console-friendly shop boot check.
+function _validatePhase5Monetization() {
+  const result = {
+    cardPacks:        Object.keys(HERO_CARD_PACKS).length,
+    ascensionBundles: Object.keys(ASCENSION_BUNDLES).length,
+    mythicPass:       Object.keys(MYTHIC_PASS).length,
+    towerBoosts:      Object.keys(TOWER_BOOSTS).length,
+    cosmeticPacks:    Object.keys(COSMETIC_TIER_PACKS).length,
+    resourcePacks:    Object.keys(RESOURCE_PACKS).length,
+    shopTabs:         SHOP_TABS.length,
+    pityState:        _phase5GetPackPityState(),
+    totalSpent:       _phase5GetTotalSpent(),
+    skipCinematics:   (typeof _phase5SkipCinematics === 'function') ? _phase5SkipCinematics() : false,
+  };
+  console.log('[Phase 5 Monetization Boot]', result);
+  return result;
+}
+
+if (typeof window !== 'undefined') {
+  window.HERO_CARD_PACKS                    = HERO_CARD_PACKS;
+  window.ASCENSION_BUNDLES                  = ASCENSION_BUNDLES;
+  window.MYTHIC_PASS                        = MYTHIC_PASS;
+  window.TOWER_BOOSTS                       = TOWER_BOOSTS;
+  window.COSMETIC_TIER_PACKS                = COSMETIC_TIER_PACKS;
+  window.RESOURCE_PACKS                     = RESOURCE_PACKS;
+  window.SHOP_TABS                          = SHOP_TABS;
+  window.PHASE5_PACK_PITY_KEY               = PHASE5_PACK_PITY_KEY;
+  window.PHASE5_SPENDING_KEY                = PHASE5_SPENDING_KEY;
+  window._phase5GetPackPityState            = _phase5GetPackPityState;
+  window._phase5BumpPackPity                = _phase5BumpPackPity;
+  window._phase5GetPackPityCounter          = _phase5GetPackPityCounter;
+  window._phase5IsPityTriggered             = _phase5IsPityTriggered;
+  window.trackSpending                      = trackSpending;
+  window._phase5GetTotalSpent               = _phase5GetTotalSpent;
+  window._phase5MaybeShowSpendingAlert      = _phase5MaybeShowSpendingAlert;
+  window._phase5FinalArtifactCleanup        = _phase5FinalArtifactCleanup;
+  window._validatePhase5Monetization        = _validatePhase5Monetization;
+}
+
 // Console helpers
 if (typeof window !== 'undefined') {
   window.BOSS_PHASES         = BOSS_PHASES;
