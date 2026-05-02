@@ -27747,6 +27747,11 @@ const REACTIVITY_HANDLERS = {
 // Engineer 2-row variant — populated by engineer_p2_p3, consumed by PR #4.C.
 let engineerElectrifiedRows = [];
 
+// 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.8: frenzy maul combo turn counter.
+// Increments per bossAttack call while frenzyMaulComboActive; modulo
+// frenzyMaulInterval triggers the 3-hit combo. Reset on battle init.
+let _phase4FrenzyAttackCounter = 0;
+
 // 2026-05-02 — COMBAT v2.1 P4 §5.2: reactivity event dispatcher.
 // Replaces firePhase's effects-array iteration with a telegraph→execute flow:
 //   Step 1: showReactivityTelegraph(eventId)  // 3-second wind-up (PR #4.D wires)
@@ -27855,6 +27860,7 @@ function _resetReactivityState() {
   pressureGainMult            = 1.0;
   engineerElectrifiedRows     = [];
   _phase4LastReactivityFiredAt = 0;
+  _phase4FrenzyAttackCounter   = 0;
   // battlePhasesTriggered already cleared in startBossBattle (existing infra).
 }
 
@@ -37188,6 +37194,39 @@ function tickStaggerState() {
   // 2026-05-02 — COMBAT v2.1 P3 §3.4: AEGIS PROTOCOL EOT tick.
   // Independent of bossState — Tank T3 ULT window can run in any state.
   try { if (typeof tickAegisProtocol === 'function') tickAegisProtocol(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.C: per-turn reactivity counters tick.
+  // Each is a "duration" set by a reactivity handler (PR #4.B) and decays
+  // on EOT until 0. Phase 1 fire aura applies actual HP loss when active.
+  try {
+    if (typeof bossStaggerImmuneTurns === 'number' && bossStaggerImmuneTurns > 0) {
+      bossStaggerImmuneTurns--;
+      if (bossStaggerImmuneTurns === 0) {
+        try { flashStateBanner('STAGGER LOCK ENDS', '#FF4D1F'); } catch (e) {}
+      }
+    }
+    if (typeof bossStealthTurns === 'number' && bossStealthTurns > 0) {
+      bossStealthTurns--;
+    }
+    if (typeof bossBackstabChainTurns === 'number' && bossBackstabChainTurns > 0) {
+      bossBackstabChainTurns--;
+      if (bossBackstabChainTurns === 0) {
+        try { flashStateBanner('BACKSTAB CHAIN ENDS', '#9B59D6'); } catch (e) {}
+      }
+    }
+    if (typeof squadSilencedTurns === 'number' && squadSilencedTurns > 0) {
+      squadSilencedTurns--;
+      if (squadSilencedTurns === 0) {
+        try { flashStateBanner('SILENCE LIFTED · ULTS RESTORED', '#9B59D6'); } catch (e) {}
+      }
+    }
+    // Phoenix fire aura — 3 HP/turn through Phase 1 mitigation pipeline.
+    if (typeof bossFireAuraActive !== 'undefined' && bossFireAuraActive
+        && typeof bossFireAuraDmg === 'number' && bossFireAuraDmg > 0) {
+      try { if (typeof applyChannelDamage === 'function') {
+        applyChannelDamage('signature', bossFireAuraDmg, { source: 'phoenix_fire_aura' });
+      } } catch (e) {}
+    }
+  } catch (e) { console.warn('[Phase 4 EOT tick] failed:', e); }
 }
 
 // Reset all state at battle init (called from battle-spawn paths below).
@@ -37236,6 +37275,31 @@ function addPressure(amount, reason) {
   if (!STAGGER_CHAINING_ENABLED && bossState === BOSS_STATE_STAGGER) return 0;
   // Recovery phase: meter does NOT fill (player is bracing for revenge).
   if (bossState === BOSS_STATE_RECOVERY) return 0;
+
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §5.7: pressureGainMult debuff.
+  // Set by tower_voidfang_p2_p3 reactivity (×0.70). Default 1.0 — no effect
+  // when no debuff active. Applied AFTER zero-check so reactivity events
+  // can still fire even if mult drops gain below 1.
+  if (typeof pressureGainMult === 'number' && pressureGainMult !== 1.0) {
+    amount = Math.max(0, Math.floor(amount * pressureGainMult));
+    if (amount <= 0) return 0;
+  }
+
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §5.7: berserker stagger immunity.
+  // While bossStaggerImmuneTurns > 0, Pressure caps just below the trigger
+  // threshold so Stagger CANNOT fire. Berserker_p2_p3 sets to 3 turns;
+  // ticks in tickStaggerState extension below.
+  if (typeof bossStaggerImmuneTurns === 'number' && bossStaggerImmuneTurns > 0) {
+    const _trigger = (typeof getStaggerTriggerThreshold === 'function') ? getStaggerTriggerThreshold() : PRESSURE_MAX;
+    const before = bossPressure;
+    bossPressure = Math.min(_trigger - 1, bossPressure + amount);
+    const gained = bossPressure - before;
+    if (gained > 0) {
+      try { showPressureGainFX(gained, reason); } catch (e) {}
+      try { if (typeof renderPressureMeter === 'function') renderPressureMeter(); } catch (e) {}
+    }
+    return gained;
+  }
 
   const before = bossPressure;
   bossPressure = Math.min(PRESSURE_MAX, bossPressure + amount);
@@ -40017,7 +40081,13 @@ function _tickHypnotist(phase) {
     const candidates = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK))
                      ? HERO_DECK.filter(h => h && h.id && h.id !== hypnotistTendrilHeroId) : [];
     candidates.sort(() => Math.random() - 0.5);
-    const count = phase === 1 ? 1 : 2;
+    let count = phase === 1 ? 1 : 2;
+    // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.6: hypnotist_p1_p2 dual suggest.
+    // bossDualSuggestActive forces minimum 2 suggestions even at P1 (where
+    // count would normally be 1). Stacks above existing P2/P3 ramp.
+    if (typeof bossDualSuggestActive === 'boolean' && bossDualSuggestActive) {
+      count = Math.max(count, 2);
+    }
     hypnotistSuggestedHeroIds = candidates.slice(0, count).map(h => h.id);
     if (hypnotistSuggestedHeroIds.length > 0) {
       const bonus = phase === 1 ? HYPNOTIST_OBEY_BONUS_P1
@@ -40246,7 +40316,13 @@ function _renderEngineerVisuals() {
       const el = cellEls[r * SIZE + c];
       if (!el) continue;
       const isWelded = engineerLockedCells.has(r + '_' + c);
-      const isElectrifiedRow = (engineerElectrifiedRow === r && engineerElectrifiedTurns > 0);
+      // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.7: check both legacy single-row
+      // and new engineerElectrifiedRows array for the engineer_p2_p3 visual.
+      let isElectrifiedRow = (engineerElectrifiedRow === r && engineerElectrifiedTurns > 0);
+      if (!isElectrifiedRow && typeof engineerElectrifiedRows !== 'undefined'
+          && Array.isArray(engineerElectrifiedRows)) {
+        isElectrifiedRow = engineerElectrifiedRows.includes(r);
+      }
       el.classList.toggle('cell--engineer-welded', isWelded);
       el.classList.toggle('cell--engineer-electrified', isElectrifiedRow);
     }
@@ -40267,7 +40343,13 @@ function _tickFrenzy(phase) {
     }
   } else {
     const gain = frenzyP3Active ? BATTERY_GAIN_P3_BASE : 1;
-    const cap  = frenzyP3Active ? FRENZY_STACK_CAP_P3 : FRENZY_STACK_CAP;
+    let cap    = frenzyP3Active ? FRENZY_STACK_CAP_P3 : FRENZY_STACK_CAP;
+    // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.8: frenzy_p1_p2 raises ceiling.
+    // frenzyMaxStacks set to 8 by reactivity (default 5). Composes with P3
+    // cap by taking the max — both can be active simultaneously.
+    if (typeof frenzyMaxStacks === 'number' && frenzyMaxStacks > cap) {
+      cap = frenzyMaxStacks;
+    }
     frenzyStacks = Math.min(cap, frenzyStacks + gain);
   }
   frenzyHitThisTurn = false;
@@ -40406,12 +40488,16 @@ function _tickTempo(phase) {
 // PHASE 5b BLOCK 7: upgraded from Block 1 scaffolding to full mechanics per Compendium §10.
 function _tickBattery(phase) {
   batteryPhase = phase;
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.10: battery_p1_p2 charge rate boost.
+  // bossChargeRateMult set to 1.50 by reactivity. Default 1.0 — no change
+  // when reactivity hasn't fired. Multiplies all charge gains in this fn.
+  const _rateMult = (typeof bossChargeRateMult === 'number') ? bossChargeRateMult : 1.0;
   // P3: doubled charge gain regardless of hit
   if (phase >= 3) {
-    batteryCharge = Math.min(BATTERY_THRESHOLD, batteryCharge + BATTERY_GAIN_P3_BASE);
+    batteryCharge = Math.min(BATTERY_THRESHOLD, batteryCharge + Math.floor(BATTERY_GAIN_P3_BASE * _rateMult));
   } else {
-    const gain = batteryHitThisPlacement ? BATTERY_GAIN_HIT : BATTERY_GAIN_NOHIT;
-    batteryCharge = Math.min(BATTERY_THRESHOLD, batteryCharge + gain);
+    const baseGain = batteryHitThisPlacement ? BATTERY_GAIN_HIT : BATTERY_GAIN_NOHIT;
+    batteryCharge = Math.min(BATTERY_THRESHOLD, batteryCharge + Math.floor(baseGain * _rateMult));
   }
   batteryHitThisPlacement = false;
   // Update charge meter UI (visible during HELIOTRON fight; idempotent toggle)
@@ -43036,6 +43122,16 @@ function canPlace(p, br, bc) {
 }
 
 function place(p, br, bc) {
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.9: tempo_disruptor skip-turn gate.
+  // skipPlayerTurnsCount > 0 → consume one skip and reject placement.
+  // Player sees "TIME RIFT" banner; piece returns to tray (returns false so
+  // caller can re-render unselected). Boss attack resolves on this turn instead.
+  if (typeof skipPlayerTurnsCount === 'number' && skipPlayerTurnsCount > 0) {
+    skipPlayerTurnsCount--;
+    try { flashStateBanner('TIME RIFT · TURN SKIPPED', '#78C8FF'); } catch (e) {}
+    try { vibrate([200, 100, 200]); } catch (e) {}
+    return false;
+  }
   const cs = cellsOf(p);
   for (const [dr, dc] of cs) {
     const r = br + dr, c = bc + dc;
@@ -43106,17 +43202,28 @@ async function clearLines(rows, cols) {
   // PHASE 5b BLOCK 4 — Critical Mass: count cleared cells in the electrified row
   // BEFORE clear (so we know how many cells are about to be lost in that row).
   // Damage applied AFTER clear completes. Engineer-archetype-only.
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.7: engineer_p2_p3 sets up to 2
+  // electrified rows via engineerElectrifiedRows array. Iterate union of
+  // (legacy single row) ∪ (new array) — both populated by reactivity.
   let _engineerElectrifiedClears = 0;
-  if (typeof engineerElectrifiedRow !== 'undefined' && engineerElectrifiedRow >= 0
-      && engineerElectrifiedTurns > 0
-      && typeof currentBoss !== 'undefined' && currentBoss && currentBoss.archetype === 'engineer') {
-    for (let c = 0; c < SIZE; c++) {
-      const idx = engineerElectrifiedRow * SIZE + c;
-      if (idxs.has(idx) && grid[engineerElectrifiedRow] && grid[engineerElectrifiedRow][c]) {
-        // Skip if welded (welded cells don't clear → no electrification damage either)
-        if (typeof engineerLockedCells !== 'undefined'
-            && engineerLockedCells.has(engineerElectrifiedRow + '_' + c)) continue;
-        _engineerElectrifiedClears++;
+  if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.archetype === 'engineer') {
+    const _eRows = new Set();
+    if (typeof engineerElectrifiedRow !== 'undefined' && engineerElectrifiedRow >= 0
+        && engineerElectrifiedTurns > 0) {
+      _eRows.add(engineerElectrifiedRow);
+    }
+    if (typeof engineerElectrifiedRows !== 'undefined' && Array.isArray(engineerElectrifiedRows)) {
+      for (const r of engineerElectrifiedRows) if (typeof r === 'number' && r >= 0) _eRows.add(r);
+    }
+    for (const eRow of _eRows) {
+      for (let c = 0; c < SIZE; c++) {
+        const idx = eRow * SIZE + c;
+        if (idxs.has(idx) && grid[eRow] && grid[eRow][c]) {
+          // Skip if welded
+          if (typeof engineerLockedCells !== 'undefined'
+              && engineerLockedCells.has(eRow + '_' + c)) continue;
+          _engineerElectrifiedClears++;
+        }
       }
     }
   }
@@ -44177,7 +44284,16 @@ function bossMotifImmune() {
 
 // Apply armored damage absorption — returns adjusted amount. Called inside dealDamage.
 function applyArmoredAbsorb(amount) {
-  if (bossArmorShields <= 0 || amount <= 0) return amount;
+  if (amount <= 0) return amount;
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.2: armored_p1_p2 reactivity adds
+  // bossShieldCount stacks (separate from legacy bossArmorShields). Each
+  // absorbs 70% per spec §4.2 ("each absorbs 70% of next hit").
+  if (typeof bossShieldCount === 'number' && bossShieldCount > 0) {
+    bossShieldCount -= 1;
+    try { flashText('REACTIVITY SHIELD BROKEN', '#5DA8E8'); } catch (e) {}
+    return Math.floor(amount * 0.30);  // 70% absorbed → 30% applied
+  }
+  if (bossArmorShields <= 0) return amount;
   bossArmorShields -= 1;
   flashText('SHIELD BROKEN', '#FFD53D');
   return Math.floor(amount * ARMORED_SHIELD_ABSORB);
@@ -46061,6 +46177,29 @@ function maybeBossAttack() {
       // Consume the queue flag — won't repeat next turn unless stacks rebuild
       frenzyMaulQueued = false;
     }
+    // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.4: assassin backstab chain.
+    // bossBackstabChainTurns set to 3 by assassin_p2_p3; each fire counts as
+    // one backstab. Pump _attacksThisTurn to 2 strikes per turn while active.
+    if (typeof bossBackstabChainTurns === 'number' && bossBackstabChainTurns > 0) {
+      _attacksThisTurn = Math.max(_attacksThisTurn, 2);
+      try { flashText('🗡 BACKSTAB · ' + bossBackstabChainTurns + 'T LEFT', '#9B59D6'); } catch (e) {}
+    }
+    // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.8: frenzy maul combo (P3 reactivity).
+    // frenzyMaulComboActive: every frenzyMaulInterval (3) turns fire 3-attack combo.
+    // Tracking via simple modulo on attackCountdown reset cycles. Independent
+    // from frenzyMaulQueued (legacy stack-based path).
+    if (typeof frenzyMaulComboActive === 'boolean' && frenzyMaulComboActive
+        && typeof frenzyMaulInterval === 'number' && frenzyMaulInterval > 0) {
+      // Every Nth attack countdown reset → forced combo. Read attackCountdown
+      // BEFORE the reset below; modulo on a turn counter via lastStaggerEnteredAtTurn
+      // proxy is unreliable, so simpler: count attacks since combo started.
+      _phase4FrenzyAttackCounter = (typeof _phase4FrenzyAttackCounter === 'number') ? _phase4FrenzyAttackCounter + 1 : 1;
+      if (_phase4FrenzyAttackCounter % frenzyMaulInterval === 0) {
+        _attacksThisTurn = Math.max(_attacksThisTurn, 3);
+        try { flashText('🐻 MAUL CHAIN · 3-HIT', '#FF6E28'); } catch (e) {}
+        try { vibrate([120, 60, 120, 60, 120, 60, 200]); } catch (e) {}
+      }
+    }
     (async () => {
       for (let i = 0; i < _attacksThisTurn; i++) {
         await bossAttack();
@@ -46092,6 +46231,13 @@ async function bossAttack() {
   if (typeof _isBulwarkFrozenWardActive === 'function' && _isBulwarkFrozenWardActive()) {
     try { flashText('❄ FROZEN WARD · ATTACK BLOCKED', '#5DCAFF'); } catch (e) {}
     try { vibrate([60, 30, 60]); } catch (e) {}
+    return;
+  }
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.4: assassin stealth turn.
+  // bossStealthTurns set to 1 by assassin_p1_p2; boss skips this attack.
+  // bossNextAttackBonus persists (+50%) until next non-stealth attack.
+  if (typeof bossStealthTurns === 'number' && bossStealthTurns > 0) {
+    try { flashText('🌫 STEALTH · ATTACK HIDDEN', '#9B59D6'); } catch (e) {}
     return;
   }
   // 2026-04-28 — CHRONICLE Tutorial Dummy: training constructs never attack.
@@ -46138,6 +46284,14 @@ async function bossAttack() {
   let mult = 1;
   if (bossRagePending > 1) { mult *= bossRagePending; bossRagePending = 0; }
   if (bossRageEmber > 0)   mult *= (1 + bossRageEmber);
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §5.6: single-shot bossNextAttackBonus.
+  // Set by bruiser_p1_p2 (heavy strike +50%) or assassin_p1_p2 (stealth strike).
+  // Consumed on this fire — resets to 1.0 after applying.
+  if (typeof bossNextAttackBonus === 'number' && bossNextAttackBonus > 1.0) {
+    mult *= bossNextAttackBonus;
+    try { flashText('💥 STRIKE +' + Math.round((bossNextAttackBonus - 1) * 100) + '%', '#FF4D1F'); } catch (e) {}
+    bossNextAttackBonus = 1.0;
+  }
   // PHASE 5b BLOCK 5 — Frenzy stack damage scaling. When boss is Frenzy archetype,
   // each stack adds +5% to attack severity (more void cells spawned). Stack count
   // resets/decays when boss takes damage (handled in dealDamage hit detection).
@@ -47497,6 +47651,15 @@ async function ultRoleDispatch() {
   try {
     if (typeof _ch3HasSeal === 'function' && _ch3HasSeal('ults_disabled')) {
       try { flashText('📜 ULTS SEALED', '#E8D88A'); } catch (e) {}
+      return;
+    }
+  } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.C §4.6: hypnotist silence reactivity.
+  // squadSilencedTurns set to 2 by hypnotist_p2_p3; blocks all hero ULTs
+  // until counter ticks to 0 in tickStaggerState.
+  try {
+    if (typeof squadSilencedTurns === 'number' && squadSilencedTurns > 0) {
+      try { flashText('🤫 SILENCED · NO ULT', '#9B59D6'); } catch (e) {}
       return;
     }
   } catch (e) {}
