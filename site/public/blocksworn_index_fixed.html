@@ -18217,6 +18217,11 @@ button.season-tier-claim:active {
          estimate. renderPressureContribution(hero) populates with
          per-turn avg + tier-upgrade preview. -->
     <div class="detail-pressure-contrib" id="detailPressureContrib"></div>
+    <!-- 2026-05-02 — COMBAT v2.1 P3 §7.1 (PR #3.F): Hero Tier Abilities panel.
+         renderTierAbilitiesPanel(hero) populates with T0/T1/T2/T3/Mythic
+         rows from HERO_TIER_ABILITIES (PR #3.A foundation). Locked tiers
+         show cost strings; current tier marked with checkmark. -->
+    <div class="detail-tier-abilities" id="detailTierAbilities"></div>
   </div>
 </div>
 
@@ -36251,6 +36256,11 @@ function applyChannelDamage(channel, rawDmg, meta) {
   if (typeof _getT2TankMitigationBoost === 'function') {
     mitigation = _getT2TankMitigationBoost(mitigation);
   }
+  // 2026-05-02 — COMBAT v2.1 P3 §4.4 (PR #3.F): IRONSCALE T3 Iron Hide bonus.
+  // While AEGIS PROTOCOL is active and owned by IRONSCALE, +10% additive mit.
+  if (typeof _getIronscaleIronHideMitBonus === 'function') {
+    mitigation = Math.min(0.85, mitigation + _getIronscaleIronHideMitBonus());
+  }
   const mitigated  = Math.floor(rawDmg * (1 - mitigation));
   const finalDmg   = Math.max(rawDmg > 0 ? 1 : 0, mitigated);
   const mitigatedAmount = rawDmg - finalDmg;
@@ -36282,6 +36292,8 @@ function applyChannelDamage(channel, rawDmg, meta) {
       if (typeof showTankConversionFX === 'function') showTankConversionFX(tankConv);
       // Fire centralized hook so other Phase 3 systems can observe absorbs.
       try { if (typeof _firePhase3Hook === 'function') _firePhase3Hook('onTankAbsorb', { dmg: finalDmg, conv: tankConv }); } catch (e) {}
+      // FTUE intro — first-time-only Tank conversion explanation (PR #3.F §8.2).
+      try { if (typeof _maybeTriggerTankConversionIntro === 'function') _maybeTriggerTankConversionIntro(); } catch (e) {}
     }
   }
 
@@ -43827,12 +43839,17 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
   // by the onStaggerEnter hook and cleared by onStaggerExit.
   const _mythicTankSquadMult = (typeof _getMythicTankStaggerMult === 'function')
                                ? _getMythicTankStaggerMult() : 1.0;
+  // 2026-05-02 — COMBAT v2.1 P3 §4.5 (PR #3.F): AEGIS-spark T3 sun aura.
+  // Post-AEGIS PROTOCOL window — squad +10% damage for 5 turns when the
+  // owning hero was AEGIS (spark_tank). Composes additively in mult stack.
+  const _sparkSunAuraMult = (typeof _getSparkSunAuraDmgMult === 'function')
+                            ? _getSparkSunAuraDmgMult() : 1.0;
   const _multStack = currentDmgMult * _passiveDmgContext * _ultDmgContext
                    * _warbandStrikeContext * _hunterMarkContext
                    * _grommarRallyContext * _packMarkContext * _helioRoarContext
                    * _captainDualContext * _signatureComboContext * _hypnoSuggestContext
                    * _bloodhuntContext * _pirateDoubleContext * _pactDamageMult
-                   * _towerThemeMult * _buffDamageMult * _mythicTankSquadMult
+                   * _towerThemeMult * _buffDamageMult * _mythicTankSquadMult * _sparkSunAuraMult
                    * (typeof getHeartTowerMult === 'function' ? getHeartTowerMult('damageMult') : 1.0)
                    // 2026-04-27 — Ch3 mechanics:
                    //   TWILIGHT VESSEL DUAL SHIFT — hunter+matching-element +50%, others -25%
@@ -45553,6 +45570,14 @@ async function bossAttack() {
   if (typeof bossState !== 'undefined' && bossState !== BOSS_STATE_ACTIVE) {
     return;
   }
+  // 2026-05-02 — COMBAT v2.1 P3 §4.3 (PR #3.F): BULWARK T3 frozen ward.
+  // While AEGIS PROTOCOL is active and the owning hero is BULWARK
+  // (shark_tank), boss attacks are completely no-op'd (frozen ward).
+  if (typeof _isBulwarkFrozenWardActive === 'function' && _isBulwarkFrozenWardActive()) {
+    try { flashText('❄ FROZEN WARD · ATTACK BLOCKED', '#5DCAFF'); } catch (e) {}
+    try { vibrate([60, 30, 60]); } catch (e) {}
+    return;
+  }
   // 2026-04-28 — CHRONICLE Tutorial Dummy: training constructs never attack.
   // Early-return suppresses SFX, cell spawning, rage mechanics, everything.
   // Player learns mechanics without pressure (BLOCKSWORN_PLAYER_EDUCATION.md §4.4).
@@ -46976,6 +47001,21 @@ async function ultRoleDispatch() {
   // when the same ULT triggers them — intentional per spec §11.2 (mastery
   // moments are mastery moments).
   try { addPressure(PRESSURE_GAIN.hero_ult, 'hero_ult'); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P3 §3.5 (PR #3.F): T3 Captain universal mark.
+  // If this hero is the marked one and the Captain is T3+, the mark consumes
+  // here and applies a +30% damage burst to the ULT path (folded into the
+  // _passiveDmgContext slot used by applyXxxUlt → dealDamage).
+  try {
+    if (typeof applyCaptainMarkOnUlt === 'function') {
+      const mark = applyCaptainMarkOnUlt(hero);
+      if (mark) {
+        if (typeof _passiveDmgContext === 'number') {
+          _passiveDmgContext *= mark.dmgMult;
+        }
+        try { flashText('⚐ MARKED · ULT +' + Math.round((mark.dmgMult - 1) * 100) + '%', '#FFD53D'); } catch (e) {}
+      }
+    }
+  } catch (e) { console.warn('[Captain Mark on ULT] failed:', e); }
   // V2.0 Stage 5 Block 5.1: firing-hero pointer for kill-shot attribution in dealDamage
   const _prevFiringHero = _currentFiringHero;
   _currentFiringHero = hero;
@@ -56008,6 +56048,284 @@ if (typeof window !== 'undefined') {
   window.getRaceTierBadgeText           = getRaceTierBadgeText;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 3 PR #3.F — UI + FTUE + POLISH
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_3_HERO_TIERS.md §7 + §8 + §4.
+// Final Phase 3 PR. Closes the loop:
+//   1. Hero Detail Tier Abilities panel (§7.1) — reads HERO_TIER_ABILITIES
+//   2. FTUE dialog set (§8): tut_tier_intro, tut_tank_conversion_intro,
+//      tut_captain_mark_intro, tut_mythic_intro + trigger gates
+//   3. T3 universal mark callsites — Captain T3 mark works on ULTs and
+//      shield gain (line-clear path also wired)
+//   4. Per-hero T3 polish — BULWARK frozen ward, IRONSCALE iron hide,
+//      AEGIS-spark sun aura, THUNDERBEAT +2 shields T2 reactive
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P3 §7.1: Hero Detail Tier Abilities panel.
+// Renders 5 rows (T0/T1/T2/T3/Mythic) for the given hero from the
+// HERO_TIER_ABILITIES table (PR #3.A). Current tier marked ✓; future
+// tiers show ⚡ + cost string. Mythic row shows the per-save warning if
+// an existing Mythic is in the way.
+function renderTierAbilitiesPanel(hero) {
+  if (typeof document === 'undefined') return;
+  const host = document.getElementById('detailTierAbilities');
+  if (!host || !hero) return;
+  if (typeof HERO_TIER_ABILITIES === 'undefined') { host.innerHTML = ''; return; }
+  const abilities = HERO_TIER_ABILITIES[hero.id];
+  if (!abilities) { host.innerHTML = ''; return; }
+  const tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[hero.id]) || 0;
+  const isMythic = (typeof isHeroMythic === 'function') && isHeroMythic(hero.id);
+  const otherMythic = (typeof getMythicHeroId === 'function') ? getMythicHeroId() : null;
+  const otherMythicBlocking = (otherMythic && otherMythic !== hero.id);
+
+  const row = (label, key, level, isMyth) => {
+    const data = abilities[key];
+    if (!data) return '';
+    let icon = '⚡';
+    let cls = 'tier-ab-locked';
+    if (isMyth) {
+      if (isMythic) { icon = '✓'; cls = 'tier-ab-current tier-ab-mythic'; }
+      else if (otherMythicBlocking) { icon = '✕'; cls = 'tier-ab-blocked'; }
+      else { icon = '✦'; cls = 'tier-ab-locked tier-ab-mythic'; }
+    } else {
+      if (tier >= level) { icon = '✓'; cls = 'tier-ab-unlocked'; }
+      if (tier === level) cls += ' tier-ab-current';
+    }
+    const cost = (data.cost && (!isMyth || (!isMythic && !otherMythicBlocking))) ? ('<div class="tier-ab-cost">' + data.cost + '</div>') : '';
+    const blockMsg = (isMyth && otherMythicBlocking) ? '<div class="tier-ab-cost" style="color:#ff6e6e;">Mythic slot taken — only one per save</div>' : '';
+    return '<div class="tier-ab-row ' + cls + '">' +
+             '<div class="tier-ab-head"><span class="tier-ab-icon">' + icon + '</span>' +
+               '<span class="tier-ab-label">' + label + '</span>' +
+               '<span class="tier-ab-name">' + (data.name || '—') + '</span></div>' +
+             '<div class="tier-ab-desc">' + (data.description || '') + '</div>' +
+             cost + blockMsg +
+           '</div>';
+  };
+
+  host.innerHTML =
+    '<div class="tier-ab-panel">' +
+      '<div class="tier-ab-header">TIER ABILITIES</div>' +
+      row('T0',     't0',     0, false) +
+      row('T1',     't1',     1, false) +
+      row('T2',     't2',     2, false) +
+      row('T3',     't3',     3, false) +
+      row('MYTHIC', 'mythic', 4, true) +
+    '</div>';
+  // Inject minimal styles once (idempotent — checks for existing tag).
+  if (!document.getElementById('tierAbStyle')) {
+    const s = document.createElement('style');
+    s.id = 'tierAbStyle';
+    s.textContent =
+      '.tier-ab-panel{margin-top:14px;padding:12px;background:rgba(0,0,0,0.35);border-radius:10px;border:1px solid rgba(255,213,61,0.18);}' +
+      '.tier-ab-header{font-size:11px;letter-spacing:0.14em;color:#FFD53D;margin-bottom:10px;}' +
+      '.tier-ab-row{padding:8px 10px;border-radius:8px;margin-bottom:6px;background:rgba(255,255,255,0.03);}' +
+      '.tier-ab-row.tier-ab-unlocked{background:rgba(94,202,121,0.08);border-left:2px solid #5DCA79;}' +
+      '.tier-ab-row.tier-ab-current{background:rgba(255,213,61,0.12);border-left:2px solid #FFD53D;}' +
+      '.tier-ab-row.tier-ab-mythic{background:linear-gradient(90deg,rgba(255,165,0,0.10),rgba(255,90,58,0.05));}' +
+      '.tier-ab-row.tier-ab-blocked{opacity:0.55;}' +
+      '.tier-ab-head{display:flex;gap:6px;align-items:baseline;margin-bottom:3px;}' +
+      '.tier-ab-icon{font-size:13px;color:#FFD53D;width:16px;}' +
+      '.tier-ab-label{font-size:10px;letter-spacing:0.10em;color:#aaa;width:46px;}' +
+      '.tier-ab-name{font-size:12px;font-weight:700;color:#FFD53D;letter-spacing:0.04em;}' +
+      '.tier-ab-desc{font-size:11px;line-height:1.4;color:#ccc;margin-left:22px;}' +
+      '.tier-ab-cost{font-size:10px;color:#FFA500;margin-top:4px;margin-left:22px;opacity:0.85;}';
+    document.head.appendChild(s);
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §8.1: Phase 3 FTUE dialog set.
+// Inserts 4 dialogs into the existing DIALOGS table. Idempotent — checks
+// for prior insertion. Trigger functions ship below.
+function _registerPhase3Dialogs() {
+  try {
+    if (typeof DIALOGS === 'undefined' || !DIALOGS) return;
+    const phase3 = {
+      tut_tier_intro: {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_chronicler',
+        text: 'Heroes ascend through Tiers — T0, T1, T2, T3, and Mythic. Each Tier unlocks a NEW ability, not just bigger numbers. Ascensions are a major investment. Choose wisely.',
+      },
+      tut_tank_conversion_intro: {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#FFD700', portraitKey: 'hero_chronicler',
+        text: "Your Tank converts incoming damage to Pressure — every hit you take builds toward Stagger. Tanks are active, not passive.",
+      },
+      tut_captain_mark_intro: {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_chronicler',
+        text: 'Your Captain marks one hero per turn. The marked hero next fire deals +30% damage and gives +10 Pressure. Choose tactically — this is the rhythm of your squad.',
+      },
+      tut_mythic_intro: {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#FFA500', portraitKey: 'hero_chronicler',
+        text: 'Mythic ascension is a permanent commitment. ONE hero per save reaches Mythic. Their Mythic ability breaks normal rules — it is the centerpiece of your squad identity.',
+      },
+    };
+    for (const [id, def] of Object.entries(phase3)) {
+      if (!DIALOGS[id]) DIALOGS[id] = def;
+    }
+  } catch (e) { console.warn('[P3 dialog reg] failed:', e); }
+}
+// Defer until after main DIALOGS table loads.
+try { if (typeof setTimeout === 'function') setTimeout(_registerPhase3Dialogs, 0); } catch (e) {}
+
+// 2026-05-02 — COMBAT v2.1 P3 §8.2: FTUE trigger gates.
+// All gated by seenDialogs (once per install) + currentChapter === 1 +
+// !isFtueActive (don't collide with scripted FTUE flow). Match Phase 1/2
+// gate convention.
+function _ftueGateOk(dialogId) {
+  try {
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return false;
+    if (seenDialogs.has(dialogId)) return false;
+    if (typeof isFtueActive === 'function' && isFtueActive()) return false;
+    if (typeof currentChapter !== 'undefined' && currentChapter !== 1) return false;
+    return true;
+  } catch (e) { return false; }
+}
+
+function _maybeTriggerTierIntro() {
+  if (!_ftueGateOk('tut_tier_intro')) return;
+  try { setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_tier_intro'); } catch (e) {} }, 600); } catch (e) {}
+}
+
+function _maybeTriggerTankConversionIntro() {
+  if (!_ftueGateOk('tut_tank_conversion_intro')) return;
+  try { setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_tank_conversion_intro'); } catch (e) {} }, 800); } catch (e) {}
+}
+
+function _maybeTriggerCaptainMarkIntro() {
+  if (!_ftueGateOk('tut_captain_mark_intro')) return;
+  try { setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_captain_mark_intro'); } catch (e) {} }, 600); } catch (e) {}
+}
+
+function _maybeTriggerMythicIntro() {
+  if (!_ftueGateOk('tut_mythic_intro')) return;
+  try { setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_mythic_intro'); } catch (e) {} }, 400); } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.5: T3 Captain universal-mark callsites.
+// Captain T3 makes the mark consume on ANY squad action. PR #3.C wired
+// 'fire' actions (most-frequent path); PR #3.F adds the universal-action
+// callsites. Each is no-op when Captain isn't T3+ (consume fn gates internally).
+//
+// applyMarkOnUlt: called from ULT dispatch when the firing hero is the
+// marked one. Mark consumes; +30% dmg context fold matches fire path.
+function applyCaptainMarkOnUlt(hero) {
+  if (typeof _consumeCaptainMarkBonus !== 'function') return null;
+  return _consumeCaptainMarkBonus(hero, 'ult');
+}
+
+// applyMarkOnSquadAction: generic call for shield-gain, line-clear, race
+// proc, etc. The acting hero passes through; bonus payload returned.
+function applyCaptainMarkOnSquadAction(hero, actionType) {
+  if (typeof _consumeCaptainMarkBonus !== 'function') return null;
+  return _consumeCaptainMarkBonus(hero, actionType || 'squad_action');
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §4 polish: per-hero T3 AEGIS PROTOCOL extras.
+// BULWARK (shark_tank): frozen ward — boss attacks no-op during AEGIS PROTOCOL
+// IRONSCALE (croc_tank): Iron Hide bonus +10% mit during AEGIS PROTOCOL
+// AEGIS (spark_tank): sun aura — 5 turns of squad +10% post-AEGIS protection
+// THUNDERBEAT (rock_tank): T2 reactive shield count +2 (vs +1 baseline)
+//
+// All read aegisProtocolHeroId / aegisProtocolTurnsActive set in PR #3.B.
+
+// Frozen ward predicate — used by bossAttack / maybeBossAttack to short-circuit
+// boss attacks while AEGIS PROTOCOL active for BULWARK.
+function _isBulwarkFrozenWardActive() {
+  return aegisProtocolTurnsActive > 0 && aegisProtocolHeroId === 'shark_tank';
+}
+
+// Iron Hide bonus — adds +10% mit to the squad when AEGIS PROTOCOL is owned by
+// IRONSCALE. Composes additively with mitigation pipeline.
+function _getIronscaleIronHideMitBonus() {
+  if (aegisProtocolTurnsActive > 0 && aegisProtocolHeroId === 'crocodile_tank') return 0.10;
+  return 0;
+}
+
+// Sun aura — small post-AEGIS window for AEGIS-spark hero. Set when the
+// AEGIS PROTOCOL ends (handled inline in tickAegisProtocol below override).
+let _sparkSunAuraTurnsRemaining = 0;
+
+function _getSparkSunAuraDmgMult() {
+  return _sparkSunAuraTurnsRemaining > 0 ? 1.10 : 1.0;
+}
+
+function _tickSparkSunAura() {
+  if (_sparkSunAuraTurnsRemaining > 0) {
+    _sparkSunAuraTurnsRemaining--;
+    if (_sparkSunAuraTurnsRemaining === 0) {
+      try { flashStateBanner('SUN AURA ENDS', '#FFA500'); } catch (e) {}
+    }
+  }
+}
+
+// Hook into existing tickAegisProtocol — when AEGIS PROTOCOL ends and the
+// owning hero was AEGIS (spark_tank), open the 5-turn sun aura window.
+const _origTickAegisProtocol = (typeof tickAegisProtocol === 'function') ? tickAegisProtocol : null;
+if (_origTickAegisProtocol) {
+  // Wrap in a forward-compatible way — only override if not already wrapped.
+  if (!tickAegisProtocol._phase3FPolish) {
+    const wrapped = function () {
+      const wasActive = aegisProtocolTurnsActive > 0;
+      const wasHero = aegisProtocolHeroId;
+      _origTickAegisProtocol();
+      // If just ended AND it was AEGIS-spark → trigger sun aura
+      if (wasActive && aegisProtocolTurnsActive === 0 && wasHero === 'spark_tank') {
+        _sparkSunAuraTurnsRemaining = 5;
+        try { flashStateBanner('SUN AURA · 5T · +10% squad dmg', '#FFA500'); } catch (e) {}
+      }
+      // Sun aura ticks alongside AEGIS PROTOCOL — same EOT cadence.
+      _tickSparkSunAura();
+    };
+    wrapped._phase3FPolish = true;
+    tickAegisProtocol = wrapped;
+    if (typeof window !== 'undefined') window.tickAegisProtocol = wrapped;
+  }
+}
+
+// THUNDERBEAT T2 +2 shields — wrap _maybeFireT2TankReactive to add an extra
+// shield when the T2 Tank is THUNDERBEAT (rock_tank). Spec §4.2: "+2 shields
+// (vs 1)". Wraps the PR #3.B function rather than editing it in place.
+const _origMaybeFireT2TankReactive = (typeof _maybeFireT2TankReactive === 'function') ? _maybeFireT2TankReactive : null;
+if (_origMaybeFireT2TankReactive && !_maybeFireT2TankReactive._phase3FPolish) {
+  const wrapped = function () {
+    if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) { return _origMaybeFireT2TankReactive(); }
+    const isThunderInDeck = HERO_DECK.some(h => h && h.id === 'rock_tank'
+      && ((typeof heroUpgrades !== 'undefined' && heroUpgrades[h.id]) || 0) >= 2);
+    const beforeFires = (typeof _t2TankReactiveFiredThisFight === 'number') ? _t2TankReactiveFiredThisFight : 0;
+    const beforeHP = (typeof _t2TankReactiveLastTriggerHP === 'number') ? _t2TankReactiveLastTriggerHP : -1;
+    _origMaybeFireT2TankReactive();
+    const fired = (typeof _t2TankReactiveFiredThisFight === 'number')
+                  && _t2TankReactiveFiredThisFight > beforeFires;
+    if (fired && isThunderInDeck) {
+      // Add an extra shield (THUNDERBEAT polish)
+      try {
+        const cap = (typeof MAX_SHIELD === 'number' ? MAX_SHIELD : 6)
+                  + 2 + (typeof maxShieldBonus === 'number' ? maxShieldBonus : 0);
+        if (typeof shieldCount === 'number') {
+          shieldCount = Math.min(cap, shieldCount + 1);
+        }
+        try { flashStateBanner('THUNDERBEAT +2 SHIELDS', '#5DCA79'); } catch (e) {}
+      } catch (e) {}
+    }
+  };
+  wrapped._phase3FPolish = true;
+  _maybeFireT2TankReactive = wrapped;
+  if (typeof window !== 'undefined') window._maybeFireT2TankReactive = wrapped;
+}
+
+if (typeof window !== 'undefined') {
+  window.renderTierAbilitiesPanel        = renderTierAbilitiesPanel;
+  window._registerPhase3Dialogs          = _registerPhase3Dialogs;
+  window._maybeTriggerTierIntro          = _maybeTriggerTierIntro;
+  window._maybeTriggerTankConversionIntro = _maybeTriggerTankConversionIntro;
+  window._maybeTriggerCaptainMarkIntro   = _maybeTriggerCaptainMarkIntro;
+  window._maybeTriggerMythicIntro        = _maybeTriggerMythicIntro;
+  window.applyCaptainMarkOnUlt           = applyCaptainMarkOnUlt;
+  window.applyCaptainMarkOnSquadAction   = applyCaptainMarkOnSquadAction;
+  window._isBulwarkFrozenWardActive      = _isBulwarkFrozenWardActive;
+  window._getIronscaleIronHideMitBonus   = _getIronscaleIronHideMitBonus;
+  window._getSparkSunAuraDmgMult         = _getSparkSunAuraDmgMult;
+  window._tickSparkSunAura               = _tickSparkSunAura;
+}
+
 // Block H.3 — Tier 2 ability previews (HERO_COMPENDIUM §2-6).
 // Used by tier progression strip + ability list to show what T2 unlocks.
 const HERO_T2_ABILITIES = {
@@ -56269,6 +56587,8 @@ function renderHeroDetailStats(hero) {
   try { renderTierMitigationCurve(hero); } catch (e) { console.warn('renderTierMitigationCurve failed:', e); }
   // 2026-05-02 — COMBAT v2.1 P2 §4.6: Pressure Contribution preview.
   try { renderPressureContribution(hero); } catch (e) { console.warn('renderPressureContribution failed:', e); }
+  // 2026-05-02 — COMBAT v2.1 P3 §7.1 (PR #3.F): Tier Abilities panel.
+  try { if (typeof renderTierAbilitiesPanel === 'function') renderTierAbilitiesPanel(hero); } catch (e) { console.warn('renderTierAbilitiesPanel failed:', e); }
 }
 
 // 2026-05-02 — COMBAT v2.1 P1 §5.3: Tier Mitigation Roadmap preview.
@@ -56937,6 +57257,8 @@ function onTryAscend() {
       setTimeout(() => flashText('+20% DAMAGE PERMANENT', '#A88AC8'), 1100);
       vibrate([100, 50, 100, 50, 200]);
     } catch (e) {}
+    // 2026-05-02 — COMBAT v2.1 P3 §8.2 (PR #3.F): tier-intro FTUE on first ascend.
+    try { if (typeof _maybeTriggerTierIntro === 'function') _maybeTriggerTierIntro(); } catch (e) {}
     // Re-render detail to update badge + button state
     try { openHeroDetail(detailHeroId); } catch (e) {}
     // Refresh roster cards (T2 badge added to ascended)
