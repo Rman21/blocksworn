@@ -36395,6 +36395,149 @@ if (typeof window !== 'undefined') {
   window.showPressureGainFX  = showPressureGainFX;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 2 PR #2.C — OVERFLOW CONVERSION
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_2_STAGGER_LOOP.md §3.7-3.8.
+// AAA principle: no investment lost on overkill. Overshoot at phase gates
+// (or boss death) converts: 40% → distributed ULT charge, 30% → essence,
+// 1 shield per 500 raw dmg, 10% → Tower points (Tower battles only).
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P2 §3.7: phase gate helper.
+// Boss phases gate at 70% / 35% / 0. Returns nearest gate AT or BELOW
+// the current bossHP that bossHP needs to descend through. Used by
+// dealDamage to cap actualDmg at the next gate (overshoot becomes
+// overflow for conversion). P4 will plug per-boss reactivity events
+// at these gate transitions; for now they're pure HP pacing markers.
+function _getPhaseGateHP() {
+  if (typeof currentBoss === 'undefined' || !currentBoss) return 0;
+  const maxHP = (typeof bossMaxHP === 'number' && bossMaxHP > 0)
+              ? bossMaxHP
+              : (currentBoss.hp || 1);
+  const ratio = (typeof bossHP === 'number' ? bossHP : maxHP) / maxHP;
+  if (ratio > 0.70) return Math.floor(maxHP * 0.70);
+  if (ratio > 0.35) return Math.floor(maxHP * 0.35);
+  return 0;
+}
+
+// 2026-05-02 — COMBAT v2.1 P2 §3.8: distribute overflow to player rewards.
+// Splits the overkill amount four ways (with 20% absorbed as variance —
+// the 40+30+10 = 80% intentional; remaining 20% = "the void took the rest"
+// which keeps overkill from being net-positive enough to incentivize
+// deliberate overshoot exploits). Shield grant is integer per 500 raw
+// (so any overflow at all has chance of meaningful reward).
+function applyOverflowConversion(overflowDmg) {
+  if (!overflowDmg || overflowDmg <= 0) return;
+  // 40% → ULT charge distributed across squad's stihiyas
+  const ultGain = Math.floor(overflowDmg * OVERFLOW_TO_ULT);
+  if (ultGain > 0) {
+    try { _distributeOverflowToULT(ultGain); } catch (e) { console.warn('overflow→ULT failed:', e); }
+  }
+  // 30% → essence drops, distributed evenly across 5 stihiyas
+  const essenceGain = Math.floor(overflowDmg * OVERFLOW_TO_ESSENCE);
+  if (essenceGain > 0) {
+    try { _distributeOverflowToEssence(essenceGain); } catch (e) { console.warn('overflow→essence failed:', e); }
+  }
+  // 1 shield per 500 overkill, capped at MAX_SHIELD + 2 (Aegis bonus headroom)
+  const shieldGain = Math.floor(overflowDmg / OVERFLOW_PER_SHIELD);
+  if (shieldGain > 0 && typeof shieldCount === 'number') {
+    const cap = (typeof MAX_SHIELD === 'number' ? MAX_SHIELD : 5) + 2;
+    shieldCount = Math.min(cap, shieldCount + shieldGain);
+    try { if (typeof renderHP === 'function') renderHP(); } catch (e) {}
+  }
+  // 10% → Tower points (Tower battles only)
+  let towerGain = 0;
+  if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle) {
+    towerGain = Math.floor(overflowDmg * OVERFLOW_TO_TOWER);
+    if (towerGain > 0) {
+      try {
+        if (typeof addTowerPoints === 'function') addTowerPoints(towerGain);
+        else if (typeof towerState !== 'undefined' && towerState) {
+          towerState.towerPoints = (towerState.towerPoints || 0) + towerGain;
+          try { if (typeof saveTowerState === 'function') saveTowerState(); } catch (e) {}
+        }
+      } catch (e) { console.warn('overflow→tower failed:', e); }
+    }
+  }
+  // Combined visual feedback. PR #2.D may upgrade with staggered cascade FX.
+  try { showOverflowRewardFX({
+    overflow: overflowDmg, ult: ultGain, essence: essenceGain,
+    shield: shieldGain, tower: towerGain,
+  }); } catch (e) {}
+  // FTUE intro hook (PR #2.E wires the dialog)
+  try { if (typeof _maybeTriggerOverflowIntro === 'function') _maybeTriggerOverflowIntro(); } catch (e) {}
+  // Analytics
+  try { if (typeof logEvent === 'function') logEvent('overflow_conversion', {
+    overflow: overflowDmg, ult: ultGain, essence: essenceGain, shield: shieldGain, tower: towerGain,
+  }); } catch (e) {}
+}
+
+// Distribute ULT charge proportionally across the squad's active stihiyas.
+// Falls back to all 5 if no active set is built.
+function _distributeOverflowToULT(amount) {
+  if (!amount || amount <= 0) return;
+  const stihs = (typeof STIHIYAS !== 'undefined' && Array.isArray(STIHIYAS))
+              ? STIHIYAS : ['ember','tide','grove','solar','umbra'];
+  // Active stihiyas = elements present in current squad, if computed.
+  const targets = [];
+  if (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) {
+    const seen = new Set();
+    for (const h of HERO_DECK) {
+      if (h && h.stihiya && !seen.has(h.stihiya)) { seen.add(h.stihiya); targets.push(h.stihiya); }
+    }
+  }
+  const list = targets.length > 0 ? targets : stihs;
+  const per = Math.floor(amount / list.length);
+  if (per <= 0) return;
+  for (const s of list) {
+    if (typeof ultCharges !== 'undefined' && ultCharges[s] !== undefined) {
+      const cap = (typeof currentUltThreshold !== 'undefined' && currentUltThreshold[s])
+                || (typeof ULT_THRESHOLD !== 'undefined' && ULT_THRESHOLD[s])
+                || 12;
+      ultCharges[s] = Math.min(cap, ultCharges[s] + per);
+    }
+  }
+  try { if (typeof renderULTBar === 'function') renderULTBar(); } catch (e) {}
+}
+
+// Distribute essence evenly across all 5 stihiyas.
+function _distributeOverflowToEssence(amount) {
+  if (!amount || amount <= 0) return;
+  const stihs = (typeof STIHIYAS !== 'undefined' && Array.isArray(STIHIYAS))
+              ? STIHIYAS : ['ember','tide','grove','solar','umbra'];
+  const per = Math.floor(amount / stihs.length);
+  if (per <= 0) return;
+  if (typeof essences !== 'undefined' && essences) {
+    for (const s of stihs) {
+      essences[s] = (essences[s] || 0) + per;
+    }
+    try { if (typeof saveProgress === 'function') saveProgress(); } catch (e) {}
+  }
+}
+
+// Visual feedback for overflow rewards. Big gold burst headline + 4
+// sub-floaters (ULT / essence / shield / tower) staggered 200ms apart.
+function showOverflowRewardFX(rewards) {
+  if (!rewards) return;
+  const { overflow, ult, essence, shield, tower } = rewards;
+  try { flashText('⚡ OVERFLOW · ' + overflow, '#FFD700'); } catch (e) {}
+  setTimeout(() => {
+    if (ult > 0)     try { flashText('+' + ult + ' ⚡ ULT',     '#9B59E8'); } catch (e) {}
+    if (essence > 0) try { flashText('+' + essence + ' ✦ ESSENCE', '#5DCA79'); } catch (e) {}
+    if (shield > 0)  try { flashText('+' + shield + ' 🛡 SHIELD',   '#5DCA79'); } catch (e) {}
+    if (tower > 0)   try { flashText('+' + tower + ' 🏆 TOWER',     '#FFD700'); } catch (e) {}
+  }, 200);
+  try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+}
+
+if (typeof window !== 'undefined') {
+  window._getPhaseGateHP            = _getPhaseGateHP;
+  window.applyOverflowConversion    = applyOverflowConversion;
+  window._distributeOverflowToULT   = _distributeOverflowToULT;
+  window._distributeOverflowToEssence = _distributeOverflowToEssence;
+  window.showOverflowRewardFX       = showOverflowRewardFX;
+}
+
 function getEffectivePeriod(hero) {
   if (hero.role !== 'weaver' || !hero.period) return hero.period;
   return Math.max(1, hero.period - getHeroStats(hero).periodReduction);
@@ -43140,11 +43283,33 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
   // V2.0 Block 4.1: track Pack Mark / Grommar Rally consumption (only consume on actual damage flow)
   if (_packMarkContext > 1)     _packMarkConsumed = true;
   if (_grommarRallyContext > 1) _grommarRallyConsumed = true;
-  const actualDmg = Math.min(amount, bossHP);
+  // 2026-05-02 — COMBAT v2.1 P2 §3.6: damage application + Overflow conversion.
+  // Overshoot caps at the next phase gate (70% / 35% / 0). Excess converts to
+  // ULT charge / essence / shield / Tower points via applyOverflowConversion.
+  // AAA principle: no investment lost on overkill.
+  let actualDmg, overflowDmg;
+  const _phaseGate = (typeof _getPhaseGateHP === 'function') ? _getPhaseGateHP() : 0;
+  const _remainingToGate = bossHP - _phaseGate;
+  if (amount > _remainingToGate && _remainingToGate > 0) {
+    // Damage caps at phase gate; rest converts to overflow.
+    actualDmg   = _remainingToGate;
+    overflowDmg = amount - _remainingToGate;
+  } else if (amount >= bossHP) {
+    // Lethal hit (or beyond) — overflow is everything past bossHP.
+    actualDmg   = bossHP;
+    overflowDmg = amount - bossHP;
+  } else {
+    actualDmg   = amount;
+    overflowDmg = 0;
+  }
   bossHP -= actualDmg;
   damageDealt += actualDmg;
   floatDamage(actualDmg, isCrit, critMult);
   hitBoss(critMult > 1);
+  if (overflowDmg > 0) {
+    try { if (typeof applyOverflowConversion === 'function') applyOverflowConversion(overflowDmg); }
+    catch (e) { console.warn('overflow conversion failed:', e); }
+  }
   // PHASE 5b BLOCK 5 — Frenzy hit detection. Boss took damage this placement →
   // mark frenzyHitThisTurn so _tickFrenzy resets/decays stacks at end of turn.
   // Only applies when current boss is Frenzy archetype (URSARO).
