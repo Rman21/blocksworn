@@ -25172,6 +25172,11 @@ function launchFloor(chapter, bossIdx, floorId) {
   _preFloorModifiers = new Set(activeModifiers);
   activeModifiers = new Set(floor.modifiers);
   currentFloorId = floorId;
+  // 2026-05-02 — COMBAT v2.1 P5 PR #5.C §4.1: Tower banner + FTUE intro.
+  // Floor-based Tower battles flag _isTowerBattle inside startBossBattle's
+  // currentFloorId guard. Banner mounts after that flip; intro fires once.
+  try { if (typeof renderTowerModeBanner === 'function') setTimeout(renderTowerModeBanner, 100); } catch (e) {}
+  try { if (typeof _maybeTriggerTowerIntro === 'function') setTimeout(_maybeTriggerTowerIntro, 200); } catch (e) {}
 
   // Route to existing battle path (includes energy spend + deck rebuild + screen transition)
   selectedBossIdx = bossIdx;
@@ -27800,6 +27805,42 @@ function maybePhaseTransition() {
   // Floor 1 (Trial) suppression — preserved. Voidfang exception preserved.
   const _isVoidfang = currentBoss && currentBoss.name === 'VOIDFANG';
   if (typeof currentFloorId !== 'undefined' && currentFloorId === 1 && !_isVoidfang) return;
+  // 2026-05-02 — COMBAT v2.1 P5 PR #5.C §4.1: Tower bypass for reactivity events.
+  // Tower mode = competitive sandbox (predictable, skill-focused). Phase gates
+  // still get visual cinematic transition + camera shake (so the player sees
+  // the boss "phasing"), but no REACTIVITY_HANDLERS dispatch. Voidfang remains
+  // the EXCEPTION because its 2 reactivity handlers (tower_voidfang_*) ARE
+  // designed for Tower-end combat and are part of its competitive ritual.
+  // _phase5IsReactivitySuppressed handles both Tower paths (legacy
+  // _isTowerBattle boolean + Phase 2 currentFloorId).
+  const _suppressReactivity = (typeof _phase5IsReactivitySuppressed === 'function')
+                               && _phase5IsReactivitySuppressed();
+  if (_suppressReactivity) {
+    // Still tick the battle-phase tracker so re-entry doesn't double-fire,
+    // but skip the actual reactivity dispatch.
+    if (!currentBoss || !currentBoss.name) return;
+    const _phases = BOSS_PHASES[currentBoss.name];
+    if (!_phases || !bossMaxHP) return;
+    const _hpPct = (bossHP / bossMaxHP) * 100;
+    for (const phase of _phases) {
+      const key = currentBoss.name + ':' + phase.threshold;
+      if (battlePhasesTriggered.has(key)) continue;
+      if (_hpPct > phase.threshold) continue;
+      battlePhasesTriggered.add(key);
+      // Visual cinematic only — no reactivity event handler call.
+      try { if (typeof hitBoss === 'function') hitBoss(true); } catch (e) {}
+      try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+      try {
+        const idx = _phases.indexOf(phase);
+        const phaseNum = (idx >= 0 ? idx : 0) + 2;
+        if (typeof vPlayPhaseTransition === 'function') vPlayPhaseTransition(phaseNum, '');
+      } catch (e) {}
+      try { if (typeof flashStateBanner === 'function') flashStateBanner('TOWER · PHASE GATE', '#78C8FF'); } catch (e) {}
+      try { if (typeof logEvent === 'function') logEvent('boss_phase_gate_tower', { boss: currentBoss.name, threshold: phase.threshold }); } catch (e) {}
+      return;
+    }
+    return;
+  }
   if (!currentBoss || !currentBoss.name) return;
   const phases = BOSS_PHASES[currentBoss.name];
   if (!phases || phases.length === 0) return;
@@ -29012,6 +29053,130 @@ if (typeof window !== 'undefined') {
   window.setSkipCinematics                  = setSkipCinematics;
   window._phase5SkipCinematics              = _phase5SkipCinematics;
   window.PHASE5_SKIP_CINEMATICS_KEY         = PHASE5_SKIP_CINEMATICS_KEY;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 5 PR #5.C — TOWER MODE DIFFERENTIATION
+// Per BLOCKSWORN_COMBAT_V21_PHASE_5_POLISH_MONETIZATION.md §4 + §1.3 + §9.
+//
+// Tower mode = competitive sandbox (skill-focused, predictable).
+// Chapter mode = curated AAA experience (narrative reactivity arc).
+//
+// Design philosophy split:
+//   - Tower: NO reactivity events (predictable for skill/leaderboard play)
+//   - Tower: FIRE_MULT_CAP=4.0 always (burst-friendly, already in P2)
+//   - Tower: OVERFLOW_TO_TOWER_BATTLE_TOWER=0.20 (vs 0.10 chapter)
+//   - Tower: computeTowerScore() with stagger × speed × floor multipliers
+//
+// VOIDFANG remains the EXCEPTION (Tower endgame ritual fight) — its 2
+// reactivity handlers (tower_voidfang_*) ARE designed for Tower combat.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P5 §4.1: Tower-specific overflow ratio.
+// Default 0.20 (vs chapter 0.10). Read by applyOverflowConversion (P2.C)
+// when _isTowerBattle === true.
+const OVERFLOW_TO_TOWER_BATTLE_TOWER = 0.20;
+
+// 2026-05-02 — COMBAT v2.1 P5 §4.2: Tower scoring function.
+// Composite score = base bossHP × stagger bonus × speed bonus × floor mult.
+// Called from onTowerFloorClear (existing) to award Tower Points.
+// Falls back gracefully if any input is missing.
+function computeTowerScore(battle) {
+  battle = battle || {};
+  // Base score = boss HP killed (= bossMaxHP if defeated cleanly).
+  let score = (typeof battle.bossHP === 'number' && battle.bossHP > 0)
+              ? battle.bossHP
+              : (typeof bossMaxHP === 'number' ? bossMaxHP : 1000);
+  // Stagger bonus — each stagger this fight × 1.10 (compounding).
+  const staggers = (typeof battle.totalStaggers === 'number') ? battle.totalStaggers
+                   : (typeof totalStaggersThisFight === 'number' ? totalStaggersThisFight : 0);
+  if (staggers > 0) score *= Math.pow(1.10, staggers);
+  // Speed bonus — faster than expected TTK = ratio multiplier.
+  if (battle.boss && battle.boss.roleTier && typeof BOSS_TTK_TARGETS !== 'undefined') {
+    const expectedSec = BOSS_TTK_TARGETS[battle.boss.roleTier] || 360;
+    const actualSec = (typeof battle.duration === 'number' && battle.duration > 0)
+                      ? battle.duration : expectedSec;
+    const speedRatio = expectedSec / Math.max(1, actualSec);
+    if (speedRatio > 1.0) score *= speedRatio;
+  }
+  // Floor multiplier — +2% per floor (deeper floors reward more).
+  const floor = (typeof battle.floor === 'number') ? battle.floor
+                : (typeof currentFloorId === 'number' ? currentFloorId : 0);
+  if (floor > 0) score *= (1 + floor * 0.02);
+  return Math.max(1, Math.round(score));
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §4.1: Tower-mode banner UI distinction.
+// Lazily-mounted chip on battle screen showing "TOWER MODE · F<floor>".
+// Visible only when _isTowerBattle. Toggles on battle init.
+function renderTowerModeBanner() {
+  if (typeof document === 'undefined') return;
+  let chip = document.getElementById('phase5TowerModeBanner');
+  const inTower = (typeof _isTowerBattle !== 'undefined' && _isTowerBattle);
+  if (!chip) {
+    if (!inTower) return;     // don't mount if not in Tower
+    chip = document.createElement('div');
+    chip.id = 'phase5TowerModeBanner';
+    chip.style.cssText = 'position:fixed;top:8px;left:8px;background:linear-gradient(135deg,#1a1830,#0d1b2a);' +
+                         'border:1px solid #78C8FF;color:#78C8FF;padding:4px 10px;border-radius:6px;' +
+                         'font-size:10px;letter-spacing:0.12em;font-weight:700;pointer-events:none;' +
+                         'z-index:8400;font-family:inherit;box-shadow:0 0 12px rgba(120,200,255,0.35);';
+    document.body.appendChild(chip);
+  }
+  if (!inTower) { chip.style.display = 'none'; return; }
+  const floor = (typeof currentFloorId === 'number') ? currentFloorId : '?';
+  chip.textContent = '⛩ TOWER MODE · F' + floor;
+  chip.style.display = 'block';
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §9.1: tut_tower_intro FTUE dialog.
+// Plays first time player enters Tower mode. Gated by seenDialogs.
+function _registerPhase5CTowerDialogs() {
+  try {
+    if (typeof DIALOGS === 'undefined' || !DIALOGS) return;
+    if (!DIALOGS.tut_tower_intro) {
+      DIALOGS.tut_tower_intro = {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#78C8FF', portraitKey: 'hero_chronicler',
+        text: 'TOWER MODE is your competitive arena. Bosses do NOT adapt here — pure skill expression. Higher floors reward more Tower Points. Climb the leaderboards.',
+      };
+    }
+  } catch (e) { console.warn('[P5C tower dialog reg] failed:', e); }
+}
+try { if (typeof setTimeout === 'function') setTimeout(_registerPhase5CTowerDialogs, 0); } catch (e) {}
+
+function _maybeTriggerTowerIntro() {
+  try {
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return;
+    if (seenDialogs.has('tut_tower_intro')) return;
+    if (typeof isFtueActive === 'function' && isFtueActive()) return;
+    if (typeof _isTowerBattle === 'undefined' || !_isTowerBattle) return;
+    setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_tower_intro'); } catch (e) {} }, 800);
+  } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §4.3: Tower-mode aware applyChannelDamage gate.
+// In Tower battles, the bossFireAuraDmg phoenix mechanic is suppressed (per
+// spec §4 "no reactivity events"). Gate fires defensively at the consumer
+// site in tickStaggerState, not here.
+//
+// This file just adds the helper used elsewhere.
+function _phase5IsReactivitySuppressed() {
+  // Voidfang Tower-endgame is the EXCEPTION (its reactivity IS the fight's identity).
+  if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.name === 'VOIDFANG') return false;
+  // Tower fight #1: legacy `_isTowerBattle` boolean (Voidfang launch path).
+  if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle) return true;
+  // Tower fight #2: floor-based battle (Phase 2 floor system uses currentFloorId).
+  if (typeof currentFloorId !== 'undefined' && currentFloorId !== null) return true;
+  return false;
+}
+
+if (typeof window !== 'undefined') {
+  window.OVERFLOW_TO_TOWER_BATTLE_TOWER     = OVERFLOW_TO_TOWER_BATTLE_TOWER;
+  window.computeTowerScore                  = computeTowerScore;
+  window.renderTowerModeBanner              = renderTowerModeBanner;
+  window._registerPhase5CTowerDialogs       = _registerPhase5CTowerDialogs;
+  window._maybeTriggerTowerIntro            = _maybeTriggerTowerIntro;
+  window._phase5IsReactivitySuppressed      = _phase5IsReactivitySuppressed;
 }
 
 // Console helpers
@@ -30952,6 +31117,11 @@ function launchTowerFloor() {
   cfg.modifiers.forEach(m => activeModifiers.add(m));
   currentFloorId = null;  // not a Phase 2 floor; prevents cross-talk
   _isTowerBattle = true;
+  // 2026-05-02 — COMBAT v2.1 P5 PR #5.C §4.1: Tower mode UI + FTUE intro.
+  // Banner + dialog fire here for Voidfang Tower battles. The launchFloor
+  // path (line ~25xxx) handles same wiring for floor-based Tower battles.
+  try { if (typeof renderTowerModeBanner === 'function') renderTowerModeBanner(); } catch (e) {}
+  try { if (typeof _maybeTriggerTowerIntro === 'function') _maybeTriggerTowerIntro(); } catch (e) {}
   // 2026-04-27 HOTFIX — switch to battle screen BEFORE startBossBattle.
   // Without this, the player stays on Tower screen while battle DOM
   // initializes invisibly behind it; race-passive banners (set via
@@ -30997,6 +31167,28 @@ function onTowerFloorClear() {
   const ptsReward = 5 * floor + (floor % 10 === 0 ? 50 : 0);
   try { addGold(goldReward); } catch (e) {}
   towerState.towerPoints += ptsReward;
+  // 2026-05-02 — COMBAT v2.1 P5 PR #5.C §4.2: Tower scoring bonus.
+  // computeTowerScore awards EXTRA Tower Points based on stagger frequency,
+  // speed-vs-TTK ratio, and floor multiplier. Composes additively with the
+  // floor-table linear ptsReward above. Skill expression payoff.
+  try {
+    if (typeof computeTowerScore === 'function') {
+      const _scoreBonus = computeTowerScore({
+        bossHP:         (typeof bossMaxHP === 'number') ? bossMaxHP : 1000,
+        totalStaggers:  (typeof totalStaggersThisFight === 'number') ? totalStaggersThisFight : 0,
+        boss:           (typeof currentBoss !== 'undefined') ? currentBoss : null,
+        floor:          floor,
+      });
+      // Award score-derived bonus as a fractional Tower Points multiplier
+      // (target ~10-30% of base on average runs; up to 2× on perfect speedruns).
+      const _bonusPts = Math.max(0, Math.floor(_scoreBonus / 1000));
+      if (_bonusPts > 0) {
+        towerState.towerPoints += _bonusPts;
+        try { if (typeof flashText === 'function') flashText('SKILL BONUS +' + _bonusPts + '🗼', '#78C8FF'); } catch (e) {}
+        try { if (typeof logEvent === 'function') logEvent('p5_tower_score_bonus', { floor, bonusPts: _bonusPts, totalStaggers: totalStaggersThisFight }); } catch (e) {}
+      }
+    }
+  } catch (e) { console.warn('[P5C tower score bonus] failed:', e); }
   if (sigilsAwarded > 0)  towerState.sigilShards = (towerState.sigilShards || 0) + sigilsAwarded;
   if (t2FragsAwarded > 0) towerState.towerHeartFragments = (towerState.towerHeartFragments || 0) + t2FragsAwarded;
   if (cardsAwarded > 0)   { try { dropRandomHeroCards(cardsAwarded); } catch (e) {} }
@@ -38533,10 +38725,15 @@ function applyOverflowConversion(overflowDmg) {
     shieldCount = Math.min(cap, shieldCount + shieldGain);
     try { if (typeof renderHP === 'function') renderHP(); } catch (e) {}
   }
-  // 10% → Tower points (Tower battles only)
+  // 10% → Tower points (Tower battles only).
+  // 2026-05-02 — COMBAT v2.1 P5 PR #5.C §4.1: bumped to 20% for Tower
+  // battles (vs 10% chapter) per spec §4.3 differentiation matrix —
+  // skill-focused Tower rewards score-burst more aggressively.
   let towerGain = 0;
   if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle) {
-    towerGain = Math.floor(overflowDmg * OVERFLOW_TO_TOWER);
+    const _towerOverflowRatio = (typeof OVERFLOW_TO_TOWER_BATTLE_TOWER === 'number')
+                                ? OVERFLOW_TO_TOWER_BATTLE_TOWER : 0.20;
+    towerGain = Math.floor(overflowDmg * _towerOverflowRatio);
     if (towerGain > 0) {
       try {
         if (typeof addTowerPoints === 'function') addTowerPoints(towerGain);
