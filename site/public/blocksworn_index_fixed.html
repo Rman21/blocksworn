@@ -36244,13 +36244,49 @@ function applyChannelDamage(channel, rawDmg, meta) {
   }
 
   // No shield → apply mitigation, then HP.
-  const mitigation = getSquadMitigation();
+  // 2026-05-02 — COMBAT v2.1 P3 §3.4: T2 Tank reactive — at HP ≤ 50%, mitigation
+  // doubles (cap 70%). Applied AFTER base getSquadMitigation() so Tank stacking
+  // composes with normal mitigation rules.
+  let mitigation = getSquadMitigation();
+  if (typeof _getT2TankMitigationBoost === 'function') {
+    mitigation = _getT2TankMitigationBoost(mitigation);
+  }
   const mitigated  = Math.floor(rawDmg * (1 - mitigation));
   const finalDmg   = Math.max(rawDmg > 0 ? 1 : 0, mitigated);
   const mitigatedAmount = rawDmg - finalDmg;
 
+  // 2026-05-02 — COMBAT v2.1 P3 §3.4: AEGIS PROTOCOL window — T3 Tank ULT.
+  // While active, ALL incoming damage routes to Pressure (no HP loss). Spec
+  // §3.4 sample places this AFTER mitigation, BEFORE HP application. Boss
+  // signature/void/saturation all flow through here.
+  if (aegisProtocolTurnsActive > 0) {
+    if (typeof addPressure === 'function') addPressure(finalDmg, 'aegis_protocol');
+    if (typeof showAegisProtocolFX === 'function') showAegisProtocolFX(finalDmg);
+    showChannelFX(channel, 0, true, meta);
+    if (mitigatedAmount > 0) showMitigationFX(mitigatedAmount);
+    try { if (typeof renderHP === 'function') renderHP(); } catch (e) {}
+    return 0;
+  }
+
   hp -= finalDmg;
   if (typeof battleDamageTaken === 'number') battleDamageTaken += finalDmg;
+
+  // 2026-05-02 — COMBAT v2.1 P3 §3.4: Tank pressure conversion (T0+).
+  // Each HP of incoming dmg → 1.0× / 1.2× pressure depending on Tank tier.
+  // Stacks if multiple Tanks in deck. Visual: gold particle stream from HP
+  // bar to Pressure meter (PR #3.F polish — for now: floating text).
+  if (typeof _computeTankPressureConversion === 'function') {
+    const tankConv = _computeTankPressureConversion(finalDmg);
+    if (tankConv > 0) {
+      if (typeof addPressure === 'function') addPressure(tankConv, 'tank_absorb');
+      if (typeof showTankConversionFX === 'function') showTankConversionFX(tankConv);
+      // Fire centralized hook so other Phase 3 systems can observe absorbs.
+      try { if (typeof _firePhase3Hook === 'function') _firePhase3Hook('onTankAbsorb', { dmg: finalDmg, conv: tankConv }); } catch (e) {}
+    }
+  }
+
+  // T2 Tank reactive — at HP ≤ 50% post-damage, fire auto-shield once per descent.
+  if (typeof _maybeFireT2TankReactive === 'function') _maybeFireT2TankReactive();
 
   showChannelFX(channel, finalDmg, false, meta);
   if (mitigatedAmount > 0) showMitigationFX(mitigatedAmount);
@@ -36546,6 +36582,11 @@ function enterStaggerState() {
   try { if (typeof _maybeTriggerStaggerIntro === 'function') _maybeTriggerStaggerIntro(); } catch (e) {}
   try { if (typeof renderBossStateBanner === 'function') renderBossStateBanner(); } catch (e) {}
   try { if (typeof renderPressureMeter === 'function') renderPressureMeter(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P3 §14.1: fire onStaggerEnter hooks (Mythic Tank
+  // squad-wide damage boost activates here per spec §3.4).
+  try { if (typeof _firePhase3Hook === 'function') _firePhase3Hook('onStaggerEnter', {
+    totalStaggers: totalStaggersThisFight,
+  }); } catch (e) {}
   try { if (typeof logEvent === 'function') logEvent('stagger_entered', {
     totalStaggers: totalStaggersThisFight, atTurn: lastStaggerEnteredAtTurn,
   }); } catch (e) {}
@@ -36561,6 +36602,11 @@ function extendStaggerState(turns) {
 }
 
 function enterRecoveryState() {
+  // 2026-05-02 — COMBAT v2.1 P3 §14.1: fire onStaggerExit when natural Stagger
+  // ends → Recovery. Mythic Tank squad boost clears here too.
+  try { if (typeof _firePhase3Hook === 'function' && bossState === BOSS_STATE_STAGGER) {
+    _firePhase3Hook('onStaggerExit', { reason: 'enterRecovery' });
+  } } catch (e) {}
   bossState = BOSS_STATE_RECOVERY;
   recoveryTurnsRemaining = RECOVERY_DURATION_TURNS;
   // Pre-compute revenge damage (telegraphed). Uses Phase 1 signature tier
@@ -36590,6 +36636,11 @@ function executeRevengeAttack() {
 }
 
 function enterActiveState() {
+  // 2026-05-02 — COMBAT v2.1 P3 §14.1: fire onStaggerExit before flipping state
+  // so listeners can read the outgoing context. Mythic Tank squad boost clears here.
+  try { if (typeof _firePhase3Hook === 'function' && bossState === BOSS_STATE_STAGGER) {
+    _firePhase3Hook('onStaggerExit', { reason: 'enterActive' });
+  } } catch (e) {}
   bossState = BOSS_STATE_ACTIVE;
   staggerTurnsRemaining = 0;
   recoveryTurnsRemaining = 0;
@@ -36617,6 +36668,9 @@ function tickStaggerState() {
       try { if (typeof renderBossStateBanner === 'function') renderBossStateBanner(); } catch (e) {}
     }
   }
+  // 2026-05-02 — COMBAT v2.1 P3 §3.4: AEGIS PROTOCOL EOT tick.
+  // Independent of bossState — Tank T3 ULT window can run in any state.
+  try { if (typeof tickAegisProtocol === 'function') tickAegisProtocol(); } catch (e) {}
 }
 
 // Reset all state at battle init (called from battle-spawn paths below).
@@ -42087,6 +42141,9 @@ function startBossBattle() {
   // PRs #3.B-F register per-tier hooks at battle init; this reset
   // ensures clean slate so prior-fight registrations don't leak.
   try { if (typeof _resetPhase3Hooks === 'function') _resetPhase3Hooks(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P3 PR #3.B: reset Tank state + register Phase 3 hero hooks.
+  try { if (typeof _resetPhase3TankState === 'function') _resetPhase3TankState(); } catch (e) {}
+  try { if (typeof registerPhase3HeroHooks === 'function') registerPhase3HeroHooks(); } catch (e) {}
   revivesRemaining = currentBoss.revives || 0;
   attackCountdown = currentBoss.attackInterval;
   // MODIFIER: Double Time — boss attacks 2× faster (halve interval)
@@ -42203,6 +42260,9 @@ function startBossBattle() {
   try { if (typeof resetStaggerState === 'function') resetStaggerState(); } catch (e) {}
   // 2026-05-02 — COMBAT v2.1 P3 §14.1: clear Phase 3 hook registry (archetype path).
   try { if (typeof _resetPhase3Hooks === 'function') _resetPhase3Hooks(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P3 PR #3.B: reset Tank state + register Phase 3 hero hooks.
+  try { if (typeof _resetPhase3TankState === 'function') _resetPhase3TankState(); } catch (e) {}
+  try { if (typeof registerPhase3HeroHooks === 'function') registerPhase3HeroHooks(); } catch (e) {}
   attackCountdown = _arch.attackCD;                    // override cadence from archetype
   if (activeModifiers.has('doubleTime')) attackCountdown = Math.max(2, Math.floor(attackCountdown / MODIFIERS.doubleTime.speedMult));
   bossAttackDmgMult = _arch.dmgMult;
@@ -43735,12 +43795,19 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
       }
     }
   } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P3 §3.4: Mythic Tank squad-wide damage boost.
+  // Active during Stagger when a Mythic Tank is in HERO_DECK; +30% baseline,
+  // +35% for THUNDERBEAT (rock_tank) and AEGIS (spark_tank). The flag is set
+  // by the onStaggerEnter hook and cleared by onStaggerExit.
+  const _mythicTankSquadMult = (typeof _getMythicTankStaggerMult === 'function')
+                               ? _getMythicTankStaggerMult() : 1.0;
   const _multStack = currentDmgMult * _passiveDmgContext * _ultDmgContext
                    * _warbandStrikeContext * _hunterMarkContext
                    * _grommarRallyContext * _packMarkContext * _helioRoarContext
                    * _captainDualContext * _signatureComboContext * _hypnoSuggestContext
                    * _bloodhuntContext * _pirateDoubleContext * _pactDamageMult
-                   * _towerThemeMult * _buffDamageMult * (typeof getHeartTowerMult === 'function' ? getHeartTowerMult('damageMult') : 1.0)
+                   * _towerThemeMult * _buffDamageMult * _mythicTankSquadMult
+                   * (typeof getHeartTowerMult === 'function' ? getHeartTowerMult('damageMult') : 1.0)
                    // 2026-04-27 — Ch3 mechanics:
                    //   TWILIGHT VESSEL DUAL SHIFT — hunter+matching-element +50%, others -25%
                    //   VOIDPRIESTESS hunter_silenced — Hunter dmg ×0.5
@@ -46770,6 +46837,16 @@ async function applyTankUlt(hero, ctx) {
   } catch (e) {}
   shieldCount = Math.min(MAX_SHIELD + 2 + maxShieldBonus, shieldCount + _shieldGain);
   vibrate([60, 40, 60]);
+  // 2026-05-02 — COMBAT v2.1 P3 §3.4: T3 Tank ULT redirect to AEGIS PROTOCOL.
+  // Renamed effect — for the next 3 (or 4 for THUNDERBEAT/AEGIS-spark) turns,
+  // ALL incoming damage routes to Pressure (zero HP loss). Shields still gained
+  // above (T0/T1/T2 baseline preserved per spec — T3 STACKS on top).
+  try {
+    const tier = (hero && typeof heroUpgrades !== 'undefined' && heroUpgrades[hero.id]) || 0;
+    if (tier >= 3 && typeof activateAegisProtocol === 'function') {
+      activateAegisProtocol(hero.id);
+    }
+  } catch (e) { console.warn('[Tank T3 ULT] AEGIS PROTOCOL activation failed:', e); }
 }
 
 // CAPTAIN: convert up to 10 non-matching non-void cells to hero's stihiya
@@ -55004,6 +55081,214 @@ if (typeof window !== 'undefined') {
   window._firePhase3Hook            = _firePhase3Hook;
   window._resetPhase3Hooks          = _resetPhase3Hooks;
   window._validatePhase3Setup       = _validatePhase3Setup;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 3 PR #3.B — TANK ROLE REDESIGN
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_3_HERO_TIERS.md §3.4 + §4.
+// "Aegis Conductor" — Tank converts absorbed damage into Pressure (active
+// pressure builder, not passive shield donor).
+//   T0:     1.0× ratio (each HP of incoming dmg → 1 pressure)
+//   T1:     1.2× ratio (each HP → 1.2 pressure)
+//   T2:     reactive — at HP ≤ 50%, mitigation ×2 (cap 70%) + auto-shield +1
+//   T3:     ULT redirect → AEGIS PROTOCOL (3 turns dmg→pressure, no HP loss)
+//           Per-hero override: THUNDERBEAT, AEGIS (spark) = 4 turns
+//   Mythic: when Stagger enters with Tank in squad → squad +30% dmg full Stagger
+//           Per-hero override: THUNDERBEAT, AEGIS (spark) = +35%
+// PR #3.F adds gold particle FX, frozen-ward / Iron-Hide / sun-aura T3 polish.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.4: Tank state.
+// `aegisProtocolTurnsActive` is the T3 ULT window — while > 0, all incoming
+// damage routes to Pressure (zero HP loss). Tick on EOT alongside Stagger.
+// `_mythicTankSquadBoostActive` is the per-Stagger flag that adds squad-wide
+// +30/35% damage in dealDamage. Set via onStaggerEnter hook, cleared in
+// enterActiveState. `_t2TankReactiveFiredThisStagger` prevents repeated
+// auto-shield spawns within a single low-HP event window.
+let aegisProtocolTurnsActive       = 0;
+let aegisProtocolHeroId            = null;   // who fired (for FX color/race)
+let _mythicTankSquadBoostActive    = 0;      // 0 = inactive, else mult (1.30 / 1.35)
+let _t2TankReactiveFiredThisFight  = 0;      // increments per trigger (telemetry)
+let _t2TankReactiveLastTriggerHP   = -1;     // anti-spam: only re-fire after HP recovers above 50%
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.4: Tank pressure conversion ratio.
+// Returns total ratio summed across all Tanks in HERO_DECK (T0=1.0, T1+=1.2).
+// Spec §3.4 sample: tier 0 → 1.0, tier 1+ → 1.2; T2 doesn't add ratio (adds
+// reactive doubling); T3 doesn't add ratio (replaces with AEGIS PROTOCOL).
+// All 5 Tank rows in spec §4.1-§4.5 confirm uniform 1.2× at T1.
+function _computeTankPressureConversion(dmg) {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return 0;
+  let totalRatio = 0;
+  for (const h of HERO_DECK) {
+    if (!h || h.newRole !== 'tank') continue;
+    const tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[h.id]) || 0;
+    let ratio = 1.0;       // T0 baseline
+    if (tier >= 1) ratio = 1.2;
+    totalRatio += ratio;
+  }
+  if (totalRatio <= 0 || dmg <= 0) return 0;
+  return Math.floor(dmg * totalRatio);
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.4: T2 reactive low-HP doubling.
+// Returns adjusted mitigation when at least one Tank in squad is T2+ AND
+// player HP <= 50%. Mitigation doubles, capped at 70%. Auto-shield trigger
+// is handled separately in _maybeFireT2TankReactive() to avoid coupling.
+function _getT2TankMitigationBoost(baseMitigation) {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return baseMitigation;
+  if (typeof hp !== 'number' || typeof currentMaxHP !== 'number') return baseMitigation;
+  const hpRatio = hp / Math.max(1, currentMaxHP);
+  if (hpRatio > 0.5) return baseMitigation;
+  // Find any T2+ Tank in deck
+  const hasT2Tank = HERO_DECK.some(h => h && h.newRole === 'tank'
+    && ((typeof heroUpgrades !== 'undefined' && heroUpgrades[h.id]) || 0) >= 2);
+  if (!hasT2Tank) return baseMitigation;
+  // Double mitigation, cap at 70%
+  return Math.min(0.70, baseMitigation * 2);
+}
+
+// Fire the auto-shield side of the T2 reactive once per low-HP event.
+// "Once per fight low-HP descent" — re-arms if HP recovers above 50% then drops.
+function _maybeFireT2TankReactive() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return;
+  if (typeof hp !== 'number' || typeof currentMaxHP !== 'number') return;
+  const hpRatio = hp / Math.max(1, currentMaxHP);
+  // Re-arm: if HP previously triggered and we're now back above 50%, clear marker
+  if (hpRatio > 0.5) { _t2TankReactiveLastTriggerHP = -1; return; }
+  // Already triggered at lower HP this descent? No re-fire.
+  if (_t2TankReactiveLastTriggerHP !== -1 && hp <= _t2TankReactiveLastTriggerHP) return;
+  const t2Tank = HERO_DECK.find(h => h && h.newRole === 'tank'
+    && ((typeof heroUpgrades !== 'undefined' && heroUpgrades[h.id]) || 0) >= 2);
+  if (!t2Tank) return;
+  _t2TankReactiveLastTriggerHP = hp;
+  _t2TankReactiveFiredThisFight++;
+  // Auto-shield +1 (capped at MAX_SHIELD + 2 + maxShieldBonus, same as ULT path)
+  try {
+    const cap = (typeof MAX_SHIELD === 'number' ? MAX_SHIELD : 6)
+              + 2 + (typeof maxShieldBonus === 'number' ? maxShieldBonus : 0);
+    if (typeof shieldCount === 'number') {
+      shieldCount = Math.min(cap, shieldCount + 1);
+    }
+  } catch (e) {}
+  try { if (typeof flashStateBanner === 'function') flashStateBanner('AEGIS REACTIVE — ' + (t2Tank.name || 'TANK'), '#5DCA79'); } catch (e) {}
+  try { vibrate([60, 40, 60]); } catch (e) {}
+  try { if (typeof renderHP === 'function') renderHP(); } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.4: AEGIS PROTOCOL T3 ULT.
+// Fires on ULT for any Tank at T3+. Duration: 3 turns base, 4 for THUNDERBEAT
+// (rock_tank) and AEGIS (spark_tank) per spec §4.2 + §4.5.
+const AEGIS_PROTOCOL_DURATION = Object.freeze({
+  pirate_tank:    3,   // IRONBELLY  §4.1
+  rock_tank:      4,   // THUNDERBEAT §4.2 (vs 3)
+  shark_tank:     3,   // BULWARK    §4.3 (3 + frozen ward — TODO #3.F polish)
+  crocodile_tank: 3,   // IRONSCALE  §4.4 (3 + Iron Hide +10% mit — TODO #3.F polish)
+  spark_tank:     4,   // AEGIS      §4.5 (vs 3, + sun aura — TODO #3.F polish)
+});
+
+function activateAegisProtocol(heroId) {
+  const dur = AEGIS_PROTOCOL_DURATION[heroId] || 3;
+  aegisProtocolTurnsActive = dur;
+  aegisProtocolHeroId      = heroId;
+  try { if (typeof flashStateBanner === 'function') flashStateBanner('AEGIS PROTOCOL — ' + dur + 'T', '#FFD700'); } catch (e) {}
+  try { if (typeof showAegisProtocolEntryFX === 'function') showAegisProtocolEntryFX(dur); } catch (e) {}
+  try { vibrate([120, 60, 120, 60, 200]); } catch (e) {}
+  try { if (typeof logEvent === 'function') logEvent('aegis_protocol_activated', { heroId, dur }); } catch (e) {}
+}
+
+function tickAegisProtocol() {
+  if (aegisProtocolTurnsActive <= 0) return;
+  aegisProtocolTurnsActive--;
+  if (aegisProtocolTurnsActive <= 0) {
+    try { if (typeof flashStateBanner === 'function') flashStateBanner('AEGIS PROTOCOL ENDED', '#9B7AD6'); } catch (e) {}
+    aegisProtocolHeroId = null;
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.4: Mythic Tank squad-wide damage boost.
+// Per-hero override: THUNDERBEAT (rock) +35%, AEGIS (spark) +35%, others +30%.
+// Activated by onStaggerEnter hook registered at battle init when a Mythic
+// Tank is in HERO_DECK. Cleared in enterActiveState.
+const MYTHIC_TANK_STAGGER_MULT = Object.freeze({
+  pirate_tank:    1.30,
+  rock_tank:      1.35,   // THUNDERBEAT §4.2 (+35%)
+  shark_tank:     1.30,
+  crocodile_tank: 1.30,
+  spark_tank:     1.35,   // AEGIS §4.5 (+35%)
+});
+
+function _getMythicTankStaggerMult() {
+  // Returns the active multiplier (1.0 if inactive). Used in dealDamage stack.
+  if (!_mythicTankSquadBoostActive) return 1.0;
+  return _mythicTankSquadBoostActive;
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.4 visual treatment.
+// Minimal floating-text variants — gold particle stream lands in PR #3.F.
+function showTankConversionFX(amount) {
+  try { flashText('+' + amount + ' ⛨→⚡ TANK', '#FFD53D'); } catch (e) {}
+}
+function showAegisProtocolFX(amount) {
+  try { flashText('+' + amount + ' ⛨ AEGIS', '#FFC700'); } catch (e) {}
+}
+function showAegisProtocolEntryFX(dur) {
+  try { flashText('AEGIS PROTOCOL · ' + dur + 'T · DAMAGE → PRESSURE', '#FFD700'); } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §14.1: register Tank hooks per battle init.
+// Called from registerPhase3HeroHooks() (wired into battle-init paths).
+// Mythic onStaggerEnter sets _mythicTankSquadBoostActive based on hero id.
+function registerPhase3TankHooks() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return;
+  for (const h of HERO_DECK) {
+    if (!h || h.newRole !== 'tank') continue;
+    const isMythic = (typeof isHeroMythic === 'function') && isHeroMythic(h.id);
+    if (!isMythic) continue;
+    const mult = MYTHIC_TANK_STAGGER_MULT[h.id] || 1.30;
+    if (typeof _registerPhase3Hook === 'function') {
+      _registerPhase3Hook('onStaggerEnter', h.id, () => {
+        _mythicTankSquadBoostActive = mult;
+        try { if (typeof flashStateBanner === 'function') flashStateBanner('SQUAD ×' + mult.toFixed(2) + ' — ' + (h.name || 'TANK'), '#FFD700'); } catch (e) {}
+      });
+      _registerPhase3Hook('onStaggerExit', h.id, () => {
+        _mythicTankSquadBoostActive = 0;
+      });
+    }
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P3: Phase 3 hero-hook registry registration.
+// Aggregator that registers all role-specific Phase 3 hooks. PR #3.B wires
+// Tank; #3.C adds Captain; #3.D-F finish remaining roles. Called from battle
+// init alongside _resetPhase3Hooks().
+function registerPhase3HeroHooks() {
+  try { if (typeof registerPhase3TankHooks === 'function') registerPhase3TankHooks(); } catch (e) { console.warn('[P3 Tank hook reg] failed:', e); }
+  // PR #3.C: registerPhase3CaptainHooks();
+  // PR #3.D-F: per-race / per-hero hooks
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.4: reset Tank state on battle init.
+// Called alongside _resetPhase3Hooks() / resetStaggerState().
+function _resetPhase3TankState() {
+  aegisProtocolTurnsActive       = 0;
+  aegisProtocolHeroId            = null;
+  _mythicTankSquadBoostActive    = 0;
+  _t2TankReactiveFiredThisFight  = 0;
+  _t2TankReactiveLastTriggerHP   = -1;
+}
+
+if (typeof window !== 'undefined') {
+  window._computeTankPressureConversion = _computeTankPressureConversion;
+  window._getT2TankMitigationBoost      = _getT2TankMitigationBoost;
+  window._maybeFireT2TankReactive       = _maybeFireT2TankReactive;
+  window.activateAegisProtocol          = activateAegisProtocol;
+  window.tickAegisProtocol              = tickAegisProtocol;
+  window._getMythicTankStaggerMult      = _getMythicTankStaggerMult;
+  window.showTankConversionFX           = showTankConversionFX;
+  window.showAegisProtocolFX            = showAegisProtocolFX;
+  window.registerPhase3TankHooks        = registerPhase3TankHooks;
+  window.registerPhase3HeroHooks        = registerPhase3HeroHooks;
+  window._resetPhase3TankState          = _resetPhase3TankState;
 }
 
 // Block H.3 — Tier 2 ability previews (HERO_COMPENDIUM §2-6).
