@@ -19444,7 +19444,59 @@ try { Object.assign(ASSETS, {
 
 // ===== CONSTANTS =====
 const SIZE = 8;
-const MAX_HP = 3;
+// 2026-05-02 — COMBAT v2.1 PHASE 1 (Foundation Reset). Per
+// /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_1_FOUNDATION.md §2.
+// MAX_HP fixed at 100 (was 3 — hearts system). LEVEL_HP_PER removed.
+// Hero progression contributes via Mitigation Matrix instead of HP buffer.
+// Boss HP values intentionally unchanged in P1 — recalc in P4.
+const MAX_HP = 100;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 — FOUNDATION CONSTANTS (Phase 1)
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_1_FOUNDATION.md §2.
+// 4 damage channels replace single-source dead-zone. Mitigation Matrix
+// gives each role tier-shaped defensive contribution, capped at 70%.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 4 Damage Channels
+const CHANNEL_DEADZONE_DMG              = 5;            // flat 5 HP per new pocket
+const CHANNEL_VOID_TICK_PCT             = 0.005;        // 0.5% MAX_HP per void cell at EOT
+const CHANNEL_GRID_SATURATION_THRESHOLD = 0.75;         // >75% board occupied
+const CHANNEL_GRID_SATURATION_DMG       = 8;            // flat 8 HP at EOT if oversaturated
+
+// Signature Attack damage by boss role tier. Tier assigned per-boss in CHAPTERS
+// data in P4; until then bossAttack() falls back to 'gatekeeper' default (16).
+const CHANNEL_SIGNATURE_DMG = {
+  tutorial:    12,   // Boss 1 (Pyredrake)
+  gatekeeper:  16,   // Bosses 2, 3, 6, 7, 11, 12, 16, 17
+  mid_act:     20,   // Bosses 4, 8, 9, 13, 14, 18, 19
+  act_boss:    24,   // Bosses 5, 10, 15, 20
+  finale:      28,   // Boss 25 (Ch5 final)
+};
+
+// Mitigation
+const MITIGATION_CAP = 0.70;                            // hard ceiling, never immune
+
+// Per-role per-tier mitigation contribution. getHeroMitigationKey() maps each
+// hero to one of these 5 keys based on role + sub-role.
+const MITIGATION_TABLE = {
+  guard:           { T0: 0.05, T1: 0.08, T2: 0.12, T3: 0.18 },
+  weaver_mage:     { T0: 0.02, T1: 0.04, T2: 0.07, T3: 0.10 },
+  weaver_captain:  { T0: 0.01, T1: 0.03, T2: 0.05, T3: 0.08 },
+  striker_warrior: { T0: 0.01, T1: 0.02, T2: 0.03, T3: 0.05 },
+  striker_hunter:  { T0: 0.00, T1: 0.01, T2: 0.02, T3: 0.04 },
+};
+
+// Per-role per-level mitigation scaling (replaces LEVEL_HP_PER).
+// At 60 lvl: Guard gains +30%, Weaver/Mage +12%, Captain +9%, Warrior +6%, Hunter +4.8%.
+const LEVEL_MITIGATION_PER = {
+  guard:           0.005,
+  weaver_mage:     0.002,
+  weaver_captain:  0.0015,
+  striker_warrior: 0.001,
+  striker_hunter:  0.0008,
+};
+
 const COMBO_MULT = { 1: 1, 2: 3, 3: 6, 4: 12 };
 const BASE_LINE_SCORE = 130;
 // V18.4 CRIT: multiplier = 1 + domCount * combo * CRIT_MULT_K. Triggers only on combo >= 2.
@@ -24894,7 +24946,10 @@ const LEVEL_COST_BASE   = BALANCE.heroLevel.costBase;
 const LEVEL_COST_STEP   = BALANCE.heroLevel.costStep;
 const LEVEL_COST_CAP    = BALANCE.heroLevel.costCap;
 const LEVEL_DMG_PER     = BALANCE.heroLevel.dmgPer;   // +2% dmg per level
-const LEVEL_HP_PER      = BALANCE.heroLevel.hpPer;    // +1 HP per level
+// 2026-05-02 — COMBAT v2.1 P1: LEVEL_HP_PER removed. Per-level progression
+// now contributes mitigation (LEVEL_MITIGATION_PER table above), not HP.
+// BALANCE.heroLevel.hpPer is left intact in config for legacy-save compat
+// but is not read anywhere — see getLevelBonuses() below.
 const LEVEL_ULT_PER     = BALANCE.heroLevel.ultPer;   // +0.5% ult rate per level
 
 let heroLevels = {}; // { heroId: integer in [1, 60] }
@@ -24983,7 +25038,11 @@ function getLevelBonuses(heroId) {
   const delta = lvl - HERO_LEVEL_MIN; // 0 at level 1 (no bonus yet)
   return {
     dmgBonus: delta * LEVEL_DMG_PER,
-    hpBonus:  delta * LEVEL_HP_PER,
+    // 2026-05-02 — COMBAT v2.1 P1: hpBonus stub stays at 0 for backwards-
+    // compat with Hero Detail render code (line ~53256). PR #1.C
+    // refactors that surface to use mitigation. After #1.C this field
+    // can be deleted without breaking anything.
+    hpBonus:  0,
     ultBonus: delta * LEVEL_ULT_PER,
   };
 }
@@ -35397,16 +35456,50 @@ function resetProgress() {
   }
 }
 
-// Hero upgrade modifiers per tier and role
-// Tier 4 is EQUIPMENT-ONLY: its bonus activates only when an artifact of hero's race is equipped.
+// 2026-05-02 — COMBAT v2.1 P1 §3.2: maps hero role+sub-role to MITIGATION_TABLE
+// key. Role split: striker → warrior | hunter; weaver → mage | captain. Reads
+// existing HERO_ROSTER properties — no schema change.
+//   - hero.subRole === 'hunter'                     → 'striker_hunter'
+//   - hero.role    === 'striker' (default)          → 'striker_warrior'
+//   - hero.isCaptain || hero.captainOf || newRole='captain' → 'weaver_captain'
+//   - hero.role    === 'weaver' (default)           → 'weaver_mage'
+//   - hero.role    === 'guard'                      → 'guard'
+function getHeroMitigationKey(hero) {
+  if (!hero) return 'striker_warrior';
+  if (hero.role === 'guard') return 'guard';
+  if (hero.role === 'striker') {
+    return hero.subRole === 'hunter' ? 'striker_hunter' : 'striker_warrior';
+  }
+  if (hero.role === 'weaver') {
+    const isCaptain = hero.isCaptain || hero.captainOf || hero.newRole === 'captain';
+    return isCaptain ? 'weaver_captain' : 'weaver_mage';
+  }
+  return 'striker_warrior';
+}
+
+// Hero upgrade modifiers per tier and role.
+// 2026-05-02 — COMBAT v2.1 P1 §3.1: returns mitigationContribution instead of
+// hpBonus. dmgMult / ultMult / shieldBonus / periodReduction unchanged.
+// hpBonus field kept at 0 stub for backwards-compat with display code that
+// reads `getHeroStats(h).hpBonus` (cleared in PR #1.C UI refresh).
 function getHeroStats(hero) {
   const tier = heroUpgrades[hero.id] || 0;
-  const s = { hpBonus: 0, shieldBonus: 0, dmgMult: 1, ultMult: 1, periodReduction: 0 };
-  // Tier-based bonuses — unchanged from pre-Phase-4. Still early-return for tier 0
-  // since there's nothing tier-derived to compute, BUT we must still apply level
-  // bonuses below. Refactor: drop the early return, keep the tier-gated blocks.
+  const s = {
+    hpBonus: 0,                    // legacy stub — always 0 in v2.1
+    mitigationContribution: 0,     // NEW v2.1 P1
+    shieldBonus: 0,
+    dmgMult: 1,
+    ultMult: 1,
+    periodReduction: 0,
+  };
+
+  // Mitigation contribution (tier-based, mapped via getHeroMitigationKey)
+  const mitKey = getHeroMitigationKey(hero);
+  const tierKey = tier === 0 ? 'T0' : (tier === 1 ? 'T1' : (tier === 2 ? 'T2' : 'T3'));
+  s.mitigationContribution = (MITIGATION_TABLE[mitKey] || {})[tierKey] || 0;
+
+  // Tier-specific dmg/ult/shield/period bonuses (unchanged from v2.0)
   if (hero.role === 'striker') {
-    if (tier >= 1) s.hpBonus = 1;
     if (tier >= 2) s.dmgMult = 1.25;
     if (tier >= 3) s.ultMult = 1.30;
   } else if (hero.role === 'guard') {
@@ -35414,28 +35507,55 @@ function getHeroStats(hero) {
     if (tier >= 2) s.dmgMult = 1.50;
     if (tier >= 3) s.ultMult = 1.30;
   } else if (hero.role === 'weaver') {
-    if (tier >= 1) s.hpBonus = 1;
     if (tier >= 2) s.periodReduction = 1;
     if (tier >= 3) s.ultMult = 1.30;
   }
-  // Tier 4 — ARCANE RESONANCE: requires artifact of hero's race currently equipped
-  if (tier >= 4 && hero.race && _currentRacesWithArtifact && _currentRacesWithArtifact.has(hero.race)) {
-    s.dmgMult *= 1.25;
-    s.ultMult *= 1.25;
-  }
-  // V3.0 Phase 4 Block 4.1: level bonuses — ADDITIVE, stacked on top of tier stack.
-  // Example at L60 striker T3: dmgMult = 1.25 (T2) + 1.18 (L60 delta) = 2.43.
-  //                            ultMult = 1.30 (T3) + 0.295 (L60 delta) = 1.595.
-  //                            hpBonus = 1 (T1) + 59 (L60 delta) = 60.
-  // All downstream consumers (damage calc, HP init, ult charging) read these
-  // fields unchanged — no per-consumer patches needed.
-  const lvlBonus = getLevelBonuses(hero.id);
-  s.dmgMult += lvlBonus.dmgBonus;
-  s.hpBonus += lvlBonus.hpBonus;
-  s.ultMult += lvlBonus.ultBonus;
+  // T4 ARCANE RESONANCE removed in v2.1 P1 (artifacts deleted in PR #1.E).
+
+  // Level bonuses — mitigation replaces former hpBonus.
+  // dmg/ult level bonuses unchanged.
+  const lvl = getHeroLevel(hero.id);
+  const delta = lvl - HERO_LEVEL_MIN;
+  s.mitigationContribution += delta * (LEVEL_MITIGATION_PER[mitKey] || 0);
+  s.dmgMult += delta * LEVEL_DMG_PER;
+  s.ultMult += delta * LEVEL_ULT_PER;
+
   return s;
 }
-// Populated by computeSynergies() — read by getHeroStats for tier 4 gating.
+
+// 2026-05-02 — COMBAT v2.1 P1 §3.3: sums mitigation contributions across the
+// active squad, capped at MITIGATION_CAP (70%). applyChannelDamage() (PR #1.B)
+// reads this for all 4 channels.
+function getSquadMitigation() {
+  let total = 0;
+  // HERO_DECK is the live squad reference set by computeSynergies(). Falls
+  // back to activeSquad ids if HERO_DECK not yet built (e.g. menu-time call).
+  const deck = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) ? HERO_DECK : null;
+  if (deck) {
+    for (const h of deck) {
+      if (!h) continue;
+      const stats = getHeroStats(h);
+      total += stats.mitigationContribution || 0;
+    }
+  } else if (typeof activeSquad !== 'undefined' && Array.isArray(activeSquad)
+             && typeof HERO_ROSTER !== 'undefined') {
+    for (const id of activeSquad) {
+      if (!id) continue;
+      const h = HERO_ROSTER.find(x => x && x.id === id);
+      if (!h) continue;
+      const stats = getHeroStats(h);
+      total += stats.mitigationContribution || 0;
+    }
+  }
+  return Math.min(MITIGATION_CAP, total);
+}
+if (typeof window !== 'undefined') {
+  window.getHeroMitigationKey = getHeroMitigationKey;
+  window.getSquadMitigation = getSquadMitigation;
+}
+
+// 2026-05-02 — COMBAT v2.1 P1: kept for legacy save-format compat. T4 is
+// removed; this Set will always be empty in v2.1+. Will be deleted in PR #1.E.
 let _currentRacesWithArtifact = new Set();
 
 function getEffectivePeriod(hero) {
@@ -39526,11 +39646,13 @@ function calcSynergyState(heroes) {
     if (fe.hunterMark)             state.hunterMarkActive = true;
     state.active.push('⚔ ' + _formation.name + ': ' + _formation.desc);
   }
-  // Hero upgrade bonuses (HP/shields only; dmg/ULT mults applied per-fire via getHeroStats)
+  // Hero upgrade bonuses (shields only; HP buffer removed in COMBAT v2.1 P1).
+  // 2026-05-02 — Per spec §3.10: hero hpBonus accumulation deleted.
+  // hs.hpBonus is now identically 0 (legacy stub for display compat); the
+  // accumulation line is removed so state.maxHP stays at MAX_HP=100 fixed.
   for (const h of heroes) {
     if (!h) continue;
     const hs = getHeroStats(h);
-    state.maxHP += hs.hpBonus;
     state.startShields = Math.min(MAX_SHIELD + 2 + (state.maxShieldBonus || 0), state.startShields + hs.shieldBonus);
   }
   // V18: layer in artifact effects (ONLY apply if matching race present in squad)
@@ -39566,7 +39688,9 @@ function calcSynergyState(heroes) {
   }
   state.weaponUltMult = artEff.ultMult;
   // Shield/staff only activate for races IN the squad (already gated inside computeArtifactEffects)
-  state.maxHP += artEff.hpAdd;
+  // 2026-05-02 — COMBAT v2.1 P1 §3.10: artifact hpAdd accumulation deleted.
+  // Artifact subsystem itself purged in PR #1.E; this line removed now per
+  // strict spec follow. artEff still computed for shield/dmg/ult/ring fields.
   state.startShields = Math.min(MAX_SHIELD + 4, state.startShields + artEff.shieldAdd);
   // Build UI summary lines for applied artifacts
   if (artEff.appliedCount > 0) {
