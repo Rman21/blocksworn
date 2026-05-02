@@ -40923,7 +40923,11 @@ function calcSynergyState(heroes) {
     else if (count >= 3) tier = 3;
     else if (count >= 2) tier = 2;
     if (tier > 0 && cfg && cfg[tier]) {
-      const eff = cfg[tier];
+      // 2026-05-02 — COMBAT v2.1 P3 §6.1: race passive scaling.
+      // Squad-tier multiplier amplifies dmgMult / passiveMult / bonusDmg
+      // numerical bonuses. Conditional flags (bloodEmber, glacialMemory…)
+      // are NOT scaled — they're activations, not magnitudes.
+      const eff = (typeof _phase3ScaleRaceEffect === 'function') ? _phase3ScaleRaceEffect(cfg[tier]) : cfg[tier];
       // V2.0 Block 2.3: golem maxShieldBonus propagated FIRST so eff.shields clamp uses expanded cap
       if (eff.maxShieldBonus) state.maxShieldBonus = Math.max(state.maxShieldBonus || 0, eff.maxShieldBonus);
       if (eff.hp)       state.maxHP += eff.hp;
@@ -41031,6 +41035,18 @@ function calcSynergyState(heroes) {
     // Captain pill — concise: race name + scaling buff %. Element drop +25% is fixed
     // and implied; keeping the pill compact reduces synergy bar visual noise.
     state.active.push(`👑 ${_raceLabel} +${_pct}%`);
+    // 2026-05-02 — COMBAT v2.1 P3 §6.3: race-tier scaling badge. Visible
+    // when the squad average tier crosses a multiplier bracket (T2=×1.25,
+    // T3/Mythic=×1.50). Helps player observe prokachka payoff.
+    try {
+      if (typeof getRacePassiveMultiplier === 'function') {
+        const _raceTierMult = getRacePassiveMultiplier();
+        if (_raceTierMult > 1.0) {
+          const _avgTier = (typeof getSquadAverageTier === 'function') ? getSquadAverageTier() : 0;
+          state.active.push(`🌌 RACE TIER · avg T${_avgTier.toFixed(1)} · ×${_raceTierMult.toFixed(2)}`);
+        }
+      }
+    } catch (e) {}
     // TASK #2.2b: temporary [CaptainDual] diagnostic — remove in TASK #2.2c after sign-off
     try {
       console.log('[CaptainDual]', {
@@ -55896,6 +55912,100 @@ if (typeof window !== 'undefined') {
   window._writeMythicHeroIdToStorage    = _writeMythicHeroIdToStorage;
   window._promptMythicCommitment        = _promptMythicCommitment;
   window._bootMigratePhase3Mythic       = _bootMigratePhase3Mythic;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 3 PR #3.E — RACE PASSIVE SCALING
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_3_HERO_TIERS.md §6.1 + §6.2 + §6.3.
+// Race-tier multiplier amplifies existing race-passive bonuses based on
+// squad average tier:
+//   avg < 1.5  → ×1.00 (T0 / T1 baseline)
+//   avg ≥ 1.5  → ×1.25 (T2 squad)
+//   avg ≥ 2.5  → ×1.50 (T3 / Mythic squad)
+// Mythic doesn't further amplify race — own RULE (PR #3.B/#3.C/#3.D) handles
+// rule-breaking power. Multiplier applied at calcSynergyState site to the
+// numerical race-passive fields (dmgMult / passiveMult / bonusDmg).
+// RACE_TIER_MULT table lives in PR #3.A foundation (already shipped).
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P3 §6.1: squad average tier.
+// Reads heroUpgrades for each HERO_DECK slot. Mythic counts as tier 4 for
+// the average calc (Mythic is "above T3" semantically), so a Mythic-included
+// squad still rates as T3-bracket average. Empty squad returns 0.
+function getSquadAverageTier() {
+  const deck = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) ? HERO_DECK : [];
+  if (!deck.length) return 0;
+  let sum = 0, count = 0;
+  for (const h of deck) {
+    if (!h) continue;
+    let tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[h.id]) || 0;
+    // Mythic boosts the average semantically (counts as tier 4).
+    try { if (typeof isHeroMythic === 'function' && isHeroMythic(h.id)) tier = 4; } catch (e) {}
+    sum += tier;
+    count++;
+  }
+  return count > 0 ? (sum / count) : 0;
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §6.1: race passive multiplier from squad tier.
+// Brackets: avg ≥ 2.5 → T3 (1.50), ≥ 1.5 → T2 (1.25), else T0/T1 (1.00).
+// RACE_TIER_MULT lives in PR #3.A foundation block; defensive default 1.0
+// if foundation hasn't loaded yet (shouldn't happen at runtime).
+function getRacePassiveMultiplier() {
+  const avg = getSquadAverageTier();
+  const T = (typeof RACE_TIER_MULT !== 'undefined') ? RACE_TIER_MULT : { T0: 1, T1: 1, T2: 1.25, T3: 1.5, Mythic: 1.5 };
+  if (avg >= 2.5) return T.T3;
+  if (avg >= 1.5) return T.T2;
+  return T.T0;
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §6.1: scale a race-effect block by the squad
+// passive multiplier. Numerical fields (dmgMult, passiveMult.{element},
+// bonusDmg.{element}) get scaled. Boolean/conditional flags (bloodEmber,
+// glacialMemory, etc.) are NOT scaled — they're activations, not magnitudes.
+// Returns a NEW shallow-copied effect object — caller can read fields without
+// mutating RACE_SYNERGY config.
+function _phase3ScaleRaceEffect(eff, multOverride) {
+  if (!eff) return eff;
+  const mult = (typeof multOverride === 'number') ? multOverride : getRacePassiveMultiplier();
+  if (mult === 1) return eff;       // fast path — no scaling needed
+  const scaled = Object.assign({}, eff);
+  if (typeof eff.dmgMult === 'number') {
+    // dmgMult in race configs is an additive delta (state.dmgMult += eff.dmgMult).
+    // Scale the delta, not the base 1.0.
+    scaled.dmgMult = eff.dmgMult * mult;
+  }
+  if (eff.passiveMult) {
+    scaled.passiveMult = {};
+    for (const [s, v] of Object.entries(eff.passiveMult)) {
+      scaled.passiveMult[s] = v * mult;
+    }
+  }
+  if (eff.bonusDmg) {
+    scaled.bonusDmg = {};
+    for (const [s, v] of Object.entries(eff.bonusDmg)) {
+      scaled.bonusDmg[s] = v * mult;
+    }
+  }
+  return scaled;
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §6.3: human-readable badge text.
+// Used by Squad Select header pill ("🌌 RACE TIER · ×1.25") so the player
+// can see when their average tier crosses a scaling bracket. Pure utility —
+// callers that don't render UI can skip.
+function getRaceTierBadgeText() {
+  const avg = getSquadAverageTier();
+  const mult = getRacePassiveMultiplier();
+  const round = Math.round(avg * 10) / 10;
+  return '🌌 RACE TIER · avg T' + round.toFixed(1) + ' · ×' + mult.toFixed(2);
+}
+
+if (typeof window !== 'undefined') {
+  window.getSquadAverageTier            = getSquadAverageTier;
+  window.getRacePassiveMultiplier       = getRacePassiveMultiplier;
+  window._phase3ScaleRaceEffect         = _phase3ScaleRaceEffect;
+  window.getRaceTierBadgeText           = getRaceTierBadgeText;
 }
 
 // Block H.3 — Tier 2 ability previews (HERO_COMPENDIUM §2-6).
