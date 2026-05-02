@@ -28213,6 +28213,467 @@ if (typeof window !== 'undefined') {
   window.REACTIVITY_ARCHETYPE_COLORS    = REACTIVITY_ARCHETYPE_COLORS;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 5 PR #5.A — STRATEGIC INTER-BATTLE UI
+// Per BLOCKSWORN_COMBAT_V21_PHASE_5_POLISH_MONETIZATION.md §2.
+//
+// Inter-battle flow (post-victory → next boss):
+//   1. showRewardSelection(boss, onPicked)        — 3 mechanical reward picks
+//   2. showTierUpDecisionModal(onComplete)        — surfaces upgradeable heroes
+//   3. showInterBattleScreen(boss, onContinue)    — combined Boss Intel + Squad
+//      Readiness (per spec §14.1 — combine to reduce inter-battle pace fatigue)
+//
+// FTUE intros: tut_reward_selection, tut_tier_up_decision, tut_inter_battle_intro.
+// Wired into onModalBtn() victory-continue handler. FTUE / Tower / replay /
+// final-boss paths bypass via early-return guards already in onModalBtn.
+//
+// Spec §2.1 has 4 separate screens; we ship 3 (combined Intel+Readiness)
+// per spec author's own §14.1 mitigation guidance.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P5 §2.7: 3-card reward picker post-victory.
+// Rewards rolled deterministically per boss (consistent UX across replays).
+// Each reward applies inline; player picks ONE of three.
+function _phase5RollRewards(boss) {
+  if (!boss) return [];
+  // Reward pool — each entry is { id, icon, label, description, apply: () => void }
+  const stih = (boss.stihiya || 'ember').toLowerCase();
+  const stihLabel = stih.toUpperCase();
+  const pool = [
+    {
+      id: 'ult_charge_3', icon: '⚡', label: '+3 ULT CHARGE',
+      description: 'Charge +3 to ALL stihiyas next battle',
+      apply: () => {
+        try {
+          if (typeof STIHIYAS !== 'undefined' && Array.isArray(STIHIYAS)
+              && typeof ultCharges === 'object' && ultCharges) {
+            for (const s of STIHIYAS) ultCharges[s] = (ultCharges[s] || 0) + 3;
+          }
+        } catch (e) {}
+      },
+    },
+    {
+      id: 'essence_50', icon: '✦', label: '+50 ' + stihLabel,
+      description: stihLabel + ' essence drop',
+      apply: () => {
+        try {
+          if (typeof essences === 'object' && essences) {
+            essences[stih] = (essences[stih] || 0) + 50;
+            if (typeof saveProgress === 'function') saveProgress();
+          }
+        } catch (e) {}
+      },
+    },
+    {
+      id: 'shield_max_1', icon: '🛡', label: '+1 SHIELD CAP',
+      description: 'Max shield cap +1 for next battle',
+      apply: () => {
+        try {
+          if (typeof maxShieldBonus === 'number') {
+            maxShieldBonus = (maxShieldBonus || 0) + 1;
+          }
+        } catch (e) {}
+      },
+    },
+    {
+      id: 'gold_75', icon: '💰', label: '+75 GOLD',
+      description: 'Spendable currency',
+      apply: () => {
+        try {
+          if (typeof gold === 'number') {
+            gold = (gold || 0) + 75;
+            if (typeof saveGoldToStorage === 'function') saveGoldToStorage();
+            if (typeof renderResourceBar === 'function') renderResourceBar();
+          }
+        } catch (e) {}
+      },
+    },
+    {
+      id: 'pressure_starter_25', icon: '⚡', label: '+25 STARTING ⚡',
+      description: 'Boss starts next fight with +25 Pressure',
+      apply: () => {
+        try { _phase5StartingPressureBonus = (_phase5StartingPressureBonus || 0) + 25; } catch (e) {}
+      },
+    },
+  ];
+  // Deterministic 3-pick — string-hash boss name → consistent ordering.
+  const hash = (() => {
+    const n = (boss.name || '').split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
+    return Math.abs(n);
+  })();
+  const indexed = pool.map((r, i) => ({ ...r, _ord: (hash + i * 7) % pool.length }));
+  indexed.sort((a, b) => a._ord - b._ord);
+  return indexed.slice(0, 3);
+}
+
+// Carryover applied at start of next battle by P5 wiring (consumed in
+// startBossBattle). Set by _phase5RollRewards pressure_starter pick.
+let _phase5StartingPressureBonus = 0;
+
+function showRewardSelection(boss, onPicked) {
+  if (typeof document === 'undefined') return;
+  if (!boss) { if (onPicked) onPicked(null); return; }
+  const rewards = _phase5RollRewards(boss);
+  if (rewards.length === 0) { if (onPicked) onPicked(null); return; }
+
+  let overlay = document.getElementById('phase5RewardOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'phase5RewardOverlay';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;z-index:9500;' +
+                           'background:rgba(0,0,0,0.78);backdrop-filter:blur(8px);' +
+                           'align-items:center;justify-content:center;font-family:inherit;';
+    document.body.appendChild(overlay);
+  }
+  const cardsHTML = rewards.map(r =>
+    '<div class="p5r-card" data-reward="' + r.id + '" style="background:linear-gradient(180deg,#1f1d36,#13111f);' +
+      'border:2px solid #FFD53D;border-radius:12px;padding:18px 14px;cursor:pointer;text-align:center;' +
+      'transition:transform 200ms ease-out, box-shadow 200ms ease-out;color:#fff;width:170px;">' +
+      '<div style="font-size:32px;margin-bottom:8px;">' + r.icon + '</div>' +
+      '<div style="font-size:13px;font-weight:700;color:#FFD53D;letter-spacing:0.06em;margin-bottom:6px;">' + r.label + '</div>' +
+      '<div style="font-size:11px;line-height:1.4;opacity:0.85;">' + r.description + '</div>' +
+    '</div>'
+  ).join('');
+  overlay.innerHTML =
+    '<div style="background:linear-gradient(180deg,#1a1830,#0a0814);border:2px solid #FFD53D;border-radius:14px;' +
+      'padding:24px 28px;max-width:640px;color:#fff;font-family:inherit;text-align:center;box-shadow:0 0 32px rgba(255,213,61,0.4);">' +
+      '<div style="font-size:11px;letter-spacing:0.18em;color:#FFD53D;margin-bottom:6px;">━━━ VICTORY ━━━</div>' +
+      '<div style="font-size:18px;font-weight:700;margin-bottom:14px;">' + (boss.name || 'BOSS') + ' DEFEATED</div>' +
+      '<div style="font-size:12px;opacity:0.85;margin-bottom:18px;">Choose your reward:</div>' +
+      '<div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">' + cardsHTML + '</div>' +
+    '</div>';
+  overlay.style.display = 'flex';
+  // FTUE intro on first show
+  try { if (typeof _maybeTriggerRewardSelectionIntro === 'function') _maybeTriggerRewardSelectionIntro(); } catch (e) {}
+  // Wire card clicks
+  overlay.querySelectorAll('.p5r-card').forEach(card => {
+    card.onmouseover = () => { card.style.transform = 'translateY(-4px)'; card.style.boxShadow = '0 0 24px rgba(255,213,61,0.5)'; };
+    card.onmouseout  = () => { card.style.transform = 'translateY(0)';      card.style.boxShadow = 'none'; };
+    card.onclick = () => {
+      const id = card.dataset.reward;
+      const picked = rewards.find(r => r.id === id);
+      try { if (picked && typeof picked.apply === 'function') picked.apply(); } catch (e) { console.warn('[P5 reward apply] failed:', e); }
+      try { if (typeof flashText === 'function') flashText('REWARD: ' + (picked && picked.label || ''), '#FFD53D'); } catch (e) {}
+      try { if (typeof logEvent === 'function') logEvent('p5_reward_picked', { boss: boss.name, reward: id }); } catch (e) {}
+      overlay.style.display = 'none';
+      if (onPicked) onPicked(picked);
+    };
+  });
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §2.6: tier-up decision modal.
+// Surfaces all upgradeable heroes after victory. Player can ASCEND each
+// individually or SKIP. Resource gates already enforced by canAscend* fns.
+function _phase5GetUpgradeableHeroes() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return [];
+  const out = [];
+  for (const h of HERO_DECK) {
+    if (!h) continue;
+    const tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[h.id]) || 0;
+    let nextTier = null, key = null;
+    if (tier === 0 && typeof getAscensionMissing === 'function' && !getAscensionMissing(h.id)) { nextTier = 1; key = 't1'; }
+    else if (tier === 1 && typeof canAscendT3 === 'function' && false) { /* T2 ascend doesn't exist as separate; T2 = first ascend */ }
+    else if (tier === 2 && typeof canAscendT3 === 'function' && canAscendT3(h.id)) { nextTier = 3; key = 't3'; }
+    // Mythic handled by separate _promptMythicCommitment flow.
+    if (nextTier) out.push({ hero: h, nextTier, key });
+  }
+  return out;
+}
+
+function showTierUpDecisionModal(onComplete) {
+  if (typeof document === 'undefined') { if (onComplete) onComplete(); return; }
+  const candidates = _phase5GetUpgradeableHeroes();
+  if (candidates.length === 0) { if (onComplete) onComplete(); return; }
+
+  let overlay = document.getElementById('phase5TierUpOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'phase5TierUpOverlay';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;z-index:9550;' +
+                           'background:rgba(0,0,0,0.78);backdrop-filter:blur(8px);' +
+                           'align-items:center;justify-content:center;font-family:inherit;';
+    document.body.appendChild(overlay);
+  }
+  const cardsHTML = candidates.map(c => {
+    const ability = (typeof HERO_TIER_ABILITIES !== 'undefined' && HERO_TIER_ABILITIES[c.hero.id])
+                    ? HERO_TIER_ABILITIES[c.hero.id][c.key] : null;
+    return '<div style="background:rgba(255,255,255,0.04);border-left:3px solid #A88AC8;border-radius:8px;' +
+        'padding:12px 14px;margin-bottom:10px;text-align:left;">' +
+      '<div style="font-size:13px;font-weight:700;color:#A88AC8;margin-bottom:3px;">' +
+        (c.hero.name || c.hero.id) + ' <span style="opacity:0.7;font-size:11px;">(' + (c.hero.race || '') + ' ' + (c.hero.newRole || '') + ')</span></div>' +
+      '<div style="font-size:11px;opacity:0.85;margin-bottom:4px;">Ready for: <b>T' + c.nextTier + ' — ' + ((ability && ability.name) || 'POWER UP') + '</b></div>' +
+      (ability && ability.description
+        ? '<div style="font-size:11px;opacity:0.75;line-height:1.4;margin-bottom:6px;">"' + ability.description + '"</div>' : '') +
+      '<button class="p5tu-ascend" data-hero="' + c.hero.id + '" data-tier="' + c.nextTier + '" ' +
+        'style="background:linear-gradient(180deg,#A88AC8,#8E5DCC);border:none;color:#fff;border-radius:6px;' +
+        'padding:8px 16px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:0.06em;">ASCEND</button>' +
+    '</div>';
+  }).join('');
+  overlay.innerHTML =
+    '<div style="background:linear-gradient(180deg,#1a1830,#0a0814);border:2px solid #A88AC8;border-radius:14px;' +
+      'padding:24px 28px;max-width:520px;color:#fff;text-align:center;box-shadow:0 0 32px rgba(168,138,200,0.4);">' +
+      '<div style="font-size:11px;letter-spacing:0.18em;color:#A88AC8;margin-bottom:6px;">━━━ READY FOR ASCENSION ━━━</div>' +
+      '<div style="font-size:13px;opacity:0.85;margin-bottom:14px;">Your heroes are ready to evolve!</div>' +
+      cardsHTML +
+      '<button id="p5tuSkip" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:6px;' +
+        'padding:8px 18px;cursor:pointer;font-size:11px;letter-spacing:0.06em;margin-top:8px;">SKIP — KEEP RESOURCES</button>' +
+    '</div>';
+  overlay.style.display = 'flex';
+  try { if (typeof _maybeTriggerTierUpDecisionIntro === 'function') _maybeTriggerTierUpDecisionIntro(); } catch (e) {}
+
+  overlay.querySelectorAll('.p5tu-ascend').forEach(btn => {
+    btn.onclick = () => {
+      const heroId = btn.dataset.hero;
+      const tier = parseInt(btn.dataset.tier, 10);
+      let ok = false;
+      try {
+        if (tier === 1 && typeof ascendHero === 'function') ok = ascendHero(heroId);
+        else if (tier === 3 && typeof ascendHeroT3 === 'function') ok = ascendHeroT3(heroId);
+      } catch (e) { console.warn('[P5 tier ascend] failed:', e); }
+      if (ok) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.textContent = '✓ ASCENDED';
+        // PR #5.B will hook tier-up cinematic here.
+        try { if (typeof showTierUpCinematic === 'function') showTierUpCinematic(heroId); } catch (e) {}
+      } else {
+        try { if (typeof flashText === 'function') flashText('ASCENSION FAILED', '#FF4D1F'); } catch (e) {}
+      }
+    };
+  });
+  overlay.querySelector('#p5tuSkip').onclick = () => {
+    overlay.style.display = 'none';
+    if (onComplete) onComplete();
+  };
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §2.2-§2.5: combined inter-battle screen.
+// Boss Intel + Squad Readiness in one full-screen overlay (per §14.1 fatigue
+// mitigation). Reads existing infra:
+//   - BOSS_ARCHETYPES + ARCHETYPE_MATCHUP + BOSS_PHASES + BOSS_TTK_TARGETS (P4)
+//   - getSquadMitigation (P1) + _computeSquadEffectiveDPS (P4)
+//   - HERO_DECK
+function showInterBattleScreen(boss, onContinue) {
+  if (typeof document === 'undefined' || !boss) { if (onContinue) onContinue(); return; }
+  // Skip for FTUE / training / Tower (preserved from showBossIntelOverlay logic).
+  if (boss._isFtueOnly || boss._isTrainingDummy || boss._isTowerBattle) { if (onContinue) onContinue(); return; }
+
+  const archData   = (typeof BOSS_ARCHETYPES !== 'undefined') ? BOSS_ARCHETYPES[boss.archetype] : null;
+  const matchData  = (typeof ARCHETYPE_MATCHUP !== 'undefined') ? ARCHETYPE_MATCHUP[boss.archetype] : null;
+  const phases     = (typeof BOSS_PHASES !== 'undefined') ? BOSS_PHASES[boss.name] : null;
+  const ttkSec     = (typeof BOSS_TTK_TARGETS !== 'undefined' && boss.roleTier)
+                     ? (BOSS_TTK_TARGETS[boss.roleTier] || 360) : 360;
+  const ttkMin     = (ttkSec / 60).toFixed(1);
+  const fmtReact   = (eid) => eid ? eid.toUpperCase().replace(/_/g, ' ').replace(/\s*P\d\s*P\d\s*$/i, '') : '—';
+  const r1 = (phases && phases[0]) ? fmtReact(phases[0].reactivity) : '—';
+  const r2 = (phases && phases[1]) ? fmtReact(phases[1].reactivity) : '—';
+
+  // Recommended counters per archetype (curated mapping per spec §2.3).
+  const counters = {
+    berserker:       ['Tank squad — absorb early aggression', 'Mage extends — stretch windows', 'Solar — counter ember'],
+    armored:         ['Hunter rows — break shield walls', 'Grove — exploit weakness', 'Mythic burst window'],
+    bruiser:         ['Tide — exploit weakness', 'Tank squad — survive heavy hits', 'Captain Mark — focus burst'],
+    phoenix:         ['Ember — exploit weakness', 'Stagger before revive — burst through', 'Mage extends — outlast aura'],
+    assassin:        ['Tank squad — convert dmg to Pressure', 'Mage extends — survive backstab', 'Umbra — counter stealth'],
+    hypnotist:       ['Solar — counter mind games', 'Mage — restore silenced state fast', 'Captain Mark — focus single hero'],
+    engineer:        ['Grove — survive lockdown', 'Hunter — clear electrified rows', 'Mythic Mage — pre-charge stagger'],
+    frenzy:          ['Ember — outpace stacks', 'Tank squad — absorb max stacks', 'Quick burst — kill before P3'],
+    tempo_disruptor: ['Tide — own-element survives turn-loss', 'Solar — recharge after reset', 'Pre-charge essence stockpile'],
+    battery:         ['Solar — counter charge tempo', 'Burst before supercharge', 'Mythic Hunter — break overcharge cycle'],
+  };
+  const counterList = (counters[boss.archetype] || []).slice(0, 3);
+
+  // Squad readiness data
+  const mit         = (typeof getSquadMitigation === 'function') ? getSquadMitigation() : 0;
+  const dps         = (typeof _computeSquadEffectiveDPS === 'function') ? _computeSquadEffectiveDPS() : 100;
+  const squadTtkSec = boss.hp ? (boss.hp / dps) : 0;
+  const squadTtkMin = (squadTtkSec / 60).toFixed(1);
+
+  // Gap warnings
+  const warnings = [];
+  if (mit < 0.15) warnings.push('No Tank — high HP loss expected');
+  if (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)
+      && HERO_DECK.filter(h => h && h.newRole === 'mage').length === 0) {
+    warnings.push('No Mage — Stagger windows shorter');
+  }
+  if (matchData && matchData.strong && typeof HERO_DECK !== 'undefined') {
+    const ourElements = new Set((HERO_DECK || []).filter(h => h).map(h => h.stihiya));
+    if (matchData.strong.some(e => ourElements.has(e))) {
+      warnings.push('Boss STRONG vs ' + matchData.strong[0].toUpperCase() + ' (in your squad)');
+    }
+  }
+
+  let overlay = document.getElementById('phase5InterBattleOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'phase5InterBattleOverlay';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;z-index:9450;' +
+                           'background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);' +
+                           'align-items:center;justify-content:center;font-family:inherit;overflow-y:auto;';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML =
+    '<div style="background:linear-gradient(180deg,#1a1830,#0a0814);border:2px solid #FFD53D;border-radius:14px;' +
+      'padding:24px 28px;max-width:580px;width:92%;color:#fff;font-family:inherit;' +
+      'box-shadow:0 0 48px rgba(255,213,61,0.45);max-height:90vh;overflow-y:auto;">' +
+      '<div style="font-size:11px;letter-spacing:0.18em;color:#FFD53D;text-align:center;margin-bottom:6px;">⚔ INCOMING BOSS</div>' +
+      '<div style="font-size:20px;font-weight:700;color:#FFD53D;text-align:center;letter-spacing:0.06em;margin-bottom:2px;">' + (boss.name || '—') + '</div>' +
+      '<div style="font-size:11px;text-align:center;opacity:0.75;margin-bottom:14px;">' + (boss.title || '') + '</div>' +
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;">' +
+        '<div style="flex:1;min-width:240px;background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;">' +
+          '<div style="font-size:10px;letter-spacing:0.14em;color:#FFA500;margin-bottom:6px;">BOSS INTEL</div>' +
+          '<div style="font-size:11px;line-height:1.6;">' +
+            'Archetype: <b>' + ((archData && archData.label) || (boss.archetype || '—').toUpperCase()) + '</b><br>' +
+            'Role tier: <b>' + ((boss.roleTier || 'gatekeeper').toUpperCase()) + '</b> (TTK ' + ttkMin + ' min)<br>' +
+            (matchData ? 'Strong vs: <b style="color:#5DCA79;">' + (matchData.strong || []).join(', ').toUpperCase() + '</b><br>' +
+                         'Weak vs: <b style="color:#FF4D1F;">' + (matchData.weak || []).join(', ').toUpperCase() + '</b><br>' : '') +
+            '<span style="color:#FFD53D;">P2 (70%): <b>' + r1 + '</b></span><br>' +
+            '<span style="color:#FF4D1F;">P3 (35%): <b>' + r2 + '</b></span>' +
+          '</div>' +
+        '</div>' +
+        '<div style="flex:1;min-width:240px;background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;">' +
+          '<div style="font-size:10px;letter-spacing:0.14em;color:#5DCA79;margin-bottom:6px;">SQUAD READINESS</div>' +
+          '<div style="font-size:11px;line-height:1.6;">' +
+            '🛡 Mitigation: <b>' + Math.round(mit * 100) + '% / 70% MAX</b><br>' +
+            '🎯 Estimated DPS: <b>~' + dps + '</b><br>' +
+            '⏱ Est. TTK: <b>~' + squadTtkMin + ' min</b><br>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      (counterList.length > 0
+        ? '<div style="background:rgba(255,213,61,0.06);border:1px solid rgba(255,213,61,0.25);border-radius:8px;' +
+           'padding:10px 12px;margin-bottom:10px;font-size:11px;line-height:1.6;">' +
+           '<div style="color:#FFD53D;font-size:10px;letter-spacing:0.14em;margin-bottom:4px;">RECOMMENDED COUNTERS</div>' +
+           counterList.map(c => '◉ ' + c).join('<br>') +
+        '</div>' : '') +
+      (warnings.length > 0
+        ? '<div style="background:rgba(255,77,31,0.08);border:1px solid rgba(255,77,31,0.3);border-radius:8px;' +
+           'padding:10px 12px;margin-bottom:14px;font-size:11px;line-height:1.6;">' +
+           '<div style="color:#FF4D1F;font-size:10px;letter-spacing:0.14em;margin-bottom:4px;">⚠ GAP WARNINGS</div>' +
+           warnings.map(w => '• ' + w).join('<br>') +
+        '</div>' : '') +
+      '<div style="display:flex;gap:10px;justify-content:center;">' +
+        '<button id="p5ibSwap" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:6px;' +
+          'padding:9px 18px;cursor:pointer;font-size:11px;letter-spacing:0.06em;">SWAP HERO</button>' +
+        '<button id="p5ibContinue" style="background:linear-gradient(180deg,#FFA500,#FF6E28);border:none;color:#fff;' +
+          'border-radius:6px;padding:9px 22px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:0.06em;">ENTER BATTLE</button>' +
+      '</div>' +
+    '</div>';
+  overlay.style.display = 'flex';
+  try { if (typeof _maybeTriggerInterBattleIntro === 'function') _maybeTriggerInterBattleIntro(); } catch (e) {}
+
+  overlay.querySelector('#p5ibContinue').onclick = () => {
+    overlay.style.display = 'none';
+    if (onContinue) onContinue();
+  };
+  // SWAP HERO: route to existing squad-select if available; otherwise just close.
+  overlay.querySelector('#p5ibSwap').onclick = () => {
+    overlay.style.display = 'none';
+    try {
+      if (typeof goToSelect === 'function') {
+        goToSelect();
+        // After select, player has to re-enter battle from menu; flow ends here.
+        return;
+      }
+    } catch (e) {}
+    if (onContinue) onContinue();
+  };
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §2.1: orchestrator — runs full inter-battle flow.
+// Called from onModalBtn() (victory-continue handler) replacing direct
+// currentBossIdx++; startBossBattle(). Sequence:
+//   1. showRewardSelection(currentBoss, ...)
+//   2. showTierUpDecisionModal(...)
+//   3. showInterBattleScreen(NEXT boss, onContinue)
+//   4. callback runs currentBossIdx++; startBossBattle()
+function _runPhase5InterBattleFlow(defeatedBoss, onAdvance) {
+  // Step 1: Reward Selection
+  showRewardSelection(defeatedBoss, () => {
+    // Step 2: Tier-up decision (auto-skips if no candidates)
+    showTierUpDecisionModal(() => {
+      // Step 3: Resolve next boss for inter-battle screen
+      let nextBoss = null;
+      try {
+        const nextIdx = (typeof currentBossIdx === 'number') ? currentBossIdx + 1 : null;
+        if (nextIdx !== null && typeof BOSSES !== 'undefined' && BOSSES[nextIdx]) {
+          nextBoss = BOSSES[nextIdx];
+        }
+      } catch (e) {}
+      if (!nextBoss) {
+        // No next boss (chapter end / last) — skip inter-battle screen.
+        if (onAdvance) onAdvance();
+        return;
+      }
+      showInterBattleScreen(nextBoss, () => {
+        if (onAdvance) onAdvance();
+      });
+    });
+  });
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §9.1: 3 FTUE dialogs registered + trigger gates.
+function _registerPhase5Dialogs() {
+  try {
+    if (typeof DIALOGS === 'undefined' || !DIALOGS) return;
+    const phase5 = {
+      tut_reward_selection: {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_chronicler',
+        text: 'After each victory, choose ONE reward. There is no wrong answer — pick what helps your strategy. ULT charge for burst, essence for ascension, shields for survival.',
+      },
+      tut_tier_up_decision: {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#A88AC8', portraitKey: 'hero_chronicler',
+        text: 'Your heroes can ascend to higher tiers when you have enough resources. Each ascension unlocks a NEW ability. Choose which heroes to invest in.',
+      },
+      tut_inter_battle_intro: {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_chronicler',
+        text: 'Before each major battle, review the boss intel and your squad readiness. Spot WEAKNESS hints, GAP WARNINGS, and recommended counters. This is your tactical preparation.',
+      },
+    };
+    for (const [id, def] of Object.entries(phase5)) {
+      if (!DIALOGS[id]) DIALOGS[id] = def;
+    }
+  } catch (e) { console.warn('[P5 dialog reg] failed:', e); }
+}
+try { if (typeof setTimeout === 'function') setTimeout(_registerPhase5Dialogs, 0); } catch (e) {}
+
+function _phase5FtueGateOk(dialogId) {
+  try {
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return false;
+    if (seenDialogs.has(dialogId)) return false;
+    if (typeof isFtueActive === 'function' && isFtueActive()) return false;
+    if (typeof currentChapter !== 'undefined' && currentChapter !== 1) return false;
+    return true;
+  } catch (e) { return false; }
+}
+function _maybeTriggerRewardSelectionIntro() {
+  if (!_phase5FtueGateOk('tut_reward_selection')) return;
+  setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_reward_selection'); } catch (e) {} }, 600);
+}
+function _maybeTriggerTierUpDecisionIntro() {
+  if (!_phase5FtueGateOk('tut_tier_up_decision')) return;
+  setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_tier_up_decision'); } catch (e) {} }, 500);
+}
+function _maybeTriggerInterBattleIntro() {
+  if (!_phase5FtueGateOk('tut_inter_battle_intro')) return;
+  setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_inter_battle_intro'); } catch (e) {} }, 700);
+}
+
+if (typeof window !== 'undefined') {
+  window.showRewardSelection                = showRewardSelection;
+  window.showTierUpDecisionModal            = showTierUpDecisionModal;
+  window.showInterBattleScreen              = showInterBattleScreen;
+  window._runPhase5InterBattleFlow          = _runPhase5InterBattleFlow;
+  window._phase5RollRewards                 = _phase5RollRewards;
+  window._phase5GetUpgradeableHeroes        = _phase5GetUpgradeableHeroes;
+  window._registerPhase5Dialogs             = _registerPhase5Dialogs;
+  window._maybeTriggerRewardSelectionIntro  = _maybeTriggerRewardSelectionIntro;
+  window._maybeTriggerTierUpDecisionIntro   = _maybeTriggerTierUpDecisionIntro;
+  window._maybeTriggerInterBattleIntro      = _maybeTriggerInterBattleIntro;
+  Object.defineProperty(window, '_phase5StartingPressureBonus',
+    { get: () => _phase5StartingPressureBonus, set: v => { _phase5StartingPressureBonus = v; } });
+}
+
 // Console helpers
 if (typeof window !== 'undefined') {
   window.BOSS_PHASES         = BOSS_PHASES;
@@ -43110,6 +43571,16 @@ function startBossBattle() {
   // Phase 1/2/3 resets. Clears all 13 boss state vars + engineerElectrifiedRows.
   // battlePhasesTriggered already cleared above (legacy infra).
   try { if (typeof _resetReactivityState === 'function') _resetReactivityState(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P5 PR #5.A §2.7: consume reward carryovers.
+  // _phase5StartingPressureBonus set by post-victory reward pick (+25 starting Pressure).
+  // Applied AFTER state machine reset so addPressure sees a fresh meter.
+  try {
+    if (typeof _phase5StartingPressureBonus === 'number' && _phase5StartingPressureBonus > 0) {
+      const _bonus = _phase5StartingPressureBonus;
+      _phase5StartingPressureBonus = 0;
+      if (typeof addPressure === 'function') addPressure(_bonus, 'p5_reward_carryover');
+    }
+  } catch (e) {}
   try { if (typeof registerPhase3HeroHooks === 'function') registerPhase3HeroHooks(); } catch (e) {}
   try { if (typeof _maybePromptMythicStaggerThreshold === 'function') _maybePromptMythicStaggerThreshold(); } catch (e) {}
   revivesRemaining = currentBoss.revives || 0;
@@ -43236,6 +43707,16 @@ function startBossBattle() {
   // Phase 1/2/3 resets. Clears all 13 boss state vars + engineerElectrifiedRows.
   // battlePhasesTriggered already cleared above (legacy infra).
   try { if (typeof _resetReactivityState === 'function') _resetReactivityState(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P5 PR #5.A §2.7: consume reward carryovers.
+  // _phase5StartingPressureBonus set by post-victory reward pick (+25 starting Pressure).
+  // Applied AFTER state machine reset so addPressure sees a fresh meter.
+  try {
+    if (typeof _phase5StartingPressureBonus === 'number' && _phase5StartingPressureBonus > 0) {
+      const _bonus = _phase5StartingPressureBonus;
+      _phase5StartingPressureBonus = 0;
+      if (typeof addPressure === 'function') addPressure(_bonus, 'p5_reward_carryover');
+    }
+  } catch (e) {}
   try { if (typeof registerPhase3HeroHooks === 'function') registerPhase3HeroHooks(); } catch (e) {}
   try { if (typeof _maybePromptMythicStaggerThreshold === 'function') _maybePromptMythicStaggerThreshold(); } catch (e) {}
   attackCountdown = _arch.attackCD;                    // override cadence from archetype
@@ -46370,9 +46851,26 @@ function onModalBtn() {
       goToMenu();
       return;
     }
-    // Task #1.7: Energy gate removed on victory-next flow.
+    // 2026-05-02 — COMBAT v2.1 P5 PR #5.A §2: Strategic Inter-Battle UI flow.
+    // Replaces direct currentBossIdx++; startBossBattle() chain with a 3-stage
+    // sequence between bosses:
+    //   1. Reward Selection — post-victory mechanical pick (3 cards)
+    //   2. Tier-up Decision — surfaces upgradeable heroes (if eligible)
+    //   3. Combined Inter-Battle screen — Boss Intel + Squad Readiness
+    // After all 3 → currentBossIdx++; startBossBattle().
+    // FTUE / Tower / final-boss / replay paths bypass via early-returns above.
+    if (typeof _runPhase5InterBattleFlow === 'function') {
+      document.getElementById('modal').classList.remove('active');
+      _runPhase5InterBattleFlow(currentBoss, () => {
+        currentBossIdx++;
+        selectedBossIdx = null;
+        startBossBattle();
+      });
+      return;
+    }
+    // Fallback (shouldn't fire — flow function ships in this PR).
     currentBossIdx++;
-    selectedBossIdx = null; // normal forward flow — clear pick so it doesn't desync
+    selectedBossIdx = null;
   }
   startBossBattle();
 }
