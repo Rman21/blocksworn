@@ -36320,6 +36320,81 @@ if (typeof window !== 'undefined') {
   window.resetStaggerState     = resetStaggerState;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 2 PR #2.B — PRESSURE CENTRAL + GAIN HOOKS
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_2_STAGGER_LOOP.md §3.2, §3.10.
+// addPressure() is THE single entry point for filling the boss meter.
+// Triggers Stagger when meter caps; supports multi-stagger chaining when
+// STAGGER_CHAINING_ENABLED. Wired into 5 sites this PR: line clears,
+// INFERNO, DETONATE, hero ULT, cascade. Signature combo (P3+) reserved.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P2 §3.2: Pressure central function.
+// reason: human-readable label for FX/logging — keeps with values in the
+// PRESSURE_GAIN table where possible ('single_clear' / 'inferno' / etc.).
+// amount: from PRESSURE_GAIN table (or computed for cascade).
+// Returns: actual pressure gained (clipped at PRESSURE_MAX).
+function addPressure(amount, reason) {
+  reason = reason || 'unknown';
+  if (!amount || amount <= 0) return 0;
+  // Dead boss = no meter activity.
+  if (typeof bossHP === 'number' && bossHP <= 0) return 0;
+  // V9 chaining: pressure builds during Stagger too. If chaining disabled,
+  // meter freezes during Stagger (skip writes).
+  if (!STAGGER_CHAINING_ENABLED && bossState === BOSS_STATE_STAGGER) return 0;
+  // Recovery phase: meter does NOT fill (player is bracing for revenge).
+  if (bossState === BOSS_STATE_RECOVERY) return 0;
+
+  const before = bossPressure;
+  bossPressure = Math.min(PRESSURE_MAX, bossPressure + amount);
+  const gained = bossPressure - before;
+
+  if (gained > 0) {
+    try { showPressureGainFX(gained, reason); } catch (e) {}
+    try { if (typeof renderPressureMeter === 'function') renderPressureMeter(); } catch (e) {}
+    try { if (typeof _maybeTriggerPressureIntro === 'function') _maybeTriggerPressureIntro(); } catch (e) {}
+  }
+
+  // Stagger trigger / chaining
+  if (bossPressure >= PRESSURE_MAX) {
+    if (bossState === BOSS_STATE_ACTIVE) {
+      enterStaggerState();   // consumes meter, transitions to Stagger
+    } else if (bossState === BOSS_STATE_STAGGER && STAGGER_CHAINING_ENABLED) {
+      // Multi-stagger chaining (V9 lean): meter refilled mid-Stagger →
+      // extend window by 2 turns, reset meter to 0.
+      extendStaggerState(2);
+      bossPressure = 0;
+      try { if (typeof renderPressureMeter === 'function') renderPressureMeter(); } catch (e) {}
+    }
+  }
+  return gained;
+}
+
+// Pressure gain visual feedback. PR #2.D may extend with per-channel CSS
+// flair (gold pulse, bar segment fill animation). For now: floating text.
+function showPressureGainFX(amount, reason) {
+  const labels = {
+    single_clear:    '+5 LINE',
+    double_clear:    '+12 DOUBLE',
+    triple_clear:    '+25 TRIPLE',
+    quad_clear:      '+45 QUAD!',
+    inferno:         '+20 🔥 INFERNO',
+    detonate:        '+20 ☀ DETONATE',
+    hero_ult:        '+15 ULT',
+    cascade:         '+' + amount + ' CASCADE',
+    signature_combo: '+30 SIGNATURE',
+  };
+  const label = labels[reason] || ('+' + amount + ' ⚡');
+  // Color tier: >=25 orange, >=12 gold, else pale gold.
+  const color = (amount >= 25) ? '#FF8C00' : (amount >= 12) ? '#FFD700' : '#FFEB99';
+  try { flashText(label, color); } catch (e) {}
+}
+
+if (typeof window !== 'undefined') {
+  window.addPressure         = addPressure;
+  window.showPressureGainFX  = showPressureGainFX;
+}
+
 function getEffectivePeriod(hero) {
   if (hero.role !== 'weaver' || !hero.period) return hero.period;
   return Math.max(1, hero.period - getHeroStats(hero).periodReduction);
@@ -41756,6 +41831,18 @@ function stihiyasIn(rows, cols) {
 }
 
 async function clearLines(rows, cols) {
+  // 2026-05-02 — COMBAT v2.1 P2 §3.10.1: Pressure gain from line clears.
+  // Tier by total line count: 1=5 / 2=12 / 3=25 / 4+=45. Fires at the very
+  // top so it's deterministic regardless of which downstream paths execute.
+  // Safe in FTUE training (boss is dummy → addPressure short-circuits via
+  // bossHP=0 guard).
+  try {
+    const _totalLines = (rows ? rows.length : 0) + (cols ? cols.length : 0);
+    if (_totalLines === 1)      addPressure(PRESSURE_GAIN.line_single, 'single_clear');
+    else if (_totalLines === 2) addPressure(PRESSURE_GAIN.line_double, 'double_clear');
+    else if (_totalLines === 3) addPressure(PRESSURE_GAIN.line_triple, 'triple_clear');
+    else if (_totalLines >= 4)  addPressure(PRESSURE_GAIN.line_quad,   'quad_clear');
+  } catch (e) { console.warn('line-clear pressure failed:', e); }
   const cellEls = document.querySelectorAll('.grid .cell');
   const idxs = new Set();
   for (const r of rows) for (let c = 0; c < SIZE; c++) idxs.add(r*SIZE+c);
@@ -46111,6 +46198,12 @@ async function ultRoleDispatch() {
   } catch (e) {}
   // V2.0 Stage 5 Block 5.1: track ULT fires for post-battle XP (+2 per hero who fired ULT)
   if (hero) hero._ultFiredThisBattle = true;
+  // 2026-05-02 — COMBAT v2.1 P2 §3.10.4: hero ULT adds Pressure (+15).
+  // Fires ONCE per ULT regardless of multi-line clear chain that may follow
+  // (line-clear pressure handles the chain). Stacks with INFERNO/DETONATE
+  // when the same ULT triggers them — intentional per spec §11.2 (mastery
+  // moments are mastery moments).
+  try { addPressure(PRESSURE_GAIN.hero_ult, 'hero_ult'); } catch (e) {}
   // V2.0 Stage 5 Block 5.1: firing-hero pointer for kill-shot attribution in dealDamage
   const _prevFiringHero = _currentFiringHero;
   _currentFiringHero = hero;
@@ -49130,6 +49223,14 @@ async function afterPlacement(piece) {
     const inLines = stihiyasIn(rows, cols);
     // Profile P2 — track combo cascades (≥3) for highestCascade + totalCascades.
     try { if (typeof trackProfileCascade === 'function') trackProfileCascade(count); } catch (e) {}
+    // 2026-05-02 — COMBAT v2.1 P2 §3.10.5: cascade Pressure gain. Fires only
+    // for combo ≥3 (cascade threshold matches trackProfileCascade gate).
+    // Stacks ON TOP of line-clear pressure — true cascades feel rewarding.
+    // Spec lists cascade_per_cell × cellCount; combo `count` is the available
+    // proxy here. Pragmatic: 8 × count → 24 for 3-combo, 32 for 4-combo, etc.
+    try {
+      if (count >= 3) addPressure(PRESSURE_GAIN.cascade_per_cell * count, 'cascade');
+    } catch (e) {}
     let mult = COMBO_MULT[Math.min(count, 4)] || 25;
     // 2026-04-27 — Block T.2 — Tower pact combo cap. QUICK/FORGE pacts cap
     // the combo multiplier at ×8 (default ×12 at 4 lines). Outside Tower
@@ -49322,9 +49423,21 @@ async function afterPlacement(piece) {
       motifMult = Math.min(motifMult, MOTIF_COMBINED_MULT_CAP);
     }
     if (motifMult > 1) finalDmg = Math.floor(finalDmg * motifMult);
-    if (!_immune && emberMotif.infernoLines > 0) { flashText('INFERNO', '#FF6600'); vibrate([80, 40, 80, 40, 120]); }
+    if (!_immune && emberMotif.infernoLines > 0) {
+      flashText('INFERNO', '#FF6600');
+      vibrate([80, 40, 80, 40, 120]);
+      // 2026-05-02 — COMBAT v2.1 P2 §3.10.2: INFERNO procs add Pressure.
+      // Multi-line INFERNO scales — but cap at single proc gain to prevent
+      // runaway chains. Single per-clear event regardless of infernoLines count.
+      try { addPressure(PRESSURE_GAIN.inferno_proc, 'inferno'); } catch (e) {}
+    }
     // V2.0 Block 2.4: detonate flash fires also on Hunt Pack (lion T5 — detonate without radiant)
-    if (!_immune && (solarMotif.radiantCleared > 0 || solarMotif.huntPackProc)) { flashText('DETONATE', '#FFD53D'); vibrate([60, 30, 60, 30, 100]); }
+    if (!_immune && (solarMotif.radiantCleared > 0 || solarMotif.huntPackProc)) {
+      flashText('DETONATE', '#FFD53D');
+      vibrate([60, 30, 60, 30, 100]);
+      // 2026-05-02 — COMBAT v2.1 P2 §3.10.3: DETONATE procs add Pressure.
+      try { addPressure(PRESSURE_GAIN.detonate_proc, 'detonate'); } catch (e) {}
+    }
     if (_immune && (emberMotif.infernoLines > 0 || solarMotif.radiantCleared > 0 || solarMotif.huntPackProc || chargedBonus === 0 && emberMotif.chargedBonus > 0)) {
       flashText('IMMUNE', '#888888'); // visible feedback that a motif was nullified
     }
