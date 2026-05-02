@@ -16768,7 +16768,12 @@ button.season-tier-claim:active {
         <div class="a-loadout-count"><span id="aHeroesOwnedCount">0</span>/<span id="aHeroesTotalCount">50</span></div>
       </div>
       <button class="a-icon-btn" id="vSearchBtn" onclick="vToggleSearch()" aria-label="Search">🔍</button>
-      <button class="a-icon-btn" id="vEquipEntryBtn" onclick="vOpenEquipmentStub()" aria-label="Equipment">⚙</button>
+      <!-- 2026-05-02 — COMBAT v2.1 P1 PR #1.E §4.7: artifact navigation
+           cut. Equipment screen led to a hero-detail equip tab that no
+           longer has anything to equip (artifact subsystem purged).
+           Button hidden via CSS; full DOM removal deferred to P5 polish
+           per spec footnote. -->
+      <button class="a-icon-btn" id="vEquipEntryBtn" onclick="vOpenEquipmentStub()" aria-label="Equipment" style="display:none">⚙</button>
     </div>
     <div class="v-loadout-search a-loadout-search" id="vLoadoutSearch" style="display:none">
       <input type="text" id="vSearchInput" placeholder="Search name, race, role…" oninput="vOnSearchInput(this.value)">
@@ -35385,11 +35390,14 @@ function saveProgress() {
   try {
     // Sync live bossesDefeated back into chapterProgress before persisting
     chapterProgress[currentChapter] = bossesDefeated;
+    // 2026-05-02 — COMBAT v2.1 P1 PR #1.E §4.3: stopped persisting
+    // equippedArtifacts (artifact subsystem deleted). artifactsOwned and
+    // artDropPityCounter kept on the save record for one cycle so older
+    // builds don't strip them; PR #1.E migration drops the localStorage
+    // copies on next boot. Will be removed entirely after dev verification.
     const data = { essences, heroUpgrades, bossesDefeated, chapterProgress,
                    favorites: [...favorites], activeModifiers: [...activeModifiers],
                    currentChapter, chapter2Unlocked, chapter3Unlocked, chapter4Unlocked,
-                   artifactsOwned, equippedArtifacts,
-                   artDropPityCounter,
                    activeSquad: [...activeSquad], // V3.0 Block 0.1: persist squad (reconciled on load)
                    _v: 17 };
     localStorage.setItem('blocksworn_progress', JSON.stringify(data));
@@ -35503,24 +35511,14 @@ function loadProgress() {
     // (pre-Sprint-3A) saves; existing Ch3 finishers grandfathered separately
     // via _migrateChapter4UnlockForExistingFinishers() (called after loads).
     chapter4Unlocked = !!data.chapter4Unlocked;
-    // V18: artifact state migration — absent in pre-V17 saves, default to empty
-    if (data.artifactsOwned && typeof data.artifactsOwned === 'object') {
-      artifactsOwned = data.artifactsOwned;
-    } else {
-      artifactsOwned = {};
-    }
-    if (Array.isArray(data.equippedArtifacts) && data.equippedArtifacts.length === 5) {
-      // Validate each slot — must be null or {id, tier} with existing inventory
-      equippedArtifacts = data.equippedArtifacts.map(slot => {
-        if (!slot || !slot.id || !slot.tier) return null;
-        if (getArtifactCount(slot.id, slot.tier) > 0) return { id: slot.id, tier: slot.tier };
-        return null;
-      });
-    } else {
-      equippedArtifacts = [null, null, null, null, null];
-    }
-    // V18.25: pity counter — restore or default to 0
-    artDropPityCounter = (typeof data.artDropPityCounter === 'number') ? data.artDropPityCounter : 0;
+    // 2026-05-02 — COMBAT v2.1 P1 PR #1.E §4.3+§4.5: artifact subsystem
+    // removed. Old saves may carry `artifactsOwned` and `equippedArtifacts`
+    // — we silently ignore both (kept defensive defaults so downstream
+    // call sites that still read the variables don't crash). One-time
+    // localStorage cleanup runs on next boot via _migrateArtifactStorageCleanup.
+    artifactsOwned = {};
+    equippedArtifacts = [null, null, null, null, null];
+    artDropPityCounter = 0;
     // V16: migrate chapterProgress from legacy saves
     if (data.chapterProgress && typeof data.chapterProgress === 'object') {
       chapterProgress = { 1: 0, 2: 0, 3: 0, ...data.chapterProgress };
@@ -35816,9 +35814,25 @@ if (typeof window !== 'undefined') {
   window.getSquadMitigation = getSquadMitigation;
 }
 
-// 2026-05-02 — COMBAT v2.1 P1: kept for legacy save-format compat. T4 is
-// removed; this Set will always be empty in v2.1+. Will be deleted in PR #1.E.
+// 2026-05-02 — COMBAT v2.1 P1 PR #1.E: kept as inert stub. T4 ARCANE
+// RESONANCE was removed in #1.A; computeArtifactEffects returns an empty
+// Set unconditionally. The variable remains because some downstream
+// call sites (boss-defeat hooks, synergy panels) still defensively read
+// it. Always empty in v2.1+. Safe to delete in P5 dead-code purge.
 let _currentRacesWithArtifact = new Set();
+
+// 2026-05-02 — COMBAT v2.1 P1 PR #1.E §4.5: one-time storage cleanup.
+// Strips legacy artifact localStorage keys on next boot. Idempotent —
+// safe to call every load. Leaves all non-artifact keys intact.
+function _migrateArtifactStorageCleanup() {
+  try {
+    localStorage.removeItem('blocksworn_equipped_artifacts');
+    localStorage.removeItem('blocksworn_artifact_inventory');
+  } catch (e) {}
+}
+if (typeof window !== 'undefined') {
+  window._migrateArtifactStorageCleanup = _migrateArtifactStorageCleanup;
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // COMBAT v2.1 PHASE 1 PR #1.B — CENTRAL DAMAGE ENTRY + 4 CHANNELS
@@ -40224,22 +40238,12 @@ function calcSynergyState(heroes) {
   // Artifact subsystem itself purged in PR #1.E; this line removed now per
   // strict spec follow. artEff still computed for shield/dmg/ult/ring fields.
   state.startShields = Math.min(MAX_SHIELD + 4, state.startShields + artEff.shieldAdd);
-  // Build UI summary lines for applied artifacts
-  if (artEff.appliedCount > 0) {
-    const ringParts = STIHIYAS.filter(s => artEff.ringWeights[s] > 0)
-      .map(s => `+${Math.round(artEff.ringWeights[s] * 100)}% ${s.toUpperCase()}`);
-    if (ringParts.length) state.active.push(`💍 RINGS: ${ringParts.join(' · ')}`);
-    const weaponParts = [];
-    for (const r of RACES) {
-      if (artEff.ultMult[r] > 1) {
-        const s = _ART_RACE_TO_STIHIYA[r];
-        weaponParts.push(`+${artEff.bonusDmg[s]}dmg/cell +${Math.round((artEff.ultMult[r]-1)*100)}% ult (${r.replace('_',' ').toUpperCase()})`);
-      }
-    }
-    if (weaponParts.length) state.active.push(`⚔ WEAPONS: ${weaponParts.join(' · ')}`);
-    if (artEff.hpAdd > 0) state.active.push(`✦ STAVES: +${artEff.hpAdd} MAX HP`);
-    if (artEff.shieldAdd > 0) state.active.push(`🛡 SHIELDS: +${artEff.shieldAdd} MAX SHIELD`);
-  }
+  // 2026-05-02 — COMBAT v2.1 P1 PR #1.E §4.3: dead artifact UI panel
+  // removed. computeArtifactEffects() now returns appliedCount: 0
+  // unconditionally, so this block was guaranteed-false and lighting
+  // up "💍 RINGS / ⚔ WEAPONS / ✦ STAVES / 🛡 SHIELDS" is impossible
+  // post-purge. Removed entirely; mitigation surfaces (PR #1.C) replace
+  // the artifact summary lines in the active-effects panel.
   return state;
 }
 
@@ -40926,6 +40930,8 @@ function init() {
   // unlock chain). One-time migration backfills the flag silently. No
   // cinematic — they earned it before Ch4 existed; they'll discover via map.
   try { _migrateChapter4UnlockForExistingFinishers(); } catch (e) { console.warn('Ch4 migration failed:', e); }
+  // 2026-05-02 — COMBAT v2.1 P1 PR #1.E: artifact storage cleanup. Idempotent.
+  try { _migrateArtifactStorageCleanup(); } catch (e) { console.warn('artifact cleanup failed:', e); }
   // 2026-05-02 — SPRINT 6 launch prep: backfill founder badge for soft-launch
   // testers. Inert until Roman sets _SOFT_LAUNCH_TESTER_CUTOFF on T-1 day
   // (see helper definition above). Idempotent — safe to call every boot.
