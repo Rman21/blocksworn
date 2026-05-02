@@ -36731,7 +36731,11 @@ function addPressure(amount, reason) {
   }
 
   // Stagger trigger / chaining
-  if (bossPressure >= PRESSURE_MAX) {
+  // 2026-05-02 — COMBAT v2.1 P3 §3.5: Mythic Captain pre-set threshold (50/75/100)
+  // replaces hardcoded PRESSURE_MAX. getStaggerTriggerThreshold() defaults to
+  // PRESSURE_MAX when no Mythic Captain present.
+  const _trigger = (typeof getStaggerTriggerThreshold === 'function') ? getStaggerTriggerThreshold() : PRESSURE_MAX;
+  if (bossPressure >= _trigger) {
     if (bossState === BOSS_STATE_ACTIVE) {
       enterStaggerState();   // consumes meter, transitions to Stagger
     } else if (bossState === BOSS_STATE_STAGGER && STAGGER_CHAINING_ENABLED) {
@@ -42143,7 +42147,10 @@ function startBossBattle() {
   try { if (typeof _resetPhase3Hooks === 'function') _resetPhase3Hooks(); } catch (e) {}
   // 2026-05-02 — COMBAT v2.1 P3 PR #3.B: reset Tank state + register Phase 3 hero hooks.
   try { if (typeof _resetPhase3TankState === 'function') _resetPhase3TankState(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P3 PR #3.C: reset Captain state + prompt Mythic threshold.
+  try { if (typeof _resetPhase3CaptainState === 'function') _resetPhase3CaptainState(); } catch (e) {}
   try { if (typeof registerPhase3HeroHooks === 'function') registerPhase3HeroHooks(); } catch (e) {}
+  try { if (typeof _maybePromptMythicStaggerThreshold === 'function') _maybePromptMythicStaggerThreshold(); } catch (e) {}
   revivesRemaining = currentBoss.revives || 0;
   attackCountdown = currentBoss.attackInterval;
   // MODIFIER: Double Time — boss attacks 2× faster (halve interval)
@@ -42262,7 +42269,10 @@ function startBossBattle() {
   try { if (typeof _resetPhase3Hooks === 'function') _resetPhase3Hooks(); } catch (e) {}
   // 2026-05-02 — COMBAT v2.1 P3 PR #3.B: reset Tank state + register Phase 3 hero hooks.
   try { if (typeof _resetPhase3TankState === 'function') _resetPhase3TankState(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P3 PR #3.C: reset Captain state + prompt Mythic threshold.
+  try { if (typeof _resetPhase3CaptainState === 'function') _resetPhase3CaptainState(); } catch (e) {}
   try { if (typeof registerPhase3HeroHooks === 'function') registerPhase3HeroHooks(); } catch (e) {}
+  try { if (typeof _maybePromptMythicStaggerThreshold === 'function') _maybePromptMythicStaggerThreshold(); } catch (e) {}
   attackCountdown = _arch.attackCD;                    // override cadence from archetype
   if (activeModifiers.has('doubleTime')) attackCountdown = Math.max(2, Math.floor(attackCountdown / MODIFIERS.doubleTime.speedMult));
   bossAttackDmgMult = _arch.dmgMult;
@@ -45511,6 +45521,11 @@ function maybeBossAttack() {
     attackCountdown = currentBoss.attackInterval;
     if (activeModifiers.has('doubleTime')) attackCountdown = Math.max(2, Math.floor(attackCountdown / MODIFIERS.doubleTime.speedMult));
   }
+  // 2026-05-02 — COMBAT v2.1 P3 §3.5/§7.5: Captain Mark modal at start of next
+  // player turn. EOT here = boss has resolved, player will place next, so this
+  // is the natural "turn start" boundary. Per-turn flag reset BEFORE show.
+  try { if (typeof _resetCaptainMarkPerTurn === 'function') _resetCaptainMarkPerTurn(); } catch (e) {}
+  try { if (typeof _maybeShowCaptainMarkUI === 'function') _maybeShowCaptainMarkUI(); } catch (e) {}
 }
 
 async function bossAttack() {
@@ -50815,6 +50830,18 @@ async function fireHero(hero, counts) {
   if (_nightlordBoostApplies) {
     _passiveDmgContext *= 1.30;
   }
+  // 2026-05-02 — COMBAT v2.1 P3 §3.5: Captain Mark consumption on hero fire.
+  // If this hero is the marked one, consumes the mark and applies +30% damage
+  // (folded into _passiveDmgContext) + addPressure(10) + Stagger ext at T2+.
+  try {
+    if (typeof _consumeCaptainMarkBonus === 'function') {
+      const mark = _consumeCaptainMarkBonus(hero, 'fire');
+      if (mark) {
+        _passiveDmgContext *= mark.dmgMult;
+        try { flashText('⚐ MARKED · +' + Math.round((mark.dmgMult - 1) * 100) + '% / +' + mark.pressureBonus + '⚡', '#FFD53D'); } catch (e) {}
+      }
+    }
+  } catch (e) { console.warn('[Captain Mark fire] failed:', e); }
   try {
     await hero.fire(counts);
   } finally {
@@ -55263,7 +55290,7 @@ function registerPhase3TankHooks() {
 // init alongside _resetPhase3Hooks().
 function registerPhase3HeroHooks() {
   try { if (typeof registerPhase3TankHooks === 'function') registerPhase3TankHooks(); } catch (e) { console.warn('[P3 Tank hook reg] failed:', e); }
-  // PR #3.C: registerPhase3CaptainHooks();
+  try { if (typeof registerPhase3CaptainHooks === 'function') registerPhase3CaptainHooks(); } catch (e) { console.warn('[P3 Captain hook reg] failed:', e); }
   // PR #3.D-F: per-race / per-hero hooks
 }
 
@@ -55289,6 +55316,347 @@ if (typeof window !== 'undefined') {
   window.registerPhase3TankHooks        = registerPhase3TankHooks;
   window.registerPhase3HeroHooks        = registerPhase3HeroHooks;
   window._resetPhase3TankState          = _resetPhase3TankState;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 3 PR #3.C — CAPTAIN MARK SYSTEM
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_3_HERO_TIERS.md §3.5 + §4 + §7.5 + §7.7.
+// Captain becomes "Squad Conductor" — per-turn tactical decision-making:
+//   T0:     race buff + DOMINION ULT preserved (existing)
+//   T1:     MARK SYSTEM unlocks. Per-turn modal: pick squad hero. Marked
+//           hero's next fire = +30% damage + +10 Pressure. Bonus consumed.
+//   T2:     marked hero's fire extends Stagger +1t (NIGHTLORD/SOLARLORD +2t).
+//   T3:     mark works on ANY squad action (fires, ULTs, shields). Universal.
+//   Mythic: pre-set Stagger trigger threshold 50/75/100 at battle start.
+//           NIGHTLORD overrides with 50/60/75 (aggressive options).
+// PR #3.F adds visual polish (gold border on marked hero, FTUE intro).
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.5: Captain Mark state.
+// captainMarkedHeroId — currently marked hero (null = no mark / consumed).
+// mythicCaptainStaggerThreshold — Stagger trigger threshold; defaults to
+//   PRESSURE_MAX (100). Mythic Captain at battle start picks 50/75/100.
+// _captainMarkShownThisTurn — anti-spam: only show modal once per player turn.
+// _captainMarksFiredThisFight — telemetry counter.
+let captainMarkedHeroId            = null;
+let mythicCaptainStaggerThreshold  = (typeof PRESSURE_MAX === 'number') ? PRESSURE_MAX : 100;
+let _captainMarkShownThisTurn      = false;
+let _captainMarksFiredThisFight    = 0;
+
+// Per-hero Mythic threshold options (spec §4.2 NIGHTLORD = 50/60/75 aggressive).
+// All other Mythic Captains use baseline 50/75/100.
+const MYTHIC_CAPTAIN_THRESHOLDS = Object.freeze({
+  pirate_captain:    [50, 75, 100],
+  rock_captain:      [50, 60, 75],     // NIGHTLORD §4.2 aggressive
+  shark_captain:     [50, 75, 100],
+  crocodile_captain: [50, 75, 100],
+  spark_captain:     [50, 75, 100],
+});
+
+// Per-hero T2 Stagger extension on marked fire (spec §4.2/§4.5: NIGHTLORD +2,
+// SOLARLORD +2, others +1).
+const CAPTAIN_T2_STAGGER_EXTEND = Object.freeze({
+  pirate_captain:    1,
+  rock_captain:      2,    // NIGHTLORD §4.2
+  shark_captain:     1,
+  crocodile_captain: 1,
+  spark_captain:     2,    // SOLARLORD §4.5
+});
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.5: Captain detection helpers.
+function _findCaptainInDeck() {
+  if (typeof HERO_DECK === 'undefined' || !Array.isArray(HERO_DECK)) return null;
+  return HERO_DECK.find(h => h && h.newRole === 'captain') || null;
+}
+
+function _getCaptainTier() {
+  const cap = _findCaptainInDeck();
+  if (!cap) return -1;
+  return (typeof heroUpgrades !== 'undefined' && heroUpgrades[cap.id]) || 0;
+}
+
+function _hasT1CaptainInDeck() {
+  return _getCaptainTier() >= 1;
+}
+
+// Mark setter — banners + state. UI calls this when player picks.
+function setCaptainMark(heroId) {
+  if (!heroId) { clearCaptainMark(); return; }
+  captainMarkedHeroId = heroId;
+  try {
+    const hero = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK))
+                 ? HERO_DECK.find(h => h && h.id === heroId) : null;
+    if (typeof flashStateBanner === 'function') {
+      flashStateBanner('MARKED · ' + (hero && hero.name || heroId.toUpperCase()), '#FFD53D');
+    }
+    if (typeof renderCaptainMarkBadge === 'function') renderCaptainMarkBadge();
+  } catch (e) {}
+}
+
+function clearCaptainMark() {
+  captainMarkedHeroId = null;
+  try { if (typeof renderCaptainMarkBadge === 'function') renderCaptainMarkBadge(); } catch (e) {}
+}
+
+// Returns the bonus payload if `actingHero` is the marked one, else null.
+// CONSUMES the mark on call. Caller folds dmgMult into context, calls
+// addPressure for the bonus, and extends Stagger if tier ≥ 2.
+//   T1: dmgMult=1.30, pressureBonus=10
+//   T2: + Stagger +1t (or +2t per CAPTAIN_T2_STAGGER_EXTEND override)
+//   T3: applies on ANY action (caller passes actionType)
+function _consumeCaptainMarkBonus(actingHero, actionType) {
+  if (!captainMarkedHeroId || !actingHero || actingHero.id !== captainMarkedHeroId) return null;
+  const captain = _findCaptainInDeck();
+  if (!captain) return null;
+  const tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[captain.id]) || 0;
+  if (tier < 1) return null;
+  // T1/T2: only consumed by hero fires. T3+: consumed by any action.
+  const isFire = (actionType === 'fire' || !actionType);
+  if (!isFire && tier < 3) return null;
+
+  // Apply pressure bonus inline (single-source-of-truth; caller doesn't repeat).
+  if (typeof addPressure === 'function') addPressure(10, 'captain_mark');
+
+  // T2+: extend Stagger window if currently in Stagger.
+  let extended = 0;
+  if (tier >= 2 && typeof bossState !== 'undefined' && bossState === BOSS_STATE_STAGGER) {
+    const ext = CAPTAIN_T2_STAGGER_EXTEND[captain.id] || 1;
+    if (typeof extendStaggerState === 'function') {
+      extendStaggerState(ext);
+      extended = ext;
+    }
+  }
+
+  // Fire centralized hook so other systems can observe (FTUE, telemetry).
+  try { if (typeof _firePhase3Hook === 'function') {
+    _firePhase3Hook('onCaptainMark', { heroId: captain.id, marked: actingHero.id, tier, actionType: actionType || 'fire', extended });
+  } } catch (e) {}
+  _captainMarksFiredThisFight++;
+
+  // Consume mark — clear state.
+  const payload = { dmgMult: 1.30, pressureBonus: 10, staggerExtended: extended, tier };
+  clearCaptainMark();
+  return payload;
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.5: Mythic Captain Stagger threshold.
+// Default = PRESSURE_MAX (100). Mythic at battle start picks one of allowed
+// options. Replaces hardcoded PRESSURE_MAX in addPressure stagger trigger.
+function getStaggerTriggerThreshold() {
+  if (typeof PRESSURE_MAX !== 'number') return mythicCaptainStaggerThreshold;
+  return Math.min(PRESSURE_MAX, mythicCaptainStaggerThreshold);
+}
+
+function setMythicStaggerThreshold(threshold) {
+  const cap = _findCaptainInDeck();
+  const allowed = (cap && MYTHIC_CAPTAIN_THRESHOLDS[cap.id]) || [50, 75, 100];
+  if (allowed.indexOf(threshold) < 0) return false;
+  mythicCaptainStaggerThreshold = threshold;
+  try { if (typeof flashStateBanner === 'function') flashStateBanner('STAGGER THRESHOLD · ' + threshold, '#FFA500'); } catch (e) {}
+  return true;
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §7.5: Captain Mark modal UI.
+// Lazily-built DOM. Called from end of maybeBossAttack (= start of next player
+// turn) when T1+ Captain in deck and mark not yet set this turn.
+function _ensureCaptainMarkModal() {
+  if (typeof document === 'undefined') return null;
+  let modal = document.getElementById('captainMarkModal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'captainMarkModal';
+  modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.72);' +
+                       'align-items:center;justify-content:center;backdrop-filter:blur(6px);';
+  modal.innerHTML = '<div style="background:linear-gradient(180deg,#1a1830,#0d0c1a);' +
+                       'border:2px solid #FFD53D;border-radius:14px;padding:22px 26px;max-width:420px;' +
+                       'box-shadow:0 0 32px rgba(255,213,61,0.45);color:#fff;font-family:inherit;">' +
+                     '<div style="font-size:18px;font-weight:700;color:#FFD53D;margin-bottom:14px;letter-spacing:0.06em;">CAPTAIN\'S MARK</div>' +
+                     '<div style="font-size:13px;opacity:0.85;margin-bottom:14px;">Choose a hero to MARK this turn:</div>' +
+                     '<div id="captainMarkButtons" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>' +
+                     '<div style="font-size:11px;opacity:0.7;line-height:1.4;margin-bottom:12px;">' +
+                       'Marked hero\'s next fire: <b style="color:#FFD53D;">+30% damage + +10 Pressure</b></div>' +
+                     '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">' +
+                       '<button id="captainMarkSkip" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:12px;">Skip turn</button>' +
+                       '<span id="captainMarkTimer" style="font-size:12px;color:#FFD53D;font-variant-numeric:tabular-nums;">3s</span>' +
+                     '</div></div>';
+  document.body.appendChild(modal);
+  return modal;
+}
+
+let _captainMarkModalTimer = null;
+function _maybeShowCaptainMarkUI() {
+  if (typeof gameEnded !== 'undefined' && gameEnded) return;
+  if (typeof bossHP === 'number' && bossHP <= 0) return;
+  if (_captainMarkShownThisTurn) return;
+  if (!_hasT1CaptainInDeck()) return;
+  if (captainMarkedHeroId) return;        // already marked this turn (set last turn but not consumed)
+  const captain = _findCaptainInDeck();
+  if (!captain) return;
+  const modal = _ensureCaptainMarkModal();
+  if (!modal) return;
+  // Build hero buttons (exclude Captain herself per spec §3.5).
+  const btnRoot = modal.querySelector('#captainMarkButtons');
+  if (btnRoot) {
+    btnRoot.innerHTML = '';
+    if (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) {
+      HERO_DECK.forEach(h => {
+        if (!h || h.id === captain.id) return;
+        const b = document.createElement('button');
+        b.textContent = h.name || h.id;
+        b.style.cssText = 'background:#2a2548;border:1px solid #FFD53D;color:#fff;border-radius:8px;' +
+                          'padding:10px 14px;cursor:pointer;font-size:13px;text-align:left;';
+        b.onclick = () => { _hideCaptainMarkUI(); setCaptainMark(h.id); };
+        btnRoot.appendChild(b);
+      });
+    }
+  }
+  const skipBtn = modal.querySelector('#captainMarkSkip');
+  if (skipBtn) skipBtn.onclick = () => { _hideCaptainMarkUI(); /* no mark this turn */ };
+  modal.style.display = 'flex';
+  _captainMarkShownThisTurn = true;
+  // 3-second auto-skip per spec §7.5.
+  let remaining = 3;
+  const timerEl = modal.querySelector('#captainMarkTimer');
+  if (timerEl) timerEl.textContent = remaining + 's';
+  if (_captainMarkModalTimer) clearInterval(_captainMarkModalTimer);
+  _captainMarkModalTimer = setInterval(() => {
+    remaining--;
+    if (timerEl) timerEl.textContent = remaining + 's';
+    if (remaining <= 0) {
+      clearInterval(_captainMarkModalTimer);
+      _captainMarkModalTimer = null;
+      _hideCaptainMarkUI();
+    }
+  }, 1000);
+  // FTUE intro — first-time-only (registered hook fired separately by spec §8.2).
+  try { if (typeof _maybeTriggerCaptainMarkIntro === 'function') _maybeTriggerCaptainMarkIntro(); } catch (e) {}
+}
+
+function _hideCaptainMarkUI() {
+  if (_captainMarkModalTimer) { clearInterval(_captainMarkModalTimer); _captainMarkModalTimer = null; }
+  if (typeof document === 'undefined') return;
+  const modal = document.getElementById('captainMarkModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Reset per-turn flag — called from end of maybeBossAttack (after the modal
+// trigger). When set, prevents re-show if player closes/reopens the same turn.
+function _resetCaptainMarkPerTurn() {
+  _captainMarkShownThisTurn = false;
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §7.7: Mythic threshold prompt.
+function _ensureMythicThresholdModal() {
+  if (typeof document === 'undefined') return null;
+  let modal = document.getElementById('mythicThresholdModal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'mythicThresholdModal';
+  modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9100;background:rgba(0,0,0,0.78);' +
+                       'align-items:center;justify-content:center;backdrop-filter:blur(8px);';
+  modal.innerHTML = '<div style="background:linear-gradient(180deg,#1a1830,#0d0c1a);' +
+                       'border:2px solid #FFA500;border-radius:14px;padding:24px 28px;max-width:440px;' +
+                       'box-shadow:0 0 36px rgba(255,165,0,0.5);color:#fff;font-family:inherit;">' +
+                     '<div style="font-size:18px;font-weight:700;color:#FFA500;margin-bottom:14px;letter-spacing:0.06em;">STAGGER THRESHOLD</div>' +
+                     '<div style="font-size:13px;opacity:0.85;margin-bottom:18px;">Choose Stagger trigger threshold:</div>' +
+                     '<div id="mythicThresholdButtons" style="display:flex;flex-direction:column;gap:10px;"></div>' +
+                     '</div>';
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function _maybePromptMythicStaggerThreshold() {
+  if (typeof gameEnded !== 'undefined' && gameEnded) return;
+  const cap = _findCaptainInDeck();
+  if (!cap) return;
+  const isMythic = (typeof isHeroMythic === 'function') && isHeroMythic(cap.id);
+  if (!isMythic) return;
+  const modal = _ensureMythicThresholdModal();
+  if (!modal) return;
+  const opts = MYTHIC_CAPTAIN_THRESHOLDS[cap.id] || [50, 75, 100];
+  const labels = {
+    50:  ['Aggressive', 'Frequent Staggers, smaller windows'],
+    60:  ['Aggressive+', 'Even more frequent (NIGHTLORD only)'],
+    75:  ['Balanced', 'Recommended'],
+    100: ['Conservative', 'Rare Staggers, bigger payoff'],
+  };
+  const root = modal.querySelector('#mythicThresholdButtons');
+  if (root) {
+    root.innerHTML = '';
+    opts.forEach(t => {
+      const lab = labels[t] || ['', ''];
+      const b = document.createElement('button');
+      b.style.cssText = 'background:#2a2548;border:1px solid #FFA500;color:#fff;border-radius:8px;' +
+                        'padding:12px 14px;cursor:pointer;text-align:left;font-size:13px;';
+      b.innerHTML = '<div style="font-weight:700;color:#FFA500;">' + t + ' · ' + lab[0] + '</div>' +
+                    '<div style="font-size:11px;opacity:0.75;margin-top:4px;">' + lab[1] + '</div>';
+      b.onclick = () => { setMythicStaggerThreshold(t); modal.style.display = 'none'; };
+      root.appendChild(b);
+    });
+  }
+  modal.style.display = 'flex';
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 §3.5: register Captain Phase 3 hooks.
+// Mark consumption hooks for T3+ universal mark. Hooks fire from squad
+// action sites (ULT, shield gain, etc.) — see registerPhase3HeroHooks.
+function registerPhase3CaptainHooks() {
+  // Currently no hooks registered (T3 universal mark consumption is done
+  // inline at action sites that call _consumeCaptainMarkBonus). Reserved for
+  // future event-driven extensions per §14.1.
+}
+
+// Battle-init reset for Captain state.
+function _resetPhase3CaptainState() {
+  captainMarkedHeroId          = null;
+  _captainMarkShownThisTurn    = false;
+  _captainMarksFiredThisFight  = 0;
+  // Reset threshold to PRESSURE_MAX baseline; Mythic prompt re-arms if applicable.
+  mythicCaptainStaggerThreshold = (typeof PRESSURE_MAX === 'number') ? PRESSURE_MAX : 100;
+  _hideCaptainMarkUI();
+  try {
+    const m = (typeof document !== 'undefined') ? document.getElementById('mythicThresholdModal') : null;
+    if (m) m.style.display = 'none';
+  } catch (e) {}
+}
+
+// Optional HUD badge — minimal placeholder; PR #3.F polishes with gold border
+// on roster portrait.
+function renderCaptainMarkBadge() {
+  if (typeof document === 'undefined') return;
+  let badge = document.getElementById('captainMarkBadge');
+  if (!captainMarkedHeroId) { if (badge) badge.style.display = 'none'; return; }
+  if (!badge) {
+    badge = document.createElement('div');
+    badge.id = 'captainMarkBadge';
+    badge.style.cssText = 'position:fixed;top:8px;right:8px;z-index:8500;background:rgba(0,0,0,0.7);' +
+                          'border:1px solid #FFD53D;color:#FFD53D;padding:5px 10px;border-radius:8px;' +
+                          'font-size:11px;letter-spacing:0.06em;font-weight:700;pointer-events:none;';
+    document.body.appendChild(badge);
+  }
+  let name = captainMarkedHeroId;
+  if (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) {
+    const h = HERO_DECK.find(x => x && x.id === captainMarkedHeroId);
+    if (h && h.name) name = h.name;
+  }
+  badge.textContent = '⚐ MARKED · ' + name;
+  badge.style.display = 'block';
+}
+
+if (typeof window !== 'undefined') {
+  window.captainMarkedHeroId            = captainMarkedHeroId;        // snapshot only — read live
+  window.setCaptainMark                 = setCaptainMark;
+  window.clearCaptainMark               = clearCaptainMark;
+  window._consumeCaptainMarkBonus       = _consumeCaptainMarkBonus;
+  window._maybeShowCaptainMarkUI        = _maybeShowCaptainMarkUI;
+  window._hideCaptainMarkUI             = _hideCaptainMarkUI;
+  window._resetCaptainMarkPerTurn       = _resetCaptainMarkPerTurn;
+  window.getStaggerTriggerThreshold     = getStaggerTriggerThreshold;
+  window.setMythicStaggerThreshold      = setMythicStaggerThreshold;
+  window._maybePromptMythicStaggerThreshold = _maybePromptMythicStaggerThreshold;
+  window.registerPhase3CaptainHooks     = registerPhase3CaptainHooks;
+  window._resetPhase3CaptainState       = _resetPhase3CaptainState;
+  window.renderCaptainMarkBadge         = renderCaptainMarkBadge;
 }
 
 // Block H.3 — Tier 2 ability previews (HERO_COMPENDIUM §2-6).
