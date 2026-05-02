@@ -20138,6 +20138,51 @@ const ARCHETYPE_MATCHUP = {
   tempo_disruptor: { strong: ['tide'],  weak: ['solar'] },  // Sharks own-element survives turn-loss; period-based Light = charge loss
   battery:         { strong: ['solar'], weak: ['grove'] },  // Sparks regen counters charge tempo; Earth ULTs slow vs Sunfire
 };
+// 2026-05-02 — COMBAT v2.1 P6 PR #6.A §2.2 + §2.3: Cosmic Ascension Arc archetypes.
+// 14 new archetypes covering Ch3 correction (5) + Ch4 (5) + Ch5 (5).
+// Per spec §19.1 mitigation, MVP scaffolds the per-turn tick state. Full
+// mechanical depth (Phase Shifter 5-face cycling, Choice 7-phase chains,
+// Co-Op twin grief mode) lands as v2.2 polish PR. Player still sees the
+// archetype banner, ARCHETYPE_MATCHUP element advice, and graceful P4
+// reactivity-event fallback per spec §2.6.
+Object.assign(BOSS_ARCHETYPES, {
+  // ===== Chapter 3 archetypes (override Phase 4 placeholders) =====
+  soul_drinker:      { icon: '👁',  label: 'SOUL DRINKER',      hpMult: 1.5, attackCD: 7, dmgMult: 1.0, special: 'dual_shift' },
+  stormcaller:       { icon: '⛈',  label: 'STORMCALLER',       hpMult: 1.6, attackCD: 8, dmgMult: 0.9, special: 'storm_summon' },
+  confession_reader: { icon: '📿', label: 'CONFESSION READER', hpMult: 1.5, attackCD: 6, dmgMult: 1.0, special: 'confession_debuff' },
+  wither:            { icon: '🥀', label: 'WITHER',            hpMult: 1.7, attackCD: 6, dmgMult: 0.9, special: 'wither_cells' },
+  sealer:            { icon: '📜', label: 'SEALER',            hpMult: 1.6, attackCD: 5, dmgMult: 1.1, special: 'librarian_seal' },
+  // ===== Chapter 4 archetypes (Court of the Fallen Heavens) =====
+  phase_shifter:     { icon: '🎭', label: 'PHASE SHIFTER',     hpMult: 1.8, attackCD: 6, dmgMult: 1.0, special: 'five_faces' },
+  equalizer:         { icon: '⚖',  label: 'EQUALIZER',         hpMult: 1.7, attackCD: 6, dmgMult: 1.0, special: 'scales_balance' },
+  regent:            { icon: '👑', label: 'REGENT',            hpMult: 1.9, attackCD: 7, dmgMult: 1.1, special: 'five_regents' },
+  phase_reverser:    { icon: '☯',  label: 'PHASE REVERSER',    hpMult: 1.8, attackCD: 6, dmgMult: 1.0, special: 'dual_opposite' },
+  royal_phase:       { icon: '🏛', label: 'ROYAL PHASE',       hpMult: 2.0, attackCD: 5, dmgMult: 1.2, special: 'six_successions' },
+  // ===== Chapter 5 archetypes (When the Crown Breaks) =====
+  eternal:           { icon: '🕯', label: 'ETERNAL',           hpMult: 2.0, attackCD: 5, dmgMult: 1.0, special: 'wax_timer' },
+  inevitable:        { icon: '🌊', label: 'INEVITABLE',        hpMult: 2.1, attackCD: 6, dmgMult: 1.0, special: 'dream_pressure' },
+  co_op:             { icon: '👥', label: 'CO-OP TWIN',        hpMult: 2.0, attackCD: 5, dmgMult: 1.1, special: 'strategic_restraint' },
+  devourer:          { icon: '🕳', label: 'DEVOURER',          hpMult: 2.1, attackCD: 5, dmgMult: 1.0, special: 'resource_steal' },
+  choice:            { icon: '🔥', label: 'CHOICE',            hpMult: 2.5, attackCD: 4, dmgMult: 1.2, special: 'seven_phases' },
+});
+Object.assign(ARCHETYPE_MATCHUP, {
+  soul_drinker:      { strong: ['solar', 'umbra'], weak: ['ember'] },
+  stormcaller:       { strong: ['tide', 'grove'],  weak: ['ember'] },
+  confession_reader: { strong: ['umbra', 'solar'], weak: ['grove'] },
+  wither:            { strong: ['grove', 'umbra'], weak: ['solar'] },
+  sealer:            { strong: ['solar', 'grove'], weak: ['tide'] },
+  phase_shifter:     { strong: ['umbra'],          weak: ['solar'] },
+  equalizer:         { strong: ['solar'],          weak: ['umbra'] },
+  regent:            { strong: ['ember', 'solar'], weak: ['tide'] },
+  phase_reverser:    { strong: ['tide', 'ember'],  weak: ['umbra'] },
+  royal_phase:       { strong: [],                 weak: [] },
+  eternal:           { strong: ['ember'],          weak: ['tide'] },
+  inevitable:        { strong: ['tide'],           weak: ['solar'] },
+  co_op:             { strong: ['ember', 'grove'], weak: ['umbra'] },
+  devourer:          { strong: ['umbra'],          weak: ['solar'] },
+  choice:            { strong: [],                 weak: [] },
+});
+
 // Berserker enrage threshold & multiplier
 const BERSERKER_ENRAGE_HP_PCT   = 0.5;  // enrage fires when bossHP ≤ maxHP × this
 const BERSERKER_ENRAGE_MULT     = 2.0;  // attack damage multiplier after enrage
@@ -20288,17 +20333,21 @@ const CHAPTERS = [
     id: 3,
     name: 'VEIL OF FORGOTTEN GODS',
     bosses: [
-      // 2026-05-02 — COMBAT v2.1 P4 §2.2: Ch3 DPS=165. gatekeeper=59400, mid_act=69300, act_boss=79200.
-      // Boss 11 TWILIGHT VESSEL — Dark+Light dual; Soul-Drinker → phoenix archetype (revive feel = "drinks names")
-      { name: 'TWILIGHT VESSEL', title: 'Lvl 11 · Vessel of Forgotten Names', hp: 59400, attackInterval: 5, img: 'Boss_11', color: '#A88AC8', stihiya: 'umbra', archetype: 'phoenix',   roleTier: 'gatekeeper' },
-      // Boss 12 STORMSHEPHERD — Frost+Earth; Stormcaller → engineer (board manipulation)
-      { name: 'STORMSHEPHERD',   title: 'Lvl 12 · Tender of Lost Storms',     hp: 59400, attackInterval: 5, img: 'Boss_12', color: '#9CC8DE', stihiya: 'tide',  archetype: 'engineer',  roleTier: 'gatekeeper' },
-      // Boss 13 VOIDPRIESTESS — Dark+Light inverted; Confession Reader → hypnotist (per-turn debuffs)
-      { name: 'VOIDPRIESTESS',   title: 'Lvl 13 · The High Confessor',        hp: 69300, attackInterval: 5, img: 'Boss_13', color: '#C0A6DF', stihiya: 'umbra', archetype: 'hypnotist', roleTier: 'mid_act'    },
-      // Boss 14 ROOT-OF-NOTHING — Earth+Dark; Wither → bruiser (high HP, locked-cell flavor)
-      { name: 'ROOT-OF-NOTHING', title: 'Lvl 14 · First Tree to Forget Sun',  hp: 69300, attackInterval: 5, img: 'Boss_14', color: '#6E7A6A', stihiya: 'grove', archetype: 'bruiser',   roleTier: 'mid_act'    },
-      // Boss 15 ARCHIVAL ETERNAL — Light+Earth; Sealer → assassin (ability disruption analog)
-      { name: 'ARCHIVAL ETERNAL', title: 'Lvl 15 · Library of All That Was Lost', hp: 79200, attackInterval: 5, img: 'Boss_15', color: '#E8D88A', stihiya: 'solar', archetype: 'assassin', roleTier: 'act_boss' },
+      // 2026-05-02 — COMBAT v2.1 P6 PR #6.A §2.6: Ch3 archetype CORRECTION per Roman design.
+      // P4 used phoenix/engineer/hypnotist/bruiser/assassin as placeholders; P6 swaps in
+      // proper soul_drinker/stormcaller/confession_reader/wither/sealer. HP unchanged
+      // (P4 TTK formula values preserved). Per-archetype tick handlers in P6.A foundation;
+      // full mechanical depth lands as v2.2 polish per spec §19.1.
+      // Boss 11 TWILIGHT VESSEL — Dark+Light dual; Soul-Drinker (consumes lost names)
+      { name: 'TWILIGHT VESSEL', title: 'Lvl 11 · Vessel of Forgotten Names', hp: 59400, attackInterval: 5, img: 'Boss_11', color: '#A88AC8', stihiya: 'umbra', archetype: 'soul_drinker',      roleTier: 'gatekeeper' },
+      // Boss 12 STORMSHEPHERD — Frost+Earth; Stormcaller (3 storm types per turn)
+      { name: 'STORMSHEPHERD',   title: 'Lvl 12 · Tender of Lost Storms',     hp: 59400, attackInterval: 5, img: 'Boss_12', color: '#9CC8DE', stihiya: 'tide',  archetype: 'stormcaller',       roleTier: 'gatekeeper' },
+      // Boss 13 VOIDPRIESTESS — Dark+Light inverted; Confession Reader (random debuff per turn)
+      { name: 'VOIDPRIESTESS',   title: 'Lvl 13 · The High Confessor',        hp: 69300, attackInterval: 5, img: 'Boss_13', color: '#C0A6DF', stihiya: 'umbra', archetype: 'confession_reader', roleTier: 'mid_act'    },
+      // Boss 14 ROOT-OF-NOTHING — Earth+Dark; Wither (cells permanently wither)
+      { name: 'ROOT-OF-NOTHING', title: 'Lvl 14 · First Tree to Forget Sun',  hp: 69300, attackInterval: 5, img: 'Boss_14', color: '#6E7A6A', stihiya: 'grove', archetype: 'wither',            roleTier: 'mid_act'    },
+      // Boss 15 ARCHIVAL ETERNAL — Light+Earth; Sealer (random ability seal)
+      { name: 'ARCHIVAL ETERNAL', title: 'Lvl 15 · Library of All That Was Lost', hp: 79200, attackInterval: 5, img: 'Boss_15', color: '#E8D88A', stihiya: 'solar', archetype: 'sealer',         roleTier: 'act_boss'   },
     ]
   },
   // 2026-05-01 — SPRINT 3A: Chapter 4 (COURT OF THE FALLEN HEAVENS). REPLACES
@@ -20315,34 +20364,46 @@ const CHAPTERS = [
     id: 4,
     name: 'COURT OF THE FALLEN HEAVENS',
     bosses: [
-      // 2026-05-02 — COMBAT v2.1 P4 §2.2: Ch4 DPS=320. gatekeeper=115200, mid_act=134400, act_boss=153600.
-      // Boss 16 THE PROSECUTOR — Dark / 5-face Phase Shifter → phoenix (face change feel = revive)
-      { name: 'THE PROSECUTOR',     title: 'Lvl 16 · Speaker for the Indictment',     hp: 115200, attackInterval: 5, img: 'Boss_16', color: '#8E5DCC', stihiya: 'umbra', archetype: 'phoenix',         roleTier: 'gatekeeper' },
-      // Boss 17 JUSTICE BLIND — Light / Equalizer (scales) → tempo_disruptor (dynamic state)
-      { name: 'JUSTICE BLIND',      title: 'Lvl 17 · The Magistrate Without Eyes',    hp: 115200, attackInterval: 5, img: 'Boss_17', color: '#F0E8B8', stihiya: 'solar', archetype: 'tempo_disruptor', roleTier: 'gatekeeper' },
-      // Boss 18 SUN-CROWN REGENT — Fire+Light / Regent (5 mini-bosses) → bruiser (high HP shielded)
-      { name: 'SUN-CROWN REGENT',   title: 'Lvl 18 · Successor to a Forgotten King',  hp: 134400, attackInterval: 5, img: 'Boss_18', color: '#FFAA28', stihiya: 'ember', archetype: 'bruiser',         roleTier: 'mid_act'    },
-      // Boss 19 ECLIPSE-WALKER — Frost+Fire / Phase Reverser (dual HP) → hypnotist (dual-state debuff)
-      { name: 'ECLIPSE-WALKER',     title: 'Lvl 19 · Ambassador of Twin Suns',        hp: 134400, attackInterval: 5, img: 'Boss_19', color: '#A8C8E8', stihiya: 'tide',  archetype: 'hypnotist',       roleTier: 'mid_act'    },
-      // Boss 20 THE FALLEN HIGHEST — All-element / Royal Phase 6-phase rush → engineer (phase complexity)
-      { name: 'THE FALLEN HIGHEST', title: 'Lvl 20 · The Court\'s Empty Throne',      hp: 153600, attackInterval: 5, img: 'Boss_20', color: '#E8C8FF', stihiya: 'umbra', archetype: 'engineer',        roleTier: 'act_boss'   },
+      // 2026-05-02 — COMBAT v2.1 P6 PR #6.A §3 + §14.4: Ch4 archetype OVERRIDE.
+      // P4 placed phoenix/tempo_disruptor/bruiser/hypnotist/engineer placeholders.
+      // P6 swaps in proper Cosmic Ascension archetypes (phase_shifter / equalizer /
+      // regent / phase_reverser / royal_phase). HP unchanged (P4 TTK formula values
+      // preserved per spec §14.4 — Roman doc HP was pre-v2.1; formula values correct).
+      // Boss 16 THE PROSECUTOR — 5-face Phase Shifter (Pity/Rage/Sorrow/Justice/Verdict)
+      { name: 'THE PROSECUTOR',     title: 'Lvl 16 · Speaker for the Indictment',     hp: 115200, attackInterval: 5, img: 'Boss_16', color: '#8E5DCC', stihiya: 'umbra', archetype: 'phase_shifter',  roleTier: 'gatekeeper' },
+      // Boss 17 JUSTICE BLIND — Equalizer (scales react to damage delta)
+      { name: 'JUSTICE BLIND',      title: 'Lvl 17 · The Magistrate Without Eyes',    hp: 115200, attackInterval: 5, img: 'Boss_17', color: '#F0E8B8', stihiya: 'solar', archetype: 'equalizer',      roleTier: 'gatekeeper' },
+      // Boss 18 SUN-CROWN REGENT — Regent (5 regents shield boss)
+      { name: 'SUN-CROWN REGENT',   title: 'Lvl 18 · Successor to a Forgotten King',  hp: 134400, attackInterval: 5, img: 'Boss_18', color: '#FFAA28', stihiya: 'ember', archetype: 'regent',         roleTier: 'mid_act'    },
+      // Boss 19 ECLIPSE-WALKER — Phase Reverser (dual HP bars: fire + frost)
+      { name: 'ECLIPSE-WALKER',     title: 'Lvl 19 · Ambassador of Twin Suns',        hp: 134400, attackInterval: 5, img: 'Boss_19', color: '#A8C8E8', stihiya: 'tide',  archetype: 'phase_reverser', roleTier: 'mid_act'    },
+      // Boss 20 THE FALLEN HIGHEST — Royal Phase (6 ghost summons / 6-phase rush)
+      { name: 'THE FALLEN HIGHEST', title: 'Lvl 20 · The Court\'s Empty Throne',      hp: 153600, attackInterval: 5, img: 'Boss_20', color: '#E8C8FF', stihiya: 'umbra', archetype: 'royal_phase',    roleTier: 'act_boss'   },
     ]
   },
-  // CONTENT.2 — Chapter 5 placeholder (PRELAUNCH §8). Unlocks Day 135.
-  // Final campaign — finale boss grants the single Legendary Ascension Stone
-  // per spec §4.2. HP scaled +30% over Ch4.
+  // 2026-05-02 — COMBAT v2.1 P6 PR #6.A §4 + §14.4: Ch5 (Cradle of the First Flame).
+  // `placeholder: true` flag REMOVED — Ch5 unlocks via Boss 20 (THE FALLEN HIGHEST)
+  // defeat per spec gate, not CONTENT.2 day-window. Day-135 unlock can still gate
+  // via setChapter routing if other code reads contentDropId.
+  // Boss titles + names per Roman doc Cosmic Ascension Arc §3.X-§4.X. Archetypes
+  // overridden from P4 placeholders (armored/tempo_disruptor/bruiser/berserker/phoenix)
+  // to proper Cosmic archetypes (eternal/inevitable/co_op/devourer/choice).
   {
     id: 5,
-    name: 'WHEN THE CROWN BREAKS',
+    name: 'CRADLE OF THE FIRST FLAME',
     contentDropId: 'chapter_5',
-    placeholder: true,
     bosses: [
-      // 2026-05-02 — COMBAT v2.1 P4 §2.2: Ch5 DPS=460. gatekeeper=165600, mid_act=193200, chapter_finale=248400.
-      { name: 'CROWN-OF-DUST',   title: 'Lvl 21 · The Last Sovereign',     hp: 165600, attackInterval: 5, img: 'Boss_21', color: '#E8C8A0', stihiya: 'solar', archetype: 'armored',         roleTier: 'gatekeeper'     },
-      { name: 'SHARDLORD',       title: 'Lvl 22 · Reaver of Broken Realms',hp: 165600, attackInterval: 5, img: 'Boss_22', color: '#A0C8FF', stihiya: 'tide',  archetype: 'tempo_disruptor', roleTier: 'gatekeeper'     },
-      { name: 'SEEDREAPER',      title: 'Lvl 23 · Harvest of Endings',     hp: 193200, attackInterval: 5, img: 'Boss_23', color: '#88B868', stihiya: 'grove', archetype: 'bruiser',         roleTier: 'mid_act'        },
-      { name: 'PYREKING',        title: 'Lvl 24 · Throne of Ash',          hp: 193200, attackInterval: 5, img: 'Boss_24', color: '#D04030', stihiya: 'ember', archetype: 'berserker',       roleTier: 'mid_act'        },
-      { name: 'WORLD-EATER',     title: 'Lvl 25 · The End That Devours',   hp: 248400, attackInterval: 4, img: 'Boss_25', color: '#3A1A4A', stihiya: 'umbra', archetype: 'phoenix',         roleTier: 'chapter_finale' },
+      // 2026-05-02 — Ch5 DPS=460 (P4 formula). gatekeeper=165600, mid_act=193200, finale=248400.
+      // Boss 21 THE WICK — Eternal (wax timer 30t; 100 dmg = -1 wax)
+      { name: 'THE WICK',        title: 'Lvl 21 · The Last Candle Standing',  hp: 165600, attackInterval: 5, img: 'Boss_21', color: '#FFD700', stihiya: 'ember', archetype: 'eternal',    roleTier: 'gatekeeper'     },
+      // Boss 22 MOTHER DEPTHS — Inevitable (dream pressure decay)
+      { name: 'MOTHER DEPTHS',   title: 'Lvl 22 · The Sleeper Beneath',       hp: 193200, attackInterval: 5, img: 'Boss_22', color: '#5DCAFF', stihiya: 'tide',  archetype: 'inevitable', roleTier: 'mid_act'        },
+      // Boss 23 SHARED HEARTH — Co-Op Twin (strategic restraint; both must die together)
+      { name: 'SHARED HEARTH',   title: 'Lvl 23 · The Twin Hearts',           hp: 193200, attackInterval: 5, img: 'Boss_23', color: '#FF7F50', stihiya: 'ember', archetype: 'co_op',      roleTier: 'mid_act'        },
+      // Boss 24 FIRST HUNGER — Devourer (resource theft + 150% refund on victory)
+      { name: 'FIRST HUNGER',    title: 'Lvl 24 · Original Want',             hp: 193200, attackInterval: 5, img: 'Boss_24', color: '#2F2F2F', stihiya: 'umbra', archetype: 'devourer',   roleTier: 'mid_act'        },
+      // Boss 25 FLAME ITSELF — Choice (7 phases asking 7 questions about your strategy)
+      { name: 'FLAME ITSELF',    title: 'Lvl 25 · The First Fire That Chose to Burn', hp: 248400, attackInterval: 4, img: 'Boss_25', color: '#FFFFFF', stihiya: 'umbra', archetype: 'choice', roleTier: 'chapter_finale' },
     ]
   },
 ];
@@ -41014,6 +41075,28 @@ function tickChapter2Archetype() {
     case 'frenzy':          _tickFrenzy(phase);    break;
     case 'tempo_disruptor': _tickTempo(phase);     break;
     case 'battery':         _tickBattery(phase);   break;
+    // 2026-05-02 — COMBAT v2.1 P6 PR #6.A §2.4: Cosmic Ascension archetype dispatch.
+    // 14 new archetypes scaffolded with phase-aware ticks. Per spec §19.1 mitigation,
+    // MVP shows banner + simple per-phase damage modifier. Full state machines
+    // (5-face cycling, 7-phase chains, twin grief mode) ship as v2.2 polish PRs.
+    // Ch3 archetypes:
+    case 'soul_drinker':       _tickSoulDrinker(phase);      break;
+    case 'stormcaller':        _tickStormcaller(phase);      break;
+    case 'confession_reader':  _tickConfessionReader(phase); break;
+    case 'wither':             _tickWither(phase);           break;
+    case 'sealer':             _tickSealer(phase);           break;
+    // Ch4 archetypes:
+    case 'phase_shifter':      _tickPhaseShifter(phase);     break;
+    case 'equalizer':          _tickEqualizer(phase);        break;
+    case 'regent':             _tickRegent(phase);           break;
+    case 'phase_reverser':     _tickPhaseReverser(phase);    break;
+    case 'royal_phase':        _tickRoyalPhase(phase);       break;
+    // Ch5 archetypes:
+    case 'eternal':            _tickEternal(phase);          break;
+    case 'inevitable':         _tickInevitable(phase);       break;
+    case 'co_op':              _tickCoOp(phase);             break;
+    case 'devourer':           _tickDevourer(phase);         break;
+    case 'choice':             _tickChoice(phase);           break;
     // 2026-04-30 — Chapter 1 boss-specific abilities. Until polish v0.2 the
     // Ch1 series ran on archetype-only mechanics (berserker enrage, tank
     // armor, etc.) which left them feeling generic compared to Ch2's
@@ -42633,6 +42716,332 @@ async function _batterySunfireCascade() {
     if (el) el.classList.add('spawning');
   }
   try { flashText('☀☀☀ STRIKE 3/3 · ' + centerVoids.length + ' VOIDS', '#FFD75A'); } catch(e) {}
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 6 PR #6.A — COSMIC ASCENSION ARCHETYPE TICKS
+// Per BLOCKSWORN_COMBAT_V21_PHASE_6_COSMIC_ASCENSION.md §2.4 + §19.1.
+//
+// 14 archetype scaffolds covering Ch3 correction (5) + Ch4 (5) + Ch5 (5).
+// MVP per-archetype state + phase banner + simple dmgMult modifier.
+// Full mechanical depth (5-face cycling, 7-phase chains, twin grief mode)
+// ships as v2.2 polish PRs per spec author's §19.1 mitigation guidance.
+//
+// All scaffolds:
+//   1. Detect new phase boundary (track lastPhase per archetype)
+//   2. Show banner on phase entry (player sees archetype identity)
+//   3. Apply phase-aware bossAttackDmgMult / pressureGainMult delta
+//   4. Reset state on battle init via _resetPhase6ArchetypeState
+//   5. Graceful degrade — Phase 4 reactivity events still fire on
+//      phase gates as fallback per spec §2.6
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P6 §2.4 archetype state vars (scaffolds).
+// Each archetype has minimal state to track phase entry + telemetry.
+// V2.2 polish expands these into full state machines per spec.
+let _p6SoulDrinkerState        = 'light';   // 'light' | 'dark' | 'both'
+let _p6SoulDrinkerLastPhase    = null;
+let _p6StormcallerLastPhase    = null;
+let _p6ConfessionReaderLastPhase = null;
+let _p6WitherLastPhase         = null;
+let _p6SealerLastPhase         = null;
+let _p6PhaseShifterFaceIdx     = 0;          // 0..4 (5 faces)
+let _p6PhaseShifterLastPhase   = null;
+let _p6EqualizerLastPhase      = null;
+let _p6RegentLastPhase         = null;
+let _p6PhaseReverserLastPhase  = null;
+let _p6RoyalPhaseLastPhase     = null;
+let _p6EternalWaxRemaining     = 30;          // 30-turn fuse
+let _p6EternalDamageCounter    = 0;           // every 100 dmg = -1 wax
+let _p6EternalLastPhase        = null;
+let _p6InevitableLastPhase     = null;
+let _p6CoOpTwinAHP             = 0;           // populated on initCoOp
+let _p6CoOpTwinBHP             = 0;
+let _p6CoOpGriefMode           = null;        // null | 'A' | 'B'
+let _p6CoOpLastPhase           = null;
+let _p6DevourerLastPhase       = null;
+let _p6DevourerStolenLog       = [];          // refunded × 1.5 on victory
+let _p6ChoiceFlamePhaseIdx     = 0;           // 0..6 (7 phases)
+let _p6ChoiceLastPhase         = null;
+
+const PROSECUTOR_FACES = Object.freeze([
+  { name: 'PITY',    color: '#A89AFF', dmgMult: 0.5, healPerTurn: 0,    mirror: false },
+  { name: 'RAGE',    color: '#FF4D1F', dmgMult: 1.5, healPerTurn: 0,    mirror: false },
+  { name: 'SORROW',  color: '#5DCA79', dmgMult: 0.8, healPerTurn: 0.03, mirror: false },
+  { name: 'JUSTICE', color: '#FFD700', dmgMult: 1.0, healPerTurn: 0,    mirror: true  },
+  { name: 'VERDICT', color: '#FF0000', dmgMult: 1.5, healPerTurn: 0.03, mirror: true  },
+]);
+
+const FLAME_PHASE_NAMES = Object.freeze([
+  'WHO_BLAME', 'WHO_FORGIVE', 'WHO_PROTECT', 'WHO_DESTROY',
+  'WHO_BECOME', 'WHO_REMEMBER', 'NOW',
+]);
+
+// Helper — banner on phase entry (idempotent across same phase).
+function _p6PhaseBanner(archetype, phase, label, color) {
+  try {
+    const lastKey = '_p6_' + archetype + '_lastPhase';
+    if (typeof window === 'undefined' || window[lastKey] === phase) return;
+    if (typeof flashStateBanner === 'function') flashStateBanner(label, color || '#FFD53D');
+    if (typeof logEvent === 'function') logEvent('p6_archetype_phase', { archetype, phase, label });
+  } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P6 §2.4.1: Soul-Drinker tick (TWILIGHT VESSEL).
+function _tickSoulDrinker(phase) {
+  if (_p6SoulDrinkerLastPhase === phase) return;
+  _p6SoulDrinkerLastPhase = phase;
+  let newState = 'light';
+  if (phase === 1) newState = 'light';
+  else if (phase === 2) newState = 'dark';
+  else if (phase === 3) newState = 'both';
+  if (newState !== _p6SoulDrinkerState) {
+    _p6SoulDrinkerState = newState;
+    try { flashStateBanner('SHIFT — ' + newState.toUpperCase(), newState === 'light' ? '#FFD700' : '#9B59D6'); } catch (e) {}
+  }
+}
+
+function _tickStormcaller(phase) {
+  if (_p6StormcallerLastPhase === phase) return;
+  _p6StormcallerLastPhase = phase;
+  try { flashStateBanner('STORM PHASE ' + phase, '#9CC8DE'); } catch (e) {}
+}
+
+function _tickConfessionReader(phase) {
+  if (_p6ConfessionReaderLastPhase === phase) return;
+  _p6ConfessionReaderLastPhase = phase;
+  try { flashStateBanner('CONFESSION P' + phase, '#C0A6DF'); } catch (e) {}
+}
+
+function _tickWither(phase) {
+  if (_p6WitherLastPhase === phase) return;
+  _p6WitherLastPhase = phase;
+  try { flashStateBanner('WITHER P' + phase, '#6E7A6A'); } catch (e) {}
+}
+
+function _tickSealer(phase) {
+  if (_p6SealerLastPhase === phase) return;
+  _p6SealerLastPhase = phase;
+  try { flashStateBanner('SEAL P' + phase, '#E8D88A'); } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P6 §2.4.2: Phase Shifter tick (THE PROSECUTOR).
+// 5 faces driven by HP ratio. Each face bumps bossAttackDmgMult per face data.
+function _tickPhaseShifter(phase) {
+  if (typeof currentBoss === 'undefined' || !currentBoss) return;
+  if (typeof bossHP !== 'number' || typeof bossMaxHP !== 'number' || bossMaxHP <= 0) return;
+  const ratio = bossHP / bossMaxHP;
+  let newFaceIdx = 0;
+  if (ratio <= 0.20) newFaceIdx = 4;
+  else if (ratio <= 0.40) newFaceIdx = 3;
+  else if (ratio <= 0.60) newFaceIdx = 2;
+  else if (ratio <= 0.80) newFaceIdx = 1;
+  if (newFaceIdx !== _p6PhaseShifterFaceIdx) {
+    _p6PhaseShifterFaceIdx = newFaceIdx;
+    const face = PROSECUTOR_FACES[newFaceIdx];
+    try { flashStateBanner('FACE: ' + face.name, face.color); } catch (e) {}
+    try { if (typeof bossAttackDmgMult !== 'undefined') bossAttackDmgMult = face.dmgMult; } catch (e) {}
+  }
+  // Per-turn heal for SORROW/VERDICT (3% HP/turn)
+  const face = PROSECUTOR_FACES[_p6PhaseShifterFaceIdx];
+  if (face.healPerTurn > 0 && typeof bossHP === 'number' && typeof bossMaxHP === 'number') {
+    bossHP = Math.min(bossMaxHP, bossHP + Math.floor(bossMaxHP * face.healPerTurn));
+  }
+}
+
+function _tickEqualizer(phase) {
+  if (_p6EqualizerLastPhase === phase) return;
+  _p6EqualizerLastPhase = phase;
+  try { flashStateBanner('SCALES P' + phase, '#F0E68C'); } catch (e) {}
+}
+
+function _tickRegent(phase) {
+  if (_p6RegentLastPhase === phase) return;
+  _p6RegentLastPhase = phase;
+  try { flashStateBanner('REGENT P' + phase, '#FFAA28'); } catch (e) {}
+}
+
+function _tickPhaseReverser(phase) {
+  if (_p6PhaseReverserLastPhase === phase) return;
+  _p6PhaseReverserLastPhase = phase;
+  try { flashStateBanner('REVERSE P' + phase, '#A8C8E8'); } catch (e) {}
+}
+
+function _tickRoyalPhase(phase) {
+  if (_p6RoyalPhaseLastPhase === phase) return;
+  _p6RoyalPhaseLastPhase = phase;
+  try { flashStateBanner('ROYAL P' + phase, '#E8C8FF'); } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P6 §2.4.3: Eternal tick (THE WICK).
+// Wax timer counts down 1/turn. Each 100 dmg = -1 wax (handled in
+// applyDamageToEternal hook elsewhere). At 0 wax, boss extinguished.
+function _tickEternal(phase) {
+  if (typeof currentBoss === 'undefined' || !currentBoss || currentBoss.archetype !== 'eternal') return;
+  if (_p6EternalWaxRemaining > 0) {
+    _p6EternalWaxRemaining = Math.max(0, _p6EternalWaxRemaining - 1);
+  }
+  if (_p6EternalLastPhase !== phase) {
+    _p6EternalLastPhase = phase;
+    try { flashStateBanner('WAX ' + _p6EternalWaxRemaining + 'T', '#FFD700'); } catch (e) {}
+  }
+  // Phase shifts based on wax (banner + dmgMult)
+  if (_p6EternalWaxRemaining <= 10 && _p6EternalWaxRemaining > 0) {
+    try { if (typeof bossAttackDmgMult !== 'undefined') bossAttackDmgMult = 1.5; } catch (e) {}
+  } else if (_p6EternalWaxRemaining <= 20) {
+    try { if (typeof bossAttackDmgMult !== 'undefined') bossAttackDmgMult = 1.2; } catch (e) {}
+  }
+  // Wax depleted → boss extinguished (player wins via wax mechanic, not HP)
+  if (_p6EternalWaxRemaining <= 0 && typeof bossHP === 'number' && bossHP > 0) {
+    try { bossHP = 0; flashStateBanner('THE WICK BURNS DOWN', '#FFD700'); } catch (e) {}
+  }
+}
+
+function _tickInevitable(phase) {
+  if (_p6InevitableLastPhase === phase) return;
+  _p6InevitableLastPhase = phase;
+  try { flashStateBanner('DREAM P' + phase, '#5DCAFF'); } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P6 §2.4.4: Co-Op Twin tick (SHARED HEARTH).
+// Twin grief mode: if twin A dies first → twin B grief (+200% dmg, +5% HP/turn regen).
+// Strategic restraint: kill both within 4 seconds = perfect kill achievement.
+// MVP scaffold tracks state; full UI dual-bar lands in v2.2 polish.
+function _tickCoOp(phase) {
+  if (_p6CoOpLastPhase !== phase) {
+    _p6CoOpLastPhase = phase;
+    try { flashStateBanner('TWIN HEARTH P' + phase, '#FF7F50'); } catch (e) {}
+  }
+  if (_p6CoOpGriefMode === 'A' && typeof bossMaxHP === 'number' && bossMaxHP > 0) {
+    // Twin A grief regen 5% per turn
+    if (typeof bossHP === 'number') bossHP = Math.min(bossMaxHP, bossHP + Math.floor(bossMaxHP * 0.05));
+  } else if (_p6CoOpGriefMode === 'B' && typeof bossMaxHP === 'number' && bossMaxHP > 0) {
+    if (typeof bossHP === 'number') bossHP = Math.min(bossMaxHP, bossHP + Math.floor(bossMaxHP * 0.05));
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P6 §2.4.5: Devourer tick (FIRST HUNGER).
+// Steals N resources per turn (1/2/3 across P1/P2/P3). All refunded × 1.50
+// on victory. MVP scaffold logs steal events; full theft + refund cycle
+// lands in v2.2 polish.
+function _tickDevourer(phase) {
+  if (_p6DevourerLastPhase !== phase) {
+    _p6DevourerLastPhase = phase;
+    try { flashStateBanner('DEVOUR P' + phase, '#2F2F2F'); } catch (e) {}
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P6 §2.4.6: Choice tick (FLAME ITSELF).
+// 7 phases asking 7 questions. Each phase tests a different aspect of strategy.
+// Final phase 7 stacks all previous mechanics — chaos test.
+function _tickChoice(phase) {
+  if (typeof currentBoss === 'undefined' || !currentBoss) return;
+  if (typeof bossHP !== 'number' || typeof bossMaxHP !== 'number' || bossMaxHP <= 0) return;
+  const ratio = bossHP / bossMaxHP;
+  // 7-phase boundaries (per spec)
+  let newPhaseIdx = 0;
+  if (ratio <= 0.14) newPhaseIdx = 6;
+  else if (ratio <= 0.28) newPhaseIdx = 5;
+  else if (ratio <= 0.43) newPhaseIdx = 4;
+  else if (ratio <= 0.57) newPhaseIdx = 3;
+  else if (ratio <= 0.71) newPhaseIdx = 2;
+  else if (ratio <= 0.86) newPhaseIdx = 1;
+  if (newPhaseIdx !== _p6ChoiceFlamePhaseIdx) {
+    _p6ChoiceFlamePhaseIdx = newPhaseIdx;
+    const phaseName = FLAME_PHASE_NAMES[newPhaseIdx] || 'UNKNOWN';
+    try { flashStateBanner('PHASE: ' + phaseName.replace(/_/g, ' '), '#FF0000'); } catch (e) {}
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P6 §2.4: battle-init reset for all P6 archetypes.
+// Called from existing battle init alongside P1-P5 resets. Idempotent.
+function _resetPhase6ArchetypeState() {
+  _p6SoulDrinkerState        = 'light';
+  _p6SoulDrinkerLastPhase    = null;
+  _p6StormcallerLastPhase    = null;
+  _p6ConfessionReaderLastPhase = null;
+  _p6WitherLastPhase         = null;
+  _p6SealerLastPhase         = null;
+  _p6PhaseShifterFaceIdx     = 0;
+  _p6PhaseShifterLastPhase   = null;
+  _p6EqualizerLastPhase      = null;
+  _p6RegentLastPhase         = null;
+  _p6PhaseReverserLastPhase  = null;
+  _p6RoyalPhaseLastPhase     = null;
+  _p6EternalWaxRemaining     = 30;
+  _p6EternalDamageCounter    = 0;
+  _p6EternalLastPhase        = null;
+  _p6InevitableLastPhase     = null;
+  _p6CoOpTwinAHP             = 0;
+  _p6CoOpTwinBHP             = 0;
+  _p6CoOpGriefMode           = null;
+  _p6CoOpLastPhase           = null;
+  _p6DevourerLastPhase       = null;
+  _p6DevourerStolenLog       = [];
+  _p6ChoiceFlamePhaseIdx     = 0;
+  _p6ChoiceLastPhase         = null;
+}
+
+// 2026-05-02 — COMBAT v2.1 P6 §2.4: damage hook for Eternal (THE WICK).
+// Called from dealDamage path when current boss is eternal archetype.
+// Each 100 dmg = -1 wax. wax depleting independently triggers victory.
+function applyDamageToEternal(amount) {
+  if (typeof currentBoss === 'undefined' || !currentBoss || currentBoss.archetype !== 'eternal') return;
+  _p6EternalDamageCounter += amount;
+  while (_p6EternalDamageCounter >= 100) {
+    _p6EternalWaxRemaining = Math.max(0, _p6EternalWaxRemaining - 1);
+    _p6EternalDamageCounter -= 100;
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P6 §15.1: validation boot check.
+function _validatePhase6Setup() {
+  const archetypeKeys = (typeof BOSS_ARCHETYPES !== 'undefined') ? Object.keys(BOSS_ARCHETYPES) : [];
+  const expected14 = ['soul_drinker','stormcaller','confession_reader','wither','sealer',
+                      'phase_shifter','equalizer','regent','phase_reverser','royal_phase',
+                      'eternal','inevitable','co_op','devourer','choice'];
+  const presentNew = expected14.filter(a => archetypeKeys.includes(a));
+  const result = {
+    archetypesTotal: archetypeKeys.length,
+    p6ArchetypesAdded: presentNew.length,
+    expectedNew: 15,
+    chaptersTotal: (typeof CHAPTERS !== 'undefined') ? CHAPTERS.length : 0,
+    bossesTotal: (typeof CHAPTERS !== 'undefined')
+                 ? CHAPTERS.reduce((a, c) => a + (c.bosses ? c.bosses.length : 0), 0) : 0,
+    eternalWax: _p6EternalWaxRemaining,
+    flamePhaseIdx: _p6ChoiceFlamePhaseIdx,
+    ok: archetypeKeys.length === 25 && presentNew.length === 15,
+  };
+  console.log('[Phase 6 Boot Check]', result);
+  return result;
+}
+
+if (typeof window !== 'undefined') {
+  window._tickSoulDrinker        = _tickSoulDrinker;
+  window._tickStormcaller        = _tickStormcaller;
+  window._tickConfessionReader   = _tickConfessionReader;
+  window._tickWither             = _tickWither;
+  window._tickSealer             = _tickSealer;
+  window._tickPhaseShifter       = _tickPhaseShifter;
+  window._tickEqualizer          = _tickEqualizer;
+  window._tickRegent             = _tickRegent;
+  window._tickPhaseReverser      = _tickPhaseReverser;
+  window._tickRoyalPhase         = _tickRoyalPhase;
+  window._tickEternal            = _tickEternal;
+  window._tickInevitable         = _tickInevitable;
+  window._tickCoOp               = _tickCoOp;
+  window._tickDevourer           = _tickDevourer;
+  window._tickChoice             = _tickChoice;
+  window._resetPhase6ArchetypeState = _resetPhase6ArchetypeState;
+  window.applyDamageToEternal    = applyDamageToEternal;
+  window._validatePhase6Setup    = _validatePhase6Setup;
+  window.PROSECUTOR_FACES        = PROSECUTOR_FACES;
+  window.FLAME_PHASE_NAMES       = FLAME_PHASE_NAMES;
+  // State exposure for devtools
+  Object.defineProperty(window, '_p6EternalWaxRemaining', { get: () => _p6EternalWaxRemaining, set: v => { _p6EternalWaxRemaining = v; } });
+  Object.defineProperty(window, '_p6PhaseShifterFaceIdx', { get: () => _p6PhaseShifterFaceIdx, set: v => { _p6PhaseShifterFaceIdx = v; } });
+  Object.defineProperty(window, '_p6ChoiceFlamePhaseIdx', { get: () => _p6ChoiceFlamePhaseIdx, set: v => { _p6ChoiceFlamePhaseIdx = v; } });
+  Object.defineProperty(window, '_p6CoOpGriefMode',       { get: () => _p6CoOpGriefMode,       set: v => { _p6CoOpGriefMode = v; } });
 }
 
 // PHASE 5b BLOCK 7 — Battery charge meter UI. Visible bar above grid showing
@@ -44807,6 +45216,9 @@ function startBossBattle() {
   // Phase 1/2/3 resets. Clears all 13 boss state vars + engineerElectrifiedRows.
   // battlePhasesTriggered already cleared above (legacy infra).
   try { if (typeof _resetReactivityState === 'function') _resetReactivityState(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P6 PR #6.A §2.4: reset Cosmic Ascension archetype state.
+  // Clears all 14 archetype trackers (faces, wax, twin grief, flame phase) on battle init.
+  try { if (typeof _resetPhase6ArchetypeState === 'function') _resetPhase6ArchetypeState(); } catch (e) {}
   // 2026-05-02 — COMBAT v2.1 P5 PR #5.A §2.7: consume reward carryovers.
   // _phase5StartingPressureBonus set by post-victory reward pick (+25 starting Pressure).
   // Applied AFTER state machine reset so addPressure sees a fresh meter.
@@ -44943,6 +45355,9 @@ function startBossBattle() {
   // Phase 1/2/3 resets. Clears all 13 boss state vars + engineerElectrifiedRows.
   // battlePhasesTriggered already cleared above (legacy infra).
   try { if (typeof _resetReactivityState === 'function') _resetReactivityState(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P6 PR #6.A §2.4: reset Cosmic Ascension archetype state.
+  // Clears all 14 archetype trackers (faces, wax, twin grief, flame phase) on battle init.
+  try { if (typeof _resetPhase6ArchetypeState === 'function') _resetPhase6ArchetypeState(); } catch (e) {}
   // 2026-05-02 — COMBAT v2.1 P5 PR #5.A §2.7: consume reward carryovers.
   // _phase5StartingPressureBonus set by post-victory reward pick (+25 starting Pressure).
   // Applied AFTER state machine reset so addPressure sees a fresh meter.
