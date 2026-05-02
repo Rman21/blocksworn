@@ -36046,13 +36046,27 @@ function getHeroStats(hero) {
   const tierKey = tier === 0 ? 'T0' : (tier === 1 ? 'T1' : (tier === 2 ? 'T2' : 'T3'));
   s.mitigationContribution = (MITIGATION_TABLE[mitKey] || {})[tierKey] || 0;
 
-  // Tier-specific dmg/ult/shield/period bonuses (unchanged from v2.0)
+  // 2026-05-02 — COMBAT v2.1 P3 §2.2: tier-uniform damage curve.
+  // Replaces per-role dmgMult assignments (striker T2=1.25 / guard T2=1.50)
+  // with TIER_DAMAGE_MULT lookup. Role differentiation now flows through
+  // T1/T2/T3/Mythic abilities (HERO_TIER_ABILITIES) rather than damage
+  // multipliers. ultMult / shieldBonus / periodReduction stay per-role.
+  let _tierKey = 'T0';
+  if (typeof isHeroMythic === 'function' && isHeroMythic(hero.id)) {
+    _tierKey = 'Mythic';
+  } else if (tier >= 3) _tierKey = 'T3';
+  else if (tier >= 2) _tierKey = 'T2';
+  else if (tier >= 1) _tierKey = 'T1';
+  if (typeof TIER_DAMAGE_MULT !== 'undefined' && TIER_DAMAGE_MULT[_tierKey]) {
+    s.dmgMult = TIER_DAMAGE_MULT[_tierKey];
+  }
+
+  // Per-role tier bonuses (NOT damage-curve — those are uniform via
+  // TIER_DAMAGE_MULT above). ultMult / shieldBonus / periodReduction stay.
   if (hero.role === 'striker') {
-    if (tier >= 2) s.dmgMult = 1.25;
     if (tier >= 3) s.ultMult = 1.30;
   } else if (hero.role === 'guard') {
     if (tier >= 1) s.shieldBonus = 1;
-    if (tier >= 2) s.dmgMult = 1.50;
     if (tier >= 3) s.ultMult = 1.30;
   } else if (hero.role === 'weaver') {
     if (tier >= 2) s.periodReduction = 1;
@@ -36061,7 +36075,8 @@ function getHeroStats(hero) {
   // T4 ARCANE RESONANCE removed in v2.1 P1 (artifacts deleted in PR #1.E).
 
   // Level bonuses — mitigation replaces former hpBonus.
-  // dmg/ult level bonuses unchanged.
+  // dmg/ult level bonuses add ON TOP of TIER_DAMAGE_MULT, so a T3 striker
+  // at L60 gets 1.80 (T3) + 1.18 (level delta) = 2.98 dmgMult.
   const lvl = getHeroLevel(hero.id);
   const delta = lvl - HERO_LEVEL_MIN;
   s.mitigationContribution += delta * (LEVEL_MITIGATION_PER[mitKey] || 0);
@@ -42068,6 +42083,10 @@ function startBossBattle() {
   // 2026-05-02 — COMBAT v2.1 P2 §3.12: reset Stagger state per battle.
   // Pressure / state / revenge attack all start fresh. Idempotent.
   try { if (typeof resetStaggerState === 'function') resetStaggerState(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P3 §14.1: clear Phase 3 hook registry.
+  // PRs #3.B-F register per-tier hooks at battle init; this reset
+  // ensures clean slate so prior-fight registrations don't leak.
+  try { if (typeof _resetPhase3Hooks === 'function') _resetPhase3Hooks(); } catch (e) {}
   revivesRemaining = currentBoss.revives || 0;
   attackCountdown = currentBoss.attackInterval;
   // MODIFIER: Double Time — boss attacks 2× faster (halve interval)
@@ -42182,6 +42201,8 @@ function startBossBattle() {
   bossHP = bossMaxHP;
   // 2026-05-02 — COMBAT v2.1 P2 §3.12: reset Stagger state for archetype path too.
   try { if (typeof resetStaggerState === 'function') resetStaggerState(); } catch (e) {}
+  // 2026-05-02 — COMBAT v2.1 P3 §14.1: clear Phase 3 hook registry (archetype path).
+  try { if (typeof _resetPhase3Hooks === 'function') _resetPhase3Hooks(); } catch (e) {}
   attackCountdown = _arch.attackCD;                    // override cadence from archetype
   if (activeModifiers.has('doubleTime')) attackCountdown = Math.max(2, Math.floor(attackCountdown / MODIFIERS.doubleTime.speedMult));
   bossAttackDmgMult = _arch.dmgMult;
@@ -54676,6 +54697,314 @@ const HERO_BIOS = {
     voice: '"The dawn. RISES. With us."',
   },
 };
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 3 PR #3.A — FOUNDATION DATA + HOOK REGISTRY
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_3_HERO_TIERS.md §2 + §3 + §4 + §14.1.
+// 25 heroes × 5 ability slots = 125 entries (verbatim from spec §4.1-§4.5).
+// TIER_DAMAGE_MULT applied through getHeroStats.dmgMult.
+// Centralized hook registry per spec §14.1 to avoid 100-hook broadcast cost.
+// PR #3.B wires Tank conversion. PR #3.C wires Captain Mark. PR #3.D ships
+// Mythic per-save constraint. PR #3.E ships race scaling. PR #3.F finishes UI + FTUE.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P3 §2.2: tier-keyed damage curve. Replaces the
+// per-role tier dmgMult assignments in getHeroStats. Mythic detection via
+// existing isHeroMythic(heroId). dmgMult flows through fire/ULT damage calc
+// unchanged downstream.
+const TIER_DAMAGE_MULT = Object.freeze({
+  T0:     1.00,
+  T1:     1.20,
+  T2:     1.45,
+  T3:     1.80,
+  Mythic: 2.30,
+});
+
+// 2026-05-02 — COMBAT v2.1 P3 §6.1: race-passive scaling by avg squad tier.
+// Applied multiplicatively to existing race-buff numerical values. PR #3.E
+// wires getRacePassiveMultiplier() into raceBonusDmg consumers.
+const RACE_TIER_MULT = Object.freeze({
+  T0:     1.00,
+  T1:     1.00,
+  T2:     1.25,   // +25% on race passive bonuses
+  T3:     1.50,   // +50% on race passive bonuses
+  Mythic: 1.50,   // Mythic doesn't further amplify race (own RULE handles power)
+});
+
+// 2026-05-02 — COMBAT v2.1 P3 §4.1-§4.5: full hero tier ability data.
+// 25 heroes × 5 slots (T0/T1/T2/T3/Mythic) = 125 entries. T0 names use
+// existing HERO_ROSTER fireText; T0 description uses ultText. T1-Mythic
+// per spec §4 row data verbatim. Cost strings per spec §2.1.
+//
+// PR #3.F renders this in Hero Detail Modal Tier Abilities panel.
+// Per-hero fire/ult function references stay in HERO_ROSTER unchanged —
+// HERO_TIER_ABILITIES is descriptive metadata only.
+const HERO_TIER_ABILITIES = {
+  pirate_warrior: {
+    t0:     { name: 'CLEAVER FORGE', description: 'Spawn 5 charged ember + FLEET bonus' },
+    t1:     { name: 'EMBER FORGE+', description: '+2 ember cells; 25% chance one is charged' },
+    t2:     { name: 'STAGGER FORGE', description: 'On Stagger entry: 5 latest spawned cells → charged', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'EMBER PRESSURE', description: 'Ember line clears → +5 bonus Pressure', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'EVERLASTING FORGE', description: 'Spawned cells permanently boost boss damage taken (+5%/cell, max 30%)', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  pirate_hunter: {
+    t0:     { name: 'SPARKSHOT', description: 'VOLLEY: 3 rows + 100 if charged hit' },
+    t1:     { name: 'VOLLEY+', description: '4 rows; +15% per cube cleared' },
+    t2:     { name: 'STAGGER VOLLEY', description: 'If fired during Stagger: damage doubles', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'ULT REFUND', description: 'Stagger entry refunds 25% Hunter ULT charge', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'CASCADE VOLLEY', description: 'After Mythic VOLLEY: next placement = forced quad clear', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  pirate_mage: {
+    t0:     { name: 'EMBER BLOOM', description: 'MENDING: full heal + +1 ULT to all' },
+    t1:     { name: 'MENDING+', description: '+20% squad damage on next 3 placements' },
+    t2:     { name: 'STAGGER MENDING', description: 'Mage fire during Stagger extends window +2 turns', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'PRESSURE WEAVER', description: 'Pressure builds ×1.25 while Mage in squad', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'PRE-IGNITION', description: 'Pre-charge Stagger to 50% at battle start (1×/battle)', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  pirate_tank: {
+    t0:     { name: 'FIREBRAND', description: 'AEGIS: +3 shields + 3 charged ember' },
+    t1:     { name: 'AEGIS BOND', description: 'Damage→Pressure ratio 1.2:1 (was 1.0)' },
+    t2:     { name: 'LOW HP REFLEX', description: 'At HP ≤ 50%: mitigation ×2 + 1 free shield', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'AEGIS PROTOCOL', description: '3-turn window: ALL incoming damage converts to Pressure (no HP loss)', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'CRIMSON STAND', description: 'Stagger entry → squad +30% damage during full Stagger duration', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  pirate_captain: {
+    t0:     { name: 'CAPTAIN\'S GAMBIT', description: 'DOMINION: 10 cells + 50% charged spawn' },
+    t1:     { name: 'MARK SYSTEM', description: 'Race buff +25% + per-turn Mark (marked hero next fire = +30% dmg + +10 Pressure)' },
+    t2:     { name: 'MARK STAGGER', description: 'Marked hero fire extends Stagger window +1 turn each (Stagger only)', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'UNIVERSAL MARK', description: 'Mark works on ANY squad action (shields, rows, buffs)', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'THRESHOLD MASTER', description: 'Pre-set Stagger trigger threshold 50/75/100 at battle start', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  rock_warrior: {
+    t0:     { name: 'RIFF SEED', description: 'RIFF FORGE: spawn 6 umbra (+4 if Encore primed)' },
+    t1:     { name: 'ENCORE+', description: '+2 umbra cells; +20% Encore chance per spawn' },
+    t2:     { name: 'STAGGER ENCORE', description: 'On Stagger entry: encore-ready cells → instant charged', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'UMBRA ENCORE', description: 'Umbra clears during Encore: +8 bonus Pressure', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'ETERNAL ENCORE', description: 'Encore stacks permanently (caps at +10 per fight, +30% boss dmg taken)', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  rock_hunter: {
+    t0:     { name: 'PIERCING SHRIEK', description: 'VOLLEY echo on next placement' },
+    t1:     { name: 'ECHO VOLLEY+', description: '4 rows; +DEEP BEAT bonus from Mage' },
+    t2:     { name: 'STAGGER ECHO', description: 'Stagger fires: +3 echo placements (was 1)', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'ULT REFUND+', description: 'Stagger entry refunds 30% Hunter ULT (vs 25%)', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'BOARD ECHO', description: 'Echo VOLLEY ricochets across entire board (forced double-quad)', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  rock_mage: {
+    t0:     { name: 'DEEP BEAT', description: 'MENDING + 3-placement umbra +20%' },
+    t1:     { name: 'DEEP BEAT+', description: 'DEEP BEAT stacks last 2 placements (was 1)' },
+    t2:     { name: 'STAGGER BEAT', description: 'Stagger fire: +3 turn extension (vs +2)', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'PRESSURE BEAT', description: 'Pressure builds ×1.30 while Mage in squad', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'OPENING BEAT', description: 'Pre-charge to 60% (vs 50%) at battle start', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  rock_tank: {
+    t0:     { name: 'DRUMHEAD', description: 'AEGIS + free Rhythm proc' },
+    t1:     { name: 'RHYTHM BOND', description: 'Damage→Pressure 1.2:1 + free Rhythm proc' },
+    t2:     { name: 'LOW HP RHYTHM', description: 'At HP ≤ 50%: mitigation ×2 + 2 shields (vs 1)', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'AEGIS PROTOCOL+', description: '4-turn window (vs 3) of damage→pressure', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'RHYTHM STAND', description: 'Stagger entry → squad +35% damage (vs 30%) full Stagger', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  rock_captain: {
+    t0:     { name: 'CONDUCT THE DARK', description: 'DOMINION + immediate Encore' },
+    t1:     { name: 'ENCORE MARK', description: 'Race buff +25% + Mark + immediate Encore on mark' },
+    t2:     { name: 'MARK ENCORE STAGGER', description: 'Marked Encore extends Stagger +2 turns (vs +1)', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'ENCORE UNIVERSAL', description: 'Mark works on Encore + race procs', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'AGGRESSIVE THRESHOLD', description: 'Pre-set threshold 50/60/75 (more aggressive options)', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  shark_warrior: {
+    t0:     { name: 'TIDE SEED', description: 'TIDE FORGE: spawn 6 tide cells' },
+    t1:     { name: 'TIDE CHAIN+', description: '+2 tide cells; +1 chain segment per tide clear' },
+    t2:     { name: 'STAGGER CHAIN', description: 'On Stagger entry: chain segments × 2', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'TIDE PRESSURE', description: 'Tide chain clears → +10 bonus Pressure (vs +5)', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'PERMANENT FREEZE', description: 'Permanent freeze field (8% boss dmg taken, lasting)', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  shark_hunter: {
+    t0:     { name: 'SHATTER VOLLEY', description: 'VOLLEY: chain rows' },
+    t1:     { name: 'CHAIN VOLLEY+', description: '4 rows; chain rows linked' },
+    t2:     { name: 'STAGGER CHAIN VOLLEY', description: 'Stagger fire: chain ALL rows on board', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'ULT REFUND + FREEZE', description: 'Stagger entry refunds 25% + 1 free freeze', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'CHAIN FREEZE', description: 'Chain freezes boss for 2 turns (skip boss attack twice)', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  shark_mage: {
+    t0:     { name: 'TIDE WEAVE', description: 'MENDING: freeze attack' },
+    t1:     { name: 'MENDING + FREEZE', description: '+20% squad damage + freeze 1 attack' },
+    t2:     { name: 'STAGGER FREEZE', description: 'Stagger fire: extend +2t + permanent freeze on 1 boss attack', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'PRESSURE FREEZE', description: 'Pressure builds ×1.25 + frozen damage tracking', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'OPENING FREEZE', description: 'Pre-charge 50% + first attack of fight auto-frozen', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  shark_tank: {
+    t0:     { name: 'TOCK GUARD', description: 'AEGIS: refund placement' },
+    t1:     { name: 'TIDE BOND', description: 'AEGIS + refund placement + 1.2:1 conversion' },
+    t2:     { name: 'LOW HP REFUND', description: 'At HP ≤ 50%: mitigation ×2 + refund last placement', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'AEGIS PROTOCOL TIDE', description: '3 turns + frozen ward (no boss attacks during)', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'TIDE STAND', description: 'Stagger entry → all squad +30% + boss frozen 2t', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  shark_captain: {
+    t0:     { name: 'DEEP TIDE', description: 'DOMINION: chill board' },
+    t1:     { name: 'CHILL MARK', description: 'Race buff +25% + Mark + chill aura on mark' },
+    t2:     { name: 'MARK CHILL STAGGER', description: 'Marked chill extends Stagger +1t + chills 2 cells', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'UNIVERSAL CHILL', description: 'Mark on freeze procs (universal cold synergy)', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'OCEANIC THRESHOLD', description: 'Pre-set threshold 50/75/100 + initial board chill', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  crocodile_warrior: {
+    t0:     { name: 'BEDROCK FORGE', description: 'BEDROCK BASTION: all empties → earth absorbers' },
+    t1:     { name: 'EARTH FORGE+', description: '+2 grove cells; spawn 1 earth absorber adjacent' },
+    t2:     { name: 'STAGGER QUAKE', description: 'On Stagger entry: all earth absorbers detonate together', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'EARTH PRESSURE', description: 'Earth absorber clears → +6 bonus Pressure', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'IRON FORTRESS', description: 'Permanent earth fortress (5 absorbers persist battle-long)', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  crocodile_hunter: {
+    t0:     { name: 'VENGEANCE SLAM', description: 'QUAKE: ×3 absorbed dmg' },
+    t1:     { name: 'QUAKE+', description: 'QUAKE ×3.5 absorbed + AoE bonus' },
+    t2:     { name: 'STAGGER QUAKE BOARD', description: 'Stagger fire: detonate quake on entire board', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'ULT REFUND + QUAKE', description: 'Stagger entry refunds 25% + 1 free QUAKE', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'CHAIN QUAKE', description: 'Mythic QUAKE chains to all earth absorbers across save', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  crocodile_mage: {
+    t0:     { name: 'VERDANT SURGE', description: 'SURGE: shields → damage' },
+    t1:     { name: 'SURGE+', description: 'SURGE: shields → damage + 25% squad mult' },
+    t2:     { name: 'STAGGER SURGE', description: 'Stagger fire: extend +2t + +1 shield to all', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'PRESSURE SHIELD', description: 'Pressure builds ×1.25 + 5% per shield held', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'OPENING BASTION', description: 'Pre-charge 50% + battle starts with full shields', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  crocodile_tank: {
+    t0:     { name: 'STONE SKIN', description: 'AEGIS: full row earth' },
+    t1:     { name: 'EARTH BOND', description: 'AEGIS + full row earth + 1.2:1 conversion' },
+    t2:     { name: 'LOW HP IRON HIDE', description: 'At HP ≤ 50%: mitigation ×2 + 2 absorbers spawn', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'AEGIS PROTOCOL EARTH', description: '3t + Iron Hide bonus +10% mitigation', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'IRON HIDE STAND', description: 'Stagger entry → squad +30% + Iron Hide perm field', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  crocodile_captain: {
+    t0:     { name: 'ETERNAL BASTION', description: 'DOMINION: shields + earth field' },
+    t1:     { name: 'EARTH MARK', description: 'Race buff +25% + Mark + earth shield on mark' },
+    t2:     { name: 'MARK EARTH STAGGER', description: 'Marked earth proc extends Stagger +1t', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'UNIVERSAL EARTH', description: 'Mark on absorber detonations (universal earth synergy)', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'BASTION THRESHOLD', description: 'Pre-set threshold 50/75/100 + absorbers pre-placed', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  spark_warrior: {
+    t0:     { name: 'SUN FORGE', description: 'SUN CASCADE: spawn 5 solar cells' },
+    t1:     { name: 'SOLAR FORGE+', description: '+2 solar cells; 30% chance pre-aged (instant detonate-ready)' },
+    t2:     { name: 'STAGGER RADIANCE', description: 'On Stagger entry: all solar cells become radiant', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'SOLAR PRESSURE', description: 'Solar detonate clears → +7 bonus Pressure', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'STATIC FIELD', description: 'Permanent Static Field (10 dmg/turn to boss, lasting)', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  spark_hunter: {
+    t0:     { name: 'AURORA BURST', description: 'BURST: shields → damage (no consume)' },
+    t1:     { name: 'BURST+', description: 'BURST: +50% bonus + 1 row per shield' },
+    t2:     { name: 'STAGGER BURST', description: 'Stagger fire: shields ×2 to dmg conversion', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'ULT REFUND + BURST', description: 'Stagger entry refunds 30% + 1 free BURST', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'BURST OVERLOAD', description: 'Mythic BURST: convert shields × 5 dmg (1 shield = burst row)', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  spark_mage: {
+    t0:     { name: 'HALO WINDOW', description: 'HALO: double shields' },
+    t1:     { name: 'HALO+', description: 'HALO: double shields + 20% squad dmg next 3' },
+    t2:     { name: 'STAGGER HALO', description: 'Stagger fire: extend +2t + halo prevents 1 boss hit', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'PRESSURE SHIELD+', description: 'Pressure builds ×1.30 + +1 shield per Stagger', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'OPENING DAWN', description: 'Pre-charge 50% + battle starts with +5 shields', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  spark_tank: {
+    t0:     { name: 'SUN GUARD', description: 'EQUILIBRIUM: shields + immunity' },
+    t1:     { name: 'SUN BOND', description: 'AEGIS + immunity + 1.2:1 conversion' },
+    t2:     { name: 'LOW HP IMMUNITY', description: 'At HP ≤ 50%: mitigation ×2 + 1 turn full immune', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'AEGIS PROTOCOL SUN', description: '4-turn (vs 3) + sun aura', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'SUN STAND', description: 'Stagger entry → squad +35% + sun aura 5 turns post-Stagger', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+  spark_captain: {
+    t0:     { name: 'ETERNAL DAWN', description: 'DOMINION: heal + shields + solar cells' },
+    t1:     { name: 'DAWN MARK', description: 'Race buff +25% + Mark + heal+shield on mark' },
+    t2:     { name: 'MARK DAWN STAGGER', description: 'Marked heal/shield extends Stagger +2t', cost: '5 cards + 1 stone + 200g + 5 essence' },
+    t3:     { name: 'UNIVERSAL DAWN', description: 'Mark on shield gain + sun events', cost: '10 cards + 1 stone + 500g + 10 essence' },
+    mythic: { name: 'DAWN THRESHOLD', description: 'Pre-set threshold 50/75/100 + Eternal Dawn pre-cast', cost: '25 cards + 1 legendary stone + 1000g + 20 essence' },
+  },
+};
+
+// 2026-05-02 — COMBAT v2.1 P3 §14.1: centralized hook registry. Phase 3
+// introduces ~100 potential hooks (25 heroes × 4 slots: T2 reactive, T3 role,
+// Mythic rule, race passive). Without centralization each event would broadcast
+// to all heroes — perf risk. Registry pattern: heroes register on battle init
+// based on tier; events fire single-pass through registered callbacks only.
+//
+// PR #3.A defines the registry foundation. Actual hook registration ships
+// in #3.B (Tank), #3.C (Captain), #3.D-F (per-hero). _resetPhase3Hooks()
+// runs on every battle init to clear registrations from prior fight.
+const _PHASE3_HOOK_TYPES = Object.freeze([
+  'onStaggerEnter',     // T2 reactive triggers
+  'onStaggerExit',      // T2 reactive triggers
+  'onRecoveryEnter',    // T2 reactive triggers
+  'onLineClear',        // T3 role bonuses
+  'onSpawn',            // Mythic permanent buffs
+  'onBossAttack',       // T2 / T3 reactive
+  'onLowHP',            // T2 reactive (Tank HP <= 50%)
+  'onTankAbsorb',       // damage→pressure conversion sites
+  'onCaptainMark',      // T1+ Captain mark events
+  'onUlt',              // ULT fire side-effects
+]);
+
+let _phase3HookRegistry = {};
+function _initPhase3HookRegistry() {
+  _phase3HookRegistry = {};
+  for (const t of _PHASE3_HOOK_TYPES) _phase3HookRegistry[t] = [];
+}
+_initPhase3HookRegistry();
+
+function _registerPhase3Hook(eventType, heroId, callback) {
+  if (!_phase3HookRegistry[eventType]) return false;
+  if (typeof callback !== 'function') return false;
+  _phase3HookRegistry[eventType].push({ heroId, callback });
+  return true;
+}
+
+function _firePhase3Hook(eventType, payload) {
+  const list = _phase3HookRegistry[eventType];
+  if (!list || list.length === 0) return 0;
+  let firedCount = 0;
+  for (const entry of list) {
+    try { entry.callback(payload || {}); firedCount++; }
+    catch (e) { console.warn('[Phase 3 hook]', eventType, 'failed for', entry.heroId, ':', e); }
+  }
+  return firedCount;
+}
+
+function _resetPhase3Hooks() {
+  // Called from battle init (alongside resetStaggerState from P2).
+  // Clears all registrations so the new fight starts fresh.
+  _initPhase3HookRegistry();
+}
+
+// 2026-05-02 — COMBAT v2.1 P3 boot validation. Console-friendly check that
+// the foundation data is intact. Roman runs from devtools after each
+// Phase 3 PR to confirm 25 heroes × 5 abilities, no missing entries.
+function _validatePhase3Setup() {
+  const heroIds = (typeof HERO_ROSTER !== 'undefined' && Array.isArray(HERO_ROSTER))
+                  ? HERO_ROSTER.map(h => h && h.id).filter(Boolean) : [];
+  const expected = 25;
+  const tierAbilitiesCount = (typeof HERO_TIER_ABILITIES !== 'undefined')
+                             ? Object.keys(HERO_TIER_ABILITIES).length : 0;
+  // Cross-check: every roster id should have a tier abilities entry
+  const missing = heroIds.filter(id => !HERO_TIER_ABILITIES[id]);
+  const result = {
+    heroes: heroIds.length,
+    tierAbilities: tierAbilitiesCount,
+    expectedCount: expected,
+    missing: missing.length === 0 ? 'none' : missing,
+    tierMultDefined: typeof TIER_DAMAGE_MULT !== 'undefined',
+    raceMultDefined: typeof RACE_TIER_MULT !== 'undefined',
+    hookRegistry: typeof _phase3HookRegistry,
+    hookTypes: Object.keys(_phase3HookRegistry || {}).length,
+    ok: heroIds.length === expected && tierAbilitiesCount === expected && missing.length === 0,
+  };
+  console.log('[Phase 3 Boot Check]', result);
+  return result;
+}
+
+if (typeof window !== 'undefined') {
+  window.HERO_TIER_ABILITIES        = HERO_TIER_ABILITIES;
+  window.TIER_DAMAGE_MULT           = TIER_DAMAGE_MULT;
+  window.RACE_TIER_MULT             = RACE_TIER_MULT;
+  window._registerPhase3Hook        = _registerPhase3Hook;
+  window._firePhase3Hook            = _firePhase3Hook;
+  window._resetPhase3Hooks          = _resetPhase3Hooks;
+  window._validatePhase3Setup       = _validatePhase3Setup;
+}
 
 // Block H.3 — Tier 2 ability previews (HERO_COMPENDIUM §2-6).
 // Used by tier progression strip + ability list to show what T2 unlocks.
