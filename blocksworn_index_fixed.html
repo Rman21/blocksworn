@@ -901,6 +901,223 @@ html.is-small-screen .a-battle .hero-slot .ult-fill::after {
 }
 .combat-top-bar-btn:hover { background: rgba(255, 255, 255, 0.12); }
 .combat-top-bar-btn:active { transform: scale(0.95); }
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   COMBAT v2.1 PHASE 1 PR #1.C — UI surfaces (Mitigation badge,
+   Tier Roadmap, Squad Mitigation Header, Tank gold aura).
+   Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_1_FOUNDATION.md §5.
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* §5.1 — Mitigation badge in combat top bar (next to hearts stat) */
+.combat-top-bar-mitigation {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 213, 61, 0.08);
+  border: 1px solid rgba(255, 213, 61, 0.18);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  transition: background 180ms ease-out, border-color 180ms ease-out;
+}
+.combat-top-bar-mitigation .ctbm-icon { font-size: 13px; }
+.combat-top-bar-mitigation .ctbm-value { font-weight: 800; }
+.combat-top-bar-mitigation.mit-high {
+  background: rgba(255, 213, 61, 0.16);
+  border-color: rgba(255, 213, 61, 0.40);
+  box-shadow: 0 0 8px rgba(255, 213, 61, 0.25);
+}
+.combat-top-bar-mitigation.mit-mid {
+  background: rgba(255, 213, 61, 0.10);
+  border-color: rgba(255, 213, 61, 0.25);
+}
+.combat-top-bar-mitigation.mit-low {
+  background: rgba(168, 165, 184, 0.06);
+  border-color: rgba(168, 165, 184, 0.18);
+  color: rgba(168, 165, 184, 0.95);
+}
+
+/* §5.3 — Tier Mitigation Roadmap (Hero Detail Modal) */
+.tier-mit-roadmap {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+.tier-mit-header {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.tier-mit-row {
+  display: grid;
+  grid-template-columns: 32px 1fr 50px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+.tier-mit-row .tier-label {
+  font-family: var(--a-font-display);
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 1px;
+}
+.tier-mit-row .tier-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.tier-mit-row .tier-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(125, 236, 143, 0.55), var(--a-gold-300, #FFD53D));
+  border-radius: 4px;
+  transition: width 280ms ease-out;
+}
+.tier-mit-row .tier-value {
+  text-align: right;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+.tier-mit-row.tier-current {
+  background: rgba(255, 213, 61, 0.06);
+  border-radius: 4px;
+  margin: 0 -4px 4px;
+  padding: 2px 4px;
+}
+.tier-mit-row.tier-current .tier-label { color: var(--a-gold-300, #FFD53D); }
+.tier-mit-footer {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 10px;
+  color: rgba(168, 165, 184, 0.75);
+  letter-spacing: 0.5px;
+}
+
+/* §5.4.1 — Squad Mitigation header (Squad Select / screenSelect) */
+.squad-mitigation-header {
+  margin: 8px 12px 14px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.20), rgba(0,0,0,0.08));
+  border: 1px solid rgba(255, 213, 61, 0.18);
+  border-radius: 10px;
+}
+.smh-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+.smh-icon { font-size: 16px; }
+.smh-label {
+  font-family: var(--a-font-display);
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.65);
+}
+.smh-value {
+  font-family: var(--a-font-display);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--a-gold-300, #FFD53D);
+}
+.smh-cap {
+  font-size: 10px;
+  color: rgba(168, 165, 184, 0.70);
+}
+.smh-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.smh-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(125, 236, 143, 0.55), var(--a-gold-300, #FFD53D));
+  border-radius: 4px;
+  transition: width 280ms ease-out;
+  width: 0%;
+}
+.smh-hint {
+  font-size: 10px;
+  color: rgba(168, 165, 184, 0.70);
+  letter-spacing: 0.3px;
+}
+
+/* §5.4.2 — Per-hero mitigation badge on hero cards */
+.hero-card-mit-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 213, 61, 0.45);
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 0.3px;
+  pointer-events: none;
+}
+.hero-card-mit-badge .hcmb-icon { font-size: 9px; }
+
+/* §5.4.3 — Tank-role gold aura for guard heroes */
+.hero-card[data-role="guard"],
+.v-hero-card[data-role="guard"] {
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.18), inset 0 0 8px rgba(255, 215, 0, 0.08);
+  border-color: rgba(255, 215, 0, 0.35) !important;
+}
+.hero-card[data-role="guard"]:hover,
+.v-hero-card[data-role="guard"]:hover {
+  box-shadow: 0 0 18px rgba(255, 215, 0, 0.30), inset 0 0 10px rgba(255, 215, 0, 0.12);
+  border-color: rgba(255, 215, 0, 0.55) !important;
+}
+
+/* §5.5 — Resource bar HP + mitigation chip */
+.resource-bar-hp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(232, 93, 74, 0.12);
+  border: 1px solid rgba(232, 93, 74, 0.28);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+}
+.resource-bar-hp .rbhp-icon { font-size: 12px; }
+.resource-bar-mit {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  background: rgba(255, 213, 61, 0.10);
+  border: 1px solid rgba(255, 213, 61, 0.28);
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--a-gold-300, #FFD53D);
+  margin-left: 4px;
+}
 /* Back button — same chrome as ⚙ but on the LEFT of the top bar.
    Absorbed from legacy .v-battle-topbar in PR 6/6. */
 .combat-top-bar-back {
@@ -16566,6 +16783,22 @@ button.season-tier-claim:active {
       <div class="v-squad-strip-slots a-hub-squad-slots" id="vSquadSlots"></div>
     </div>
 
+    <!-- 2026-05-02 — COMBAT v2.1 P1 §5.4.1 — Squad Mitigation Header.
+         renderSquadMitigationHeader() updates fill + value on squad
+         change. The hint text reminds players that mitigation reduces
+         damage on ALL 4 channels (deadzone, void tick, signature,
+         saturation). Replaces the legacy +HP-buffer affordance. -->
+    <div class="squad-mitigation-header" id="vMitigationHeader">
+      <div class="smh-row">
+        <span class="smh-icon" aria-hidden="true">🛡</span>
+        <span class="smh-label">MITIGATION:</span>
+        <span class="smh-value" id="squadMitValue">0%</span>
+        <span class="smh-cap">/ 70% MAX</span>
+      </div>
+      <div class="smh-bar"><div class="smh-fill" id="squadMitFill"></div></div>
+      <div class="smh-hint">Damage reduction across all 4 channels</div>
+    </div>
+
     <!-- 2026-04-29 — Player Education Stage 15 — All-One-Race entry banner.
          Hidden until Chapter 1 completes; renders progress (cleared/5).
          Click → opens the All-One-Race Bonuses modal.
@@ -16622,7 +16855,16 @@ button.season-tier-claim:active {
     <div class="combat-top-bar-stats">
       <div class="combat-top-bar-stat" id="combatTopBarHearts">
         <span class="combat-top-bar-stat-icon" aria-hidden="true">❤</span>
-        <span class="combat-top-bar-stat-value" id="combatTopBarHeartsVal">3</span>
+        <span class="combat-top-bar-stat-value" id="combatTopBarHeartsVal">100</span>
+        <span class="combat-top-bar-stat-cap" id="combatTopBarHeartsCap" aria-hidden="true">/100</span>
+      </div>
+      <!-- 2026-05-02 — COMBAT v2.1 P1 §5.1 — Mitigation badge in top bar.
+           renderMitigationBadge() updates this on HP/squad change. Tap
+           opens a tooltip with per-hero contribution breakdown (deferred
+           — single click no-op until #1.D adds the breakdown modal). -->
+      <div class="combat-top-bar-mitigation" id="playerMitigationBadge" aria-label="Squad mitigation">
+        <span class="ctbm-icon" aria-hidden="true">🛡</span>
+        <span class="ctbm-value">0%</span>
       </div>
       <div class="combat-top-bar-stat">
         <span class="combat-top-bar-stat-label">TURN</span>
@@ -23299,6 +23541,9 @@ function renderResourceBar() {
   if (gEl) gEl.textContent = gold.toLocaleString('en-US');
   const gmEl = document.getElementById('gemCount');
   if (gmEl) gmEl.textContent = String(gems);
+  // 2026-05-02 — COMBAT v2.1 P1 §5.5: HP X/100 + 🛡% chips. Defensively
+  // injected — silently no-ops if no resource-bar container exists in DOM.
+  try { if (typeof renderResourceBarHpMit === 'function') renderResourceBarHpMit(); } catch (e) {}
 }
 
 // Load resource state immediately at parse time
@@ -50427,6 +50672,8 @@ function renderHP() {
   // pattern — we update both old and new UIs during migration; legacy
   // .v-battle-player-hp row is hidden via CSS but its data still flows
   // here, so a CSS rollback restores it instantly.
+  // 2026-05-02 — COMBAT v2.1 P1 §5.1: live mitigation badge in top bar.
+  try { if (typeof renderMitigationBadge === 'function') renderMitigationBadge(); } catch (e) {}
   try {
     const heartsEl = document.getElementById('combatTopBarHeartsVal');
     if (heartsEl) heartsEl.textContent = String(hp);
@@ -52787,6 +53034,15 @@ function vRenderRoster() {
     };
     grid.appendChild(card);
   }
+  // 2026-05-02 — COMBAT v2.1 P1 §5.4: post-render injection of per-hero
+  // mitigation badges + tank-role gold aura + squad mitigation header refresh.
+  // setTimeout(0) lets the DOM settle before we query .v-hero-card[data-id].
+  try {
+    setTimeout(() => {
+      try { if (typeof renderHeroCardMitBadges === 'function') renderHeroCardMitBadges(); } catch (e) {}
+      try { if (typeof renderSquadMitigationHeader === 'function') renderSquadMitigationHeader(); } catch (e) {}
+    }, 0);
+  } catch (e) {}
 }
 
 // ===== V3.0 PHASE 3 · INTERACTIONS =====
@@ -53571,29 +53827,184 @@ function renderHeroDetailLore(hero) {
 // 2026-04-27 — Spec §1.1 STATS bars renderer (HP / DMG / Charge).
 // Computes current vs max from base hero stats × level bonuses. Bars show
 // progress toward LV60 cap (100% bar = max level reached).
+// 2026-05-02 — COMBAT v2.1 P1 §5.3: refactored to show MITIGATION instead of
+// HP. Per-hero mitigation = tier-table value + per-level scaling. Bar fill is
+// proportional to MITIGATION_CAP (70%) so the player sees how much headroom
+// remains. DMG and ULT bars unchanged. Charge label unchanged.
+// Renders the Tier Mitigation Roadmap below as a reusable preview surface
+// (Diablo skill-tree pattern — show the upgrade path before purchase).
 function renderHeroDetailStats(hero) {
   const host = document.getElementById('detailStatsBars');
   if (!host || !hero) return;
   const lvl = (typeof getHeroLevel === 'function') ? getHeroLevel(hero.id) : 1;
   const heroEffMax = (typeof getEffectiveLevelMax === 'function') ? getEffectiveLevelMax(hero.id) : HERO_LEVEL_MAX;
   const lvlPct = ((lvl - 1) / Math.max(1, (heroEffMax - 1))) * 100;
-  const bonuses = (typeof getLevelBonuses === 'function') ? getLevelBonuses(hero.id) : { dmgBonus: 0, hpBonus: 0, ultBonus: 0 };
-  // HP / DMG bars use the level progress as fill (since stat scales with level).
-  // Charge: stat is hero.period (mage) or generic — show as static label per spec.
+  const bonuses = (typeof getLevelBonuses === 'function') ? getLevelBonuses(hero.id) : { dmgBonus: 0, ultBonus: 0 };
   const dmgPct = Math.round((bonuses.dmgBonus || 0) * 100);
-  const hpPlus = bonuses.hpBonus || 0;
-  const ultPct = (bonuses.ultBonus || 0) * 100;
-  const chargeLabel = hero.period ? `period ${hero.period}` : 'combo-driven';
+  const ultPct = Math.round((bonuses.ultBonus || 0) * 100);
+
+  // Mitigation calculation (matches getHeroStats internals)
+  const mitKey = (typeof getHeroMitigationKey === 'function') ? getHeroMitigationKey(hero) : 'striker_warrior';
+  const tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[hero.id]) || 0;
+  const tierKey = tier === 0 ? 'T0' : (tier === 1 ? 'T1' : (tier === 2 ? 'T2' : 'T3'));
+  const tierMit = (MITIGATION_TABLE[mitKey] || {})[tierKey] || 0;
+  const lvlMit = (lvl - HERO_LEVEL_MIN) * (LEVEL_MITIGATION_PER[mitKey] || 0);
+  const totalMit = tierMit + lvlMit;
+  const totalMitPct = Math.round(totalMit * 100 * 10) / 10;  // 1 decimal
+  const mitFillPct = Math.min(100, (totalMit / MITIGATION_CAP) * 100);
+
+  const chargeLabel = hero.period ? ('period ' + hero.period) : 'combo-driven';
   const bar = (label, value, fillPct) =>
-    `<div class="detail-stat-row">
-       <span class="label">${label}</span>
-       <div class="bar"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, fillPct))}%"></div></div>
-       <span class="value">${value}</span>
-     </div>`;
+    '<div class="detail-stat-row">' +
+      '<span class="label">' + label + '</span>' +
+      '<div class="bar"><div class="bar-fill" style="width:' + Math.max(0, Math.min(100, fillPct)) + '%"></div></div>' +
+      '<span class="value">' + value + '</span>' +
+    '</div>';
+
   host.innerHTML =
-    bar('HP',     `+${hpPlus}`,           lvlPct) +
-    bar('DMG',    `+${dmgPct}%`,          lvlPct) +
-    bar('Charge', chargeLabel,            lvlPct);
+    bar('MITIGATION', '+' + totalMitPct + '%', mitFillPct) +
+    bar('DMG',        '+' + dmgPct + '%',      lvlPct) +
+    bar('ULT',        '+' + ultPct + '%',      lvlPct) +
+    bar('Charge',     chargeLabel,             lvlPct);
+
+  // Render the Tier Mitigation Roadmap below the stat bars. Hero Detail
+  // Modal has #detailTiers slot (legacy 4-tier XP UPGRADES, hidden).
+  // We unhide it and repurpose for the Roadmap when v2.1 is active.
+  try { renderTierMitigationCurve(hero); } catch (e) { console.warn('renderTierMitigationCurve failed:', e); }
+}
+
+// 2026-05-02 — COMBAT v2.1 P1 §5.3: Tier Mitigation Roadmap preview.
+// Reads from MITIGATION_TABLE; highlights the row matching current tier.
+// Footer line shows the hero's per-level contribution rate.
+function renderTierMitigationCurve(hero) {
+  const host = document.getElementById('detailTiers');
+  if (!host || !hero) return;
+  const mitKey = (typeof getHeroMitigationKey === 'function') ? getHeroMitigationKey(hero) : 'striker_warrior';
+  const table = MITIGATION_TABLE[mitKey] || {};
+  const currentTier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[hero.id]) || 0;
+  let html = '<div class="tier-mit-roadmap"><div class="tier-mit-header">Tier Mitigation Roadmap</div>';
+  ['T0', 'T1', 'T2', 'T3'].forEach((tk, idx) => {
+    const value = table[tk] || 0;
+    const pct = Math.round(value * 100);
+    const fill = (value / 0.20) * 100;  // 20% = full bar (visual scaling)
+    const cur = idx === currentTier ? ' tier-current' : '';
+    html += '<div class="tier-mit-row' + cur + '">' +
+              '<span class="tier-label">' + tk + '</span>' +
+              '<div class="tier-bar"><div class="tier-fill" style="width:' + Math.max(0, Math.min(100, fill)) + '%"></div></div>' +
+              '<span class="tier-value">' + pct + '%</span>' +
+            '</div>';
+  });
+  const lvlPer = LEVEL_MITIGATION_PER[mitKey] || 0;
+  html += '<div class="tier-mit-footer">+ Level scaling: +' + (lvlPer * 100).toFixed(2) + '% per level</div></div>';
+  host.innerHTML = html;
+  host.style.display = 'block';  // unhide legacy slot for v2.1 use
+}
+
+// 2026-05-02 — COMBAT v2.1 P1 §5.1: Mitigation badge in combat top bar.
+// Updates 'X%' display + visual emphasis class (mit-low / mit-mid / mit-high).
+// Called from renderHP() (every HP/squad change) and from computeSynergies().
+function renderMitigationBadge() {
+  const el = document.getElementById('playerMitigationBadge');
+  if (!el) return;
+  if (typeof getSquadMitigation !== 'function') return;
+  const mit = getSquadMitigation();
+  const pct = Math.round(mit * 100);
+  const v = el.querySelector('.ctbm-value');
+  if (v) v.textContent = pct + '%';
+  el.classList.toggle('mit-high', pct >= 50);
+  el.classList.toggle('mit-mid',  pct >= 25 && pct < 50);
+  el.classList.toggle('mit-low',  pct < 25);
+}
+
+// 2026-05-02 — COMBAT v2.1 P1 §5.4.1: Squad Mitigation Header (Squad Select).
+// Updates banner with current squad mit % + bar fill. Called after each
+// squad swap or hero level/tier change.
+function renderSquadMitigationHeader() {
+  const v = document.getElementById('squadMitValue');
+  const f = document.getElementById('squadMitFill');
+  if (!v || !f) return;
+  if (typeof getSquadMitigation !== 'function') return;
+  const mit = getSquadMitigation();
+  const pct = Math.round(mit * 100);
+  const fill = (mit / MITIGATION_CAP) * 100;
+  v.textContent = pct + '%';
+  f.style.width = Math.max(0, Math.min(100, fill)) + '%';
+}
+
+// 2026-05-02 — COMBAT v2.1 P1 §5.4.2 + §5.4.3: post-render injection of
+// per-hero mitigation badges + tank-role gold aura. Runs AFTER vRenderRoster
+// (called via setTimeout to let DOM settle). Reads role + tier + level from
+// HERO_ROSTER + heroUpgrades + heroLevels — no schema change.
+function renderHeroCardMitBadges() {
+  if (typeof HERO_ROSTER === 'undefined' || !Array.isArray(HERO_ROSTER)) return;
+  const cards = document.querySelectorAll('.v-hero-card[data-id], .hero-card[data-id]');
+  cards.forEach(card => {
+    const id = card.getAttribute('data-id');
+    if (!id) return;
+    const hero = HERO_ROSTER.find(h => h && h.id === id);
+    if (!hero) return;
+    // Tank gold aura — set data-role attribute for CSS rule.
+    if (hero.role && !card.getAttribute('data-role')) {
+      card.setAttribute('data-role', hero.role);
+    }
+    // Mitigation badge — inject if not already present.
+    if (!card.querySelector('.hero-card-mit-badge')) {
+      const mitKey = (typeof getHeroMitigationKey === 'function') ? getHeroMitigationKey(hero) : 'striker_warrior';
+      const tier = (typeof heroUpgrades !== 'undefined' && heroUpgrades[hero.id]) || 0;
+      const tierKey = 'T' + Math.min(3, tier);
+      const lvl = (typeof getHeroLevel === 'function') ? getHeroLevel(hero.id) : 1;
+      const tierMit = (MITIGATION_TABLE[mitKey] || {})[tierKey] || 0;
+      const lvlMit = (lvl - HERO_LEVEL_MIN) * (LEVEL_MITIGATION_PER[mitKey] || 0);
+      const total = Math.round((tierMit + lvlMit) * 100 * 10) / 10;
+      const badge = document.createElement('div');
+      badge.className = 'hero-card-mit-badge';
+      badge.innerHTML = '<span class="hcmb-icon">🛡</span><span class="hcmb-value">' + total + '%</span>';
+      // Card might use position:static — make sure positioning context works.
+      const cardStyle = window.getComputedStyle(card);
+      if (cardStyle.position === 'static') card.style.position = 'relative';
+      card.appendChild(badge);
+    }
+  });
+}
+
+// 2026-05-02 — COMBAT v2.1 P1 §5.5: Resource bar HP + mitigation chip.
+// Inject defensively — appended to existing resource bar container if found.
+// Hidden if container missing (graceful degradation).
+function renderResourceBarHpMit() {
+  if (typeof MAX_HP === 'undefined') return;
+  const containers = document.querySelectorAll('.resource-bar, #resourceBar, .v-resource-bar, [data-resource-bar]');
+  if (!containers || containers.length === 0) return;
+  containers.forEach(container => {
+    let hpEl = container.querySelector('.resource-bar-hp');
+    if (!hpEl) {
+      hpEl = document.createElement('span');
+      hpEl.className = 'resource-bar-hp';
+      hpEl.innerHTML = '<span class="rbhp-icon">❤</span><span class="rbhp-text"></span>';
+      container.appendChild(hpEl);
+    }
+    const text = hpEl.querySelector('.rbhp-text');
+    if (text) text.textContent = (typeof hp !== 'undefined' ? hp : MAX_HP) + ' / ' + MAX_HP;
+
+    let mitEl = container.querySelector('.resource-bar-mit');
+    if (!mitEl) {
+      mitEl = document.createElement('span');
+      mitEl.className = 'resource-bar-mit';
+      mitEl.innerHTML = '🛡 <span class="rbm-text">0%</span>';
+      container.appendChild(mitEl);
+    }
+    const mitText = mitEl.querySelector('.rbm-text');
+    if (mitText && typeof getSquadMitigation === 'function') {
+      mitText.textContent = Math.round(getSquadMitigation() * 100) + '%';
+    }
+  });
+}
+
+if (typeof window !== 'undefined') {
+  window.renderMitigationBadge        = renderMitigationBadge;
+  window.renderTierMitigationCurve    = renderTierMitigationCurve;
+  window.renderSquadMitigationHeader  = renderSquadMitigationHeader;
+  window.renderHeroCardMitBadges      = renderHeroCardMitBadges;
+  window.renderResourceBarHpMit       = renderResourceBarHpMit;
 }
 
 // 2026-04-27 — Spec §1.1 TIER PROGRESSION text block.
