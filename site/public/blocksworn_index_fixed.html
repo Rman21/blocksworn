@@ -28633,22 +28633,33 @@ function _runPhase5InterBattleFlow(defeatedBoss, onAdvance) {
   showRewardSelection(defeatedBoss, () => {
     // Step 2: Tier-up decision (auto-skips if no candidates)
     showTierUpDecisionModal(() => {
-      // Step 3: Resolve next boss for inter-battle screen
-      let nextBoss = null;
-      try {
-        const nextIdx = (typeof currentBossIdx === 'number') ? currentBossIdx + 1 : null;
-        if (nextIdx !== null && typeof BOSSES !== 'undefined' && BOSSES[nextIdx]) {
-          nextBoss = BOSSES[nextIdx];
+      // 2026-05-02 — COMBAT v2.1 P5 PR #5.D §3: encounter density framework.
+      // Between bosses 1→2 and 2→3 (per chapter), insert elite/puzzle encounter.
+      // _runEncounterIfDue auto-skips if no encounter scheduled at this index.
+      // Encounter intro modal includes Skip option per spec §3.5.
+      const _runStep3InterBattle = () => {
+        // Step 3: Resolve next boss for inter-battle screen
+        let nextBoss = null;
+        try {
+          const nextIdx = (typeof currentBossIdx === 'number') ? currentBossIdx + 1 : null;
+          if (nextIdx !== null && typeof BOSSES !== 'undefined' && BOSSES[nextIdx]) {
+            nextBoss = BOSSES[nextIdx];
+          }
+        } catch (e) {}
+        if (!nextBoss) {
+          if (onAdvance) onAdvance();
+          return;
         }
-      } catch (e) {}
-      if (!nextBoss) {
-        // No next boss (chapter end / last) — skip inter-battle screen.
-        if (onAdvance) onAdvance();
-        return;
+        showInterBattleScreen(nextBoss, () => {
+          if (onAdvance) onAdvance();
+        });
+      };
+      // Encounter step (skips if no encounter due, FTUE / Tower / replay paths)
+      if (typeof _runEncounterIfDue === 'function') {
+        _runEncounterIfDue(() => _runStep3InterBattle());
+      } else {
+        _runStep3InterBattle();
       }
-      showInterBattleScreen(nextBoss, () => {
-        if (onAdvance) onAdvance();
-      });
     });
   });
 }
@@ -29177,6 +29188,306 @@ if (typeof window !== 'undefined') {
   window._registerPhase5CTowerDialogs       = _registerPhase5CTowerDialogs;
   window._maybeTriggerTowerIntro            = _maybeTriggerTowerIntro;
   window._phase5IsReactivitySuppressed      = _phase5IsReactivitySuppressed;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 5 PR #5.D — ENCOUNTER DENSITY (Ch1-2 MVP)
+// Per BLOCKSWORN_COMBAT_V21_PHASE_5_POLISH_MONETIZATION.md §3 + §14.2.
+//
+// Per spec §14.2 ("encounter MVP scope creep"), this PR ships:
+//   - Framework: CHAPTER_ENCOUNTERS data + intro modal + skip flow
+//   - 4 encounter definitions: 2 Ch1 + 2 Ch2
+//   - Generic completion stub: encounter mechanics deferred to v2.2
+//     ("Encounter density expansion" per spec §15) — Begin path grants
+//     reward immediately so progression is never gated; Skip path no-op.
+//
+// Spec §3.5 mandates Skip option. Both Begin and Skip are present here;
+// Begin grants reward (placeholder for full mini-game logic in v2.2).
+// FTUE intros: tut_elite_encounter, tut_puzzle_stage.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P5 §3.4: encounter data table.
+// 4 encounters (Ch1-2 MVP per §14.2). insertAfter is the boss index
+// (0-based) within the chapter — encounter fires AFTER that boss is
+// defeated, before the next boss starts.
+const CHAPTER_ENCOUNTERS = Object.freeze({
+  1: {
+    elite: {
+      id: 'forge_trial', type: 'elite',
+      name: 'FORGE TRIAL', icon: '🔥',
+      description: 'Clear all charged ember cells in 8 turns. Avoid clearing non-ember.',
+      reward: { type: 'card_pack_pirate', label: '+1 PIRATE CARD' },
+    },
+    puzzle: {
+      id: 'pattern_matching', type: 'puzzle',
+      name: 'PATTERN MATCHING', icon: '◫',
+      description: 'Reproduce a 4×4 pattern shown in the HUD using your placement skill.',
+      reward: { type: 'essence_mixed_100', label: '+100 MIXED ESSENCE' },
+    },
+    insertAfter: { eliteAfterBoss: 0, puzzleAfterBoss: 1 },
+  },
+  2: {
+    elite: {
+      id: 'groves_vow', type: 'elite',
+      name: "GROVE'S VOW", icon: '🌿',
+      description: 'Hero ULTs disabled. Clear 3 lines using only placement.',
+      reward: { type: 'tier2_stone', label: '+1 T2 STONE' },
+    },
+    puzzle: {
+      id: 'cascade_challenge', type: 'puzzle',
+      name: 'CASCADE CHALLENGE', icon: '⛓',
+      description: 'Trigger 3 cascade chains in 5 placements.',
+      reward: { type: 'tier2_stone', label: '+1 T2 STONE' },
+    },
+    insertAfter: { eliteAfterBoss: 0, puzzleAfterBoss: 1 },
+  },
+  // Ch3-5 encounters scheduled for v2.2 per spec §15 roadmap.
+});
+
+// 2026-05-02 — COMBAT v2.1 P5 §3.4: per-battle encounter tracking.
+// Set of "chapter:type:encounter_id" strings already completed/skipped.
+// Persisted via localStorage so reload doesn't re-prompt encounters.
+const PHASE5_ENCOUNTER_DONE_KEY = 'blocksworn_p5_encounters_done';
+
+function _phase5GetCompletedEncounters() {
+  try {
+    if (typeof localStorage === 'undefined') return new Set();
+    const raw = localStorage.getItem(PHASE5_ENCOUNTER_DONE_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw));
+  } catch (e) { return new Set(); }
+}
+function _phase5MarkEncounterDone(encounterKey) {
+  try {
+    const set = _phase5GetCompletedEncounters();
+    set.add(encounterKey);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(PHASE5_ENCOUNTER_DONE_KEY, JSON.stringify([...set]));
+    }
+  } catch (e) {}
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §3.4: pick the encounter due at this index.
+// currentBossIdx points to the boss JUST defeated — encounter fires BETWEEN
+// this and the next boss. Read insertAfter to decide.
+function _phase5PickDueEncounter() {
+  if (typeof currentChapter !== 'number') return null;
+  const def = CHAPTER_ENCOUNTERS[currentChapter];
+  if (!def) return null;
+  const justDefeatedIdx = (typeof currentBossIdx === 'number') ? currentBossIdx : -1;
+  const insertAfter = def.insertAfter || {};
+  const completed = _phase5GetCompletedEncounters();
+
+  let candidate = null;
+  if (justDefeatedIdx === insertAfter.eliteAfterBoss && def.elite) candidate = def.elite;
+  else if (justDefeatedIdx === insertAfter.puzzleAfterBoss && def.puzzle) candidate = def.puzzle;
+  if (!candidate) return null;
+  // Skip if already done this run (idempotent)
+  const key = currentChapter + ':' + candidate.type + ':' + candidate.id;
+  if (completed.has(key)) return null;
+  return Object.assign({}, candidate, { _key: key, _chapter: currentChapter });
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §3.4: orchestrator entry point.
+// Called from _runPhase5InterBattleFlow (PR #5.A) between tier-up and
+// inter-battle screen. Auto-skips on FTUE / Tower / no-due-encounter.
+function _runEncounterIfDue(onComplete) {
+  // Skip during FTUE / Tower / training paths (preserve existing flow)
+  try {
+    if (typeof isFtueActive === 'function' && isFtueActive()) { if (onComplete) onComplete(); return; }
+  } catch (e) {}
+  if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle) { if (onComplete) onComplete(); return; }
+  if (typeof currentFloorId !== 'undefined' && currentFloorId !== null) { if (onComplete) onComplete(); return; }
+  const enc = _phase5PickDueEncounter();
+  if (!enc) { if (onComplete) onComplete(); return; }
+  _showEncounterIntroModal(enc, (result) => {
+    // result: 'begin' | 'skip'
+    _phase5MarkEncounterDone(enc._key);
+    if (result === 'begin') {
+      _runEncounterMechanics(enc, () => {
+        _grantEncounterReward(enc);
+        if (onComplete) onComplete();
+      });
+    } else {
+      // Skip — no reward. Per spec §3.5.
+      try { if (typeof flashText === 'function') flashText('ENCOUNTER SKIPPED', '#aaa'); } catch (e) {}
+      if (onComplete) onComplete();
+    }
+  });
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §3.4: encounter intro modal.
+// Shows description + Begin/Skip buttons. Calls back with 'begin' or 'skip'.
+function _showEncounterIntroModal(encounter, onChoice) {
+  if (typeof document === 'undefined') { if (onChoice) onChoice('skip'); return; }
+  let overlay = document.getElementById('phase5EncounterOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'phase5EncounterOverlay';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;z-index:9600;' +
+                           'background:rgba(0,0,0,0.82);backdrop-filter:blur(8px);' +
+                           'align-items:center;justify-content:center;font-family:inherit;';
+    document.body.appendChild(overlay);
+  }
+  const isElite = encounter.type === 'elite';
+  const accent = isElite ? '#FF6E28' : '#9B59E8';
+  const tagLabel = isElite ? '★ ELITE ENCOUNTER ★' : '◫ PUZZLE STAGE';
+  overlay.innerHTML =
+    '<div style="background:linear-gradient(180deg,#1a1830,#0a0814);border:2px solid ' + accent + ';' +
+      'border-radius:14px;padding:24px 28px;max-width:460px;width:90%;color:#fff;text-align:center;' +
+      'box-shadow:0 0 32px ' + accent + '66;">' +
+      '<div style="font-size:11px;letter-spacing:0.18em;color:' + accent + ';margin-bottom:8px;">' + tagLabel + '</div>' +
+      '<div style="font-size:48px;margin-bottom:8px;">' + (encounter.icon || '◇') + '</div>' +
+      '<div style="font-size:18px;font-weight:700;color:' + accent + ';letter-spacing:0.06em;margin-bottom:14px;">' + encounter.name + '</div>' +
+      '<div style="font-size:12px;line-height:1.5;opacity:0.85;margin-bottom:16px;">' + encounter.description + '</div>' +
+      (encounter.reward ? '<div style="background:rgba(255,213,61,0.08);border:1px solid rgba(255,213,61,0.25);border-radius:8px;' +
+                          'padding:8px 12px;margin-bottom:14px;font-size:11px;color:#FFD53D;">' +
+                          'REWARD: <b>' + encounter.reward.label + '</b></div>' : '') +
+      '<div style="display:flex;gap:10px;justify-content:center;">' +
+        '<button id="p5encSkip" style="background:transparent;border:1px solid #555;color:#aaa;border-radius:6px;' +
+          'padding:9px 18px;cursor:pointer;font-size:11px;letter-spacing:0.06em;">SKIP (no reward)</button>' +
+        '<button id="p5encBegin" style="background:linear-gradient(180deg,' + accent + ',' + accent + 'cc);border:none;color:#fff;' +
+          'border-radius:6px;padding:9px 22px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:0.06em;">BEGIN</button>' +
+      '</div>' +
+    '</div>';
+  overlay.style.display = 'flex';
+  // FTUE intro on first encounter of each type
+  try {
+    if (isElite && typeof _maybeTriggerEliteEncounterIntro === 'function') _maybeTriggerEliteEncounterIntro();
+    else if (!isElite && typeof _maybeTriggerPuzzleStageIntro === 'function') _maybeTriggerPuzzleStageIntro();
+  } catch (e) {}
+  overlay.querySelector('#p5encBegin').onclick = () => {
+    overlay.style.display = 'none';
+    try { if (typeof logEvent === 'function') logEvent('p5_encounter_begin', { id: encounter.id, type: encounter.type, chapter: encounter._chapter }); } catch (e) {}
+    if (onChoice) onChoice('begin');
+  };
+  overlay.querySelector('#p5encSkip').onclick = () => {
+    overlay.style.display = 'none';
+    try { if (typeof logEvent === 'function') logEvent('p5_encounter_skip', { id: encounter.id, type: encounter.type, chapter: encounter._chapter }); } catch (e) {}
+    if (onChoice) onChoice('skip');
+  };
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §3.4 + §14.2: encounter mechanics runner.
+// Per spec §14.2 explicit MVP guidance, encounter mini-games defer to v2.2.
+// MVP shows a "Coming Soon" placeholder modal that auto-resolves with the
+// reward grant. Player sees the new content, isn't blocked, and v2.2 swaps
+// in the actual encounter board setup without changing data structures.
+function _runEncounterMechanics(encounter, onDone) {
+  if (typeof document === 'undefined') { if (onDone) onDone(); return; }
+  let overlay = document.getElementById('phase5EncounterRunOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'phase5EncounterRunOverlay';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;z-index:9650;' +
+                           'background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);' +
+                           'align-items:center;justify-content:center;font-family:inherit;';
+    document.body.appendChild(overlay);
+  }
+  const isElite = encounter.type === 'elite';
+  const accent = isElite ? '#FF6E28' : '#9B59E8';
+  overlay.innerHTML =
+    '<div style="background:linear-gradient(180deg,#1a1830,#0a0814);border:2px solid ' + accent + ';' +
+      'border-radius:14px;padding:24px 28px;max-width:440px;width:90%;color:#fff;text-align:center;' +
+      'box-shadow:0 0 32px ' + accent + '66;">' +
+      '<div style="font-size:11px;letter-spacing:0.18em;color:' + accent + ';margin-bottom:8px;">⚙ ENCOUNTER PREVIEW ⚙</div>' +
+      '<div style="font-size:18px;font-weight:700;color:' + accent + ';margin-bottom:10px;">' + encounter.name + '</div>' +
+      '<div style="font-size:12px;line-height:1.5;opacity:0.85;margin-bottom:14px;">' +
+        '<i>Full encounter mechanics ship in v2.2 ' +
+        '(post-launch encounter expansion).</i><br><br>' +
+        'For now, accepting this encounter grants the reward as a preview.' +
+      '</div>' +
+      (encounter.reward ? '<div style="background:rgba(255,213,61,0.10);border:1px solid rgba(255,213,61,0.35);border-radius:8px;' +
+                          'padding:10px 14px;margin-bottom:14px;font-size:13px;color:#FFD53D;font-weight:700;">' +
+                          '✓ ' + encounter.reward.label + '</div>' : '') +
+      '<button id="p5encrunOk" style="background:linear-gradient(180deg,' + accent + ',' + accent + 'cc);border:none;color:#fff;' +
+        'border-radius:6px;padding:9px 24px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:0.06em;">CLAIM REWARD</button>' +
+    '</div>';
+  overlay.style.display = 'flex';
+  overlay.querySelector('#p5encrunOk').onclick = () => {
+    overlay.style.display = 'none';
+    if (onDone) onDone();
+  };
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §3.4: reward grant.
+// Maps encounter.reward.type to actual game-state mutations.
+function _grantEncounterReward(encounter) {
+  if (!encounter || !encounter.reward) return;
+  const t = encounter.reward.type;
+  try {
+    if (t === 'card_pack_pirate') {
+      // Random pirate hero card grant. Sprint 4 B1 IAP infra has hero card
+      // utilities; defensive fallback is generic +50 gold.
+      if (typeof dropRandomHeroCards === 'function') dropRandomHeroCards(1);
+      else if (typeof gold === 'number') { gold += 50; try { if (typeof saveGoldToStorage === 'function') saveGoldToStorage(); } catch (e) {} }
+    } else if (t === 'essence_mixed_100') {
+      // Distribute 20 across each of 5 stihiyas
+      if (typeof essences === 'object' && essences && typeof STIHIYAS !== 'undefined') {
+        for (const s of STIHIYAS) essences[s] = (essences[s] || 0) + 20;
+        try { if (typeof saveProgress === 'function') saveProgress(); } catch (e) {}
+      }
+    } else if (t === 'tier2_stone') {
+      if (typeof towerState !== 'undefined' && towerState) {
+        towerState.tier2Stones = (towerState.tier2Stones || 0) + 1;
+        try { if (typeof saveTowerState === 'function') saveTowerState(); } catch (e) {}
+      }
+    }
+    try { if (typeof flashText === 'function') flashText('REWARD: ' + encounter.reward.label, '#FFD53D'); } catch (e) {}
+    try { if (typeof logEvent === 'function') logEvent('p5_encounter_reward_granted', { id: encounter.id, type: encounter.type, rewardType: t }); } catch (e) {}
+  } catch (e) { console.warn('[P5D encounter reward] failed:', e); }
+}
+
+// 2026-05-02 — COMBAT v2.1 P5 §9.1: 2 FTUE dialogs.
+function _registerPhase5DEncounterDialogs() {
+  try {
+    if (typeof DIALOGS === 'undefined' || !DIALOGS) return;
+    if (!DIALOGS.tut_elite_encounter) {
+      DIALOGS.tut_elite_encounter = {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#FF6E28', portraitKey: 'hero_chronicler',
+        text: 'ELITE ENCOUNTERS test specific skills — clear conditions, time limits, special board states. Optional but rewarding. You can skip if pressed for time.',
+      };
+    }
+    if (!DIALOGS.tut_puzzle_stage) {
+      DIALOGS.tut_puzzle_stage = {
+        speaker: 'YOUR CHRONICLER', speakerColor: '#9B59E8', portraitKey: 'hero_chronicler',
+        text: 'PUZZLE STAGES are pure mechanical challenges. No boss damage, no HP loss. Solve, get reward, move on.',
+      };
+    }
+  } catch (e) { console.warn('[P5D dialog reg] failed:', e); }
+}
+try { if (typeof setTimeout === 'function') setTimeout(_registerPhase5DEncounterDialogs, 0); } catch (e) {}
+
+function _phase5DFtueGateOk(dialogId) {
+  try {
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return false;
+    if (seenDialogs.has(dialogId)) return false;
+    if (typeof isFtueActive === 'function' && isFtueActive()) return false;
+    return true;
+  } catch (e) { return false; }
+}
+function _maybeTriggerEliteEncounterIntro() {
+  if (!_phase5DFtueGateOk('tut_elite_encounter')) return;
+  setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_elite_encounter'); } catch (e) {} }, 600);
+}
+function _maybeTriggerPuzzleStageIntro() {
+  if (!_phase5DFtueGateOk('tut_puzzle_stage')) return;
+  setTimeout(() => { try { if (typeof playDialog === 'function') playDialog('tut_puzzle_stage'); } catch (e) {} }, 600);
+}
+
+if (typeof window !== 'undefined') {
+  window.CHAPTER_ENCOUNTERS                 = CHAPTER_ENCOUNTERS;
+  window.PHASE5_ENCOUNTER_DONE_KEY          = PHASE5_ENCOUNTER_DONE_KEY;
+  window._phase5GetCompletedEncounters      = _phase5GetCompletedEncounters;
+  window._phase5MarkEncounterDone           = _phase5MarkEncounterDone;
+  window._phase5PickDueEncounter            = _phase5PickDueEncounter;
+  window._runEncounterIfDue                 = _runEncounterIfDue;
+  window._showEncounterIntroModal           = _showEncounterIntroModal;
+  window._runEncounterMechanics             = _runEncounterMechanics;
+  window._grantEncounterReward              = _grantEncounterReward;
+  window._registerPhase5DEncounterDialogs   = _registerPhase5DEncounterDialogs;
+  window._maybeTriggerEliteEncounterIntro   = _maybeTriggerEliteEncounterIntro;
+  window._maybeTriggerPuzzleStageIntro      = _maybeTriggerPuzzleStageIntro;
 }
 
 // Console helpers
