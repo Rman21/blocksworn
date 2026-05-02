@@ -35558,6 +35558,229 @@ if (typeof window !== 'undefined') {
 // removed; this Set will always be empty in v2.1+. Will be deleted in PR #1.E.
 let _currentRacesWithArtifact = new Set();
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 1 PR #1.B — CENTRAL DAMAGE ENTRY + 4 CHANNELS
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_1_FOUNDATION.md §3.4-3.9.
+// applyChannelDamage() is THE single point of entry for player damage —
+// shield absorption, mitigation, HP application, channel-specific FX,
+// and FTUE intro hooks (PR #1.D wires those) all flow through here.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Channel labels (human-readable) — used by toast text + Sentry breadcrumbs.
+function channelLabel(c) {
+  switch (c) {
+    case 'deadzone':   return 'Dead Zone';
+    case 'void_tick':  return 'Void Strike';
+    case 'signature':  return 'Boss Attack';
+    case 'saturation': return 'Grid Pressure';
+    default:           return 'Damage';
+  }
+}
+
+// Visual treatment per channel. AAA principle: each threat type has a
+// distinct visual signature so the player can learn from screen feedback
+// alone. flashText / vibrate / hp-band tint already exist in the codebase.
+function showChannelFX(channel, dmg, blocked, meta) {
+  const styles = {
+    deadzone:   { color: '#E85D4A', icon: '🩸', label: 'DEAD ZONE',   vibrate: [80] },
+    void_tick:  { color: '#9B59E8', icon: '🟣', label: 'VOID TICK',   vibrate: [40, 30, 40] },
+    signature:  { color: '#FF8C00', icon: '⚔',  label: 'BOSS STRIKE', vibrate: [120, 50, 120] },
+    saturation: { color: '#FFD700', icon: '⚠',  label: 'GRID FULL',   vibrate: [50, 30, 50, 30, 50] },
+  };
+  const s = styles[channel] || styles.deadzone;
+
+  // Channel-tinted flash on HP band (reuses existing .hp-hit class +
+  // --hp-hit-color CSS var — both shipped in earlier polish).
+  try {
+    const hpBand = document.querySelector('.a-battle .v-battle-player-hp');
+    if (hpBand) {
+      hpBand.classList.remove('hp-hit');
+      hpBand.style.setProperty('--hp-hit-color', s.color);
+      void hpBand.offsetWidth;  // reflow → restart animation
+      hpBand.classList.add('hp-hit');
+      setTimeout(() => hpBand.classList.remove('hp-hit'), 500);
+    }
+  } catch (e) {}
+
+  // Damage toast (channel-styled). Blocked variant for shield absorption.
+  const toast = blocked
+    ? (s.icon + ' ' + s.label + ' BLOCKED')
+    : (s.icon + ' ' + s.label + ' −' + dmg + ' HP');
+  try { flashText(toast, s.color); } catch (e) {}
+  try { vibrate(s.vibrate); } catch (e) {}
+  try { speakNarrator('hpLost'); } catch (e) {}
+}
+
+// Mitigation visual — small green sub-toast under main damage toast.
+// flashText() doesn't natively support styled sub-text, so we delay-fire a
+// secondary flash 250ms later for visual stacking. Polish target for #1.C.
+function showMitigationFX(amount) {
+  if (!amount || amount <= 0) return;
+  try {
+    setTimeout(() => {
+      try { flashText('🛡 −' + amount + ' mitigated', '#5DCA79'); } catch (e) {}
+    }, 250);
+  } catch (e) {}
+}
+
+// Central entry point for ALL player damage. 4 channels share this function.
+// channel: 'deadzone' | 'void_tick' | 'signature' | 'saturation'
+// rawDmg:  raw damage value (before mitigation)
+// meta:    optional { sourceCells, deadCount, voidCount, ratio, tier } for FX
+// Returns: final HP damage applied (0 if blocked, ≥1 otherwise unless rawDmg=0).
+//
+// Shield-absorption preserves existing AEGIS / MAELEN / normal shield logic.
+// Mitigation: getSquadMitigation() reduces rawDmg before HP application.
+// Minimum 1 HP if any rawDmg > 0 (so 100% mitigation feels close-but-not-immune).
+function applyChannelDamage(channel, rawDmg, meta) {
+  meta = meta || {};
+  if (!rawDmg || rawDmg <= 0) return 0;
+
+  // Shield absorption — same gating as legacy dead-zone site. Order:
+  //   AEGIS (hero ability, save WITHOUT consuming shield) →
+  //   MAELEN frozen ward (T2, hold WITHOUT consuming) →
+  //   normal shield (consumed, full hit absorbed).
+  if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
+    const _t2AegisBonus = (typeof _t2BonusInDeck === 'function')
+                          ? _t2BonusInDeck('spark_tank', 'autoBlockCountBonus') : null;
+    const _aegisCap = 1 + (_t2AegisBonus || 0);
+    if (typeof aegisActive !== 'undefined' && aegisActive
+        && typeof aegisUsed !== 'undefined' && aegisUsed < _aegisCap) {
+      aegisUsed++;
+      try { flashStateBanner(_t2AegisBonus ? 'DEEP SHIELD ' + aegisUsed + '/' + _aegisCap : 'AEGIS', '#5DCA79'); } catch (e) {}
+      try { vibrate([80, 40, 80]); } catch (e) {}
+      showChannelFX(channel, 0, true, meta);
+      return 0;
+    } else if (typeof maelenShieldNoDecay !== 'undefined' && maelenShieldNoDecay > 0) {
+      try { flashStateBanner('FROZEN WARD · SHIELD HELD', (typeof STIHIYA_COLORS !== 'undefined' && STIHIYA_COLORS.tide) || '#5DCAFF'); } catch (e) {}
+      try { vibrate([80, 40, 80]); } catch (e) {}
+      showChannelFX(channel, 0, true, meta);
+      return 0;
+    } else {
+      shieldCount--;
+      try { flashText('SHIELD ABSORBED ' + channelLabel(channel).toUpperCase(), '#8C3BFF'); } catch (e) {}
+      showChannelFX(channel, 0, true, meta);
+      return 0;
+    }
+  }
+
+  // No shield → apply mitigation, then HP.
+  const mitigation = getSquadMitigation();
+  const mitigated  = Math.floor(rawDmg * (1 - mitigation));
+  const finalDmg   = Math.max(rawDmg > 0 ? 1 : 0, mitigated);
+  const mitigatedAmount = rawDmg - finalDmg;
+
+  hp -= finalDmg;
+  if (typeof battleDamageTaken === 'number') battleDamageTaken += finalDmg;
+
+  showChannelFX(channel, finalDmg, false, meta);
+  if (mitigatedAmount > 0) showMitigationFX(mitigatedAmount);
+
+  // Save HP UI refresh (renderHP wired in PR #1.C with 0..100 scale UI).
+  try { if (typeof renderHP === 'function') renderHP(); } catch (e) {}
+
+  // PR #1.D wires FTUE intro triggers here. Hook stays for that PR:
+  // try { if (typeof _maybeTriggerChannelIntro === 'function') _maybeTriggerChannelIntro(channel); } catch (e) {}
+  // try { if (typeof _maybeTriggerMitigationIntro === 'function') _maybeTriggerMitigationIntro(); } catch (e) {}
+
+  // Analytics breadcrumb (Sprint 4 B2 Sentry forward exists in logEvent already).
+  try { if (typeof logEvent === 'function') logEvent('channel_damage', {
+    channel, rawDmg, finalDmg, mitigated: mitigatedAmount, mitigation: Math.round(mitigation * 100) / 100,
+  }); } catch (e) {}
+
+  return finalDmg;
+}
+
+// VOID TICK CHANNEL — fires at end of each player placement turn (called from
+// the top of maybeBossAttack, BEFORE attackCountdown decrement).
+// Damage = floor(voidCount * MAX_HP * CHANNEL_VOID_TICK_PCT).
+// At MAX_HP=100, 0.5%/cell: 1 void = 0 dmg, 2 void = 1, ..., 6 void = 3.
+// Encourages tempo / void clearing without being punishing in early game.
+// Void cells in this codebase are stored as grid strings starting with 'void_'.
+function applyVoidTickIfAny() {
+  if (typeof grid === 'undefined' || typeof SIZE === 'undefined') return 0;
+  let voidCount = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = grid[r][c];
+      if (cell && typeof cell === 'string' && cell.startsWith('void_')) voidCount++;
+    }
+  }
+  if (voidCount === 0) return 0;
+  const rawDmg = Math.floor(voidCount * MAX_HP * CHANNEL_VOID_TICK_PCT);
+  if (rawDmg <= 0) return 0;
+  return applyChannelDamage('void_tick', rawDmg, { voidCount });
+}
+
+// GRID SATURATION CHANNEL — anti-hoarding pressure. If >=75% of board cells
+// occupied at EOT, deal flat CHANNEL_GRID_SATURATION_DMG. All non-empty cells
+// count (filled, charged, void). Same trigger site as void tick.
+function applyGridSaturationIfAny() {
+  if (typeof grid === 'undefined' || typeof SIZE === 'undefined') return 0;
+  let occupied = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      if (grid[r][c] !== null) occupied++;
+    }
+  }
+  const totalCells = SIZE * SIZE;
+  const ratio = occupied / totalCells;
+  if (ratio < CHANNEL_GRID_SATURATION_THRESHOLD) return 0;
+  return applyChannelDamage('saturation', CHANNEL_GRID_SATURATION_DMG, {
+    occupied, totalCells, ratio,
+  });
+}
+
+// SIGNATURE ATTACK helper — maps current boss to its CHANNEL_SIGNATURE_DMG
+// tier. Per-boss tier assignment lives in CHAPTERS data starting in P4;
+// until then we fall back to a hardcoded mapping by global boss number,
+// matching the spec's reference assignment (§2):
+//   tutorial:    Boss 1
+//   gatekeeper:  Bosses 2, 3, 6, 7, 11, 12, 16, 17
+//   mid_act:     Bosses 4, 8, 9, 13, 14, 18, 19
+//   act_boss:    Bosses 5, 10, 15, 20
+//   finale:      Boss 25
+function _getBossSignatureTier() {
+  // Per-boss override (P4 sets currentBoss.signatureTier).
+  if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.signatureTier
+      && CHANNEL_SIGNATURE_DMG[currentBoss.signatureTier]) {
+    return currentBoss.signatureTier;
+  }
+  // Tower bosses don't have a chapter-tier; treat as gatekeeper baseline.
+  if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle) return 'gatekeeper';
+  // Compute global boss number from chapter + index.
+  const ch = (typeof currentChapter === 'number') ? currentChapter : 1;
+  const idx = (typeof currentBossIdx === 'number') ? currentBossIdx : 0;
+  const n = (ch - 1) * 5 + idx + 1;  // 1-indexed
+  if (n === 1)   return 'tutorial';
+  if (n === 25)  return 'finale';
+  if (n % 5 === 0)  return 'act_boss';                              // 5, 10, 15, 20
+  if (n % 5 >= 1 && n % 5 <= 2)  return 'gatekeeper';               // 2,3,6,7,11,12,16,17
+  return 'mid_act';                                                  // 4,8,9,13,14,18,19
+}
+
+// SIGNATURE CHANNEL — fires from inside bossAttack() after void cells spawn.
+// In P1 this is the minimal hook (per spec §3.9): flat damage by boss tier.
+// P2 (Stagger Loop) and P4 (per-archetype patterns + telegraphs) add real
+// pacing and reactivity. FTUE / Tower exclusions handled here.
+function applyBossSignatureDamage() {
+  // FTUE-only Pyredrake hard caps to keep tutorial gentle.
+  if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isFtueOnly) return 0;
+  if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss._isTrainingDummy) return 0;
+  const tier = _getBossSignatureTier();
+  const sigDmg = CHANNEL_SIGNATURE_DMG[tier] || CHANNEL_SIGNATURE_DMG.gatekeeper;
+  return applyChannelDamage('signature', sigDmg, { tier, bossName: (currentBoss && currentBoss.name) });
+}
+
+if (typeof window !== 'undefined') {
+  window.applyChannelDamage      = applyChannelDamage;
+  window.applyVoidTickIfAny      = applyVoidTickIfAny;
+  window.applyGridSaturationIfAny = applyGridSaturationIfAny;
+  window.applyBossSignatureDamage = applyBossSignatureDamage;
+  window.channelLabel            = channelLabel;
+  window._getBossSignatureTier   = _getBossSignatureTier;
+}
+
 function getEffectivePeriod(hero) {
   if (hero.role !== 'weaver' || !hero.period) return hero.period;
   return Math.max(1, hero.period - getHeroStats(hero).periodReduction);
@@ -43864,6 +44087,16 @@ function vClearAttackTelegraph() {
 
 function maybeBossAttack() {
   if (gameEnded) return;
+  // 2026-05-02 — COMBAT v2.1 P1 §3.7-3.8: end-of-turn (EOT) damage hooks.
+  // Fire BEFORE attackCountdown decrement (per spec) so void-tick + grid-
+  // saturation pressure compounds with the impending boss attack on the
+  // turn the countdown hits 0. FTUE-only / training-dummy guards live
+  // inside applyChannelDamage's gating in PR #1.D.
+  if (typeof currentBoss !== 'undefined' && currentBoss
+      && !currentBoss._isTrainingDummy && !currentBoss._isFtueOnly) {
+    try { applyVoidTickIfAny(); } catch (e) { console.warn('voidTick failed:', e); }
+    try { applyGridSaturationIfAny(); } catch (e) { console.warn('saturation failed:', e); }
+  }
   attackCountdown--;
   // POLISH v1 · PHASE 7 — telegraph (replaces inline warn.textContent).
   // All bosses in this codebase use AoE void-scatter, so kind='aoe' is default.
@@ -44065,6 +44298,13 @@ async function bossAttack() {
       }, 600);
     }
   } catch (e) { /* tutorial is decorative — never break combat */ }
+  // 2026-05-02 — COMBAT v2.1 P1 §3.9: signature damage hook. Minimal P1
+  // implementation — flat damage by boss role tier (12-28). Real telegraph
+  // pacing + per-archetype patterns ship in P2/P4. Defensive try/catch so
+  // damage helper failure never breaks the existing void-spawn flow above.
+  try {
+    if (typeof applyBossSignatureDamage === 'function') applyBossSignatureDamage();
+  } catch (e) { console.warn('signature damage failed:', e); }
 }
 
 function flashAttack(cellCount = 3) {
@@ -48770,68 +49010,28 @@ async function afterPlacement(piece) {
     } catch (e) { console.warn('Death Roll race-passive failed:', e); }
   }
   if (newDead > 0) {
-    if (shieldCount > 0) {
-      // V2.0 Block 2.3: GOLEM AEGIS — once per battle, a shield that would break is saved
-      // 2026-04-27 — Block H.9c — DEEP SHIELD (T2): AEGIS hero ascended → 2 saves per battle (vs 1 base).
-      const _t2AegisBonus = (typeof _t2BonusInDeck === 'function') ? _t2BonusInDeck('spark_tank', 'autoBlockCountBonus') : null;
-      const _aegisCap = 1 + (_t2AegisBonus || 0);
-      if (aegisActive && aegisUsed < _aegisCap) {
-        aegisUsed++;
-        flashStateBanner(_t2AegisBonus ? 'DEEP SHIELD ' + aegisUsed + '/' + _aegisCap : 'AEGIS', '#5DCA79');
-        vibrate([80, 40, 80]);
-        // shield NOT consumed, damage fully blocked
-      } else if (maelenShieldNoDecay > 0) {
-        // V2.0 Stage 5 Block 5.3: MAELEN T2 shields don't degrade for N turns post-fire
-        flashStateBanner('FROZEN WARD · SHIELD HELD', STIHIYA_COLORS.tide);
-        vibrate([80, 40, 80]);
-        // shield NOT consumed
-      } else {
-        shieldCount--;
-        flashText('SHIELD ABSORBED HIT', '#8C3BFF');
+    // 2026-05-02 — COMBAT v2.1 P1 §3.6: dead-zone damage now flows through
+    // applyChannelDamage('deadzone', ...). That helper handles shield/AEGIS/
+    // MAELEN absorption, mitigation, HP application, channel-tinted FX, and
+    // damage-taken accumulator. Pocket count → raw HP via CHANNEL_DEADZONE_DMG.
+    // Legacy tut_hp_loss FTUE trigger removed per spec §6.1; PR #1.D wires
+    // the new tut_deadzone_intro trigger inside applyChannelDamage.
+    const rawDmg = newDead * CHANNEL_DEADZONE_DMG;
+    applyChannelDamage('deadzone', rawDmg, { deadCount: newDead });
+    // BLOODRAGE — orc T3+ one-shot trigger near death. Old: hp === 1 (33% of
+    // MAX_HP=3). New: 5% of MAX_HP=100 (= 5 HP) preserves "near-death" feel
+    // without firing too early. Stays at the dead-zone site since it's
+    // gameplay logic, not damage-channel logic.
+    if (bloodrageArmed && !bloodrageFired && hp > 0 && hp <= Math.max(1, Math.floor(MAX_HP * 0.05))) {
+      bloodrageFired = true;
+      for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+        if (grid[r][c] === 'ember' && chargedCells.size < EMBER_CHARGED_CAP) {
+          chargedCells.add(r + '_' + c);
+        }
       }
-    } else {
-      hp -= newDead;
-      // V3.0 Phase 5 Block 5.2: count damage for perfect_clear achievement + weekly.
-      // Dead-zone damage is the only player-damage path in this codebase, so this
-      // single increment covers both systems.
-      battleDamageTaken += newDead;
-      // 2026-04-27 — Chapter 1 tutorial: explain HP loss the FIRST time the
-      // player takes dead-zone damage. Once-per-install gate. Suppressed
-      // during FTUE so FTUE's own scripted Pyredrake flow stays clean.
-      try {
-        const ftueOff  = (typeof isFtueActive !== 'function') || !isFtueActive();
-        const ch1Boss  = (typeof currentChapter !== 'undefined') && currentChapter === 1;
-        const seen     = (typeof seenDialogs !== 'undefined') && seenDialogs;
-        if (ftueOff && ch1Boss && newDead > 0 && seen && !seen.has('tut_hp_loss')) {
-          setTimeout(() => {
-            try { if (typeof playDialog === 'function') playDialog('tut_hp_loss'); } catch (e) {}
-          }, 700);
-        }
-      } catch (e) {}
-      vibrate(80);
-      speakNarrator('hpLost');
-      // POLISH v1 · PHASE 3 — hp-hit red flash
-      try {
-        const hpBand = document.querySelector('.a-battle .v-battle-player-hp');
-        if (hpBand) {
-          hpBand.classList.remove('hp-hit');
-          void hpBand.offsetWidth;
-          hpBand.classList.add('hp-hit');
-          setTimeout(() => hpBand.classList.remove('hp-hit'), 450);
-        }
-      } catch (e) {}
-      // V2.0 Block 2.1: BLOODRAGE — orc T3+ one-shot trigger when HP drops to 1
-      if (bloodrageArmed && !bloodrageFired && hp === 1) {
-        bloodrageFired = true;
-        for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-          if (grid[r][c] === 'ember' && chargedCells.size < EMBER_CHARGED_CAP) {
-            chargedCells.add(r + '_' + c);
-          }
-        }
-        renderChargedVisuals();
-        flashText('BLOODRAGE', '#FF4D1F');
-        vibrate([100, 50, 100, 50, 200]);
-      }
+      try { renderChargedVisuals(); } catch (e) {}
+      try { flashText('BLOODRAGE', '#FF4D1F'); } catch (e) {}
+      try { vibrate([100, 50, 100, 50, 200]); } catch (e) {}
     }
   }
 
