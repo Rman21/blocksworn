@@ -20148,6 +20148,83 @@ const ARMORED_SHIELD_ABSORB     = 0.3;  // incoming dmg multiplier while shield 
 const PHOENIX_REVIVE_HP_PCT     = 0.6;
 const PHOENIX_IMMUNE_TURNS      = 2;    // turns after revive where motifs don't apply
 
+// 2026-05-02 — COMBAT v2.1 P4 §5.5: current battle's boss role tier.
+// Set in startBossBattle from currentBoss.roleTier. Drives Phase 1
+// CHANNEL_SIGNATURE_DMG lookup + UI TTK forecast + intel overlay.
+let _currentBossRoleTier = 'gatekeeper';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 4 PR #4.A — BOSS RECALC FOUNDATION
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_4_BOSS_RECALC.md §2.
+// TTK formula: boss_hp = expected_squad_dps × target_ttk_seconds
+// Phase gates standardized to 70% / 35% across all bosses (was 66/50/33/20).
+// Reactivity events replace per-boss invulnerability windows.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 2026-05-02 — COMBAT v2.1 P4 §2: standardized phase gates.
+const PHASE_GATE_P1_TO_P2 = 0.70;   // P1 → P2 transition (boss adapts)
+const PHASE_GATE_P2_TO_P3 = 0.35;   // P2 → P3 transition (boss adapts harder)
+const PHASE_GATE_DEATH    = 0.00;
+
+// 2026-05-02 — COMBAT v2.1 P4 §2: telegraph timing. UX commitment per §13.3 —
+// 3-second wind-up, ±200ms variance acceptable on slower devices.
+const REACTIVITY_TELEGRAPH_MS       = 3000;
+const REACTIVITY_BANNER_DURATION_MS = 1500;
+
+// 2026-05-02 — COMBAT v2.1 P4 §2: TTK targets per boss role tier.
+const BOSS_TTK_TARGETS = Object.freeze({
+  tutorial:       240,    // Boss 1 — 4 minutes
+  gatekeeper:     360,    // Bosses 2,3,6,7,11,12,16,17,21,22 — 6 minutes
+  mid_act:        420,    // Bosses 4,8,9,13,14,18,19,23,24 — 7 minutes
+  act_boss:       480,    // Bosses 5,10,15,20 — 8 minutes
+  chapter_finale: 540,    // Boss 25 (Ch5 only) — 9 minutes
+});
+
+// 2026-05-02 — COMBAT v2.1 P4 §2: expected squad DPS per chapter.
+// Calibrated assuming T0-T1 (Ch1) → T3+Mythic (Ch5) ascension curve.
+// Includes Stagger window damage burst from Phase 2 + tier scaling from Phase 3.
+const EXPECTED_DPS_BY_CHAPTER = Object.freeze({
+  1: 30,     // Ch1: starter T0-T1 squad, infrequent stagger
+  2: 75,     // Ch2: T1-T2 squad, more frequent stagger
+  3: 165,    // Ch3: T2 squad, regular stagger
+  4: 320,    // Ch4: T2-T3 squad, mastery stagger
+  5: 460,    // Ch5: T3+ squad with Mythic, high frequency stagger
+});
+
+// 2026-05-02 — COMBAT v2.1 P4 §2: tower DPS reference (separate from chapter scaling).
+const TOWER_DPS_REFERENCE = 280;
+
+// 2026-05-02 — COMBAT v2.1 P4 §2.1: HP formula helper.
+// Used by audit + future recalibration. CHAPTERS array is hand-populated
+// with the formula's output (per §2.2 table) so static analysis can verify.
+function computeBossHP(roleTier, chapter) {
+  const ttk = BOSS_TTK_TARGETS[roleTier] || BOSS_TTK_TARGETS.gatekeeper;
+  const dps = EXPECTED_DPS_BY_CHAPTER[chapter] || 100;
+  return Math.round(ttk * dps);
+}
+
+// 2026-05-02 — COMBAT v2.1 P4 §3.2: phase identifier for current boss.
+// Used by reactivity dispatcher + UI phase indicator chip.
+function getCurrentBossPhase() {
+  if (typeof bossHP !== 'number' || typeof bossMaxHP !== 'number' || bossMaxHP <= 0) return 'p1';
+  const ratio = bossHP / bossMaxHP;
+  if (ratio > PHASE_GATE_P1_TO_P2) return 'p1';
+  if (ratio > PHASE_GATE_P2_TO_P3) return 'p2';
+  return 'p3';
+}
+
+if (typeof window !== 'undefined') {
+  window.PHASE_GATE_P1_TO_P2          = PHASE_GATE_P1_TO_P2;
+  window.PHASE_GATE_P2_TO_P3          = PHASE_GATE_P2_TO_P3;
+  window.REACTIVITY_TELEGRAPH_MS      = REACTIVITY_TELEGRAPH_MS;
+  window.REACTIVITY_BANNER_DURATION_MS = REACTIVITY_BANNER_DURATION_MS;
+  window.BOSS_TTK_TARGETS             = BOSS_TTK_TARGETS;
+  window.EXPECTED_DPS_BY_CHAPTER      = EXPECTED_DPS_BY_CHAPTER;
+  window.TOWER_DPS_REFERENCE          = TOWER_DPS_REFERENCE;
+  window.computeBossHP                = computeBossHP;
+  window.getCurrentBossPhase          = getCurrentBossPhase;
+}
+
 const SHAPES = [
   [[1]], [[1]], [[1]],
   [[1,1]], [[1],[1]],
@@ -20175,11 +20252,15 @@ const CHAPTERS = [
       // (gated on bossArchetype === 'phoenix'). The legacy `revives` field path is
       // suppressed for phoenix archetype boses to avoid double-revive (HOTFIX
       // 2026-04-27 — Roman saw 3 lives instead of 2 because both paths fired).
-      { name: 'PYREDRAKE',       title: 'Lvl 1 · Fire Dragon',    hp: 1800,  attackInterval: 11, img: 'Boss_1', color: '#E85D4A', stihiya: 'ember', archetype: 'berserker' },
-      { name: 'ABYSSAL TYRANT',  title: 'Lvl 2 · Sea Overlord',   hp: 3800,  attackInterval: 9,  img: 'Boss_2', color: '#3B8BD4', stihiya: 'tide',  archetype: 'armored'   },
-      { name: 'GROVEWARDEN',     title: 'Lvl 3 · Ancient Keeper', hp: 6500,  attackInterval: 7,  img: 'Boss_3', color: '#5DCA79', stihiya: 'grove', archetype: 'bruiser'   },
-      { name: 'SOLAR PHOENIX',   title: 'Lvl 4 · Reborn Tyrant',  hp: 7500,  attackInterval: 6,  img: 'Boss_4', color: '#E8B84A', stihiya: 'solar', archetype: 'phoenix'   },
-      { name: 'CRYPT LICH',      title: 'Lvl 5 · Final Overlord', hp: 11000, attackInterval: 5,  img: 'Boss_5', color: '#9B59D6', stihiya: 'umbra', archetype: 'assassin'  },
+      // 2026-05-02 — COMBAT v2.1 P4 §2.2: HP from TTK formula.
+      // PYREDRAKE: tutorial × DPS 30 = 7200; ABYSSAL/GROVEWARDEN: gatekeeper = 10800;
+      // SOLAR PHOENIX: mid_act = 12600; CRYPT LICH: act_boss = 14400.
+      // roleTier drives CHANNEL_SIGNATURE_DMG (Phase 1) + TTK forecast UI.
+      { name: 'PYREDRAKE',       title: 'Lvl 1 · Fire Dragon',    hp: 7200,  attackInterval: 11, img: 'Boss_1', color: '#E85D4A', stihiya: 'ember', archetype: 'berserker', roleTier: 'tutorial'   },
+      { name: 'ABYSSAL TYRANT',  title: 'Lvl 2 · Sea Overlord',   hp: 10800, attackInterval: 9,  img: 'Boss_2', color: '#3B8BD4', stihiya: 'tide',  archetype: 'armored',   roleTier: 'gatekeeper' },
+      { name: 'GROVEWARDEN',     title: 'Lvl 3 · Ancient Keeper', hp: 10800, attackInterval: 7,  img: 'Boss_3', color: '#5DCA79', stihiya: 'grove', archetype: 'bruiser',   roleTier: 'gatekeeper' },
+      { name: 'SOLAR PHOENIX',   title: 'Lvl 4 · Reborn Tyrant',  hp: 12600, attackInterval: 6,  img: 'Boss_4', color: '#E8B84A', stihiya: 'solar', archetype: 'phoenix',   roleTier: 'mid_act'    },
+      { name: 'CRYPT LICH',      title: 'Lvl 5 · Final Overlord', hp: 14400, attackInterval: 5,  img: 'Boss_5', color: '#9B59D6', stihiya: 'umbra', archetype: 'assassin',  roleTier: 'act_boss'   },
     ]
   },
   {
@@ -20190,11 +20271,12 @@ const CHAPTERS = [
       // 3-phase progression (HP gates 100% → 66% → 33% → 0%). HP estimates per Compendium
       // first-pass; tunes during Phase 5b.9 balance pass. Voice lines in BOSS_VOICES (3 per
       // boss: intro / midfight / death). Specific phase mechanics in 5b.3-5b.7 per-boss blocks.
-      { name: 'VEROTHIRA',  title: 'Lvl 6 · Hungering Bloom',  hp: 14500, attackInterval: 6, img: 'Boss_6',  color: '#9B59D6', stihiya: 'umbra', archetype: 'hypnotist'       },
-      { name: 'GEARHEART',  title: 'Lvl 7 · Rusted Colossus',  hp: 16000, attackInterval: 6, img: 'Boss_7',  color: '#B87333', stihiya: 'grove', archetype: 'engineer'        },
-      { name: 'URSARO',     title: 'Lvl 8 · Magma Bear',       hp: 15000, attackInterval: 5, img: 'Boss_8',  color: '#FF6E28', stihiya: 'ember', archetype: 'frenzy'          },
-      { name: 'TIDESPIRE',  title: 'Lvl 9 · Drowned Howl',     hp: 17000, attackInterval: 5, img: 'Boss_9',  color: '#78C8FF', stihiya: 'tide',  archetype: 'tempo_disruptor' },
-      { name: 'HELIOTRON',  title: 'Lvl 10 · Solar Sovereign', hp: 19000, attackInterval: 5, img: 'Boss_10', color: '#FFD75A', stihiya: 'solar', archetype: 'battery'         },
+      // 2026-05-02 — COMBAT v2.1 P4 §2.2: Ch2 DPS=75. gatekeeper=27000, mid_act=31500, act_boss=36000.
+      { name: 'VEROTHIRA',  title: 'Lvl 6 · Hungering Bloom',  hp: 27000, attackInterval: 6, img: 'Boss_6',  color: '#9B59D6', stihiya: 'umbra', archetype: 'hypnotist',       roleTier: 'gatekeeper' },
+      { name: 'GEARHEART',  title: 'Lvl 7 · Rusted Colossus',  hp: 27000, attackInterval: 6, img: 'Boss_7',  color: '#B87333', stihiya: 'grove', archetype: 'engineer',        roleTier: 'gatekeeper' },
+      { name: 'URSARO',     title: 'Lvl 8 · Magma Bear',       hp: 31500, attackInterval: 5, img: 'Boss_8',  color: '#FF6E28', stihiya: 'ember', archetype: 'frenzy',          roleTier: 'mid_act'    },
+      { name: 'TIDESPIRE',  title: 'Lvl 9 · Drowned Howl',     hp: 31500, attackInterval: 5, img: 'Boss_9',  color: '#78C8FF', stihiya: 'tide',  archetype: 'tempo_disruptor', roleTier: 'mid_act'    },
+      { name: 'HELIOTRON',  title: 'Lvl 10 · Solar Sovereign', hp: 36000, attackInterval: 5, img: 'Boss_10', color: '#FFD75A', stihiya: 'solar', archetype: 'battery',         roleTier: 'act_boss'   },
     ]
   },
   {
@@ -20206,16 +20288,17 @@ const CHAPTERS = [
     id: 3,
     name: 'VEIL OF FORGOTTEN GODS',
     bosses: [
+      // 2026-05-02 — COMBAT v2.1 P4 §2.2: Ch3 DPS=165. gatekeeper=59400, mid_act=69300, act_boss=79200.
       // Boss 11 TWILIGHT VESSEL — Dark+Light dual; Soul-Drinker → phoenix archetype (revive feel = "drinks names")
-      { name: 'TWILIGHT VESSEL', title: 'Lvl 11 · Vessel of Forgotten Names', hp: 21000, attackInterval: 5, img: 'Boss_11', color: '#A88AC8', stihiya: 'umbra', archetype: 'phoenix'   },
+      { name: 'TWILIGHT VESSEL', title: 'Lvl 11 · Vessel of Forgotten Names', hp: 59400, attackInterval: 5, img: 'Boss_11', color: '#A88AC8', stihiya: 'umbra', archetype: 'phoenix',   roleTier: 'gatekeeper' },
       // Boss 12 STORMSHEPHERD — Frost+Earth; Stormcaller → engineer (board manipulation)
-      { name: 'STORMSHEPHERD',   title: 'Lvl 12 · Tender of Lost Storms',     hp: 23000, attackInterval: 5, img: 'Boss_12', color: '#9CC8DE', stihiya: 'tide',  archetype: 'engineer'  },
+      { name: 'STORMSHEPHERD',   title: 'Lvl 12 · Tender of Lost Storms',     hp: 59400, attackInterval: 5, img: 'Boss_12', color: '#9CC8DE', stihiya: 'tide',  archetype: 'engineer',  roleTier: 'gatekeeper' },
       // Boss 13 VOIDPRIESTESS — Dark+Light inverted; Confession Reader → hypnotist (per-turn debuffs)
-      { name: 'VOIDPRIESTESS',   title: 'Lvl 13 · The High Confessor',        hp: 24500, attackInterval: 5, img: 'Boss_13', color: '#C0A6DF', stihiya: 'umbra', archetype: 'hypnotist' },
+      { name: 'VOIDPRIESTESS',   title: 'Lvl 13 · The High Confessor',        hp: 69300, attackInterval: 5, img: 'Boss_13', color: '#C0A6DF', stihiya: 'umbra', archetype: 'hypnotist', roleTier: 'mid_act'    },
       // Boss 14 ROOT-OF-NOTHING — Earth+Dark; Wither → bruiser (high HP, locked-cell flavor)
-      { name: 'ROOT-OF-NOTHING', title: 'Lvl 14 · First Tree to Forget Sun',  hp: 26000, attackInterval: 5, img: 'Boss_14', color: '#6E7A6A', stihiya: 'grove', archetype: 'bruiser'   },
+      { name: 'ROOT-OF-NOTHING', title: 'Lvl 14 · First Tree to Forget Sun',  hp: 69300, attackInterval: 5, img: 'Boss_14', color: '#6E7A6A', stihiya: 'grove', archetype: 'bruiser',   roleTier: 'mid_act'    },
       // Boss 15 ARCHIVAL ETERNAL — Light+Earth; Sealer → assassin (ability disruption analog)
-      { name: 'ARCHIVAL ETERNAL', title: 'Lvl 15 · Library of All That Was Lost', hp: 28000, attackInterval: 5, img: 'Boss_15', color: '#E8D88A', stihiya: 'solar', archetype: 'assassin' },
+      { name: 'ARCHIVAL ETERNAL', title: 'Lvl 15 · Library of All That Was Lost', hp: 79200, attackInterval: 5, img: 'Boss_15', color: '#E8D88A', stihiya: 'solar', archetype: 'assassin', roleTier: 'act_boss' },
     ]
   },
   // 2026-05-01 — SPRINT 3A: Chapter 4 (COURT OF THE FALLEN HEAVENS). REPLACES
@@ -20232,16 +20315,17 @@ const CHAPTERS = [
     id: 4,
     name: 'COURT OF THE FALLEN HEAVENS',
     bosses: [
+      // 2026-05-02 — COMBAT v2.1 P4 §2.2: Ch4 DPS=320. gatekeeper=115200, mid_act=134400, act_boss=153600.
       // Boss 16 THE PROSECUTOR — Dark / 5-face Phase Shifter → phoenix (face change feel = revive)
-      { name: 'THE PROSECUTOR',     title: 'Lvl 16 · Speaker for the Indictment',     hp: 32000, attackInterval: 5, img: 'Boss_16', color: '#8E5DCC', stihiya: 'umbra', archetype: 'phoenix'         },
+      { name: 'THE PROSECUTOR',     title: 'Lvl 16 · Speaker for the Indictment',     hp: 115200, attackInterval: 5, img: 'Boss_16', color: '#8E5DCC', stihiya: 'umbra', archetype: 'phoenix',         roleTier: 'gatekeeper' },
       // Boss 17 JUSTICE BLIND — Light / Equalizer (scales) → tempo_disruptor (dynamic state)
-      { name: 'JUSTICE BLIND',      title: 'Lvl 17 · The Magistrate Without Eyes',    hp: 35000, attackInterval: 5, img: 'Boss_17', color: '#F0E8B8', stihiya: 'solar', archetype: 'tempo_disruptor' },
+      { name: 'JUSTICE BLIND',      title: 'Lvl 17 · The Magistrate Without Eyes',    hp: 115200, attackInterval: 5, img: 'Boss_17', color: '#F0E8B8', stihiya: 'solar', archetype: 'tempo_disruptor', roleTier: 'gatekeeper' },
       // Boss 18 SUN-CROWN REGENT — Fire+Light / Regent (5 mini-bosses) → bruiser (high HP shielded)
-      { name: 'SUN-CROWN REGENT',   title: 'Lvl 18 · Successor to a Forgotten King',  hp: 38000, attackInterval: 5, img: 'Boss_18', color: '#FFAA28', stihiya: 'ember', archetype: 'bruiser'         },
+      { name: 'SUN-CROWN REGENT',   title: 'Lvl 18 · Successor to a Forgotten King',  hp: 134400, attackInterval: 5, img: 'Boss_18', color: '#FFAA28', stihiya: 'ember', archetype: 'bruiser',         roleTier: 'mid_act'    },
       // Boss 19 ECLIPSE-WALKER — Frost+Fire / Phase Reverser (dual HP) → hypnotist (dual-state debuff)
-      { name: 'ECLIPSE-WALKER',     title: 'Lvl 19 · Ambassador of Twin Suns',        hp: 41000, attackInterval: 5, img: 'Boss_19', color: '#A8C8E8', stihiya: 'tide',  archetype: 'hypnotist'      },
+      { name: 'ECLIPSE-WALKER',     title: 'Lvl 19 · Ambassador of Twin Suns',        hp: 134400, attackInterval: 5, img: 'Boss_19', color: '#A8C8E8', stihiya: 'tide',  archetype: 'hypnotist',       roleTier: 'mid_act'    },
       // Boss 20 THE FALLEN HIGHEST — All-element / Royal Phase 6-phase rush → engineer (phase complexity)
-      { name: 'THE FALLEN HIGHEST', title: 'Lvl 20 · The Court\'s Empty Throne',      hp: 50000, attackInterval: 5, img: 'Boss_20', color: '#E8C8FF', stihiya: 'umbra', archetype: 'engineer'       },
+      { name: 'THE FALLEN HIGHEST', title: 'Lvl 20 · The Court\'s Empty Throne',      hp: 153600, attackInterval: 5, img: 'Boss_20', color: '#E8C8FF', stihiya: 'umbra', archetype: 'engineer',        roleTier: 'act_boss'   },
     ]
   },
   // CONTENT.2 — Chapter 5 placeholder (PRELAUNCH §8). Unlocks Day 135.
@@ -20253,11 +20337,12 @@ const CHAPTERS = [
     contentDropId: 'chapter_5',
     placeholder: true,
     bosses: [
-      { name: 'CROWN-OF-DUST',   title: 'Lvl 21 · The Last Sovereign',     hp: 42000, attackInterval: 5, img: 'Boss_21', color: '#E8C8A0', stihiya: 'solar', archetype: 'armored'    },
-      { name: 'SHARDLORD',       title: 'Lvl 22 · Reaver of Broken Realms',hp: 44000, attackInterval: 5, img: 'Boss_22', color: '#A0C8FF', stihiya: 'tide',  archetype: 'tempo_disruptor' },
-      { name: 'SEEDREAPER',      title: 'Lvl 23 · Harvest of Endings',     hp: 47000, attackInterval: 5, img: 'Boss_23', color: '#88B868', stihiya: 'grove', archetype: 'bruiser'    },
-      { name: 'PYREKING',        title: 'Lvl 24 · Throne of Ash',          hp: 50000, attackInterval: 5, img: 'Boss_24', color: '#D04030', stihiya: 'ember', archetype: 'berserker'  },
-      { name: 'WORLD-EATER',     title: 'Lvl 25 · The End That Devours',   hp: 60000, attackInterval: 4, img: 'Boss_25', color: '#3A1A4A', stihiya: 'umbra', archetype: 'phoenix'    },
+      // 2026-05-02 — COMBAT v2.1 P4 §2.2: Ch5 DPS=460. gatekeeper=165600, mid_act=193200, chapter_finale=248400.
+      { name: 'CROWN-OF-DUST',   title: 'Lvl 21 · The Last Sovereign',     hp: 165600, attackInterval: 5, img: 'Boss_21', color: '#E8C8A0', stihiya: 'solar', archetype: 'armored',         roleTier: 'gatekeeper'     },
+      { name: 'SHARDLORD',       title: 'Lvl 22 · Reaver of Broken Realms',hp: 165600, attackInterval: 5, img: 'Boss_22', color: '#A0C8FF', stihiya: 'tide',  archetype: 'tempo_disruptor', roleTier: 'gatekeeper'     },
+      { name: 'SEEDREAPER',      title: 'Lvl 23 · Harvest of Endings',     hp: 193200, attackInterval: 5, img: 'Boss_23', color: '#88B868', stihiya: 'grove', archetype: 'bruiser',         roleTier: 'mid_act'        },
+      { name: 'PYREKING',        title: 'Lvl 24 · Throne of Ash',          hp: 193200, attackInterval: 5, img: 'Boss_24', color: '#D04030', stihiya: 'ember', archetype: 'berserker',       roleTier: 'mid_act'        },
+      { name: 'WORLD-EATER',     title: 'Lvl 25 · The End That Devours',   hp: 248400, attackInterval: 4, img: 'Boss_25', color: '#3A1A4A', stihiya: 'umbra', archetype: 'phoenix',         roleTier: 'chapter_finale' },
     ]
   },
 ];
@@ -27120,41 +27205,51 @@ if (typeof window !== 'undefined') {
 // startBossBattle calls `currentBoss = getEffectiveBossStats(currentBoss)` which
 // returns a shallow-copy, scoping any enrage mutation to the current battle.
 
+// 2026-05-02 — COMBAT v2.1 P4 §3.3: BOSS_PHASES restructured.
+// Standardized 70%/35% thresholds replace varied 66/50/33/20.
+// New `reactivity` field replaces legacy `effects` array — dispatch via
+// REACTIVITY_HANDLERS (PR #4.B). Each boss maps to its archetype's two
+// reactivity event templates (e.g., berserker_p1_p2 + berserker_p2_p3).
+//
+// Coverage: all 25 main-campaign bosses + VOIDFANG (Tower fallback).
+// Ch2/Ch3 entries previously dead — now active per spec §11.4 regression
+// expectation (every boss can fire phase reactivity).
 const BOSS_PHASES = {
   // ==== Chapter 1 ====
-  'PYREDRAKE':      [
-    { threshold: 66, effects: ['voidBoost:1', 'dialog:pyredrake_p2'] },
-    { threshold: 33, effects: ['enrage', 'spawnBurst', 'dialog:pyredrake_p3'] },
-  ],
-  'ABYSSAL TYRANT': [
-    { threshold: 50, effects: ['cleanse', 'voidBoost:2', 'dialog:abyssal_p2'] },
-  ],
-  'GROVEWARDEN':    [
-    { threshold: 66, effects: ['voidBoost:1', 'dialog:grovewarden_p2'] },
-    { threshold: 33, effects: ['healPartial:10', 'dialog:grovewarden_p3'] },
-  ],
-  'SOLAR PHOENIX':  [
-    { threshold: 66, effects: ['voidBoost:1', 'dialog:phoenix_p2'] },
-  ],
-  'CRYPT LICH':     [
-    { threshold: 50, effects: ['enrage', 'voidBoost:1', 'dialog:lich_p2'] },
-    { threshold: 20, effects: ['spawnBurst', 'spawnBurst', 'dialog:lich_p3'] },
-  ],
-  // 2026-04-29 — DEBT-012 close: removed Chapter 2 + Chapter 3 entries for
-  // the pre-Phase-5 boss roster (TIDAL LEVIATHAN, VERDANT COLOSSUS, SERAPH
-  // JUDICATOR, WRAITH OF CHAINS, EMBERBEARD, PYRESPIRE, GLACIAL MONARCH,
-  // STONEMAGUS, SUNFORGED). Those bosses were never shipped — Phase 5b
-  // replaced them with VEROTHIRA / GEARHEART / URSARO / TIDESPIRE /
-  // HELIOTRON (Ch2) and TWILIGHT VESSEL / VOIDPRIESTESS / STORMSHEPHERD /
-  // ROOT-OF-NOTHING / ARCHIVAL ETERNAL (Ch3), each with its own bespoke
-  // archetype tick (`tickChapter2Archetype` / `tickChapter3Boss`). The
-  // shipped Ch2/Ch3 bosses don't read BOSS_PHASES at all; the old entries
-  // were dead data referencing dead `dialog:xxx_pN` keys.
-  // VOIDFANG kept as Tower-side fallback (Block 6.3 overrides with a
-  // bespoke script; placeholder protects lazy-load paths).
-  'VOIDFANG': [
-    { threshold: 66, effects: ['voidBoost:1'] },
-  ],
+  'PYREDRAKE':       [{ threshold: 70, reactivity: 'berserker_p1_p2' }, { threshold: 35, reactivity: 'berserker_p2_p3' }],
+  'ABYSSAL TYRANT':  [{ threshold: 70, reactivity: 'armored_p1_p2'   }, { threshold: 35, reactivity: 'armored_p2_p3'   }],
+  'GROVEWARDEN':     [{ threshold: 70, reactivity: 'bruiser_p1_p2'   }, { threshold: 35, reactivity: 'bruiser_p2_p3'   }],
+  'SOLAR PHOENIX':   [{ threshold: 70, reactivity: 'phoenix_p1_p2'   }, { threshold: 35, reactivity: 'phoenix_p2_p3'   }],
+  'CRYPT LICH':      [{ threshold: 70, reactivity: 'assassin_p1_p2'  }, { threshold: 35, reactivity: 'assassin_p2_p3'  }],
+  // ==== Chapter 2 ====
+  'VEROTHIRA':       [{ threshold: 70, reactivity: 'hypnotist_p1_p2'       }, { threshold: 35, reactivity: 'hypnotist_p2_p3'       }],
+  'GEARHEART':       [{ threshold: 70, reactivity: 'engineer_p1_p2'        }, { threshold: 35, reactivity: 'engineer_p2_p3'        }],
+  'URSARO':          [{ threshold: 70, reactivity: 'frenzy_p1_p2'          }, { threshold: 35, reactivity: 'frenzy_p2_p3'          }],
+  'TIDESPIRE':       [{ threshold: 70, reactivity: 'tempo_disruptor_p1_p2' }, { threshold: 35, reactivity: 'tempo_disruptor_p2_p3' }],
+  'HELIOTRON':       [{ threshold: 70, reactivity: 'battery_p1_p2'         }, { threshold: 35, reactivity: 'battery_p2_p3'         }],
+  // ==== Chapter 3 (archetypes reused per spec §3.3) ====
+  'TWILIGHT VESSEL': [{ threshold: 70, reactivity: 'phoenix_p1_p2'   }, { threshold: 35, reactivity: 'phoenix_p2_p3'   }],
+  'STORMSHEPHERD':   [{ threshold: 70, reactivity: 'engineer_p1_p2'  }, { threshold: 35, reactivity: 'engineer_p2_p3'  }],
+  'VOIDPRIESTESS':   [{ threshold: 70, reactivity: 'hypnotist_p1_p2' }, { threshold: 35, reactivity: 'hypnotist_p2_p3' }],
+  'ROOT-OF-NOTHING': [{ threshold: 70, reactivity: 'bruiser_p1_p2'   }, { threshold: 35, reactivity: 'bruiser_p2_p3'   }],
+  'ARCHIVAL ETERNAL':[{ threshold: 70, reactivity: 'assassin_p1_p2'  }, { threshold: 35, reactivity: 'assassin_p2_p3'  }],
+  // ==== Chapter 4 (Court of the Fallen Heavens) ====
+  'THE PROSECUTOR':  [{ threshold: 70, reactivity: 'phoenix_p1_p2'         }, { threshold: 35, reactivity: 'phoenix_p2_p3'         }],
+  'JUSTICE BLIND':   [{ threshold: 70, reactivity: 'tempo_disruptor_p1_p2' }, { threshold: 35, reactivity: 'tempo_disruptor_p2_p3' }],
+  'SUN-CROWN REGENT':[{ threshold: 70, reactivity: 'bruiser_p1_p2'         }, { threshold: 35, reactivity: 'bruiser_p2_p3'         }],
+  'ECLIPSE-WALKER':  [{ threshold: 70, reactivity: 'hypnotist_p1_p2'       }, { threshold: 35, reactivity: 'hypnotist_p2_p3'       }],
+  'THE FALLEN HIGHEST': [{ threshold: 70, reactivity: 'engineer_p1_p2'     }, { threshold: 35, reactivity: 'engineer_p2_p3'        }],
+  // ==== Chapter 5 (When the Crown Breaks) ====
+  'CROWN-OF-DUST':   [{ threshold: 70, reactivity: 'armored_p1_p2'         }, { threshold: 35, reactivity: 'armored_p2_p3'         }],
+  'SHARDLORD':       [{ threshold: 70, reactivity: 'tempo_disruptor_p1_p2' }, { threshold: 35, reactivity: 'tempo_disruptor_p2_p3' }],
+  'SEEDREAPER':      [{ threshold: 70, reactivity: 'bruiser_p1_p2'         }, { threshold: 35, reactivity: 'bruiser_p2_p3'         }],
+  'PYREKING':        [{ threshold: 70, reactivity: 'berserker_p1_p2'       }, { threshold: 35, reactivity: 'berserker_p2_p3'       }],
+  'WORLD-EATER':     [{ threshold: 70, reactivity: 'phoenix_p1_p2'         }, { threshold: 35, reactivity: 'phoenix_p2_p3'         }],
+  // ==== Tower fallback ====
+  // VOIDFANG kept as Tower-side fallback (Block 6.3 overrides with a bespoke
+  // script; placeholder protects lazy-load paths). Uses voidfang archetype
+  // reactivities (PR #4.B will define tower_voidfang_p1_p2 / _p2_p3 handlers).
+  'VOIDFANG':        [{ threshold: 70, reactivity: 'tower_voidfang_p1_p2' }, { threshold: 35, reactivity: 'tower_voidfang_p2_p3' }],
 };
 
 // Per-battle tracking — Set of "BOSSNAME:thresholdPct" strings already fired.
@@ -27274,14 +27369,26 @@ function firePhase(phase) {
   // Camera shake — reuse existing hitBoss helper for visual consistency.
   // isCombo=true gives the stronger shake intensity.
   try { if (typeof hitBoss === 'function') hitBoss(true); } catch(e){}
+  // 2026-05-02 — COMBAT v2.1 P4 PR #4.A: BOSS_PHASES entries now use a
+  // `reactivity` field (e.g., 'berserker_p1_p2') instead of legacy `effects`
+  // array. PR #4.B replaces this entire body with a telegraph→execute flow
+  // through REACTIVITY_HANDLERS. For the #4.A↔#4.B gap, we tolerate either:
+  //   - new shape (phase.reactivity): log + early-return (no-op until #4.B)
+  //   - legacy shape (phase.effects):  iterate as before
+  if (phase && phase.reactivity && !Array.isArray(phase.effects)) {
+    try { console.log('[Phase 4 PR #4.A] reactivity event pending #4.B handler:', phase.reactivity); } catch (e) {}
+    return;
+  }
   // Execute effects sequentially. Each wrapped so one failure doesn't block others.
-  for (const effectSpec of phase.effects) {
-    const [name, param] = String(effectSpec).split(':');
-    const handler = EFFECT_HANDLERS[name];
-    if (handler) {
-      try { handler(param); } catch (e) { console.warn('Phase effect failed:', name, e); }
-    } else {
-      console.warn('Unknown phase effect:', name);
+  if (Array.isArray(phase.effects)) {
+    for (const effectSpec of phase.effects) {
+      const [name, param] = String(effectSpec).split(':');
+      const handler = EFFECT_HANDLERS[name];
+      if (handler) {
+        try { handler(param); } catch (e) { console.warn('Phase effect failed:', name, e); }
+      } else {
+        console.warn('Unknown phase effect:', name);
+      }
     }
   }
 }
@@ -27694,11 +27801,17 @@ if (typeof window !== 'undefined') {
 //   - Block 6.2's onBossDefeated Voidfang skip — bespoke chain fires after generic block
 //   - Block 5.2's ACHIEVEMENTS.push — adds end_of_shadows trophy
 
-// Override Voidfang's placeholder phases. Spec thresholds: 75/50/25 vs 66/33.
+// 2026-05-02 — COMBAT v2.1 P4 PR #4.A: Voidfang now uses standardized 70/35
+// gates with `tower_voidfang_*` reactivity events (PR #4.B handlers). The
+// legacy 75/50/25 three-phase Tower-bespoke flow is collapsed to 2 events
+// per spec §3.3 (consistent gating across all bosses). Grid tint /
+// umbralShroud / dialog narrative beats are deferred:
+//   - voidfang shroud dispatch handled separately by `_voidfangShroudActive`
+//     state below (still active during Tower fights)
+//   - dialog narrative removed per spec §8.3 ("no dialog filler for pacing")
 BOSS_PHASES['VOIDFANG'] = [
-  { threshold: 75, effects: ['gridTint:1', 'voidBoost:1', 'dialog:voidfang_p1_a'] },
-  { threshold: 50, effects: ['gridTint:2', 'cleanse', 'enrage', 'voidBoost:1', 'dialog:voidfang_p2_a'] },
-  { threshold: 25, effects: ['gridTint:3', 'umbralShroud', 'enrage', 'spawnBurst', 'dialog:voidfang_p3_a'] },
+  { threshold: 70, reactivity: 'tower_voidfang_p1_p2' },
+  { threshold: 35, reactivity: 'tower_voidfang_p2_p3' },
 ];
 
 // ========= Shroud state =========
@@ -36371,6 +36484,14 @@ function applyGridSaturationIfAny() {
 //   act_boss:    Bosses 5, 10, 15, 20
 //   finale:      Boss 25
 function _getBossSignatureTier() {
+  // 2026-05-02 — COMBAT v2.1 P4 §5.5: prefer canonical `roleTier` over legacy
+  // `signatureTier`. Both fields populate the same CHANNEL_SIGNATURE_DMG
+  // tier key (tutorial / gatekeeper / mid_act / act_boss / chapter_finale).
+  // `roleTier` is the new field name (PR #4.A); `signatureTier` kept as
+  // backward-compat for any data path that may still set it.
+  const _tier = (typeof currentBoss !== 'undefined' && currentBoss)
+              ? (currentBoss.roleTier || currentBoss.signatureTier) : null;
+  if (_tier && CHANNEL_SIGNATURE_DMG[_tier]) return _tier;
   // Per-boss override (P4 sets currentBoss.signatureTier).
   if (typeof currentBoss !== 'undefined' && currentBoss && currentBoss.signatureTier
       && CHANNEL_SIGNATURE_DMG[currentBoss.signatureTier]) {
@@ -42086,6 +42207,9 @@ function startBossBattle() {
   // persists across battles unless explicitly removed).
   try { if (typeof clearVoidfangTints === 'function') clearVoidfangTints(); } catch (e) {}
   bossMaxHP = currentBoss.hp;
+  // 2026-05-02 — COMBAT v2.1 P4 §5.5: capture role tier for signature damage
+  // lookup + TTK forecast UI. Default 'gatekeeper' if boss data omits roleTier.
+  _currentBossRoleTier = (currentBoss && currentBoss.roleTier) || 'gatekeeper';
   // 2026-04-29 — Race-Pure Challenge HP boost (Player Education Stage 15).
   // Only applies to story Ch1 bosses (FTUE / Tower / Grunt skip via the same
   // _isFtueOnly + _isTowerBattle gates that protect other branches above).
