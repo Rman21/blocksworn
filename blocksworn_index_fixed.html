@@ -22141,6 +22141,50 @@ function _hasFounderBadge() {
   try { return localStorage.getItem(FOUNDER_BADGE_KEY) === 'true'; } catch (e) { return false; }
 }
 
+// 2026-05-02 — SPRINT 6 launch prep: soft-launch tester grandfathering.
+// Per SPRINT_6_FULL_LAUNCH_PREP.md §8.3: "Email blast to soft launch testers
+// (Founder badges activated)". This helper backfills the founder badge for
+// any save whose first launch happened before the public-launch cutoff, so
+// soft-launch testers carry the badge into the public release without
+// needing to make a purchase first.
+//
+// SETUP REQUIRED before public launch:
+//   1. Pick a cutoff date — typically the day BEFORE App Store goes public
+//   2. Replace _SOFT_LAUNCH_TESTER_CUTOFF below with that date in 'YYYY-MM-DD'
+//   3. Migration runs idempotently on next session_start; fires once per
+//      affected save (gated by FOUNDER_BADGE_KEY already set).
+//
+// Default value `null` means migration is disabled — Roman flips it on
+// during the public-launch checklist (T-1 day) so the next session for
+// every soft-launch tester runs the migration on their first post-launch
+// boot. Safe to leave null indefinitely; safe to set late (idempotent).
+const _SOFT_LAUNCH_TESTER_CUTOFF = null;  // e.g. '2026-08-31' on launch day
+
+function _isSoftLaunchTester() {
+  if (!_SOFT_LAUNCH_TESTER_CUTOFF) return false;
+  try {
+    const firstLaunch = localStorage.getItem('blocksworn_first_launch_date');
+    if (!firstLaunch) return false;  // genuinely brand-new install
+    return firstLaunch <= _SOFT_LAUNCH_TESTER_CUTOFF;
+  } catch (e) { return false; }
+}
+
+function _migrateSoftLaunchTesterFounderBadge() {
+  try {
+    if (!_SOFT_LAUNCH_TESTER_CUTOFF) return false;          // disabled
+    if (_hasFounderBadge()) return false;                    // already has it
+    if (!_isSoftLaunchTester()) return false;                // post-launch install
+    localStorage.setItem(FOUNDER_BADGE_KEY, 'true');
+    try { logEvent && logEvent('founder_badge_grandfathered', { reason: 'soft_launch_tester' }); } catch (e) {}
+    console.log('[Sprint 6] Soft-launch tester detected — Founder badge grandfathered');
+    return true;
+  } catch (e) { console.warn('soft-launch-tester migration failed:', e); return false; }
+}
+if (typeof window !== 'undefined') {
+  window._isSoftLaunchTester = _isSoftLaunchTester;
+  window._migrateSoftLaunchTesterFounderBadge = _migrateSoftLaunchTesterFounderBadge;
+}
+
 // 2026-04-29 — First Purchase Bonus per BLOCKSWORN_MONETIZATION.md §10.3.
 // Idempotent grant — fires once across the entire install. Returns true if
 // granted, false if already done. Call from every paid-IAP entry point so
@@ -40226,6 +40270,10 @@ function init() {
   // unlock chain). One-time migration backfills the flag silently. No
   // cinematic — they earned it before Ch4 existed; they'll discover via map.
   try { _migrateChapter4UnlockForExistingFinishers(); } catch (e) { console.warn('Ch4 migration failed:', e); }
+  // 2026-05-02 — SPRINT 6 launch prep: backfill founder badge for soft-launch
+  // testers. Inert until Roman sets _SOFT_LAUNCH_TESTER_CUTOFF on T-1 day
+  // (see helper definition above). Idempotent — safe to call every boot.
+  try { _migrateSoftLaunchTesterFounderBadge(); } catch (e) { console.warn('soft-launch tester migration failed:', e); }
   // Task #1.8: paint TOWER nav lock state once after save load
   try { updateTowerNavButton(); } catch (e) {}
   // Task #1.4: surface the migration refund notice once per save transition
