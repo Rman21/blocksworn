@@ -27539,6 +27539,14 @@ const DIALOG_LINES = {
   'tut_void_tick_intro':    { speaker: 'YOUR CHRONICLER', speakerColor: '#9B59E8', portraitKey: 'hero_chronicler', text: "Void cells aren't just dead space. Each one ticks small damage at end of turn. Clear them, or pay the toll. Tempo wins this game." },
   'tut_signature_intro':    { speaker: 'YOUR CHRONICLER', speakerColor: '#FF8C00', portraitKey: 'hero_chronicler', text: "When the boss countdown hits zero, it strikes — a SIGNATURE ATTACK. Heavy damage. Telegraphed in advance. This boss hits for 12 HP. Bigger bosses hit harder." },
   'tut_grid_saturation_intro': { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD700', portraitKey: 'hero_chronicler', text: "If your board fills past 75%, you take pressure damage every turn. Don't hoard cells. Clear lines. Keep room to breathe." },
+  // 2026-05-02 — COMBAT v2.1 P2 PR #2.E §5.1: Stagger Loop intros.
+  // Fire on first encounter of each system during Ch1, gated by seenDialogs
+  // + !isFtueActive. Triggers wired into addPressure / enterStaggerState /
+  // enterRecoveryState / applyOverflowConversion (forward refs from #2.B/#2.A/#2.C).
+  'tut_pressure_intro':       { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD700', portraitKey: 'hero_chronicler', text: "Watch the boss's PRESSURE meter — it fills with every line clear, INFERNO, DETONATE, and ULT. Bigger combos = more pressure. Fill it to break the boss." },
+  'tut_stagger_intro':        { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD700', portraitKey: 'hero_chronicler', text: "STAGGER! For 4 turns the boss is wide open. Your damage cap doubles. Strike with everything — INFERNOs, ULTs, your biggest combos. This is your power moment." },
+  'tut_recovery_intro':       { speaker: 'YOUR CHRONICLER', speakerColor: '#FF4500', portraitKey: 'hero_chronicler', text: "The boss is recovering — and angry. A REVENGE STRIKE is coming in 2 turns. Big damage, telegraphed. Brace your shields, position your tank, or accept the hit." },
+  'tut_overflow_intro':       { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD700', portraitKey: 'hero_chronicler', text: "Your hit overshot — but nothing's lost. Overkill damage converts: 40% to ULT charge, 30% to essence, plus shields. Massive combos always pay off." },
   'tut_phoenix_revive':     { speaker: 'YOUR CHRONICLER', speakerColor: '#E8B84A', portraitKey: 'hero_chronicler', text: "The Phoenix burns twice. Even ash is patient. Strike again — only the second death is final." },
   'tut_squad_grew_to_5':    { speaker: 'YOUR CHRONICLER', speakerColor: '#FFD53D', portraitKey: 'hero_chronicler', text: "A fifth slot opens. Your squad grows. Before you face the Lich, fill the empty seat — five hearts beat stronger than four." },
   'tut_pre_lich_check':     { speaker: 'YOUR CHRONICLER', speakerColor: '#9B59D6', portraitKey: 'hero_chronicler', text: "An empty slot in your squad. The Lich does not forgive incomplete cohorts. Open the SQUAD screen and add your fifth hero before this fight." },
@@ -36382,6 +36390,83 @@ function _maybeTriggerMitigationIntro() {
 if (typeof window !== 'undefined') {
   window._maybeTriggerChannelIntro    = _maybeTriggerChannelIntro;
   window._maybeTriggerMitigationIntro = _maybeTriggerMitigationIntro;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 2 PR #2.E — FTUE INTRO TRIGGERS
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_2_STAGGER_LOOP.md §5.
+// 4 helpers gated by seenDialogs + Ch1 + !isFtueActive. Each fires
+// once per install on first encounter. Forward refs from #2.A (state
+// transitions) + #2.B (addPressure) + #2.C (applyOverflowConversion)
+// were already defensive — these implementations land them.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Fires on first non-trivial Pressure gain during Ch1. addPressure()
+// in #2.B calls this after each successful gain. 500ms delay so the
+// pressure floater FX lands first.
+function _maybeTriggerPressureIntro() {
+  try {
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return;
+    if (typeof currentChapter === 'undefined' || currentChapter !== 1) return;
+    if (seenDialogs.has('tut_pressure_intro')) return;
+    if (typeof isFtueActive === 'function' && isFtueActive()) return;
+    if (typeof bossPressure !== 'number' || bossPressure < 5) return;
+    setTimeout(() => {
+      try { if (typeof playDialog === 'function') playDialog('tut_pressure_intro'); } catch (e) {}
+    }, 500);
+  } catch (e) { console.warn('_maybeTriggerPressureIntro failed:', e); }
+}
+
+// Fires on first STAGGER entry during Ch1. enterStaggerState() in
+// #2.A calls this after the gold flash + slow-mo FX. 1500ms delay so
+// the FX completes and the dialog lands on a settled screen.
+function _maybeTriggerStaggerIntro() {
+  try {
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return;
+    if (typeof currentChapter === 'undefined' || currentChapter !== 1) return;
+    if (seenDialogs.has('tut_stagger_intro')) return;
+    if (typeof isFtueActive === 'function' && isFtueActive()) return;
+    setTimeout(() => {
+      try { if (typeof playDialog === 'function') playDialog('tut_stagger_intro'); } catch (e) {}
+    }, 1500);
+  } catch (e) { console.warn('_maybeTriggerStaggerIntro failed:', e); }
+}
+
+// Fires on first RECOVERY entry during Ch1. enterRecoveryState() in
+// #2.A calls this. 800ms delay — Recovery banner is anxious; we want
+// the player reading the warning before the dialog softens it.
+function _maybeTriggerRecoveryIntro() {
+  try {
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return;
+    if (typeof currentChapter === 'undefined' || currentChapter !== 1) return;
+    if (seenDialogs.has('tut_recovery_intro')) return;
+    if (typeof isFtueActive === 'function' && isFtueActive()) return;
+    setTimeout(() => {
+      try { if (typeof playDialog === 'function') playDialog('tut_recovery_intro'); } catch (e) {}
+    }, 800);
+  } catch (e) { console.warn('_maybeTriggerRecoveryIntro failed:', e); }
+}
+
+// Fires on first OVERFLOW conversion during Ch1. applyOverflowConversion()
+// in #2.C calls this after the gold burst FX. 1200ms delay so the
+// reward toasts cascade before the dialog explains what happened.
+function _maybeTriggerOverflowIntro() {
+  try {
+    if (typeof seenDialogs === 'undefined' || !seenDialogs) return;
+    if (typeof currentChapter === 'undefined' || currentChapter !== 1) return;
+    if (seenDialogs.has('tut_overflow_intro')) return;
+    if (typeof isFtueActive === 'function' && isFtueActive()) return;
+    setTimeout(() => {
+      try { if (typeof playDialog === 'function') playDialog('tut_overflow_intro'); } catch (e) {}
+    }, 1200);
+  } catch (e) { console.warn('_maybeTriggerOverflowIntro failed:', e); }
+}
+
+if (typeof window !== 'undefined') {
+  window._maybeTriggerPressureIntro = _maybeTriggerPressureIntro;
+  window._maybeTriggerStaggerIntro  = _maybeTriggerStaggerIntro;
+  window._maybeTriggerRecoveryIntro = _maybeTriggerRecoveryIntro;
+  window._maybeTriggerOverflowIntro = _maybeTriggerOverflowIntro;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
