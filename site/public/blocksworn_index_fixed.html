@@ -19744,6 +19744,65 @@ const LEVEL_MITIGATION_PER = {
   striker_hunter:  0.0008,
 };
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 2 — STAGGER LOOP CORE CONSTANTS
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_2_STAGGER_LOOP.md §2.
+// Three-state boss machine (Active → Stagger → Recovery), Pressure
+// meter as skill-driven indicator, Overflow conversion as safety net,
+// chapter-progressive damage cap.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Boss state machine — string identifiers matching spec §2.
+const BOSS_STATE_ACTIVE   = 'active';
+const BOSS_STATE_STAGGER  = 'stagger';
+const BOSS_STATE_RECOVERY = 'recovery';
+
+// Pressure meter — 0..PRESSURE_MAX gauge over boss portrait.
+const PRESSURE_MAX = 100;
+
+// Pressure gain table — drives Stagger pacing. Per spec §2 numeric examples
+// (line clears 5/12/25/45 by line count, ~20 for proc events, ~15 for ULTs).
+const PRESSURE_GAIN = {
+  line_single:      5,    // 1-line clear
+  line_double:     12,    // 2-line clear (cross / double row)
+  line_triple:     25,    // 3-line clear
+  line_quad:       45,    // 4-line clear (mastery moment)
+  inferno_proc:    20,    // EMBER inferno trigger
+  detonate_proc:   20,    // SOLAR detonate trigger
+  hero_ult:        15,    // Any hero ULT fired
+  signature_combo: 30,    // Squad-wide signature combo (P3+ scaffold)
+  cascade_per_cell: 8,    // Cascade chain — per cleared cell
+};
+
+// State durations (in player turns).
+const STAGGER_DURATION_TURNS  = 4;     // Stagger window
+const RECOVERY_DURATION_TURNS = 2;     // Recovery telegraph + revenge
+
+// Multi-stagger chaining (V9 lean: enabled — Pressure builds during Stagger).
+const STAGGER_CHAINING_ENABLED = true;
+
+// Damage cap shaping — context-aware. Static FIRE_MULT_CAP retained as
+// legacy fallback (read by getFireMultCap when chapter not in BASE map).
+const FIRE_MULT_CAP_BASE = {
+  1: 2.0,   // Ch1 — learning curve
+  2: 2.5,   // Ch2 — ascension
+  3: 3.0,   // Ch3 — mid-game
+  4: 3.5,   // Ch4 — late-game
+  5: 4.0,   // Ch5 — finale
+};
+const FIRE_MULT_CAP_TOWER = 4.0;       // Tower always max — competitive arena
+
+// State multipliers on FIRE_MULT_CAP base.
+const FIRE_MULT_ACTIVE_RATIO   = 0.7;  // 70% in Active state
+const FIRE_MULT_STAGGER_RATIO  = 1.5;  // 150% in Stagger (effective uncap)
+const FIRE_MULT_RECOVERY_RATIO = 0.7;  // Same as Active during Recovery
+
+// Overflow conversion ratios — overkill damage redirected to player rewards.
+const OVERFLOW_TO_ULT     = 0.40;   // 40% of overkill → distributed ULT charge
+const OVERFLOW_TO_ESSENCE = 0.30;   // 30% → essence drops
+const OVERFLOW_PER_SHIELD = 500;    // 1 shield per 500 overkill damage
+const OVERFLOW_TO_TOWER   = 0.10;   // 10% → Tower points (Tower battles only)
+
 const COMBO_MULT = { 1: 1, 2: 3, 3: 6, 4: 12 };
 const BASE_LINE_SCORE = 130;
 // V18.4 CRIT: multiplier = 1 + domCount * combo * CRIT_MULT_K. Triggers only on combo >= 2.
@@ -36104,6 +36163,163 @@ if (typeof window !== 'undefined') {
   window._maybeTriggerMitigationIntro = _maybeTriggerMitigationIntro;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// COMBAT v2.1 PHASE 2 PR #2.A — STATE MACHINE FOUNDATION
+// Per /Restructure/BLOCKSWORN_COMBAT_V21_PHASE_2_STAGGER_LOOP.md §3.1-3.4.
+// State machine (Active ↔ Stagger ↔ Recovery), context-aware damage
+// cap (chapter × state × Tower), state transitions + reset on battle init.
+// PR #2.B wires addPressure() + Pressure hooks. PR #2.C adds Overflow
+// conversion. PR #2.D paints UI. PR #2.E adds FTUE intros.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// State variables — initialized to ACTIVE/0 on every battle reset.
+let bossState              = BOSS_STATE_ACTIVE;
+let bossPressure           = 0;
+let staggerTurnsRemaining  = 0;
+let recoveryTurnsRemaining = 0;
+let totalStaggersThisFight = 0;
+let lastStaggerEnteredAtTurn = -1;
+let pendingRevengeAttack   = null;  // { dmg, channel } fired on Recovery exit
+
+// 2026-05-02 — COMBAT v2.1 P2 §3.4: context-aware damage cap.
+// Replaces static FIRE_MULT_CAP const (still defined as legacy fallback).
+// Reads: currentChapter (1..5), _isTowerBattle flag, bossState.
+// Returns: effective cap = base × state ratio.
+//   Ch1 Active:  2.0 × 0.7 = 1.4×
+//   Ch1 Stagger: 2.0 × 1.5 = 3.0×
+//   Ch5 Stagger: 4.0 × 1.5 = 6.0×
+//   Tower Stagger: 4.0 × 1.5 = 6.0×  (no chapter throttle)
+function getFireMultCap() {
+  // Tower battles: always max for competitive arena.
+  if (typeof _isTowerBattle !== 'undefined' && _isTowerBattle) {
+    return _stateAdjustedCap(FIRE_MULT_CAP_TOWER);
+  }
+  const ch = (typeof currentChapter !== 'undefined' && currentChapter) ? currentChapter : 1;
+  const base = FIRE_MULT_CAP_BASE[ch] || (typeof FIRE_MULT_CAP === 'number' ? FIRE_MULT_CAP : 3.0);
+  return _stateAdjustedCap(base);
+}
+
+function _stateAdjustedCap(base) {
+  switch (bossState) {
+    case BOSS_STATE_STAGGER:  return base * FIRE_MULT_STAGGER_RATIO;
+    case BOSS_STATE_RECOVERY: return base * FIRE_MULT_RECOVERY_RATIO;
+    case BOSS_STATE_ACTIVE:
+    default:                  return base * FIRE_MULT_ACTIVE_RATIO;
+  }
+}
+
+// 2026-05-02 — COMBAT v2.1 P2 §3.3: state transitions.
+// Defensive forward references — render/FX functions wired in PR #2.D.
+// FTUE intros wired in PR #2.E. Until those land, transitions still
+// execute correctly; missing helpers degrade silently.
+
+function enterStaggerState() {
+  bossState = BOSS_STATE_STAGGER;
+  staggerTurnsRemaining = STAGGER_DURATION_TURNS;
+  bossPressure = 0;
+  totalStaggersThisFight++;
+  lastStaggerEnteredAtTurn = (typeof placementCount !== 'undefined') ? placementCount : -1;
+  try { if (typeof showStaggerEntryFX === 'function') showStaggerEntryFX(); } catch (e) {}
+  try { if (typeof flashStateBanner === 'function') flashStateBanner('STAGGER!', '#FFD700'); } catch (e) {}
+  try { vibrate([100, 50, 100, 50, 200]); } catch (e) {}
+  try { if (typeof _maybeTriggerStaggerIntro === 'function') _maybeTriggerStaggerIntro(); } catch (e) {}
+  try { if (typeof renderBossStateBanner === 'function') renderBossStateBanner(); } catch (e) {}
+  try { if (typeof renderPressureMeter === 'function') renderPressureMeter(); } catch (e) {}
+  try { if (typeof logEvent === 'function') logEvent('stagger_entered', {
+    totalStaggers: totalStaggersThisFight, atTurn: lastStaggerEnteredAtTurn,
+  }); } catch (e) {}
+}
+
+function extendStaggerState(turns) {
+  if (!turns || turns <= 0) return;
+  staggerTurnsRemaining += turns;
+  totalStaggersThisFight++;
+  try { if (typeof flashStateBanner === 'function') flashStateBanner('STAGGER EXTENDED +' + turns, '#FFD700'); } catch (e) {}
+  try { vibrate([80, 40, 80, 40, 80]); } catch (e) {}
+  try { if (typeof renderBossStateBanner === 'function') renderBossStateBanner(); } catch (e) {}
+}
+
+function enterRecoveryState() {
+  bossState = BOSS_STATE_RECOVERY;
+  recoveryTurnsRemaining = RECOVERY_DURATION_TURNS;
+  // Pre-compute revenge damage (telegraphed). Uses Phase 1 signature tier
+  // mapping. Revenge multiplier = 1.5× the regular signature damage.
+  let sigDmg = 16;
+  try {
+    const tier = (typeof _getBossSignatureTier === 'function') ? _getBossSignatureTier() : 'gatekeeper';
+    sigDmg = (typeof CHANNEL_SIGNATURE_DMG !== 'undefined' && CHANNEL_SIGNATURE_DMG[tier]) || 16;
+  } catch (e) {}
+  pendingRevengeAttack = { dmg: Math.round(sigDmg * 1.5), channel: 'signature' };
+  try { if (typeof showRecoveryEntryFX === 'function') showRecoveryEntryFX(); } catch (e) {}
+  try { if (typeof flashStateBanner === 'function') flashStateBanner('REVENGE INCOMING — ' + recoveryTurnsRemaining + 'T', '#FF4500'); } catch (e) {}
+  try { vibrate([200, 100, 200]); } catch (e) {}
+  try { if (typeof _maybeTriggerRecoveryIntro === 'function') _maybeTriggerRecoveryIntro(); } catch (e) {}
+  try { if (typeof renderBossStateBanner === 'function') renderBossStateBanner(); } catch (e) {}
+}
+
+function executeRevengeAttack() {
+  if (!pendingRevengeAttack) return;
+  const { dmg, channel } = pendingRevengeAttack;
+  try {
+    if (typeof applyChannelDamage === 'function') {
+      applyChannelDamage(channel, dmg, { source: 'revenge', telegraphed: true });
+    }
+  } catch (e) { console.warn('revenge attack failed:', e); }
+  pendingRevengeAttack = null;
+}
+
+function enterActiveState() {
+  bossState = BOSS_STATE_ACTIVE;
+  staggerTurnsRemaining = 0;
+  recoveryTurnsRemaining = 0;
+  bossPressure = Math.max(0, bossPressure);
+  try { if (typeof renderBossStateBanner === 'function') renderBossStateBanner(); } catch (e) {}
+  try { if (typeof renderPressureMeter === 'function') renderPressureMeter(); } catch (e) {}
+}
+
+// EOT tick — called from maybeBossAttack (alongside void/saturation hooks
+// shipped in PR #1.B). Drives Stagger countdown + Recovery transition.
+function tickStaggerState() {
+  if (bossState === BOSS_STATE_STAGGER) {
+    staggerTurnsRemaining--;
+    if (staggerTurnsRemaining <= 0) {
+      enterRecoveryState();
+    } else {
+      try { if (typeof renderBossStateBanner === 'function') renderBossStateBanner(); } catch (e) {}
+    }
+  } else if (bossState === BOSS_STATE_RECOVERY) {
+    recoveryTurnsRemaining--;
+    if (recoveryTurnsRemaining <= 0) {
+      executeRevengeAttack();
+      enterActiveState();
+    } else {
+      try { if (typeof renderBossStateBanner === 'function') renderBossStateBanner(); } catch (e) {}
+    }
+  }
+}
+
+// Reset all state at battle init (called from battle-spawn paths below).
+function resetStaggerState() {
+  bossState              = BOSS_STATE_ACTIVE;
+  bossPressure           = 0;
+  staggerTurnsRemaining  = 0;
+  recoveryTurnsRemaining = 0;
+  totalStaggersThisFight = 0;
+  lastStaggerEnteredAtTurn = -1;
+  pendingRevengeAttack   = null;
+}
+
+if (typeof window !== 'undefined') {
+  window.getFireMultCap        = getFireMultCap;
+  window.enterStaggerState     = enterStaggerState;
+  window.extendStaggerState    = extendStaggerState;
+  window.enterRecoveryState    = enterRecoveryState;
+  window.executeRevengeAttack  = executeRevengeAttack;
+  window.enterActiveState      = enterActiveState;
+  window.tickStaggerState      = tickStaggerState;
+  window.resetStaggerState     = resetStaggerState;
+}
+
 function getEffectivePeriod(hero) {
   if (hero.role !== 'weaver' || !hero.period) return hero.period;
   return Math.max(1, hero.period - getHeroStats(hero).periodReduction);
@@ -41153,6 +41369,9 @@ function startBossBattle() {
   // MODIFIER: Bloodlust — +50% boss HP
   if (activeModifiers.has('bloodlust')) bossMaxHP = Math.floor(bossMaxHP * MODIFIERS.bloodlust.hpMult);
   bossHP = bossMaxHP;
+  // 2026-05-02 — COMBAT v2.1 P2 §3.12: reset Stagger state per battle.
+  // Pressure / state / revenge attack all start fresh. Idempotent.
+  try { if (typeof resetStaggerState === 'function') resetStaggerState(); } catch (e) {}
   revivesRemaining = currentBoss.revives || 0;
   attackCountdown = currentBoss.attackInterval;
   // MODIFIER: Double Time — boss attacks 2× faster (halve interval)
@@ -41265,6 +41484,8 @@ function startBossBattle() {
   const _arch = BOSS_ARCHETYPES[bossArchetype] || BOSS_ARCHETYPES.bruiser;
   bossMaxHP = Math.floor(bossMaxHP * _arch.hpMult);   // rescale from base hp
   bossHP = bossMaxHP;
+  // 2026-05-02 — COMBAT v2.1 P2 §3.12: reset Stagger state for archetype path too.
+  try { if (typeof resetStaggerState === 'function') resetStaggerState(); } catch (e) {}
   attackCountdown = _arch.attackCD;                    // override cadence from archetype
   if (activeModifiers.has('doubleTime')) attackCountdown = Math.max(2, Math.floor(attackCountdown / MODIFIERS.doubleTime.speedMult));
   bossAttackDmgMult = _arch.dmgMult;
@@ -42813,7 +43034,12 @@ function dealDamage(amount, isCrit = false, critMult = 0) {
                    //  LV3 Crit (5%×1.5) + LV5 Cascade (+10% during combos). Folds per firing hero.
                    //  LV7 Element Mastery applied as flat post-clamp bonus below.
                    * (typeof _heroLevelMilestoneMult === 'function' && _currentFiringHero ? _heroLevelMilestoneMult(_currentFiringHero) : 1.0);
-  const _clampedMult = Math.min(FIRE_MULT_CAP, _multStack);
+  // 2026-05-02 — COMBAT v2.1 P2 §3.5: damage clamp uses context-aware
+  // getFireMultCap() (chapter × state × Tower) instead of static FIRE_MULT_CAP.
+  // In Stagger state the cap is 1.5× wider — that's the "uncap window" the
+  // Pressure meter rewards. Active/Recovery use 0.7× (tighter than legacy).
+  const _cap = (typeof getFireMultCap === 'function') ? getFireMultCap() : FIRE_MULT_CAP;
+  const _clampedMult = Math.min(_cap, _multStack);
   amount = Math.floor(_baseAmount * _clampedMult);
   // Block H.8 — LV7 Element Mastery flat add (post-clamp, not subject to FIRE_MULT_CAP).
   try {
@@ -44411,6 +44637,11 @@ function maybeBossAttack() {
       && !currentBoss._isTrainingDummy && !currentBoss._isFtueOnly) {
     try { applyVoidTickIfAny(); } catch (e) { console.warn('voidTick failed:', e); }
     try { applyGridSaturationIfAny(); } catch (e) { console.warn('saturation failed:', e); }
+    // 2026-05-02 — COMBAT v2.1 P2 §3.11: Stagger state tick. Drives the
+    // Stagger countdown (4 turns → Recovery) and Recovery countdown
+    // (2 turns → Active + revenge attack). Order matters: void/saturation
+    // resolve FIRST so any deaths register before state advances.
+    try { tickStaggerState(); } catch (e) { console.warn('tickStaggerState failed:', e); }
   }
   attackCountdown--;
   // POLISH v1 · PHASE 7 — telegraph (replaces inline warn.textContent).
@@ -44465,6 +44696,14 @@ function maybeBossAttack() {
 }
 
 async function bossAttack() {
+  // 2026-05-02 — COMBAT v2.1 P2 §3.9: boss attacks gated to Active state only.
+  // During Stagger the boss is wide open — no void scatter, no signature.
+  // During Recovery the boss telegraphs revenge (handled separately by
+  // executeRevengeAttack on Recovery exit). The attack countdown UI may
+  // still tick visually during Stagger; the actual attack just no-ops.
+  if (typeof bossState !== 'undefined' && bossState !== BOSS_STATE_ACTIVE) {
+    return;
+  }
   // 2026-04-28 — CHRONICLE Tutorial Dummy: training constructs never attack.
   // Early-return suppresses SFX, cell spawning, rage mechanics, everything.
   // Player learns mechanics without pressure (BLOCKSWORN_PLAYER_EDUCATION.md §4.4).
