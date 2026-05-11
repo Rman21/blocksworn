@@ -3,14 +3,16 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 12 / 20 done ✅ **T1.12 STRUCTURAL switchover COMPLETE** (scaffold + boot chain + migration shim)
-- **Overall progress:** ~60% (Phase 1 — switchover landed structurally; T1.13 finalizes wire-up + verify)
-- **Bundle:** 400KB total (26KB JS + 368KB CSS) — under 5MB AAA+
-- **Next milestone:** **T1.13 verify pass + wire-up cleanup** — flip remaining `/* global */` → ES imports, manual playthrough, Lighthouse, optional baseline re-capture
-- **⚠️ Outstanding:** new shell at `/` mounts scaffold but renders empty screens because heavy modules (battle, bosses, archetype-ticks, etc.) still resolve via `/* global */` from router/menu call sites — tree-shake discards them. T1.13 fixes via proper imports.
-- **Migration shim:** ✅ active (9 keys, idempotent sentinel)
-- **Cumulative LoC:** src/core/ 12,164 + src/ui/ 5,012 + src/main.js 94 + index.html 113 = **17,383 LoC** in src/
-- **Last updated:** 2026-05-11 by CTO (after T1.12 review)
+- **Phase progress:** 12 / 20 done + T1.12 STRUCTURAL + T1.13.1 wire-up
+- **Overall progress:** ~62% (Phase 1 — boot chain runs; writable-globals + ASSETS extraction needed for screens to render)
+- **Bundle:** 528KB total (154KB JS + 368KB CSS) — under 5MB AAA+
+- **Next milestone:** **T1.13.2** — declare canonical writable bindings + ASSETS extraction + duplicate export resolution → then **T1.13 main verify** (manual playthrough)
+- **⚠️ Outstanding (T1.13.2 scope):**
+  - Writable globals (`essences`, `gold`, `activeSquad`, `currentScreen`, `bossHP`, etc.) throw on bare assignment in ES strict modules — need canonical owners
+  - `ASSETS` registry still legacy-only — extract to `src/data/assets.js`
+  - Duplicate exports `_ch3HasDebuff/_ch3HasSeal/_ch3TwilightMult/initChapter3Boss` in bosses.js + archetype-ticks.js — pick owner
+  - Storm helper shim retirement (battle-screen ↔ archetype-ticks circular)
+- **Last updated:** 2026-05-11 by CTO (after T1.13.1 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
