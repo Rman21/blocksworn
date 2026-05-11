@@ -211,7 +211,7 @@ auto-disappears in T1.10 when the rewiring lands:
 - [x] T1.10.4 — `heroes.js` — **DONE 2026-05-11** (commits `7196ec1`, `3725199`; **3,972 LoC** biggest sub-task; HERO_ROSTER 25/25 + 25 fire + 25 ultTwist + 10 fireDelta + 10 ultDelta + Aegis Conductor + Squad Conductor + 25/25 Mythic descriptors — all byte-perfect; ~600 LoC legacy dead code deferred to T1.10.9 audit; 0 new bare-string keys)
 - [x] T1.10.5 — `damage-channels.js` (v2.1 P1) — **DONE 2026-05-11** (commits `31a3786`, `cdf37df`; 457 LoC / 16 exports; SACRED v2.1 P1 Mitigation Matrix + 4 channel formulas + shield-absorption order byte-perfect; cross-boundary `getSquadMitigation`/`getHeroMitigationKey` belong in heroes.js — flagged for T1.10.9 audit)
 - [x] T1.10.6 — `stagger-loop.js` (v2.1 P2) — **DONE 2026-05-11** (commits `83782cf`, `668b1c9`; **1021 LoC / 48 exports**; SACRED v2.1 P2 ACTIVE/STAGGER/RECOVERY + PRESSURE_MAX=100 + PRESSURE_GAIN table + STAGGER_DURATION=4 + RECOVERY=2 + STAGGER_CHAINING + Overflow conversion 40/30/500/10/revenge 1.5× byte-perfect; window-exposure bridge via `Object.defineProperty` for legacy bare-identifier reads; 5 v2.1 P2 PRs co-extracted per encapsulation; 0 new bare-string keys)
-- [ ] T1.10.7 — `bosses.js` — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
+- [x] T1.10.7 — `bosses.js` — **REVIEW 2026-05-11** (commit `cc7d0bc`, docs follows; **1309 LoC / 60 exports**; BOSS_ARCHETYPES + ARCHETYPE_MATCHUP landed FLAT post-Object.assign — 25 archetype entries each, byte-perfect across Ch1+Ch2 inline declaration + Ch3+Ch4+Ch5 Cosmic Ascension merge; SACRED v2.1 P4 phase gates 70%/35% + REACTIVITY_TELEGRAPH_MS=3000 + TTK formula imports preserved; FTUE_BOSS_GUARANTEES (5 Ch1 bosses) + UROBOROS seasonal config (7-phase Mythic) preserved sacred per CLAUDE.md §2.5; Ch3 scaffolding (_ch3BossId/_ch3State + 5 archetype tick handlers + storm-variant Maps + dual-state announcer + 3 hook helpers) byte-perfect; window-exposure bridge via Object.defineProperty for currentBoss/bossHP/bossMaxHP/currentChapter/currentBossIdx + BOSSES dynamic getter; 0 new bare-string keys)
 - [ ] T1.10.8 — `reactivity-events.js` (v2.1 P4)
 - [ ] T1.10.9 — `battle.js` + final wire (`index.html` → uses `src/main.js`; legacy demoted to read-only archive)
 
@@ -820,6 +820,130 @@ Stagger Loop state machine + Pressure meter extracted byte-perfect from legacy `
 10. **`getFireMultCap` chapter-fallback uses literal `3.0` instead of legacy `FIRE_MULT_CAP` const reference.** Legacy line 39246 reads `FIRE_MULT_CAP_BASE[ch] || (typeof FIRE_MULT_CAP === 'number' ? FIRE_MULT_CAP : 3.0)`. The legacy `FIRE_MULT_CAP` const (value 3.0) lives in an unrelated legacy block we did NOT extract here. Substituted `|| 3.0` literal since in all actual chapters 1..5 the BASE map hits — the fallback is unreachable in practice. If a future data-consolidation pass moves `FIRE_MULT_CAP` to src/data/balance.js, this module should import it back to restore the explicit reference.
 
 **Time:** ~2 hours (1,021 LoC byte-perfect copy across 5 source regions + 38-readonly + 5-writable globals declared + module-private state via getter pattern + window-exposure mirror across 5 PRs + commit/docs cycle)
+
+---
+
+### T1.10.7 — REVIEW (2026-05-11)
+
+**Code commit:** `cc7d0bc` — `[T1.10.7] Extract bosses + archetypes to src/core/bosses.js`
+**DOCS commit:** follows (this entry)
+**File created:** `src/core/bosses.js` (1,309 lines, 60 named exports = 25 BOSS_ARCHETYPES + 25 ARCHETYPE_MATCHUP entries + 11 phase/telegraph/state-machine + 1 BOSS_VOICES table + 4 voice-trigger helpers + 1 BOSS_VOICE_MIDFIGHT_HP_PCT + 13 boss-state accessors/setters + 1 setChapter + 1 applyBossEmblems + 2 FTUE bosses + 1 FTUE_GRUNT_VOID_SPAWN + 18 Ch3 scaffolding + 2 FTUE_BOSS_GUARANTEES tables + 1 TOWER_UROBOROS_SEASONAL + 4 BOSS_TTK_* re-exports — counting line-by-line export declarations)
+
+**Implementation summary:**
+
+Boss identity, archetypes, state machine, FTUE-special-bosses, Ch3 scaffolding, FTUE_BOSS_GUARANTEES, and UROBOROS sacred config extracted byte-perfect from legacy `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` across thirteen source regions:
+- BOSS_ARCHETYPES + Object.assign Ch3/4/5 merge (lines 20141-20198)
+- ARCHETYPE_MATCHUP + Object.assign Ch3/4/5 merge (lines 20158-20215)
+- Berserker / Armored / Phoenix archetype consts (20217-20225)
+- Phase gates + telegraph + HP formula helpers (20240-20302)
+- BOSSES dynamic let + setChapter rebinding (20442-20500)
+- applyBossEmblems CSS-variable writer (20964-21007)
+- BOSS_VOICES + per-battle voice fire flags + 4 trigger functions (21774-21882)
+- currentChapter writable global (38344) + bossHP/bossMaxHP/currentBossIdx (40216) + currentBoss let (40218)
+- Ch3 archetype scaffolding (40788-41154 — 5 boss tick handlers + storm-variant Maps + dual-state announcer + hook helpers)
+- FTUE bosses EMBER_GRUNT + CHRONICLE + FTUE_GRUNT_VOID_SPAWN (25034-25148)
+- FTUE_BOSS_GUARANTEES + FTUE_TUTORIAL_TEXTS (47134-47235)
+- TOWER_UROBOROS_SEASONAL sacred config (49101-49140)
+
+Module owns: boss archetype + matchup data; boss identity state vars (currentBoss / currentChapter / currentBossIdx / bossHP / bossMaxHP / _currentBossRoleTier); phase-gate ratio constants + telegraph timing + HP-formula helpers (computeBossHP, getCurrentBossPhase); dynamic per-chapter roster (getBosses); applyBossEmblems CSS writer; BOSS_VOICES + voice trigger functions; Ch3 scaffolding (_ch3State + 5 boss tick handlers + storm Maps + dual-state announcer + 3 hook helpers consumed by combat); FTUE special bosses (EMBER_GRUNT, CHRONICLE) + tuning constants; FTUE_BOSS_GUARANTEES + FTUE_TUTORIAL_TEXTS sacred tables; TOWER_UROBOROS_SEASONAL sacred config.
+
+**Sacred cow preservation:**
+- `BOSS_TTK_TARGETS` imported from `src/data/bosses.js` (T1.07) + re-exported here. NOT redefined. Sacred per CLAUDE.md §2.1.
+- `FTUE_BOSS_GUARANTEES` (5 Ch1 bosses × ~3 guarantees each + scripted actions + failsafe assistance) preserved byte-perfect. Sacred per CLAUDE.md §2.5.
+- `TOWER_UROBOROS_SEASONAL` 7-phase Tier-4 Mythic config preserved byte-perfect — same 7 phase thresholds [1.0, 0.86, 0.71, 0.57, 0.43, 0.28, 0.14], same 7 phase_mechanics array, same rewards (1× T3 stone + 1 Mythic Pact + 25 Tower Hearts + 'uroboros_serpent_aura' cosmetic), same 4 voice lines. Sacred per CLAUDE.md §2.5.
+- `BOSS_VOICES` 10 bosses × 3 lines (intro/midfight/death) preserved verbatim. Sacred per CLAUDE.md §2.3 (Boss names + element subtitles = narrative voice).
+- Berserker / Armored / Phoenix archetype constants (HP%, MULT, SHIELD_COUNT, IMMUNE_TURNS) preserved verbatim.
+- Phase gates 0.70 / 0.35 / 0.00 + REACTIVITY_TELEGRAPH_MS=3000 + REACTIVITY_BANNER_DURATION_MS=1500 preserved.
+
+**Object.assign mutations flattened: 2 total**
+1. `Object.assign(BOSS_ARCHETYPES, { …Ch3 + Ch4 + Ch5 (15 new archetypes) })` (legacy 20179-20198) — landed FLAT in `BOSS_ARCHETYPES` export with all 25 entries (5 Ch1 + 5 Ch2 + 5 Ch3 + 5 Ch4 + 5 Ch5).
+2. `Object.assign(ARCHETYPE_MATCHUP, { …Ch3 + Ch4 + Ch5 matchups (15 new entries) })` (legacy 20199-20215) — landed FLAT in `ARCHETYPE_MATCHUP` export with all 25 entries. Verified key-by-key against legacy: icon / label / hpMult / attackCD / dmgMult / special fields byte-perfect; strong/weak stihiya arrays byte-perfect.
+
+**Ch4–Ch5 boss content (resolves memory/spec conflict per REPORT-01):** legacy fully populated all 25 bosses across CHAPTERS Ch1-Ch5 with proper Cosmic Ascension archetypes (v2.1 P6 PR #6.A). Memory note "Ch1-3 shipped, Ch4-5 post-launch only" refers to player-facing GATING (chapter unlock flags + content-drop schedule), not data presence. Both `src/data/chapters.js` (T1.07) and the legacy CHAPTERS array carry all 25 boss definitions; T1.10.7 just lands the 14 Cosmic Ascension archetype TUNING entries (Ch3 soul_drinker/stormcaller/confession_reader/wither/sealer + Ch4 phase_shifter/equalizer/regent/phase_reverser/royal_phase + Ch5 eternal/inevitable/co_op/devourer/choice) into BOSS_ARCHETYPES + ARCHETYPE_MATCHUP. No data missing; no memory inconsistency.
+
+**Storage rewires (T1.08 abstraction):** **0 keys.** Boss state vars (currentBoss / bossHP / bossMaxHP / currentBossIdx / Ch3 storm Maps / boss-voice fire flags) are per-battle ephemeral — initialized at battle start, garbage-collected at battle end. Phase 8 boss-loss counter (`PHASE8_BOSS_LOSSES_KEY` = `'blocksworn_p8_boss_losses'`) stays in legacy until T1.10.9 along with `_phase8GetAdaptiveHpMultiplier` and the loss-recovery dispatcher. **0 new bare-string keys for the T1.10.9 migration shim allow-list.**
+
+**ESLint globals added** (specific identifiers, why):
+- Readonly: `flashText`, `flashStateBanner`, `vibrate`, `showThreatBanner`, `render`, `renderHP`, `renderBossHP` (T1.09 feel + T1.11 UI render); `playDialogScript` (T1.10.9 dialog module); `chapter2Unlocked`, `chapter3Unlocked`, `chapter4Unlocked`, `isContentUnlocked`, `hasCompletedChapter`, `_isChapterContentUnlocked`, `closeFloorSelector` (T1.10.2 progression + T1.11 UI); `ASSETS` (T1.06 asset registry); `grid`, `SIZE`, `gameEnded`, `showDefeatModal` (T1.10.3 grid + T1.10.9 battle); `logEvent` (T1.11 analytics).
+- Writable: `shieldCount`, `hp`, `battleDamageTaken` (T1.10.9 battle state — Ch3 storm lightning + storm intensify damage path).
+
+**TODO markers:** 0 inline TODO comments (all forward references are documented in the "DOES NOT OWN" / "Owns" comment block at the top + the /* global */ inventory). The narrative comments contain 14 references to T1.10.8/T1.10.9/T1.11 (documentation pointers only — not code markers).
+
+**Logger migration:**
+- 2 `console.warn(...)` call sites in extracted regions → `log.warn(...)`: storm-variant intensify failure (legacy line 41003), boss voice fire failure (legacy line 21853). Per T1.08 logger contract. Module imports `log` from `../services/logger.js`.
+
+**Engineering judgment:**
+- **`bossAttack()` NOT extracted** (legacy line 59033). It bossed in by Bulwark Frozen Ward, stealth turns, training-dummy gates, RAIDERS dual synergy first-attack-immune, glacier ice armor, frenzy stacks, signature damage hook, FTUE grunt void cap, IRONSCALE/IRONBELLY tank passives, Chapter 1 tutorial dialog gates. All cross-module deep wiring (heroes.js + grid.js + feel + signature dispatcher + FTUE). Same pattern T1.10.6 used for `maybeBossAttack` — base behavior CONFIG lives here, the battle-loop call site moves with T1.10.9 (battle.js). Extracting now would balloon scope into a multi-module wire-up.
+- **`getEffectiveBossStats()` NOT extracted** (legacy line 24161). Depends on `_phase8GetAdaptiveHpMultiplier` (boss-loss adaptive HP) + `currentChapter` + FTUE Pyredrake HP override. Phase 8 piece stays with legacy until T1.10.9.
+- **`maybeBossAttack()` NOT extracted** (legacy line 58936) — battle loop dispatcher, T1.10.9 territory.
+- **`applyBossSignatureDamage()` NOT extracted** (legacy line 39075) — already cross-references damage-channels.js T1.10.5 + boss role tier; lives with the dispatcher path. T1.10.9.
+- **Phase-gate reactivity events DEFERRED to T1.10.8** per task brief Step D. BOSS_PHASES (27361, mutated at 30333 for VOIDFANG) + REACTIVITY_HANDLERS (27676) + EFFECT_HANDLERS (27404) are v2.1 P4 reactivity infrastructure. This module owns boss identity + base attack CONFIG; T1.10.8 owns phase-triggered adaptations.
+- **Phase 5b + P6 archetype tick handlers DEFERRED** (`_tickPyredrake`/`_tickAbyssalTyrant`/`_tickGrovewarden`/`_tickSolarPhoenix`/`_tickCryptLich` + Ch2 hypnotist/engineer/frenzy/tempo/battery + Ch4 phase_shifter/equalizer/regent/phase_reverser/royal_phase + Ch5 eternal/inevitable/co_op/devourer/choice). These touch FX + DOM render + cross-module state heavily; T1.10.9 territory. Ch3 ticks ARE extracted because they were a self-contained block (storm Maps + state machine + dual-state announcer) per legacy lines 40788-41154; the Ch1/Ch2/Ch4/Ch5 per-boss handlers are dispatched separately from `tickChapter2Archetype` at legacy 41156, which sprawls into bespoke per-boss telegraph logic.
+- **Phase 8 boss FTUE dispatcher DEFERRED** (`enforceBossFTUEGuarantees` + `applyScriptedActions` + `_phase8ResetScriptedState` + `_phase8RecordBossFtueEvent` + `_phase8ScriptedState`). This module owns FTUE_BOSS_GUARANTEES + FTUE_TUTORIAL_TEXTS as DATA per CLAUDE.md §2.5 sacred designation; the dispatch/state-machine that consumes them touches tutorial-overlay rendering + analytics + scripted state-bag, all T1.10.9 territory.
+- **`getBossStars` (19548) and `getBossHeroReward` (25474) NOT extracted** — both belong to the progression/reward path. `getBossStars` reads chapter-progress + first-clear timestamps; `getBossHeroReward` writes hero card distribution. Progression module T1.10.2 follow-up audit territory.
+- **Tower roster pools DEFERRED** (TOWER_ROSTER_TIER_1/2/3 + weekly rotation primitives + LIMITED_TIME_TOWER_EVENTS + getTowerFloorMultipliers + selectBossForTowerFloor). Tower module (separate sprint). Only UROBOROS extracted here per CLAUDE.md §2.5 sacred designation.
+- **`BOSSES` is a dynamic getter, not a separate `let`.** Legacy line 20445 declares `let BOSSES = CHAPTERS[0].bosses;` and `setChapter(n)` reassigns it. Since CHAPTERS data is already in `src/data/chapters.js` (T1.07, frozen), the cleanest preservation is a `getBosses()` function + window.BOSSES getter that reads `CHAPTERS[currentChapter-1].bosses` on every access. Legacy callers (`BOSSES.length`, `BOSSES[idx]`) continue to work transparently via the window-bridge getter.
+- **State encapsulation via Object.defineProperty getters/setters** matches the T1.10.6 pattern — currentBoss / bossHP / bossMaxHP / currentChapter / currentBossIdx / _currentBossRoleTier all exposed on `window` with `configurable: true` so legacy bodies that read OR WRITE bare identifiers route through the module-private instance. _ch3BossId / _ch3State / _ch3LastDualState similarly bridged.
+- **Module size policy:** at 1,309 LoC this module exceeds the §3.4 AAA+ 500-LoC file-length guideline, but it's pure-relocation byte-perfect from a single legacy domain (boss identity); splitting would fracture the boss state machine across multiple files and complicate the T1.10.9 wire-up. Same precedent as T1.10.4 heroes.js (3,972 LoC). Accept the violation as a transitional state until T1.10.9 lands the canonical import wire-up and the file can be naturally re-organized.
+
+**Verification (all gates green):**
+- `npm run lint` → 0 errors / 0 warnings
+- `npm run test:unit` → 6/6 pass (~96ms)
+- `npm run test:smoke` → 2/2 pass (~3.4s)
+- `npm run test:visual` → 22/22 pass under 2% (~13.1s; one flaky first-run on mobile-chrome profile 13.7% diff cleared on immediate retry — typical animation-timing flake, not caused by this module since the module is tree-shaken out)
+- `npm run build` → succeeds. dist/assets/index.js = 0.75KB; dist/assets/index.css = 368.77KB (unchanged — new module tree-shakes out, nothing imports it yet, as expected per Step E of the assignment)
+- Legacy `wc -c` = 21,480,494; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` — byte-identical
+
+**Self-check:**
+- [x] Acceptance: boss archetypes extracted FLAT — BOSS_ARCHETYPES (25 entries) + ARCHETYPE_MATCHUP (25 entries), Object.assign Ch3+Ch4+Ch5 merge byte-perfect across icon/label/hpMult/attackCD/dmgMult/special + strong/weak stihiyas
+- [x] Acceptance: boss state machine — currentBoss / currentChapter / currentBossIdx / bossHP / bossMaxHP / _currentBossRoleTier with module-private state + window bridge via Object.defineProperty
+- [x] Acceptance: setChapter rebinding helper + BOSSES dynamic getter byte-perfect (Ch4 chapter4Unlocked + Ch5 day-window gates preserved)
+- [x] Acceptance: applyBossEmblems byte-perfect (5 stihiyas × 2 emblem types, Tower-battle vs Chapter-battle override logic preserved)
+- [x] Acceptance: BOSS_VOICES + 4 voice triggers + per-battle fire flags byte-perfect
+- [x] Acceptance: EMBER_GRUNT + CHRONICLE FTUE bosses + FTUE_GRUNT_VOID_SPAWN constant frozen byte-perfect
+- [x] Acceptance: Ch3 scaffolding (_ch3BossId / _ch3State + 5 archetype tick handlers + 2 storm-variant Maps + dual-state announcer + _ch3HasDebuff / _ch3HasSeal / _ch3TwilightMult byte-perfect)
+- [x] Acceptance: FTUE_BOSS_GUARANTEES + FTUE_TUTORIAL_TEXTS sacred per CLAUDE.md §2.5 preserved
+- [x] Acceptance: TOWER_UROBOROS_SEASONAL sacred per CLAUDE.md §2.5 preserved (7-phase Mythic, Floor 50, full rewards + voice lines)
+- [x] Acceptance: BOSS_TTK_TARGETS imported + re-exported from src/data/bosses.js (T1.07)
+- [x] Acceptance: phase-gate reactivity events DEFERRED to T1.10.8 (BOSS_PHASES / REACTIVITY_HANDLERS / EFFECT_HANDLERS NOT extracted)
+- [x] Acceptance: imports from src/data/{bosses,chapters}.js (T1.07) + src/services/logger.js (T1.08)
+- [x] Acceptance: no window globals introduced (only `/* global */` directives for legacy refs that move later)
+- [x] Acceptance: mutable state module-private (currentBoss/bossHP/etc via getters + setters + window.defineProperty bridge)
+- [x] Acceptance: legacy HTML byte-identical (wc -c + SHA-256 verified)
+- [x] Acceptance: all gates green (lint 0/0, unit 6/6, smoke 2/2, visual 22/22, build 372KB)
+- [x] Acceptance: nothing imports the new module — tree-shakes out for T1.10.7 (correct — T1.10.9 final wire-up flips legacy → src/)
+- [x] Sacred cows: BOSS_TTK_TARGETS values unchanged (imported, not redefined). FTUE_BOSS_GUARANTEES untouched. UROBOROS config untouched. BOSS_VOICES strings untouched. Phase gates 70/35 unchanged. TTK formula `boss_hp = expected_squad_dps × target_ttk_seconds` upheld.
+- [x] DO NOT TOUCH: legacy HTML — not modified; index.html — not modified; src/main.js — not modified; src/core/{ftue-state,progression,grid,heroes,damage-channels,stagger-loop}.js (T1.10.1-T1.10.6) — not modified; other src/ modules (data/feel/services) — not modified; CSS / baselines / tests / CI / husky — not modified
+- [x] DO NOT TOUCH: boss HP values — unchanged (CHAPTERS data lives in T1.07); archetype matchups — byte-perfect; FTUE_BOSS_GUARANTEES — unchanged; UROBOROS config — unchanged
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.10.7; did NOT start T1.10.8 (phase-gate reactivity events)
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **NO new bare-string storage keys.** Boss state vars are per-battle ephemeral. Phase 8 boss-loss counter (`PHASE8_BOSS_LOSSES_KEY` = `'blocksworn_p8_boss_losses'`) stays in legacy until T1.10.9 along with the loss-recovery dispatcher (`_phase8GetAdaptiveHpMultiplier` / `getEffectiveBossHP` / `recordBossLoss` / `recordBossWin` / `LOSS_RECOVERY_DIALOGS` / `showLossRecoveryDialog` / `showSkipOption` / `skipBoss`). **The T1.10.9 migration shim allow-list (FTUE + intro-video + 5 chapter-complete keys) does NOT need additions from T1.10.7.**
+
+2. **`bossAttack()` deferred to T1.10.9 — large cross-module island.** The single async `bossAttack()` (~190 LoC) touches Bulwark Frozen Ward gate, assassin stealth turns, training-dummy gate, audio (`playBossDamage`), THARA rage auto-arm, RAIDERS first-attack immune, base spawn count (`baseCount = 3 * bossAttackDmgMult`), rage mults (`bossRagePending`, `bossRageEmber`), single-shot `bossNextAttackBonus`, frenzy stacks (`frenzyStacks * FRENZY_DMG_PER_STACK`), ember void pressure, grove defense, glacier ice armor, FTUE grunt void cap (`FTUE_GRUNT_VOID_SPAWN`), IRONSCALE STONE_SKIN convert, IRONBELLY counter-burn (with T2 IRON FORGE branch), Chapter 1 tutorial dialog gates, signature damage hook. **CTO recommendation:** T1.10.9 should treat this as a multi-block extraction with explicit phase dispatchers — base attack → archetype modifier → defender mitigation → tutorial gate. Splitting would let bosses.js own the attack-config piece and battle.js own the per-turn flow.
+
+3. **Per-archetype tick handlers (Ch1, Ch2, Ch4, Ch5) deferred to T1.10.9.** The dispatcher `tickChapter2Archetype` (legacy 41156) is a switch over 21 archetypes, and each per-boss handler (Pyredrake Cinderblast, Ursaro Frenzy, Heliotron Battery, etc.) is 50-150 LoC of telegraph + impact + state. These bring HEAVY FX coupling (sigCinemaName, sigCinemaEmblem, sigCinemaBonus, _signatureComboCinemaShown, fast-path .cinderblast-warn / .cinderblast-hit CSS classes). **CTO recommendation:** dedicated T1.10.9.X sub-task for archetype tick handlers, since they bridge bosses.js + battle.js + feel/animations.js.
+
+4. **`getEffectiveBossStats` (legacy 24161) deferred to T1.10.9.** Reads currentBoss + currentChapter + `_phase8GetAdaptiveHpMultiplier` (boss-loss adaptive HP cap −20%) + FTUE Pyredrake HP override (lives in ftue-state T1.10.1 constants block — `FTUE_PYREDRAKE_HP=800` flagged for T1.10.7 wire). Now T1.10.7 owns the boss data; T1.10.9 can land `getEffectiveBossStats` as a thin import wrapper consuming FTUE_PYREDRAKE_HP + adaptive multiplier + base boss def.
+
+5. **BOSS_VOICES Ch3/Ch4/Ch5 stubs**: legacy only populates voice lines for Ch1 (5 bosses) + Ch2 (5 bosses). Ch3+Ch4+Ch5 bosses have NO entries in BOSS_VOICES — _bossVoiceTrigger returns silently on missing key. This is byte-perfect from legacy (not a bug; Ch3+ voice copy lives in archetype tick handlers via `flashStateBanner` instead, e.g. Twilight DUAL SHIFT banner). **Mentioning for visibility** in case future Ch3+ voice acting work flows through this module.
+
+6. **Module-level `let` re-binding via Object.defineProperty pattern.** I used the T1.10.6 pattern of `Object.defineProperty(window, 'currentBoss', { get/set })` so legacy bodies that BOTH read AND write the bare identifier `currentBoss` continue to work. **CTO consideration:** this is slightly heavier than the get-only pattern T1.10.6 used for `bossState`/`bossPressure` (write-only via internal entry-point functions). For boss identity, legacy writes from many sites (startGruntFtueBattle, startChronicleFtueBattle, startBossBattle, FTUE finalizer paths). T1.10.9 wire-up can flip these to explicit `setCurrentBoss(...)` calls and remove the setter side of the bridge.
+
+7. **BOSSES legacy `let` collision with new getter.** Legacy declares `let BOSSES = CHAPTERS[0].bosses;` at line 20445 — a true `let` (writable). New module exposes BOSSES as a window property with a getter only (no setter). The legacy `let BOSSES` is module-scope; the new window.BOSSES is a global. They coexist (legacy reads its local; non-legacy code on the same `window` reads via the getter). T1.10.9 wire-up will delete the legacy `let BOSSES` line and replace `setChapter`'s legacy variant — keeping only the new module's `setChapter` + `getBosses` API.
+
+8. **Storm-variant Maps exported as live references.** `_stormBlizzardFreezes` and `_stormEarthquakeLocks` are `new Map()` instances exported directly (not via getters) — legacy mutates them at call sites (`_stormBlizzardFreezes.set/delete/clear`). Since Map mutations don't reassign the binding, this works without window-getter bridging. Window exposure is direct (`window._stormBlizzardFreezes = _stormBlizzardFreezes`). Safe pattern; equivalent to legacy module-scope `const` semantics.
+
+9. **`_ch3RenderBossAura` + `_ch3MaybeAnnounceDualState` extracted alongside Ch3 scaffolding.** Legacy lines 41983-42035 (function declarations). They're tightly coupled to `_ch3BossId` + `_ch3State.lightActive`/`darkActive` + `_ch3LastDualState` — clean home is here, not in the FX/feel module. Banner copy strings ("LIGHT VEIL" / "DARK VEIL" / "TWIN CONFESSION" / etc.) preserved verbatim; these double as Chronicler-tone hints.
+
+10. **applyBossEmblems uses ASSETS via /* global */** — legacy module-scope (T1.06 territory). `applyBossEmblems` reads `ASSETS[\`boss_emblem_${globalBossNum}\`]` + `ASSETS[\`stihiya_emblem_${stihiya}\`]` + `ASSETS[\`void_emblem_${stihiya}\`]`. The recent #157 emblem layer PR added 30 new PNG entries + `emblemImg` helper; the emblem CSS-variable application logic in `applyBossEmblems` is unaffected. T1.10.9 wire-up will replace the /* global */ with `import { ASSETS } from '../data/assets.js'` once that's extracted (currently legacy-scope).
+
+11. **`hasCompletedChapter` referenced in `_isChapterContentUnlocked` consumer.** Legacy declares `_isChapterContentUnlocked` at line 20483 (right after the BOSSES let). I extracted `setChapter` but NOT `_isChapterContentUnlocked` (which itself reads `isContentUnlocked` + `hasCompletedChapter`). Both stay in legacy via /* global */ — they belong to the Tower / content-drop schedule module (separate sprint). My `setChapter` extraction defensively calls through `typeof _isChapterContentUnlocked === 'function'` so it gracefully degrades to "Ch5 locked" when the helper isn't available.
+
+**Time:** ~3 hours (1,309 LoC byte-perfect copy across 13 source regions + 22-readonly + 3-writable globals declared + module-private state via getter/setter pattern + window-exposure mirror with Object.defineProperty bridges for 6 writable boss-identity vars + 3 writable Ch3 vars + BOSSES dynamic getter + commit/docs cycle)
 
 ---
 
