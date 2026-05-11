@@ -3,12 +3,12 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 6 / 20 tasks done (T1.01-T1.05 + T1.06 CSS); AUDIT-01 GO; BUG-001 CLOSED
-- **Overall progress:** ~13% (Phase 1 Week 2 in progress)
-- **Next milestone:** T1.07 — Data constants extraction (T1.06 done means CSS no longer drags T1.07)
-- **Active task:** T1.07 — Extract data constants to `src/data/` (assignment ready)
+- **Phase progress:** 7 / 20 tasks done (T1.01-T1.07); AUDIT-01 GO; BUG-001 CLOSED
+- **Overall progress:** ~15% (Phase 1 Week 2 in progress; CSS + data extracted; services next)
+- **Next milestone:** T1.10 — Core game logic extraction (Week 4-5; the XL task)
+- **Active task:** T1.08 — Extract services to `src/services/` (assignment ready)
 - **Pending Roman action:** push branch to verify CI green on GitHub Actions runner (non-blocking)
-- **Last updated:** 2026-05-11 by CTO (after T1.06 review)
+- **Last updated:** 2026-05-11 by CTO (after T1.07 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -47,8 +47,8 @@
 
 **Week 2-3: Data + Services + CSS extraction**
 - [x] T1.06 — Extract CSS into modular structure — **DONE 2026-05-11** (commits `2e097f4`, `f2c662f`; 19 CSS files, 368KB bundle, 179 @keyframes, all visual green)
-- [ ] T1.07 — Extract data constants into `src/data/` — TODO (Game Dev — assignment ready)
-- [ ] T1.08 — Extract services into `src/services/` — TODO
+- [x] T1.07 — Extract data constants into `src/data/` — **DONE 2026-05-11** (commits `c357124`, `a93435a`; 35 constants, sacred cows byte-perfect, V_HAPTICS + NARRATOR_LINES + TIER_COSTS_V18 verified)
+- [ ] T1.08 — Extract services into `src/services/` — TODO (Game Dev — assignment ready)
 
 **Week 4-5: Logic + UI extraction**
 - [ ] T1.09 — Extract feel layer (haptics, animations, particles, narrator) — TODO

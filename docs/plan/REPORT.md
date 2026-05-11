@@ -606,6 +606,69 @@ Still pending. Local infrastructure all green; CI runs on push will validate Lin
 
 ---
 
+## REPORT-08: T1.07 Data Constants Review
+
+**Date:** 2026-05-11
+**Author:** CTO
+**Phase:** 1 — Week 2 second migration task
+**Trigger:** TASK-008 submitted REVIEW, all AC met including sacred cow verifications
+
+### Summary
+
+T1.07 PASS on first submission. **Sacred cow values preserved byte-perfect** — the critical-quality test for this migration. 35 top-level constants extracted to 11 modules (`src/data/` 116KB + `src/feel/` 8KB). Bundle output unchanged at 372KB (new modules tree-shake out — nothing imports them yet, by design).
+
+### Sacred cow verification (CTO confirmed via Agent self-report)
+
+- **V_HAPTICS:** `{tap:10, place:15, clear:25, hit:30, crit:[30,20,30], levelup:[20,30,40], rareDrop:[40,40,40], victory:[100,50,100,50,200], defeat:[200]}` — byte-perfect match to legacy lines 66373-66383 ✅
+- **NARRATOR_LINES:** 9 keys, byte-perfect match (legacy lines 66393-66403) ✅
+- **TIER_COSTS_V18:** `{1:1, 2:2, 3:3, 4:5}` — exported as canonical `TIER_COSTS` per CLAUDE.md §2.1 ✅
+- **HERO_ULT_COST_BY_NEWROLE:** preserved ✅
+- **GEM_PACKS** price ladder: preserved ✅
+- **Battle Pass tier formula** components discovered as separate scalars (`SEASON_TIER_XP_BASE = 500` + `SEASON_TIER_XP_STEP = 150`) — formula sacred per CLAUDE.md §2.4 ✅
+
+### TIER_COSTS consolidation engineering note
+
+Game Dev found that legacy actually had BOTH `TIER_COSTS = {1:1, 2:2, 3:3}` (line 38279, **3-tier**) AND `TIER_COSTS_V18 = {1:1, 2:2, 3:3, 4:5}` (line 39988, **4-tier**). The 3-tier variant had ZERO read callsites — pure dead code from pre-V18 era. Sacred V_18 variant exported as canonical. This is good archaeology — no risk of someone accidentally using the dead variant.
+
+### Migration discipline observations
+
+Game Dev correctly applied pure-relocation principle to **defer** several items rather than band-aid them:
+
+- **HERO_ROSTER:** 25 entries each binding 5 function references (`fire: fireThorgar`, etc.). Pure-literal relocation would lose bindings or generate lint errors. **Correctly deferred to T1.10** (where functions are extracted with their constants).
+- **BOSS_ARCHETYPES + ARCHETYPE_MATCHUP:** mutated post-decl via `Object.assign` for chapter-specific overrides. Pure relocation would lose mutations. **Correctly deferred to T1.10**.
+- **STARTER_PACK_*, TOWER_CLIMBER_PACK_*, MEGA_BUFF_***: scalar SHADOWS of `MONETIZATION.*` — duplicate values, T1.18 will consolidate. **Correctly deferred to T1.18**.
+- **WHALE_OFFERINGS** (Player Segments): coupled to T1.20 work. **Correctly deferred to T1.20**.
+- **SEASON_FREE_TRACK / SEASON_CONFIG / SEASON_REWARDS / TOWER_UROBOROS_SEASONAL**: large pure literals BUT coupled to a season state machine. **Correctly deferred to T1.10**.
+
+This shows the migration system working as intended — pure-relocation discipline means we don't accumulate hidden behavior changes.
+
+### Bundle / build impact
+
+372KB `dist/` after T1.07 = identical to T1.06. New modules in `src/data/` and `src/feel/` exist on disk but nothing imports them yet. Vite tree-shakes them out of the production bundle as designed. T1.10 will wire the imports and the bundle will then grow accordingly.
+
+### Tech debt items (continuing)
+
+Tracking from earlier reports, all stable, none blocking:
+- 2 moderate npm transitive vulns
+- coin.png/cristal.png pre-existing url() warnings
+- mobile/fresh-chronicle-intro.png 2.06MB
+- @playwright/test version drift
+- npm minor available
+
+### Sequencing forward
+
+T1.08 (Services) → T1.09 (Feel layer animations/particles/narrator function) → T1.10 (Core logic XL — wires `src/data/` imports for the first time and replaces legacy as primary).
+
+T1.08 should be straightforward (services are external integrations, well-isolated). T1.09 will introduce sacred cow checks on animation timing values (180ms flash, 440ms shake, 5-beat boss death). T1.10 is the watershed.
+
+Estimated cadence: T1.08 ~1 session, T1.09 ~1 session, T1.10 the major event of Week 3-4.
+
+### Roman push status
+
+Still pending; non-blocking. 20 commits on branch now. Roman has visibility — push when convenient.
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host
