@@ -3,14 +3,14 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 11 / 20 done ✅ **T1.11 + T1.11.1 COMPLETE** (UI surface fully landed)
-- **Overall progress:** ~57% (Phase 1 — UI complete, ready for switchover)
-- **Next milestone:** **T1.12 wire-up THE switchover** — legacy demotes, new shell takes over
-- **Migration shim:** ✅ implemented (9 keys, idempotent, 5 tests passing)
-- **Cumulative LoC:** src/core/ **12,164** (9 modules) + src/ui/ **5,012** (11 modules) = **17,176 LoC** of game code extracted
-- **Active sub-task:** T1.12 — THE switchover
-- **Deferred to T1.13:** placePiece polish, ~600 LoC dead hero code, getSquadMitigation ownership, Storm helper circular-import cleanup, Battery follow-up FX, 7 "Замечено рядом" from T1.11
-- **Last updated:** 2026-05-11 by CTO (after T1.11.1 review)
+- **Phase progress:** 12 / 20 done ✅ **T1.12 STRUCTURAL switchover COMPLETE** (scaffold + boot chain + migration shim)
+- **Overall progress:** ~60% (Phase 1 — switchover landed structurally; T1.13 finalizes wire-up + verify)
+- **Bundle:** 400KB total (26KB JS + 368KB CSS) — under 5MB AAA+
+- **Next milestone:** **T1.13 verify pass + wire-up cleanup** — flip remaining `/* global */` → ES imports, manual playthrough, Lighthouse, optional baseline re-capture
+- **⚠️ Outstanding:** new shell at `/` mounts scaffold but renders empty screens because heavy modules (battle, bosses, archetype-ticks, etc.) still resolve via `/* global */` from router/menu call sites — tree-shake discards them. T1.13 fixes via proper imports.
+- **Migration shim:** ✅ active (9 keys, idempotent sentinel)
+- **Cumulative LoC:** src/core/ 12,164 + src/ui/ 5,012 + src/main.js 94 + index.html 113 = **17,383 LoC** in src/
+- **Last updated:** 2026-05-11 by CTO (after T1.12 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -57,8 +57,8 @@
 - [x] T1.10 — Extract core game logic to `src/core/` — ✅ **DONE 2026-05-11** (9/9 sub-tasks; **12,164 LoC across 9 modules**; sacred v2.1 P1+P2+P4 all preserved byte-perfect; migration shim landed for 9 bare-string keys)
 - [x] T1.11 — Extract UI screens to `src/ui/` — **DONE 2026-05-11** (commits `e0fbb2c`, `f3ad6ef`; 10 modules / 3,021 LoC; onBossDefeated 545 LoC + 16 small ticks landed inline; 10 large ticks + Ch3 SM deferred to T1.11.1)
 - [x] T1.11.1 — Land deferred archetype tick handlers + Ch3 state machine — **DONE 2026-05-11** (commits `ca6d351`, `943018e`; src/ui/archetype-ticks.js 2,007 LoC; 11 owners + helpers; battle-screen.js dispatcher cleaned of `/* global */` tick stubs)
-- [ ] T1.12 — Wire `src/main.js` entry point — IN PROGRESS (**THE switchover**: index.html scaffold + src/main.js bootstrap + migration shim first-boot; legacy stays available via serveLegacyHtmlRaw for visual baseline reference)
-- [ ] T1.13 — Verify game runs identically + visual regression pass — TODO (manual playthrough + Lighthouse ≥90 + bundle <5MB + 22/22 visual ≤2%)
+- [x] T1.12 — Wire `src/main.js` entry point — **STRUCTURAL DONE 2026-05-11** (commits `b87a57e`, `4b9c790`; index.html 113 LoC scaffold + src/main.js 94 LoC boot + migration shim first-boot active; bundle 400KB; **functional wire-up of remaining `/* global */` → imports deferred to T1.13**)
+- [ ] T1.13 — Verify game runs identically + visual regression pass — IN PROGRESS (**expanded scope:** flip remaining `/* global */` → ES imports in router/menu/etc. so heavy modules tree-shake correctly; manual playthrough; Lighthouse ≥90; bundle audit; cross-boundary deferrals; optional baseline re-capture against new shell)
 
 **Week 4-5: Logic + UI extraction**
 - [ ] T1.09 — Extract feel layer (haptics, animations, particles, narrator) — TODO
