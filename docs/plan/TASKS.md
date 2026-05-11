@@ -213,7 +213,16 @@ auto-disappears in T1.10 when the rewiring lands:
 - [x] T1.10.6 — `stagger-loop.js` (v2.1 P2) — **DONE 2026-05-11** (commits `83782cf`, `668b1c9`; **1021 LoC / 48 exports**; SACRED v2.1 P2 ACTIVE/STAGGER/RECOVERY + PRESSURE_MAX=100 + PRESSURE_GAIN table + STAGGER_DURATION=4 + RECOVERY=2 + STAGGER_CHAINING + Overflow conversion 40/30/500/10/revenge 1.5× byte-perfect; window-exposure bridge via `Object.defineProperty` for legacy bare-identifier reads; 5 v2.1 P2 PRs co-extracted per encapsulation; 0 new bare-string keys)
 - [x] T1.10.7 — `bosses.js` — **DONE 2026-05-11** (commits `cc7d0bc`, `fecd2c2`; **1,309 LoC / 60 exports**; 25 BOSSES (Ch1-5×5) + 25 archetypes + 25 matchups flat post-Object.assign byte-perfect; FTUE_BOSS_GUARANTEES + TOWER_UROBOROS_SEASONAL + BOSS_VOICES sacred; Ch3 scaffolding + window-exposure bridge for boss state; **memory conflict resolved** — Ch4-5 boss DATA in legacy, only player ACCESS gated via progression flags; 0 new bare-string keys)
 - [x] T1.10.8 — `reactivity-events.js` (v2.1 P4) — **DONE 2026-05-11** (commits `52bd102`, DOCS pending; **1,440 LoC / 68 exports**; SACRED v2.1 P4 phase-gate adaptations at 70%/35% HP + REACTIVITY_TELEGRAPH_MS=3000 byte-perfect; 22 archetype handlers (10 archetypes × 2 gates + tower_voidfang × 2) + 7 EFFECT_HANDLERS + BOSS_PHASES table for 25 bosses + VOIDFANG override; 14 reactivity state vars + Voidfang shroud slice + 3 FTUE Chronicler intros; v2.1 P4 implementation status CONFIRMED — resolves Execution Plan §23 "VERIFY"; **1 NEW bare-string key flagged** — `VOIDFANG_DEFEATED_KEY = 'blocksworn_voidfang_defeated'` stored as `'1'`, read with `=== '1'` — added to T1.10.9 shim allow-list)
-- [ ] T1.10.9 — `battle.js` + final wire (`index.html` → uses `src/main.js`; legacy demoted to read-only archive)
+- [ ] T1.10.9 — `battle.js` orchestrator + MANDATORY migration shim (9 bare-string keys) — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
+
+**Scope clarification for T1.10.9:** Original Execution Plan T1.10 footer said "replace index.html at end" — but per the Plan's broader sequence, **`index.html` switchover belongs to T1.12** (`Wire main.js entry point`), not T1.10.9. T1.10.9 deliverables:
+1. Extract `src/core/battle.js` orchestrator (main battle loop tying all T1.10.1-T1.10.8 modules together)
+2. Implement the migration shim (one-shot, in `src/services/storage.js` or a new `src/services/migrate.js`) for all **9 bare-string keys** in allow-list
+3. Verify src/core/* tree is import-graph-clean (no circular deps; all `/* global */` targets either resolved via imports or documented as TODO(T1.11/T1.12))
+4. **Do NOT touch `index.html` or `src/main.js`** — those are T1.11/T1.12 territory
+5. Cross-boundary audit deferred to T1.13 verify pass (placePiece return polish, ~600 LoC dead hero code, getSquadMitigation ownership)
+
+**Post-T1.10.9:** Phase 1 progress will be 10/20. Then T1.11 (UI screens to src/ui/) + T1.12 (wire main.js — THE switchover) + T1.13 (verify) = Phase 1 endgame.
 
 **Discipline:** ONE SUB-SYSTEM AT A TIME. After each: smoke + visual must pass. Commit `[T1.10.N]`. STOP on first failure.
 

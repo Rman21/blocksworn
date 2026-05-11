@@ -3,13 +3,14 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (7/9 sub-tasks done)
-- **Overall progress:** ~35% (Phase 1 watershed — 78% of T1.10 done — two sub-tasks remaining: T1.10.8 + T1.10.9)
-- **Next milestone:** T1.10.9 final wire-up — new shell becomes primary
-- **Active sub-task:** T1.10.8 — Extract reactivity-events.js (v2.1 P4 SACRED: phase-gate boss adaptations at 70%/35% HP)
-- **Critical for T1.10.9:** localStorage migration shim allow-list = 8 keys (T1.10.7 ephemeral, no change)
-- **Cumulative core/ LoC:** ftue 475 + progression 1128 + grid 603 + heroes 3972 + channels 457 + stagger 1021 + bosses 1309 = **8,965 LoC** in src/core/
-- **Last updated:** 2026-05-11 by CTO (after T1.10.7 review — Ch4-5 data/gating distinction clarified in memory)
+- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (8/9 sub-tasks done — ONLY T1.10.9 LEFT)
+- **Overall progress:** ~37% (Phase 1 watershed — 89% of T1.10 done)
+- **Next milestone:** T1.10.9 — battle.js orchestrator + MANDATORY migration shim (9 bare-string keys)
+- **After T1.10.9:** Phase 1 progress 10/20; remaining T1.11 (UI screens) + T1.12 (main.js wire — THE switchover) + T1.13 (verify) + cleanup T1.14-T1.20
+- **Migration shim allow-list (9 keys):** FTUE_STORAGE_KEY, seenIntroVideo, onboardingSeen, blocksworn_chapter_{1..5}_complete, blocksworn_voidfang_defeated
+- **Cumulative core/ LoC:** ftue 475 + progression 1128 + grid 603 + heroes 3972 + channels 457 + stagger 1021 + bosses 1309 + reactivity 1440 = **10,405 LoC** in src/core/
+- **v2.1 P4 status:** CONFIRMED implemented in legacy (resolves Plan §23 "VERIFY")
+- **Last updated:** 2026-05-11 by CTO (after T1.10.8 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
