@@ -202,7 +202,20 @@ auto-disappears in T1.10 when the rewiring lands:
 
 ### TASK-011 (T1.10) — Extract core game logic to `src/core/` (XL — the watershed task)
 
-**Status:** TODO (AWAITING ROMAN GO — Week 2 just closed; CTO recommends push-and-CI-verify first)
+**Status:** IN PROGRESS — Roman GO'd 2026-05-11; sub-task T1.10.1 (FTUE state) launched first
+
+**Sub-task progress:**
+- [x] T1.10.1 — `ftue-state.js` — REVIEW (commits `e12d27b` code; DOCS commit follows); awaiting CTO sign-off before T1.10.2
+- [ ] T1.10.2 — `progression.js`
+- [ ] T1.10.3 — `grid.js`
+- [ ] T1.10.4 — `heroes.js`
+- [ ] T1.10.5 — `damage-channels.js` (v2.1 P1)
+- [ ] T1.10.6 — `stagger-loop.js` (v2.1 P2)
+- [ ] T1.10.7 — `bosses.js`
+- [ ] T1.10.8 — `reactivity-events.js` (v2.1 P4)
+- [ ] T1.10.9 — `battle.js` + final wire (`index.html` → uses `src/main.js`; legacy demoted to read-only archive)
+
+**Discipline:** ONE SUB-SYSTEM AT A TIME. After each: smoke + visual must pass. Commit `[T1.10.N]`. STOP on first failure.
 **Priority:** HIGH
 **Phase:** 1 (Week 4-5 per Plan; faster at current pace)
 **Estimated complexity:** XL (~50% of Phase 1 effort per Execution Plan)
@@ -212,6 +225,78 @@ auto-disappears in T1.10 when the rewiring lands:
 **Detailed spec:** `docs/plan/00_EXECUTION_PLAN.md` §13 T1.10 (lines ~1535-1615) — read **carefully** before assignment.
 
 **Approach (per Execution Plan):** ONE SUB-SYSTEM AT A TIME, commit after each, sub-numbered `[T1.10.1]`, `[T1.10.2]`, etc. Smoke + visual after each sub-system.
+
+---
+
+### T1.10.1 — REVIEW (2026-05-11)
+
+**Code commit:** `e12d27b` — `[T1.10.1] Extract FTUE state machine to src/core/ftue-state.js`
+**DOCS commit:** follows (this entry)
+**File created:** `src/core/ftue-state.js` (475 lines, 21 named exports = 5 constants + 16 functions)
+
+**Implementation summary:**
+
+FTUE state machine extracted byte-perfect from legacy `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` lines 24043-24484. Module owns the beat cursor (`ftueBeat`), transition validation, persistence, predicates (`isFtueActive`, `isFtueComplete`, `ftueIs`), dev-tooling reset paths (`skipFtue` / `resetFtue` / `_skipOnboarding`), initial routing (`routeByFtue` + private `_maybeShowIntroVideo`), and the navigation gate (`ftueBlockNavIfActive`). Constants block (`FTUE_STORAGE_KEY`, `FTUE_PYREDRAKE_HP=800`, `FTUE_PYREDRAKE_ATTACK_INTERVAL=15`, `FTUE_PYREDRAKE_ARTIFACT='orc_ring'`, `FTUE_GRUNT_ARTIFACT='orc_weapon'`) co-located with the state machine that owns them — getEffectiveBossStats consumer stays in legacy until T1.10.7 wires bosses.
+
+**Sacred cow preservation:**
+- `FTUE_BEATS` order, `FTUE_TRANSITIONS` edges, `FTUE_TRANSITIONS_FORCE` — imported from `src/data/ftue-scripts.js` (T1.07 byte-perfect). NOT modified.
+- FTUE_BOSS_GUARANTEES — not touched here (stays in src/data/ftue-scripts.js). Sacred per CLAUDE.md §2.5.
+- Chronicler beat dispatch flow (`chronicle_fight` → `chronicle_won` → `intro`) — byte-perfect, including the FTUE_SCRIPTS.chronicle_intro/outro playback ordering.
+- All `advanceFtue` side-effect ordering preserved: storage save → dialog queue drop → chrono dismiss → debug log → onFtueBeatChanged dispatch.
+- Pyredrake tuning (HP=800, attackInterval=15) and FTUE artifact IDs preserved verbatim.
+
+**Storage rewires (T1.08 abstraction):**
+- 4 call sites for `FTUE_STORAGE_KEY` rewired: `saveFtueToStorage` (set), `loadFtueFromStorage` (get). Legacy raw `localStorage.{set,get}Item(FTUE_STORAGE_KEY, ...)` calls → `storage.{set,get}Item('blocksworn_ftue_beat', ...)`.
+- 5 ad-hoc localStorage calls left raw with TODO comments (`seenIntroVideo` × 3, `onboardingSeen` × 2) — these live inside UI-adjacent helpers (`_maybeShowIntroVideo`, `_skipOnboarding`, `routeByFtue`) and face the same JSON-wire-format compat issue. Flagged as part of T1.11 wire-up alongside DOM rewires.
+
+**ESLint globals added** (specific identifiers, why):
+- Readonly: `ASSETS`, `playDialogScript`, `showLeaderChoiceModal`, `revealHero`, `flashText`, `vibrate`, `resetBossVoiceFlags`, `_dialogDeferredQueue`, `_chronoActive`, `_hideChronoBeat`, `location`, plus secondary block `startPyredrakeFtueBattle`, `startGruntFtueBattle`, `startChronicleFtueBattle`, `finalizeFtue`. All read-only ambient references that move into other modules in T1.10.4 / T1.10.7 / T1.10.9 / T1.11.
+- Writable: `_pendingDialogRequest`, `dialogActive`, `dialogClickLock` — `_skipOnboarding` assigns to these to tear down the dialog overlay state. They live in legacy lines 24713/24715/24733 and migrate alongside the dialog system (T1.11).
+
+**TODO markers:**
+- `TODO(T1.10.4)`: revealHero, ensureRevealedForComplete (heroes module)
+- `TODO(T1.10.9)`: playDialogScript, startPyredrakeFtueBattle / startGruntFtueBattle / startChronicleFtueBattle, dialog/boss-voice teardown (battle.js + dialog module)
+- `TODO(T1.11)`: showLeaderChoiceModal + dialogOverlay DOM refs, chrono-beat UI module (#dialogOverlay, #dialogCtaBtn, #dialogSkipBtn, #introVideoOverlay/#introVideoPlayer/#introVideoSkip)
+- 8 markers total — 4× T1.10.N, 4× T1.11
+
+**Logger migration:**
+- 4 `console.warn(...)` calls in extracted region → `log.warn(...)` (saveFtueToStorage failure, loadFtueFromStorage failure, ftueIs unknown beat, advanceFtue invalid beat). Plus `console.warn` chain in `onFtueBeatChanged` failure handler, `[FTUE] prev → next` `console.log` → `log.debug` (no-op in production per logger contract).
+
+**Engineering judgment:**
+- `getEffectiveBossStats` (legacy line 24161) NOT extracted — it's a boss-stats override consumer that depends on `currentChapter` + boss object shape + `_phase8GetAdaptiveHpMultiplier`. Clear T1.10.7 (bosses) territory; pulling it into ftue-state would broaden scope into boss stat math.
+- Density-aware tutorial overlay system (legacy lines 46993-47100, `showTutorialOverlay`, `enforceBossFTUEGuarantees`, `_phase8*` helpers, `PACING_DENSITY_SCHEDULE`, `CONCEPT_PHASE_REGISTRY`) NOT extracted — large subsystem coupled to analytics, DOM, and per-boss event tracking. The spec note in the task brief mentions density helpers but explicitly says "if borderline, leave it for the relevant sub-task — T1.10.9 battle will catch leftovers". This subsystem is T1.10.9 + T1.11 territory.
+- Battle launchers (`startPyredrakeFtueBattle`, `startGruntFtueBattle`, `startChronicleFtueBattle`, `finalizeFtue`) NOT extracted — they touch `currentChapter`, `currentBossIdx`, `selectedBossIdx`, `currentBoss`, `setChapter`, `startBossBattle`, `EMBER_GRUNT`, `CHRONICLE` constants. All T1.10.9 territory.
+- `_maybeShowIntroVideo` kept module-private (not exported) since it's only called from `routeByFtue`. Direct DOM refs preserved with TODO(T1.11) markers.
+- Mutable state encapsulated via `getCurrentBeat()` / `getFtueSafetyRailUsed()` + setter pattern (matches CLAUDE.md §6.4 ES module discipline — no exported `let`).
+
+**Verification (all gates green):**
+- `npm run lint` → 0 errors / 0 warnings
+- `npm run test:unit` → 6/6 pass (~104ms)
+- `npm run test:smoke` → 2/2 pass
+- `npm run test:visual` → 22/22 pass under 2%
+- `npm run build` → succeeds. dist/assets/index.js = 0.75KB; dist/assets/index.css = 368.77KB (unchanged — new module tree-shakes out, nothing imports it yet, as expected per Step E of the assignment)
+- Legacy `wc -c` = 21,480,494; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` — byte-identical
+
+**Self-check:**
+- [x] Acceptance: FTUE state machine extracted — beat cursor, transitions, predicates, persistence, routing, nav gate, dev-tooling
+- [x] Acceptance: imports from src/data/ftue-scripts.js (T1.07) + src/services/storage.js (T1.08) + src/services/logger.js (T1.08)
+- [x] Acceptance: no window globals introduced (only `/* global */` directives for legacy refs that move later)
+- [x] Acceptance: mutable state module-private (getCurrentBeat() getter; resetFtue() bypasses validation intentionally to match legacy 24329)
+- [x] Acceptance: legacy HTML byte-identical (wc -c + SHA-256 verified)
+- [x] Acceptance: all gates green (lint, unit, smoke, visual, build)
+- [x] Acceptance: nothing imports the new module — tree-shakes out for T1.10.1 (correct — T1.10.9 final wire-up flips legacy → src/)
+- [x] Sacred cows: FTUE_BOSS_GUARANTEES untouched (stays in src/data/ftue-scripts.js). FTUE transition flow byte-perfect. Chronicler beats untouched.
+- [x] DO NOT TOUCH: index.html — not modified; src/main.js — not modified; other src/ modules — not modified; CSS / baselines / tests / CI / husky / eslint config — not modified
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.10.1; did NOT start T1.10.2
+
+**Замечено рядом (NOT fixed, reported):**
+1. **Storage wire-format compat caveat (HIGH for T1.10.9):** legacy stored `FTUE_STORAGE_KEY` as a bare string (`localStorage.setItem(FTUE_STORAGE_KEY, 'pyredrake_fight')`). The T1.08 `storage.getItem` JSON.parses, fails on bare strings, and returns the defaultValue (null). Existing player saves would silently revert to `not_started` once this module activates. **T1.10.9 wire-up MUST add a one-shot migration shim** in `initFtueState()`: on first read returning null, fall back to raw `localStorage.getItem(FTUE_STORAGE_KEY)` and if it matches a valid beat, re-save via `storage.setItem` to upgrade the wire format. Same issue applies to `seenIntroVideo`/`onboardingSeen` (left raw for T1.11).
+2. **Diagnostic helpers in legacy:** `window.__ftueDebug` (legacy line 24501) and `window.skipFtue`/`resetFtue`/`advanceFtue`/`getEffectiveBossStats`/`ftueIs` exports (legacy line 24486-24492) are dev console helpers. NOT extracted — they belong to a dev-tooling surface (T1.11 or a dedicated `src/dev/` module). Mentioned for visibility; CTO can decide whether to spin off as a separate sub-task.
+3. **Storage-format inconsistency note:** `services/storage.js` docstring (lines 16-24) already calls out this exact migration concern. The 1.08 module foresaw it. T1.10.9 is the natural place to land the shim — flag this in the T1.10.9 brief.
+
+**Time:** ~2.5 hours
 
 ---
 
