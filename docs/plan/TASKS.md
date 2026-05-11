@@ -1363,6 +1363,177 @@ Both failure modes are flagged in "Замечено рядом" — they're the 
 
 ---
 
+### TASK-018 (T1.13.4) — REVIEW (2026-05-11)
+
+**Code commit:** `[T1.13.4] Extract dialog system + SQUAD_MAX` → `d4b5bff`
+**DOCS commit:** follows (this entry)
+**Files modified:** 10 — `src/ui/dialog.js` (NEW, 603 LoC), `src/core/{battle,bosses,ftue-state,progression,reactivity-events,stagger-loop}.js`, `src/data/balance.js`, `src/ui/{menu,rewards}.js`.
+
+**Implementation summary:**
+
+T1.13.2's spot-check surfaced `playDialogScript is not defined` as the next-blocking ReferenceError after the writable-globals + ASSETS extractions landed. T1.13.4 extracts the dialog system into `src/ui/dialog.js` and graduates SQUAD_MAX from legacy-only constant to a named export in `src/data/balance.js`, retiring T1.13.2's `_SQUAD_MAX_FALLBACK` shim.
+
+**Deliverable 1 — Dialog system → `src/ui/dialog.js` (603 LoC, 12 named exports):**
+
+Pure relocation per CLAUDE.md §2.3 sacred discipline. Every dialog string byte-perfect from legacy.
+
+| Function | Legacy lines | Notes |
+|---|---|---|
+| `DIALOG_LINES` (83 entries, frozen) | 30046-30186 (71 entries) + 30396-30451 (12 voidfang) | Block 6.2 initial `chapter_3_outro` (line 30112) is OVERWRITTEN by Block 6.3 at line 30444 in legacy via sequential execution — consolidated as one byte-perfect entry here matching the Block 6.3 final |
+| `BOSS_DIALOG_MAP` (11 entries) + `getBossDialogPrefix` | 30189-30213 | Frozen export |
+| `playDialogScript(lines, onComplete)` | 24734-24912 | Single-slot pending queue (TASK #2.2b); CTA + SKIP wiring (Polish v0.2 Track G); typewriter via `setInterval` at `DIALOG_TYPE_MS = 30ms` |
+| `playDialog(id, onComplete)` | 30243-30274 | Wraps playDialogScript with single-line convenience; FTUE-active suppression; registry-level `onComplete` chaining for Voidfang p1_b/p2_b/p3_b |
+| `showBossPhaseDialog(id)` | 30278-30281 | Replaces reactivity-events.js's Block 6.1 stub (deleted) |
+| `maybePlayChapterIntro(ch)` | 30285-30291 | `chapter_${ch}_intro` lookup; gated by FTUE-inactive + !seenDialogs |
+| `replayDialog(scriptName)` | 24915-24920 | Dev helper |
+| `clearDialogTimer()` (private) | 24719-24724 | Typewriter cleanup |
+| `loadSeenDialogs / saveSeenDialogs / markDialogSeen` | 30219-30237 | Storage glue — legacy uses bare `localStorage` (T1.10.9 will graduate to T1.08 storage module) |
+| `isDialogActive()` | new accessor | Read-only for tests/introspection |
+
+5 module-private state vars exposed via Object.defineProperty(window, ...) bridges so legacy-style /* global */ consumers (feel-layer plate-defer logic, FTUE teardown, stagger-loop `typeof seenDialogs` checks, etc.) keep resolving:
+
+| State var | Legacy line | Use |
+|---|---|---|
+| `_dialogActive` | 24713 | Singleton gate for playDialogScript |
+| `_dialogClickLock` | 24715 | 200ms double-tap debounce |
+| `_pendingDialogRequest` | 24733 | TASK #2.2b single-slot queue |
+| `_dialogDeferredQueue` | 65500 | Plate-style defer queue (helpers `_flushDeferredQueueAfterDialog` / `_deferDuringDialog` stay legacy — they cross-reference flashText/flashHeroTrigger which is still legacy territory) |
+| `_seenDialogs` | 30216 | Set of seen dialog ids |
+
+`_flushDeferredQueueAfterDialog` invoked via `typeof window._flushDeferredQueueAfterDialog === 'function'` defensive guard — legacy continues to own that helper until T1.13.5+ feel-layer cleanup. Similarly `_skipOnboarding` (legacy-and-ftue-state-co-owned via ftue-state.js export + window bridge) consumed via `window._skipOnboarding` from inside the dialog SKIP button handler.
+
+**Deliverable 2 — SQUAD_MAX → `src/data/balance.js`:**
+
+Legacy declared `let SQUAD_MAX = 3` (line 21224) — mutable per-boss progression (3 default → 4 after Boss 2 / leader-choice → 5 after Boss 4). Three legacy write sites (loadSquadMaxFromStorage at 21402, applyBossDefeatProgression at 21449, onLeaderChosen at 24985) preserved through `window.SQUAD_MAX` bridge.
+
+```js
+// src/data/balance.js
+let _squadMax = 3;
+export const SQUAD_MAX_STORAGE_KEY = 'blocksworn_squad_max';
+export function getSquadMax() { return _squadMax; }
+export function setSquadMax(n) { /* Number-validated */ }
+// Object.defineProperty(window, 'SQUAD_MAX', { get/set })
+```
+
+Initial value byte-perfect from legacy. SACRED: legacy's spec semantics (3 → 4 → 5 progression) preserved.
+
+**Deliverable 3 — `_SQUAD_MAX_FALLBACK = 5` shim retired:**
+
+T1.13.2's defensive shim in progression.js read `globalThis.SQUAD_MAX` with a fallback to 5. Now flipped to live import:
+
+```diff
+- const _SQUAD_MAX_FALLBACK = (typeof globalThis !== 'undefined' && typeof globalThis.SQUAD_MAX === 'number')
+-   ? globalThis.SQUAD_MAX : 5;
+- let activeSquad = HERO_ROSTER.filter(...).map(h => h.id).slice(0, _SQUAD_MAX_FALLBACK);
++ let activeSquad = HERO_ROSTER.filter(...).map(h => h.id).slice(0, getSquadMax());
+```
+
+5 bare `SQUAD_MAX` reads in progression.js (lines 717, 737, 739, 746, 1126) flipped to `getSquadMax()`. 4 bare `SQUAD_MAX` reads in menu.js (lines 84, 87, 95, 105) similarly flipped — comment text edited along with code by the codemod (acceptable; documentation tracks accurate semantics).
+
+**Deliverable 4 — Consumer flips (7 files):**
+
+| Consumer | Flipped exports | Path |
+|---|---|---|
+| `src/core/ftue-state.js` | `playDialogScript` | One ES import; 6 `playDialogScript(FTUE_SCRIPTS.*)` callsites unchanged |
+| `src/core/bosses.js` | `playDialogScript` | Boss-voice firing (`_bossVoiceTrigger`) |
+| `src/core/battle.js` | `playDialogScript`, `playDialog`, `DIALOG_LINES`, `getBossDialogPrefix` | Chapter-intro chain, FTUE complete coda, channel tutorials |
+| `src/core/reactivity-events.js` | `playDialog`, `showBossPhaseDialog` | Block 6.1 stub `export function showBossPhaseDialog` DELETED — dialog.js owns canonical resolver. seenDialogs stays /* global */ (defensive `typeof === 'undefined'` reads via window bridge) |
+| `src/core/stagger-loop.js` | `playDialog` | 4 tutorial intros (pressure, stagger, recovery, overflow). seenDialogs stays /* global */ |
+| `src/ui/menu.js` | `playDialog` + `getSquadMax` (from balance) | Pre-Lich tutorial dialog gate + SQUAD_MAX-bumped UI flash |
+| `src/ui/rewards.js` | `playDialog`, `DIALOG_LINES`, `getBossDialogPrefix` | Defeat/outro/intro reward chain |
+
+Total: **7 consumer files** flipped `/* global playDialogScript */` (and siblings) → ES import.
+
+**Spot-check via temporary Playwright probe (NOT committed):**
+
+Probe loaded `/` headless, waited 5s for boot, dumped console + errors. Pre-T1.13.4 boot trace had:
+
+```
+[warn] onFtueBeatChanged failed: ReferenceError: playDialogScript is not defined
+```
+
+Post-T1.13.4 boot trace:
+
+```
+SNAPSHOT: {"actives":[],"contentSize":[{"id":"screenMenu","len":0},{"id":"screenBattle","len":0},{"id":"screenSelect","len":0}],"ftueBeat":"unknown","dialogActiveFlag":false,"dialogOverlayHidden":true}
+errors: []
+warnings count: 1
+  warning[0]: [warn] onFtueBeatChanged failed: ReferenceError: startChronicleFtueBattle is not defined
+```
+
+- Page errors: **0**.
+- The T1.13.2 ReferenceError (`playDialogScript`) is **GONE** — closed.
+- The next-layer warning surfaces: `startChronicleFtueBattle is not defined`. This is the FTUE battle-launcher family (`startChronicleFtueBattle` / `startPyredrakeFtueBattle` / `startGruntFtueBattle` / `finalizeFtue`), still legacy-only per the T1.10.9 TODO at ftue-state.js:325. Flagged in "Замечено рядом" as the T1.13.5 candidate.
+- `actives: []` — no screen reaches `.active` because the FTUE intercept in onFtueBeatChanged calls `playDialogScript(FTUE_SCRIPTS.chronicle_intro, startChronicleFtueBattle)` — playDialogScript now resolves and tries to fire, BUT the next-line `startChronicleFtueBattle` arg is undefined, so onFtueBeatChanged's try/catch swallows the chain mid-flight before it can transition into the launcher.
+- Content sizes for screenMenu / screenBattle / screenSelect: all 0 (FTUE intercept removed `.active` before initial render; FTUE chain stalls on the missing launcher).
+- `dialogActive` flag: false (overlay never opened because the chain stalled before reaching playDialogScript's overlay code; remember playDialogScript is invoked, but it returns early when its onComplete callback is undefined-the-symbol AND the lines arg is OK — actually it does start, but the actual UI didn't reach there in the 5s window. Either way, dialog state stays clean).
+- `ftueBeat: 'unknown'` — `getCurrentBeat` is module-private; probe didn't reach via window.
+
+**Verification (all gates green):**
+- `npm run lint` → **0 errors / 0 warnings**
+- `npm run test:unit` → **11/11 pass** (~98 ms)
+- `npm run test:smoke` → **2/2 pass** (~2.0 s, legacy URL unchanged)
+- `npm run test:visual` → **22/22 pass under 2%** (~12.6 s, legacy baselines unchanged)
+- `npm run build` → succeeds, no new Vite warnings
+
+**Bundle size:**
+- `dist/index.html` = 5.76 KB (unchanged)
+- `dist/assets/index-*.css` = 368.77 KB (unchanged)
+- `dist/assets/index-CA29h4eP.js` = **179.44 KB** (gzip 51.95 KB) — **+19 KB** over T1.13.3's 160 KB for dialog.js + DIALOG_LINES strings
+- `dist/images/` = 3.9 MB across 89 files (unchanged from T1.13.3)
+- Total `dist/` ≈ **4.5 MB** — still under AAA+ §3.2 5 MB cap
+
+**Legacy untouched:**
+- `wc -c docs/_legacy/_archive_v1/blocksworn_index_fixed.html` = **21,480,494**
+- SHA-256 = `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` (unchanged)
+
+**Self-check:**
+- [x] Step A inventory: dialog state (4 vars + seenDialogs Set) + playDialogScript/playDialog/showBossPhaseDialog/maybePlayChapterIntro/replayDialog/markDialogSeen/clearDialogTimer + DIALOG_LINES (83 entries) + BOSS_DIALOG_MAP all located in legacy
+- [x] Step B module design: src/ui/dialog.js created (603 LoC, 12 named exports)
+- [x] Step C SQUAD_MAX: getSquadMax/setSquadMax + window bridge in src/data/balance.js; _SQUAD_MAX_FALLBACK shim removed from progression.js
+- [x] Step D byte-perfect: all dialog strings copy-paste from legacy; spot-checked `pyredrake_intro` / `lich_intro` / `voidfang_p1_a` / `tut_squad_grew_to_5` via grep diff against legacy — identical
+- [x] Step E wire-up: 7 consumer files flipped /* global */ → ES import (5 src/core + 2 src/ui)
+- [x] Step F gates: lint 0, unit 11/11, smoke 2/2, visual 22/22, build clean
+- [x] Step G spot-check: probe surfaced next-layer gap (`startChronicleFtueBattle`); playDialogScript warning closed; page errors 0
+- [x] Step H commit: code `d4b5bff`, this DOCS commit follows
+- [x] Acceptance: bundle 179KB JS (+19KB), dist 4.5MB under cap
+- [x] Acceptance: legacy untouched — `wc -c` = 21,480,494; SHA-256 stable
+- [x] Sacred cows: NARRATIVE strings byte-perfect (CLAUDE.md §2.3 — Chronicler / Warchief / boss voice; Darkest-Dungeon tone)
+- [x] DO NOT TOUCH: legacy HTML / docs/_legacy/* / CSS / smoke specs / visual baselines / regression spec / CI / husky / eslint config — none modified
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] Temporary Playwright probe deleted before commit
+- [x] STOPPED after T1.13.4 commit; did NOT start T1.13 main verify
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **`startChronicleFtueBattle` / `startPyredrakeFtueBattle` / `startGruntFtueBattle` / `finalizeFtue` undefined at FTUE entry.** Probe surfaced this as the next-layer ReferenceError after T1.13.4 closed `playDialogScript`. The 4 FTUE battle launchers are co-located in legacy `~25080-25180` and `~25300-25400` (final FTUE finalize chain). The TODO at `ftue-state.js:325` already pre-flags T1.10.9 ownership: "TODO(T1.10.9): startPyredrakeFtueBattle / startGruntFtueBattle / startChronicleFtueBattle / finalizeFtue currently live in legacy. The dispatcher above calls them as ambient globals." **Fix shape (T1.13.5):** extract into `src/core/battle.js` (sibling to the existing launchers) or a new `src/core/ftue-battle.js`, then flip `/* global startPyredrakeFtueBattle, ... */` to ES imports in ftue-state.js. The functions touch `currentBoss`/`currentChapter`/`bossHP`/`bossMaxHP`/`battleStartTime` (all bridged via T1.13.2's writable-globals) + render functions (`vRenderBattle*`) which are still legacy-only.
+
+2. **`reactivity-events.js` Block 6.1 stub `showBossPhaseDialog` deleted.** Previously declared as a 2-line placeholder (`log.debug('[phase dialog placeholder]', dialogId)`). T1.13.4 imports the real `showBossPhaseDialog` from dialog.js instead. The window-assignment block at reactivity-events.js:1401 still does `window.showBossPhaseDialog = showBossPhaseDialog` — now exporting the dialog.js reference back to window. Redundant with dialog.js's own window bridge but harmless (same function reference). T1.14+ cleanup can remove the redundant window assignment.
+
+3. **`chapter_3_outro` legacy declared twice — consolidated.** Block 6.2 line 30112 declares it inline in DIALOG_LINES initial ("The veil tears..."); Block 6.3 line 30444 overwrites it via `DIALOG_LINES.chapter_3_outro = ...` ("The shadow retreats..."). Sequential execution makes the Block 6.3 text the live value. My dialog.js uses the Block 6.3 final byte-perfect — semantically equivalent to legacy at lookup time. Documented inline.
+
+4. **`_dialogDeferredQueue` helper family (`_flushDeferredQueueAfterDialog` / `_deferDuringDialog` / `_isDialogActive`) NOT extracted.** The state Array lives in dialog.js (T1.13.4) with the window bridge; the 3 helpers stay in legacy `65500-65520` because they cross-reference `flashText` / `flashHeroTrigger` / `narrator` / boundless legacy plate-style callers. Dialog.js's `next()` resolver calls `_flushDeferredQueueAfterDialog` via `typeof window._flushDeferredQueueAfterDialog === 'function'` defensive guard, so when the helpers DO get extracted later, the call resolves through the same window binding. Out of scope T1.13.4.
+
+5. **`_skipOnboarding` window-bridge import inside dialog.js's SKIP button handler.** `_skipOnboarding` lives in `src/core/ftue-state.js` (already exported), but dialog.js cannot directly import it without creating a `ftue-state.js → dialog.js → ftue-state.js` import cycle (dialog.js is imported from ftue-state.js at module-init time). Resolved by accessing via `window._skipOnboarding` — the ftue-state.js module already exports it; a future T1.14+ cleanup task could either (a) move `_skipOnboarding` into dialog.js (closely coupled to the SKIP button anyway), or (b) split ftue-state.js so the imports flow only one direction.
+
+6. **`SQUAD_MAX` legacy mutation sites (3) still live-rebind through window bridge.** `loadSquadMaxFromStorage` (legacy 21402), `applyBossDefeatProgression` (legacy 21449), `onLeaderChosen` (legacy 24985) all do `SQUAD_MAX = n` — these resolve through `window.SQUAD_MAX`'s setter accessor in src/data/balance.js. When those 3 functions migrate to src/ (T1.13.5+ or T1.14+ progression cleanup), they should call `setSquadMax(n)` directly instead of bare assignment.
+
+7. **`reactivity-events.js` still has 4 `/* global */` references that could be flipped.** `currentBoss` / `bossHP:writable` / `bossMaxHP` / `currentChapter` / `BOSSES` are all in the T1.10.7 bosses.js window bridge. Skipped here to keep T1.13.4 atomic; T1.13.5 or T1.13 main verify can audit.
+
+8. **Probe revealed FTUE chronicle_fight beat advances on first boot** before the player sees the menu — same observation as T1.13.2. Once T1.13.5 lands the FTUE battle launchers, the probe should advance further (probably into chronicle_won → intro → pyredrake_fight where the next legacy-only ref will surface).
+
+**Bundle composition (final):**
+- `dist/index.html` = 5.76 KB
+- `dist/assets/index-BbAQ45LJ.css` = 368.77 KB
+- `dist/assets/index-CA29h4eP.js` = **179.44 KB** (gzip 51.95 KB; +19 KB vs T1.13.3 for dialog module + DIALOG_LINES strings)
+- `dist/images/` = 3.9 MB (89 files; unchanged)
+- Total `dist/` ≈ **4.5 MB** — under AAA+ §3.2 5 MB cap
+
+**Time:** ~1.5 hours (dialog inventory + module design + DIALOG_LINES byte-perfect copy + SQUAD_MAX extraction + 7 consumer flips + showBossPhaseDialog stub retirement + 4× lint/unit/smoke/visual/build verify cycles + temporary probe + commit cycle).
+
+---
+
 ### TASK-017 (T1.13.3) — REVIEW (2026-05-11)
 
 **Code commit:** `[T1.13.3] Asset pipeline refactor — data URIs → public/images/` → `9f36b76`
