@@ -9,7 +9,10 @@
 
 ### TASK-005 (T1.05) — Setup CI pipeline
 
-**Status:** TODO (ready for assignment — TASK-004 DONE)
+**Status:** TODO → IN PROGRESS → **REVIEW**
+**Started:** 2026-05-11
+**Completed:** 2026-05-11
+**Commit:** `235941e` (code), `[next]` (docs)
 **Priority:** HIGH
 **Phase:** 1
 **Created:** 2026-05-11
@@ -226,6 +229,66 @@ jobs:
 - ESLint flat config (`eslint.config.js`) is the v9 format — older `.eslintrc.*` is deprecated.
 
 **Rollback plan:** `git revert <commit-sha>`. CI workflow + visual regression are additive — reverting just removes them.
+
+---
+
+**Implementation summary (Game Dev, 2026-05-11):**
+
+All 5 deliverables shipped per spec:
+
+1. **`tests/visual/regression.spec.js`** — pixelmatch-based diff vs baselines. PNG decode via `pngjs`. Thresholds 2% pass / 2-5% warn / >5% fail. Diff PNG saved to `tests/visual/diff/<name>.png` (gitignored) for any over-2% diff so reviewers can see exactly where the change is. Dimension mismatch fails immediately and saves the current screenshot as the diff. Spec runs only on `chromium` + `mobile-chrome` (baselines exist for those two); other projects skip via `test.skip()`.
+2. **`tests/visual/screens.js`** — shared `SCREENS` array + `nav()` helper. Both `capture-baseline.spec.js` and `regression.spec.js` import from here (DRY). `capture-baseline.spec.js` refactored to import — captured screenshots unchanged.
+3. **`eslint.config.js`** — flat v9 config. `js.configs.recommended` + browser/Node globals + legacy `showScreen`/`goToX` globals (used inside `page.evaluate()` bodies, where eslint can't statically tell). `no-unused-vars` warn level with `_`-prefix bypass. `no-console` intentionally off for scaffold phase (documented in-file; T1.10+ re-enables when `src/services/logger.js` lands).
+4. **`.husky/pre-commit`** — `npm run lint:staged && npm run build`. Hook executable. Husky v9 init wrote shim to `.git/hooks/_` via `core.hooksPath = .husky/_` — verified via `git config core.hooksPath`.
+5. **`.github/workflows/ci.yml`** — 4 jobs: `lint` → `build` (with `du -sk dist` < 5120 KB check) → `smoke` (test:smoke:full, all 4 projects on Linux) + `visual` (chromium-only, uploads `tests/visual/diff/` + `current/` on failure). Node 20 LTS. `actions/setup-node@v4` with `cache: 'npm'`.
+
+**Package.json changes:**
+- Added: `lint`, `lint:staged`, `prepare`, `test:visual` (real), `test:visual:update` (alias for capture-baseline; pixelmatch baselines are PNG files we manage, so update == re-capture).
+- Removed stubs: `lint` echo, `test:visual` echo.
+- Top-level `lint-staged` config: `*.{js,mjs,cjs}` → `eslint --max-warnings=0`.
+
+**Files changed:**
+- `.github/workflows/ci.yml` (new, 95 lines)
+- `.husky/pre-commit` (new, 2 lines, executable)
+- `eslint.config.js` (new, 85 lines)
+- `tests/visual/regression.spec.js` (new, 165 lines)
+- `tests/visual/screens.js` (new, 60 lines)
+- `tests/visual/capture-baseline.spec.js` (refactored — SCREENS + nav() now imported from `./screens.js`, behavior unchanged)
+- `tests/helpers/game-state.js` (minor — `_opts` / `_e` prefixes for lint compliance, no logic change)
+- `package.json` + `package-lock.json` (scripts, lint-staged config, devDeps)
+
+**Local verification:**
+- `npm run lint` → 0 errors, 0 warnings
+- `npm run build` → 8 KB dist (target <5MB)
+- `npm run test:smoke` → 2/2 passed (chromium + mobile-chrome) in ~4s
+- `npm run test:visual` → 20/22 passed in ~14.5s; 2 failures on `fresh-chronicle-intro` (chromium 8.4%, mobile-chrome 30.8%) — see Замечено рядом below
+- `npx lint-staged` on a noop edit → eslint ran on staged `src/main.js`, cleanup successful
+
+**Self-check:**
+- [x] `.github/workflows/ci.yml` exists, syntactically valid (visual review; YAML parse-clean)
+- [x] 4 jobs: lint, build, smoke, visual (unit deferred per spec)
+- [x] Bundle size check < 5120 KB in `build` job
+- [x] `npm run lint` exits 0 locally
+- [x] `tests/visual/regression.spec.js` exists, diffs vs baseline using pixelmatch
+- [x] `.husky/pre-commit` exists, executable (0755)
+- [x] `lint-staged` config in `package.json` + `lint:staged` script
+- [x] `test:visual`, `test:visual:update`, `lint` scripts replace stubs
+- [x] Commit messages follow `[T1.05] ...` / `[DOCS] ...` format
+- [x] DO NOT TOUCH list — legacy HTML byte size 21,480,494 unchanged; baselines untouched (`git status tests/visual/baseline/` clean); `site/`, `serveLegacyHtmlRaw`, no production game code, no unit tests added
+- [x] Sacred cows untouched (no game logic in scope)
+
+**New devDependencies installed (4 total, all pre-approved per task spec):**
+- `pngjs@^7.0.0` — peer of pixelmatch, decodes baseline PNGs for diffing
+- `@eslint/js@^9.39.4` — exposes `configs.recommended`; pinned to v9.x to match `eslint@^9.10.0` peer (latest `@eslint/js@10.x` requires eslint 10)
+- `husky@^9.1.7` — pre-commit hook runner
+- `lint-staged@^17.0.4` — only-lint-staged-files driver
+
+**Замечено рядом (NOT fixed, reported):**
+- **Visual regression flake on `fresh-chronicle-intro` (chromium 8.4%, mobile-chrome 30.8%)** — same machine, same setupState, captured baselines minutes before regression run. Investigated: PNG dimensions identical, file sizes nearly identical (497594 vs 489358 bytes chromium; 2062601 vs 2028885 mobile). Visual diff overlays the phoenix/chronicler scene against a chequer-tile floor — diff highlights particle-FX and tile-shimmer regions, NOT structural changes. Root cause is almost certainly JS-driven canvas/particle animations that `freezeAnimations()` cannot pause (it only freezes CSS animations/transitions). All 20 other baselines pass — they're static UI screens; this is the only baseline with live JS-FX. **Suggested**: in T1.06+ (CSS extraction) or a follow-up T1.x, add a hook that pauses `requestAnimationFrame` loops or seeds a deterministic RNG before the screenshot for FTUE-dialog scenes. **Severity:** MAJOR for the regression CI gate — Roman should either (a) accept this baseline as a known-flake exclusion, (b) re-capture with a JS-RAF freeze added to `freezeAnimations()`, or (c) raise threshold for this single screen. Recommend (b) as the proper fix; not in T1.05 scope. The CI `visual` job will currently fail on `fresh-chronicle-intro` on the very first push to remote — Roman should be aware before pushing.
+- `package.json` was reformatted by `npx husky init` (it added `"prepare": "husky"` and normalised whitespace). The behavior is identical to the spec — just noting that the diff has whitespace shifts beyond the strict literal spec.
+- `git config core.hooksPath` is set to `.husky/_` (husky v9 default) — this is a per-clone config; teammates running `npm install` will get it via the `prepare` script. CI does not need this (it does not commit), but documented for completeness.
+
+**Time:** ~45 min including investigation of fresh-chronicle-intro flake.
 
 ---
 
