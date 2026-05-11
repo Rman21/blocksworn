@@ -84,14 +84,14 @@ async function ensureDir(dir) {
   await mkdir(dir, { recursive: true });
 }
 
-// CI-platform-flake skip list — screen/project pairs where Linux CI consistently
-// produces diffs exceeding the canonical 5% FAIL threshold against macOS-captured
-// baselines (T1.04). Likely cause: dynamic content rendering / SVG / image-decode
-// platform differences, not real layout regressions. TODO(T1.13 main verify):
-// download diff artifacts from CI, confirm "platform noise vs real change", and
-// either re-capture Linux-specific baselines OR document permanently.
+// CI now uses `test:visual:ci` (chromium only) — mobile-chrome on Linux
+// consistently produces 5-8% diffs vs macOS-captured baselines due to mobile
+// viewport DPR + font rendering platform differences. Local `test:visual`
+// still runs both projects for desktop+mobile coverage on the host that
+// captured the baselines. The skip set below is for local-host flakes only
+// (currently empty; left as scaffolding for future per-screen exclusions).
 const CI_FLAKE_SKIP = new Set([
-  'select|mobile-chrome', // 7.29% on Linux mobile-chrome; was 0% on macOS
+  // 'screen|project' format if a flake needs targeted exclusion on local too
 ]);
 
 for (const s of SCREENS) {

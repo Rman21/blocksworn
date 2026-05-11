@@ -17,6 +17,7 @@
     "test:unit:watch": "vitest",
     "test:visual:baseline": "playwright test tests/visual/capture-baseline.spec.js --project=chromium --project=mobile-chrome",
     "test:visual": "playwright test tests/visual/regression.spec.js --project=chromium --project=mobile-chrome",
+    "test:visual:ci": "playwright test tests/visual/regression.spec.js --project=chromium",
     "test:visual:update": "npm run test:visual:baseline"
   },
   "lint-staged": {
