@@ -65,11 +65,12 @@ import {
   FTUE_SCRIPTS,
 } from '../data/ftue-scripts.js';
 import { resetBossVoiceFlags } from './bosses.js';
+import { ASSETS } from '../data/assets.js';
 import * as storage from '../services/storage.js';
 import { log } from '../services/logger.js';
 
 // Residual legacy-owned tokens:
-/* global ASSETS, playDialogScript, showLeaderChoiceModal,
+/* global playDialogScript, showLeaderChoiceModal,
    revealHero, flashText, vibrate,
    _dialogDeferredQueue, _chronoActive, _hideChronoBeat, location */
 /* global _pendingDialogRequest:writable, dialogActive:writable, dialogClickLock:writable */

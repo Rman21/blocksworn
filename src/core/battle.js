@@ -132,6 +132,7 @@ import {
 import { gridFillRatio, newPieces } from './grid.js';
 import { STIHIYA_COLORS } from '../data/elements.js';
 import { CHAPTERS } from '../data/chapters.js';
+import { ASSETS } from '../data/assets.js';
 import {
   BOSS_ARCHETYPES, ARMORED_SHIELD_COUNT, applyBossEmblems,
   resetBossVoiceFlags, maybeFireBossVoiceIntro, maybeFireBossVoiceMidfight,
@@ -220,7 +221,6 @@ import { logEvent, EVT } from '../services/analytics.js';
 // Bosses (residual legacy-owned):
 /* global currentBoss:writable, currentBossIdx:writable, selectedBossIdx:writable,
    bossHP:writable, bossMaxHP:writable,
-   ASSETS,
    _resetPyredrakeState, _resetAbyssalTyrantState,
    _resetGrovewardenState, _resetSolarPhoenixState,
    _resetCryptLichState, initChapter2Archetype, initChapter3Boss,
@@ -283,6 +283,41 @@ import { logEvent, EVT } from '../services/analytics.js';
    buildArtifactIcon, artDisplayName */
 
 import { log } from '../services/logger.js';
+
+// ─── T1.13.2: Canonical writable-globals bindings (battle-owned) ──────────
+// Per the T1.10.6 stagger-loop.js / T1.10.7 bosses.js bridge pattern: each
+// battle-lifecycle writable global gets a module-private `let` matching its
+// legacy initial value, exposed via Object.defineProperty so bare reads/writes
+// in this module resolve to the module-local while cross-module legacy
+// consumers still see the canonical value through `window.<name>`.
+//
+// Initial values copied from legacy declarations:
+//   legacy 40012 `let grid, hp, damageDealt, pieces, knownDeadZones, placementCount, shieldCount, heroFireCount;`
+//   legacy 40216 `let currentBossIdx = 0, bossHP = 0, bossMaxHP = 0, attackCountdown = 0;`
+//   legacy 40217 `let revivesRemaining = 0;`
+//   legacy 40218 `let currentBoss = null, battleStartTime = 0;`
+//   legacy 40220 `let gameEnded = false;`
+//
+// Scope: this module canonically owns battle-lifecycle state listed in the
+// `/* global */ ...:writable` block at the top of the file. The bridge is
+// added incrementally — T1.13.2 covers the 6 globals named in TASK-016:
+// attackCountdown, battleStartTime, damageDealt, placementCount,
+// revivesRemaining, gameEnded. Remaining battle :writable globals retain
+// legacy semantics until T1.14+ cleanup.
+let attackCountdown = 0;
+let battleStartTime = 0;
+let damageDealt = 0;
+let placementCount = 0;
+let revivesRemaining = 0;
+let gameEnded = false;
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'attackCountdown',  { configurable: true, get: () => attackCountdown,  set: (v) => { attackCountdown = v; } });
+  Object.defineProperty(window, 'battleStartTime',  { configurable: true, get: () => battleStartTime,  set: (v) => { battleStartTime = v; } });
+  Object.defineProperty(window, 'damageDealt',      { configurable: true, get: () => damageDealt,      set: (v) => { damageDealt = v; } });
+  Object.defineProperty(window, 'placementCount',   { configurable: true, get: () => placementCount,   set: (v) => { placementCount = v; } });
+  Object.defineProperty(window, 'revivesRemaining', { configurable: true, get: () => revivesRemaining, set: (v) => { revivesRemaining = v; } });
+  Object.defineProperty(window, 'gameEnded',        { configurable: true, get: () => gameEnded,        set: (v) => { gameEnded = v; } });
+}
 
 // Helper: sleep promise — used by bossAttack for the 300ms beat between
 // flash and void-spawn. Legacy `sleep` was a top-level module global; we

@@ -113,43 +113,12 @@ import { _stormBlizzardFreezes, _stormEarthquakeLocks } from '../core/bosses.js'
    bossHP:writable, bossAttackDmgMult:writable, shieldCount:writable,
    hp:writable, battleDamageTaken:writable */
 
-// ─── Storm helpers — Stormshepherd Blizzard/Earthquake (legacy 40799-40829) ──
-// Co-located here because they paint cell-level visual state for the Storm
-// archetype. Helpers are referenced by tickChapter3Boss; relocation kept
-// byte-perfect.
-
-export function _stormApplyBlizzardFreeze(storm) {
-  // Freeze up to 2 random EMPTY adjacent cells.
-  const candidates = [];
-  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-    const r = storm.r + dr, c = storm.c + dc;
-    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) continue;
-    if (grid[r][c] !== null) continue;
-    candidates.push(r + '_' + c);
-  }
-  if (candidates.length === 0) return;
-  candidates.sort(() => Math.random() - 0.5);
-  const picks = candidates.slice(0, Math.min(2, candidates.length));
-  for (const k of picks) _stormBlizzardFreezes.set(k, 2);
-  try { flashStateBanner('❄ BLIZZARD · ' + picks.length + ' cell' + (picks.length === 1 ? '' : 's') + ' frozen 2T', '#9CC8DE', 2800); } catch (e) {}
-  try { vibrate([80, 50, 80]); } catch (e) {}
-}
-
-export function _stormApplyEarthquakeLock(storm) {
-  // Pick a random EMPTY board cell (NOT the storm cell itself; the
-  // storm cell is already a void). 3T lock.
-  const candidates = [];
-  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-    if (grid[r][c] !== null) continue;
-    if (r === storm.r && c === storm.c) continue;
-    candidates.push(r + '_' + c);
-  }
-  if (candidates.length === 0) return;
-  const k = candidates[Math.floor(Math.random() * candidates.length)];
-  _stormEarthquakeLocks.set(k, 3);
-  try { flashStateBanner('🌍 EARTHQUAKE · cell locked 3T', '#A5805C', 2800); } catch (e) {}
-  try { vibrate([100, 60, 100, 60, 140]); } catch (e) {}
-}
+// T1.13.2: Storm helpers (_stormApplyBlizzardFreeze / _stormApplyEarthquakeLock)
+// moved to src/ui/archetype-ticks.js to retire the
+// battle-screen.js ↔ archetype-ticks.js circular import documented in T1.11.1.
+// archetype-ticks.js now owns the full Storm tick + helpers (Lightning was
+// already there). battle-screen.js consumers route the call through
+// tickChapter3Boss in archetype-ticks.js, so no direct import needed here.
 
 // ─── tickChapter2Archetype — Ch1-Ch5 dispatcher (legacy 41156-41212) ────────
 // Switch over `currentBoss.archetype`. Dispatches to per-archetype tick

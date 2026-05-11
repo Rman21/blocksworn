@@ -59,9 +59,29 @@ import { log } from '../services/logger.js';
    _maybeShowDailyPopup, maybeShowSquadMgmtEducation,
    maybeShowHeroUpgradeReadyEducation, flashText,
    bossHP, confirm */
-/* global currentScreen:writable, gameEnded:writable, _currentRacePureRace:writable */
 // LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup
 // (except `confirm`, a browser builtin not configured in eslint env).
+
+// ─── T1.13.2: Canonical writable-globals bindings (router-owned) ──────────
+// `currentScreen` and `_currentRacePureRace` were `/* global */` writable
+// declarations referring to legacy script-scope state. In ES modules bare
+// assignment to undeclared identifiers throws (strict mode), so they are
+// promoted to module-private `let` + window bridge per the T1.10.6/T1.10.7
+// pattern.
+//
+// `currentScreen` initial: 'menu' (set by first showScreen call).
+// `_currentRacePureRace` initial: null (race-pure run flag, set by FTUE /
+// battle entry, cleared on retreat / completion).
+//
+// `gameEnded` is canonically owned by src/core/battle.js (battle lifecycle
+// state); we route the legacy `gameEnded = true` mutation in returnToMenuFromBattle
+// through `window.gameEnded` so the same accessor backs both modules.
+let currentScreen = 'menu';
+let _currentRacePureRace = null;
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'currentScreen',          { configurable: true, get: () => currentScreen,          set: (v) => { currentScreen = v; } });
+  Object.defineProperty(window, '_currentRacePureRace',   { configurable: true, get: () => _currentRacePureRace,   set: (v) => { _currentRacePureRace = v; } });
+}
 
 // ─── showScreen — top-level screen dispatcher (legacy 66426-66471) ─────────
 export function showScreen(name) {
@@ -217,13 +237,13 @@ export function returnToMenuFromBattle() {
     try { flashText('FINISH THE TUTORIAL FIRST', '#8A88A0'); } catch(e){}
     return;
   }
-  if (!gameEnded && bossHP > 0) {
+  if (!window.gameEnded && bossHP > 0) {
     if (!confirm('Return to menu? Current battle progress will be lost.')) return;
   }
-  // TODO(T1.12): gameEnded canonical ownership lives in src/core/battle.js;
-  // the legacy `gameEnded = true;` line here is preserved via writable global
-  // until T1.12 flips ownership to a setter from src/core/battle.js.
-  gameEnded = true;
+  // T1.13.2: gameEnded canonical ownership lives in src/core/battle.js;
+  // route the legacy mutation through window.gameEnded so the battle.js
+  // module-private binding stays the single source of truth.
+  window.gameEnded = true;
   // 2026-04-29 — Race-Pure run flag must clear on retreat so the next battle
   // doesn't inherit the +20% HP / ×2 loot envelope from an abandoned challenge.
   try { _currentRacePureRace = null; } catch (e) {}

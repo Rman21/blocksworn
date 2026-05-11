@@ -138,18 +138,42 @@ import { _stormBlizzardFreezes, _stormEarthquakeLocks } from '../core/bosses.js'
    bossHP:writable, bossAttackDmgMult:writable, shieldCount:writable,
    hp:writable, battleDamageTaken:writable */
 
-// Shim wrappers — Stormshepherd Blizzard/Earthquake helpers were inlined
-// into battle-screen.js per the T1.11 inlining policy. tickChapter3Boss
-// (in this module) calls them via these import-bound aliases so the
-// cross-file reference stays explicit. ES modules support circular
-// imports for function references — by the time the storm-intensify
-// branch fires inside tickChapter3Boss, battle-screen.js has fully
-// initialised its exports. TODO(T1.12): consolidate when src/main.js
-// wire-up lets us co-own the Storm helpers in one place.
-import {
-  _stormApplyBlizzardFreeze as _stormApplyBlizzardFreezeShim,
-  _stormApplyEarthquakeLock as _stormApplyEarthquakeLockShim,
-} from './battle-screen.js';
+// T1.13.2: Stormshepherd Blizzard/Earthquake helpers retired the
+// battle-screen.js ↔ archetype-ticks.js circular import documented in T1.11.1
+// by moving the two helpers from battle-screen.js into this module (where the
+// Storm tick already lives). Byte-perfect to legacy 40799-40829.
+export function _stormApplyBlizzardFreeze(storm) {
+  // Freeze up to 2 random EMPTY adjacent cells.
+  const candidates = [];
+  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    const r = storm.r + dr, c = storm.c + dc;
+    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) continue;
+    if (grid[r][c] !== null) continue;
+    candidates.push(r + '_' + c);
+  }
+  if (candidates.length === 0) return;
+  candidates.sort(() => Math.random() - 0.5);
+  const picks = candidates.slice(0, Math.min(2, candidates.length));
+  for (const k of picks) _stormBlizzardFreezes.set(k, 2);
+  try { flashStateBanner('❄ BLIZZARD · ' + picks.length + ' cell' + (picks.length === 1 ? '' : 's') + ' frozen 2T', '#9CC8DE', 2800); } catch (e) {}
+  try { vibrate([80, 50, 80]); } catch (e) {}
+}
+
+export function _stormApplyEarthquakeLock(storm) {
+  // Pick a random EMPTY board cell (NOT the storm cell itself; the
+  // storm cell is already a void). 3T lock.
+  const candidates = [];
+  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
+    if (grid[r][c] !== null) continue;
+    if (r === storm.r && c === storm.c) continue;
+    candidates.push(r + '_' + c);
+  }
+  if (candidates.length === 0) return;
+  const k = candidates[Math.floor(Math.random() * candidates.length)];
+  _stormEarthquakeLocks.set(k, 3);
+  try { flashStateBanner('🌍 EARTHQUAKE · cell locked 3T', '#A5805C', 2800); } catch (e) {}
+  try { vibrate([100, 60, 100, 60, 140]); } catch (e) {}
+}
 
 // ─── Chapter 3 boss state machine (legacy 40788-42013) ───────────────────────
 // 5 mechanics (simplified MVP per spec §2.2-2.6):
@@ -339,8 +363,8 @@ export function tickChapter3Boss() {
       // to fear most.
       for (const s of intensifiedStorms) {
         try {
-          if (s.type === 'blizzard') _stormApplyBlizzardFreezeShim(s);
-          else if (s.type === 'earthquake') _stormApplyEarthquakeLockShim(s);
+          if (s.type === 'blizzard') _stormApplyBlizzardFreeze(s);
+          else if (s.type === 'earthquake') _stormApplyEarthquakeLock(s);
           else if (s.type === 'lightning') _stormApplyLightningRow(s);
         } catch (e) { console.warn('storm variant intensify failed:', e); }
       }
@@ -2005,4 +2029,38 @@ export function _tickBattery(phase) {
     }
     try { _renderBatteryChargeMeter(); } catch (e) {}
   }
+}
+
+// ─── T1.13.2: window-exposure for Ch3 + Storm canonical state ──────────────
+// Per the T1.10.6/T1.10.7 sibling pattern, expose the Ch3 + Storm symbols on
+// window so legacy `/* global ... */` consumers (grid.js, heroes.js,
+// battle-screen.js, etc.) resolve to the same canonical impl that lives
+// here. The bosses.js bridges for these were retired in T1.13.2 alongside
+// the duplicate exports.
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, '_ch3BossId', {
+    configurable: true,
+    get: () => _ch3BossId,
+    set: (v) => { _ch3BossId = v; },
+  });
+  Object.defineProperty(window, '_ch3State', {
+    configurable: true,
+    get: () => _ch3State,
+    set: (v) => { _ch3State = v; },
+  });
+  Object.defineProperty(window, '_ch3LastDualState', {
+    configurable: true,
+    get: () => _ch3LastDualState,
+    set: (v) => { _ch3LastDualState = v; },
+  });
+  window._stormApplyBlizzardFreeze    = _stormApplyBlizzardFreeze;
+  window._stormApplyEarthquakeLock    = _stormApplyEarthquakeLock;
+  window._stormApplyLightningRow      = _stormApplyLightningRow;
+  window.initChapter3Boss             = initChapter3Boss;
+  window.tickChapter3Boss             = tickChapter3Boss;
+  window._ch3HasDebuff                = _ch3HasDebuff;
+  window._ch3HasSeal                  = _ch3HasSeal;
+  window._ch3TwilightMult             = _ch3TwilightMult;
+  window._ch3RenderBossAura           = _ch3RenderBossAura;
+  window._ch3MaybeAnnounceDualState   = _ch3MaybeAnnounceDualState;
 }

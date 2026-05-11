@@ -40,10 +40,11 @@
 // T1.13.1: /* global */ → ES imports for resolved src/ exports.
 import { isFtueActive } from '../core/ftue-state.js';
 import { showScreen } from './router.js';
+import { ASSETS } from '../data/assets.js';
 import { log } from '../services/logger.js';
 
 /* global flashText, vibrate, playerProfile, leaderHeroId,
-   activeSquad, HERO_ROSTER, ASSETS, _ensureProfileBootstrap,
+   activeSquad, HERO_ROSTER, _ensureProfileBootstrap,
    getActiveProfileTitle, getActiveTitle, _hasFounderBadge,
    _xpForLevel, _profileActiveTab,
    renderProfileTabStats, renderProfileTabJourney, renderProfileTabRoster,

@@ -118,29 +118,95 @@
    isContentUnlocked,
    _maybeShowEndgameKitEligibilityCelebration */
 // LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
-// The writable globals below are assigned by setChapter / loadProgress;
-// consumers live in legacy until T1.10.7 (BOSSES, applyBossEmblems) + T1.10.9
-// (artifact compat stubs) wire-up. ESLint v9 flags declare-but-unread writable
-// globals as no-unused-vars; the file-scope disable below suppresses the
-// spurious warning. The same rule remains enabled for module-local bindings.
-/* eslint-disable no-unused-vars */
-/* global gold:writable, essences:writable, activeSquad:writable,
-   activeModifiers:writable, BOSSES:writable, favorites:writable,
-   chapterProgress:writable, bossesDefeated:writable, currentChapter:writable,
-   chapter2Unlocked:writable, chapter3Unlocked:writable, chapter4Unlocked:writable,
-   selectedBossIdx:writable, heroUpgrades:writable, artifactsOwned:writable,
-   equippedArtifacts:writable, artDropPityCounter:writable */
-/* eslint-enable no-unused-vars */
 
 import { BALANCE, TIER_COSTS } from '../data/balance.js';
 import { CHAPTERS } from '../data/chapters.js';
 import { HERO_ROSTER, STARTER_HEROES } from './heroes.js';
-import { applyBossEmblems } from './bosses.js';
+import { applyBossEmblems, getCurrentChapter, setCurrentChapterValue } from './bosses.js';
 import { renderResourceBar } from '../ui/menu.js';
 import { renderSelect } from '../ui/select.js';
 import { logEvent, EVT } from '../services/analytics.js';
 import * as storage from '../services/storage.js';
 import { log } from '../services/logger.js';
+
+// ─── T1.13.2: Canonical writable-globals bindings ─────────────────────────
+// Per the T1.10.6 stagger-loop.js / T1.10.7 bosses.js bridge pattern: declare
+// each legacy writable global as a module-private `let` matching its legacy
+// initial value, then expose via Object.defineProperty(window, ...) with
+// get + set accessors so:
+//   • In-module bare reads/writes (e.g. `essences = ...`) resolve to the
+//     module-local binding (ES strict-mode safe).
+//   • Cross-module legacy-style `/* global X */` consumers in other src/
+//     modules still resolve to the same value through the window bridge.
+//
+// Note: `currentChapter` + `BOSSES` are canonically owned by src/core/bosses.js
+// (T1.10.7) — progression.js reads them via getCurrentChapter()/setCurrentChapterValue()
+// and the BOSSES dynamic getter that bosses.js exposes on window. The local
+// duplication that previously existed in legacy is collapsed here.
+//
+// Initial values copied byte-perfect from legacy declarations:
+//   legacy 23932 `let gold = 0;`
+//   legacy 38265 `let activeSquad = HERO_ROSTER.filter(...).map(h => h.id).slice(0, SQUAD_MAX);`
+//   legacy 38266 `let favorites = new Set();`
+//   legacy 38272 `let chapterProgress = { 1: 0, 2: 0, 3: 0 };`
+//   legacy 38273 `let bossesDefeated = 0;`
+//   legacy 38276 `let essences = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };`
+//   legacy 38277 `let heroUpgrades = {};`
+//   legacy 38309 `let activeModifiers = new Set();`
+//   legacy 38314 `let artifactsOwned = {};`
+//   legacy 38315 `let equippedArtifacts = [null, null, null, null, null];`
+//   legacy 38316 `let artDropPityCounter = 0;`
+//   legacy 38345 `let chapter2Unlocked = false;`
+//   legacy 38346 `let chapter3Unlocked = false;`
+//   legacy 38350 `let chapter4Unlocked = false;`
+//   legacy 38351 `let selectedBossIdx = null;`
+//
+// SQUAD_MAX is a legacy global resolved through the window scope chain at
+// activeSquad init time (set by data/heroes consumers); we read it
+// defensively because the legacy declaration order ran AFTER SQUAD_MAX
+// existed. Here we fall back to 5 if SQUAD_MAX is not yet defined at
+// module-init time — reconcileSquadUnlocks() later slices to the actual cap.
+let gold = 0;
+let essences = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+const _SQUAD_MAX_FALLBACK = (typeof globalThis !== 'undefined' && typeof globalThis.SQUAD_MAX === 'number')
+  ? globalThis.SQUAD_MAX : 5;
+let activeSquad = HERO_ROSTER
+  .filter(h => STARTER_HEROES.has(h.id))
+  .map(h => h.id)
+  .slice(0, _SQUAD_MAX_FALLBACK);
+let favorites = new Set();
+let activeModifiers = new Set();
+let chapterProgress = { 1: 0, 2: 0, 3: 0 };
+let bossesDefeated = 0;
+let heroUpgrades = {};
+let artifactsOwned = {};
+let equippedArtifacts = [null, null, null, null, null];
+let artDropPityCounter = 0;
+let chapter2Unlocked = false;
+let chapter3Unlocked = false;
+let chapter4Unlocked = false;
+let selectedBossIdx = null;
+
+// Window bridge — Object.defineProperty with get+set per T1.10.6/T1.10.7
+// pattern. Cross-module legacy-style bare reads/writes go through these
+// accessors so the module-private binding stays the single source of truth.
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'gold',                  { configurable: true, get: () => gold,                  set: (v) => { gold = v; } });
+  Object.defineProperty(window, 'essences',              { configurable: true, get: () => essences,              set: (v) => { essences = v; } });
+  Object.defineProperty(window, 'activeSquad',           { configurable: true, get: () => activeSquad,           set: (v) => { activeSquad = v; } });
+  Object.defineProperty(window, 'favorites',             { configurable: true, get: () => favorites,             set: (v) => { favorites = v; } });
+  Object.defineProperty(window, 'activeModifiers',       { configurable: true, get: () => activeModifiers,       set: (v) => { activeModifiers = v; } });
+  Object.defineProperty(window, 'chapterProgress',       { configurable: true, get: () => chapterProgress,       set: (v) => { chapterProgress = v; } });
+  Object.defineProperty(window, 'bossesDefeated',        { configurable: true, get: () => bossesDefeated,        set: (v) => { bossesDefeated = v; } });
+  Object.defineProperty(window, 'heroUpgrades',          { configurable: true, get: () => heroUpgrades,          set: (v) => { heroUpgrades = v; } });
+  Object.defineProperty(window, 'artifactsOwned',        { configurable: true, get: () => artifactsOwned,        set: (v) => { artifactsOwned = v; } });
+  Object.defineProperty(window, 'equippedArtifacts',     { configurable: true, get: () => equippedArtifacts,     set: (v) => { equippedArtifacts = v; } });
+  Object.defineProperty(window, 'artDropPityCounter',    { configurable: true, get: () => artDropPityCounter,    set: (v) => { artDropPityCounter = v; } });
+  Object.defineProperty(window, 'chapter2Unlocked',      { configurable: true, get: () => chapter2Unlocked,      set: (v) => { chapter2Unlocked = v; } });
+  Object.defineProperty(window, 'chapter3Unlocked',      { configurable: true, get: () => chapter3Unlocked,      set: (v) => { chapter3Unlocked = v; } });
+  Object.defineProperty(window, 'chapter4Unlocked',      { configurable: true, get: () => chapter4Unlocked,      set: (v) => { chapter4Unlocked = v; } });
+  Object.defineProperty(window, 'selectedBossIdx',       { configurable: true, get: () => selectedBossIdx,       set: (v) => { selectedBossIdx = v; } });
+}
 
 // ─── First-clear + boss-stars state (legacy 19485-19488) ──────────────────
 export const FIRST_CLEAR_KEY = 'blocksworn_first_clears';
@@ -267,8 +333,10 @@ export function setChapter(n) {
   } else if (requestedIdx === 4 && _isChapterContentUnlocked(5)) {
     idx = 4;
   }
-  currentChapter = idx + 1;
-  BOSSES = CHAPTERS[idx].bosses;
+  // T1.13.2: currentChapter + BOSSES canonical owner is bosses.js (T1.10.7).
+  // BOSSES rebinds dynamically via getBosses() reading CHAPTERS[currentChapter-1].bosses,
+  // so the explicit `BOSSES = ...` legacy redundancy is dropped here.
+  setCurrentChapterValue(idx + 1);
   applyBossEmblems();
 }
 
@@ -998,7 +1066,8 @@ export const PROGRESS_STORAGE_KEY = 'blocksworn_progress';
 export function saveProgress() {
   try {
     // Sync live bossesDefeated back into chapterProgress before persisting
-    chapterProgress[currentChapter] = bossesDefeated;
+    const _ch = getCurrentChapter();
+    chapterProgress[_ch] = bossesDefeated;
     // 2026-05-02 — COMBAT v2.1 P1 PR #1.E §4.3: stopped persisting
     // equippedArtifacts (artifact subsystem deleted). artifactsOwned and
     // artDropPityCounter kept on the save record for one cycle so older
@@ -1006,7 +1075,7 @@ export function saveProgress() {
     // copies on next boot. Will be removed entirely after dev verification.
     const data = { essences, heroUpgrades, bossesDefeated, chapterProgress,
                    favorites: [...favorites], activeModifiers: [...activeModifiers],
-                   currentChapter, chapter2Unlocked, chapter3Unlocked, chapter4Unlocked,
+                   currentChapter: _ch, chapter2Unlocked, chapter3Unlocked, chapter4Unlocked,
                    activeSquad: [...activeSquad], // V3.0 Block 0.1: persist squad (reconciled on load)
                    _v: 17 };
     storage.setItem(PROGRESS_STORAGE_KEY, data);
@@ -1026,7 +1095,8 @@ export function loadProgress() {
     heroUpgrades = data.heroUpgrades || {};
     if (Array.isArray(data.favorites)) favorites = new Set(data.favorites);
     if (Array.isArray(data.activeModifiers)) activeModifiers = new Set(data.activeModifiers);
-    currentChapter = data.currentChapter || 1;
+    // T1.13.2: currentChapter canonical owner is bosses.js; route writes through setter.
+    setCurrentChapterValue(data.currentChapter || 1);
     chapter2Unlocked = !!data.chapter2Unlocked;
     chapter3Unlocked = !!data.chapter3Unlocked;
     // 2026-05-01 — SPRINT 3A: chapter4Unlocked. Defaults to false on absent
@@ -1047,11 +1117,11 @@ export function loadProgress() {
     } else {
       // Legacy V15 save: put defeated counter into whatever chapter the player was on
       chapterProgress = { 1: 0, 2: 0, 3: 0 };
-      chapterProgress[currentChapter] = data.bossesDefeated || 0;
+      chapterProgress[getCurrentChapter()] = data.bossesDefeated || 0;
     }
     // Sync BOSSES reference and live bossesDefeated to current chapter
-    setChapter(currentChapter);
-    bossesDefeated = chapterProgress[currentChapter];
+    setChapter(getCurrentChapter());
+    bossesDefeated = chapterProgress[getCurrentChapter()];
     // V3.0 Block 0.1: restore activeSquad, then strip any locked heroes and pad with starters.
     // Also runs on fresh defaults — harmless (default squad is all starters).
     if (Array.isArray(data.activeSquad) && data.activeSquad.length > 0) {
@@ -1107,13 +1177,13 @@ export function upgradeHero(heroId, toTier) {
 // bossesDefeated) so callers don't have to compose both. Pure-read — no I/O.
 export function getProgressSnapshot() {
   return {
-    currentChapter: (typeof currentChapter !== 'undefined') ? currentChapter : 1,
-    bossesDefeated: (typeof bossesDefeated !== 'undefined') ? bossesDefeated : 0,
-    chapterProgress: (typeof chapterProgress !== 'undefined') ? { ...chapterProgress } : { 1: 0, 2: 0, 3: 0 },
-    chapter2Unlocked: (typeof chapter2Unlocked !== 'undefined') ? !!chapter2Unlocked : false,
-    chapter3Unlocked: (typeof chapter3Unlocked !== 'undefined') ? !!chapter3Unlocked : false,
-    chapter4Unlocked: (typeof chapter4Unlocked !== 'undefined') ? !!chapter4Unlocked : false,
-    selectedBossIdx: (typeof selectedBossIdx !== 'undefined') ? selectedBossIdx : null,
+    currentChapter: getCurrentChapter(),
+    bossesDefeated: bossesDefeated,
+    chapterProgress: { ...chapterProgress },
+    chapter2Unlocked: !!chapter2Unlocked,
+    chapter3Unlocked: !!chapter3Unlocked,
+    chapter4Unlocked: !!chapter4Unlocked,
+    selectedBossIdx: selectedBossIdx,
     firstClearMap:  { ...firstClearMap },
     bossStarsMap:   { ...bossStarsMap },
     dungeonProgress: JSON.parse(JSON.stringify(dungeonProgress)),

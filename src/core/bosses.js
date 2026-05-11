@@ -142,6 +142,7 @@ import {
   TOWER_DPS_REFERENCE,
   TOWER_BOSS_TTK_TARGETS,
 } from '../data/bosses.js';
+import { ASSETS } from '../data/assets.js';
 import { log } from '../services/logger.js';
 
 // Residual legacy-owned tokens:
@@ -151,7 +152,6 @@ import { log } from '../services/logger.js';
 /* global chapter2Unlocked, chapter3Unlocked, chapter4Unlocked,
    isContentUnlocked,
    closeFloorSelector */
-/* global ASSETS */
 /* global grid, SIZE, shieldCount:writable, hp:writable,
    battleDamageTaken:writable, gameEnded, showDefeatModal */
 // LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
@@ -603,19 +603,18 @@ export const CHRONICLE = Object.freeze({
 // Simplified MVP per spec §2.2-2.6 (full mechanical depth = v2.2 polish).
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// 'twilight' | 'storm' | 'priestess' | 'root' | 'archival' | null
-let _ch3BossId = null;
-let _ch3State  = {};
-// Last dual-state mask announced this fight — guards _ch3MaybeAnnounceDualState
-// against firing on every tick once a phase has settled.
-let _ch3LastDualState = '';
-
-// Module-public getters/setters for the few legacy callers that read or
-// reset these identifiers via bare-name access (battle init paths).
-export function get_ch3BossId()   { return _ch3BossId; }
-export function get_ch3State()    { return _ch3State; }
-export function set_ch3BossId(v)  { _ch3BossId = v; }
-export function set_ch3State(v)   { _ch3State = v; }
+// T1.13.2: Ch3 state (_ch3BossId / _ch3State / _ch3LastDualState) +
+// initChapter3Boss / tickChapter3Boss / _ch3HasDebuff / _ch3HasSeal /
+// _ch3TwilightMult / _ch3RenderBossAura / _ch3MaybeAnnounceDualState /
+// _ch3PhaseFromHp are CANONICAL in src/ui/archetype-ticks.js (which owns the
+// Ch3 archetype tick handler). Storm helpers
+// (_stormApplyBlizzardFreeze / _stormApplyEarthquakeLock /
+// _stormApplyLightningRow) moved there as well to retire the
+// battle-screen.js ↔ archetype-ticks.js circular import from T1.11.1.
+// bosses.js retains only the two shared `_stormBlizzardFreezes` /
+// `_stormEarthquakeLocks` Maps below — both are still consumed by
+// archetype-ticks.js (Storm tick), battle-screen.js (cell render), and
+// grid.js (canPlace gates).
 
 // 2026-04-30 — Stormshepherd variant side-effects.
 //   Blizzard freezes 1-2 adjacent empty cells for 2T (canPlace refuses).
@@ -627,393 +626,6 @@ export function set_ch3State(v)   { _ch3State = v; }
 export const _stormBlizzardFreezes = new Map();   // key → turnsLeft (default 2)
 export const _stormEarthquakeLocks = new Map();   // key → turnsLeft (default 3)
 
-export function _stormApplyBlizzardFreeze(storm) {
-  // Freeze up to 2 random EMPTY adjacent cells.
-  const candidates = [];
-  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-    const r = storm.r + dr, c = storm.c + dc;
-    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) continue;
-    if (grid[r][c] !== null) continue;
-    candidates.push(r + '_' + c);
-  }
-  if (candidates.length === 0) return;
-  candidates.sort(() => Math.random() - 0.5);
-  const picks = candidates.slice(0, Math.min(2, candidates.length));
-  for (const k of picks) _stormBlizzardFreezes.set(k, 2);
-  try { flashStateBanner('❄ BLIZZARD · ' + picks.length + ' cell' + (picks.length === 1 ? '' : 's') + ' frozen 2T', '#9CC8DE', 2800); } catch (e) {}
-  try { vibrate([80, 50, 80]); } catch (e) {}
-}
-
-export function _stormApplyEarthquakeLock(storm) {
-  // Pick a random EMPTY board cell (NOT the storm cell itself; the
-  // storm cell is already a void). 3T lock.
-  const candidates = [];
-  for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-    if (grid[r][c] !== null) continue;
-    if (r === storm.r && c === storm.c) continue;
-    candidates.push(r + '_' + c);
-  }
-  if (candidates.length === 0) return;
-  const k = candidates[Math.floor(Math.random() * candidates.length)];
-  _stormEarthquakeLocks.set(k, 3);
-  try { flashStateBanner('🌍 EARTHQUAKE · cell locked 3T', '#A5805C', 2800); } catch (e) {}
-  try { vibrate([100, 60, 100, 60, 140]); } catch (e) {}
-}
-
-export function _stormApplyLightningRow(storm) {
-  // Strobe the storm's row + take an extra shield/HP tick on top of
-  // the universal intensify damage. Visual via .lightning-row-hit
-  // class on every cell in that row for 0.6s.
-  try {
-    for (let c = 0; c < SIZE; c++) {
-      const el = document.querySelector(`.cell[data-row="${storm.r}"][data-col="${c}"]`);
-      if (el) {
-        el.classList.remove('lightning-row-hit'); void el.offsetWidth;
-        el.classList.add('lightning-row-hit');
-        setTimeout(() => { try { el.classList.remove('lightning-row-hit'); } catch (e) {} }, 600);
-      }
-    }
-  } catch (e) {}
-  // Extra damage tick (in addition to the universal intensify tax).
-  try {
-    if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
-      shieldCount = Math.max(0, shieldCount - 1);
-      try { flashText('⚡ LIGHTNING · 🛡 absorbed', '#FFD53D'); } catch (e2) {}
-    } else if (typeof hp !== 'undefined') {
-      hp = Math.max(0, hp - 1);
-      battleDamageTaken = (battleDamageTaken || 0) + 1;
-      try { flashText('⚡ LIGHTNING · −1 HP', '#FFD53D'); renderHP(); } catch (e2) {}
-      if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
-        try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
-      }
-    }
-  } catch (e) {}
-  try { vibrate([200, 80, 240]); } catch (e) {}
-}
-
-export function _ch3PhaseFromHp() {
-  if (!bossMaxHP) return 1;
-  const r = bossHP / bossMaxHP;
-  if (r > 0.66) return 1;
-  if (r > 0.33) return 2;
-  return 3;
-}
-
-export function initChapter3Boss() {
-  _ch3BossId = null;
-  _ch3State  = { turn: 0, debuffs: [], witherCells: [], seals: [], stormFlash: '' };
-  // 2026-04-30 — clear Stormshepherd variant Maps so Tower / replay
-  // encounters don't inherit a frozen / locked cell from a prior fight.
-  try { if (typeof _stormBlizzardFreezes !== 'undefined') _stormBlizzardFreezes.clear(); } catch (e) {}
-  try { if (typeof _stormEarthquakeLocks !== 'undefined') _stormEarthquakeLocks.clear(); } catch (e) {}
-  // Reset dual-state announcer so the next Ch3 fight fires a fresh
-  // "LIGHT VEIL" / "DARK VEIL" banner on its first phase, not silently
-  // because we'd already announced that mask in a prior battle.
-  _ch3LastDualState = '';
-  // Strip any aura class that survived from a prior battle.
-  try {
-    const wrap = document.getElementById('bossImgWrap');
-    if (wrap) wrap.classList.remove('boss-aura-light', 'boss-aura-dark', 'boss-aura-both');
-  } catch (e) {}
-  if (currentChapter !== 3 || !currentBoss) return;
-  const map = {
-    'TWILIGHT VESSEL':  'twilight',
-    'STORMSHEPHERD':    'storm',
-    'VOIDPRIESTESS':    'priestess',
-    'ROOT-OF-NOTHING':  'root',
-    'ARCHIVAL ETERNAL': 'archival',
-  };
-  _ch3BossId = map[currentBoss.name] || null;
-}
-
-export function tickChapter3Boss() {
-  if (currentChapter !== 3 || !_ch3BossId) return;
-  _ch3State.turn++;
-  const phase = _ch3PhaseFromHp();
-  // ===== TWILIGHT VESSEL — DUAL SHIFT =====
-  // Phase 1 (66-100%): Light state — Hunters with 'umbra' (Dark) +50%, others -25%
-  // Phase 2 (33-66%):  Dark state  — Hunters with 'solar' (Light) +50%, others -25%
-  // Phase 3 (0-33%):   Both states active — chaos
-  if (_ch3BossId === 'twilight') {
-    _ch3State.lightActive = (phase === 1 || phase === 3);
-    _ch3State.darkActive  = (phase === 2 || phase === 3);
-  }
-  // 2026-04-30 — VOIDPRIESTESS dual-state shift (BOSS_COMPENDIUM §2.4).
-  // The Light/Dark alternation was on the spec but missing from the
-  // archetype — confessions still rolled from a single role-debuff
-  // pool. Mirroring Twilight's lightActive/darkActive lets the boss
-  // portrait aura + state banner announce phase shifts without
-  // touching the existing confession-pool logic. (A wider future PR
-  // can split confessions into light-themed and dark-themed pools and
-  // alternate them; this drop is visual + announcement only.)
-  if (_ch3BossId === 'priestess') {
-    _ch3State.lightActive = (phase === 1 || phase === 3);
-    _ch3State.darkActive  = (phase === 2 || phase === 3);
-  }
-  // 2026-04-30 — paint the dual-state aura on the boss portrait + fire
-  // a state-banner announcement when the state mix CHANGES (avoids
-  // spamming on every tick once a phase has settled).
-  try { _ch3MaybeAnnounceDualState(); } catch (e) {}
-  try { _ch3RenderBossAura(); } catch (e) {}
-  // ===== STORMSHEPHERD — STORM SUMMONING (with shatter escape per spec §2.3) =====
-  // Spawn N extra storm voids per turn (N = phase). 3 storm types cycle.
-  // 2026-04-27 — Block 6.5 DEBT-3: storm cells track {r,c,turnsLeft=2}.
-  // If storm cell still on grid after 2 turns → INTENSIFY.
-  // If storm cell cleared via cascade/ULT before timer expires → DEFUSED.
-  if (_ch3BossId === 'storm') {
-    if (!Array.isArray(_ch3State.stormCells)) _ch3State.stormCells = [];
-    // Tick down active blizzard freezes + earthquake locks first so
-    // they release at start of player's turn.
-    if (_stormBlizzardFreezes && _stormBlizzardFreezes.size > 0) {
-      const drop = [];
-      for (const [k, t] of _stormBlizzardFreezes.entries()) {
-        const next = t - 1;
-        if (next <= 0) drop.push(k);
-        else _stormBlizzardFreezes.set(k, next);
-      }
-      for (const k of drop) _stormBlizzardFreezes.delete(k);
-      if (drop.length > 0) try { flashStateBanner('❄ BLIZZARD · ' + drop.length + ' cell' + (drop.length === 1 ? '' : 's') + ' THAWED', '#9CC8DE'); } catch (e) {}
-    }
-    if (_stormEarthquakeLocks && _stormEarthquakeLocks.size > 0) {
-      const drop = [];
-      for (const [k, t] of _stormEarthquakeLocks.entries()) {
-        const next = t - 1;
-        if (next <= 0) drop.push(k);
-        else _stormEarthquakeLocks.set(k, next);
-      }
-      for (const k of drop) _stormEarthquakeLocks.delete(k);
-      if (drop.length > 0) try { flashStateBanner('🌍 EARTHQUAKE · GROUND SETTLES', '#A5805C'); } catch (e) {}
-    }
-
-    // Tick existing storms: drop those whose cell was cleared, intensify those
-    // that timed out, decrement otherwise.
-    const survivors = [];
-    const intensifiedStorms = [];
-    for (const s of _ch3State.stormCells) {
-      const stillThere = grid[s.r] && (typeof grid[s.r][s.c] === 'string') && grid[s.r][s.c].startsWith('void_');
-      if (!stillThere) continue;  // DEFUSED — player cleared the storm cell
-      s.turnsLeft--;
-      if (s.turnsLeft <= 0) {
-        intensifiedStorms.push(s);
-      } else {
-        survivors.push(s);
-      }
-    }
-    if (intensifiedStorms.length > 0) {
-      // Common base intensify damage — one shield/HP tick total per
-      // turn regardless of how many storms intensified at once. Same
-      // cap as before to avoid TPK from a triple-storm tick.
-      try {
-        if (typeof shieldCount !== 'undefined' && shieldCount > 0) {
-          shieldCount = Math.max(0, shieldCount - 1);
-          try { flashText('⚡ STORM INTENSIFIES · 🛡 absorbed', '#9CC8DE'); } catch (e2) {}
-        } else {
-          hp = Math.max(0, hp - 1);
-          battleDamageTaken = (battleDamageTaken || 0) + 1;
-          try { flashText('⚡ STORM INTENSIFIES · −1 HP', '#9CC8DE'); renderHP(); } catch (e2) {}
-          if (hp === 0 && typeof gameEnded !== 'undefined' && !gameEnded) {
-            try { if (typeof showDefeatModal === 'function') showDefeatModal(); } catch (e2) {}
-          }
-        }
-      } catch (e) {}
-      // Per-variant secondary effects. Each storm contributes its own
-      // unique pressure — the 1-shield baseline above is the universal
-      // tax, this is the flavor that makes the player learn which icon
-      // to fear most.
-      for (const s of intensifiedStorms) {
-        try {
-          if (s.type === 'blizzard') _stormApplyBlizzardFreeze(s);
-          else if (s.type === 'earthquake') _stormApplyEarthquakeLock(s);
-          else if (s.type === 'lightning') _stormApplyLightningRow(s);
-        } catch (e) { log.warn('storm variant intensify failed:', e); }
-      }
-    }
-    _ch3State.stormCells = survivors;
-    // Spawn new storms this turn — single type per spawn batch (stays
-    // legible: "this is a Blizzard turn"), cell count = phase.
-    const stormCount = phase;
-    const stormTypes = [
-      { id: 'blizzard',   label: '❄ BLIZZARD',  color: '#9CC8DE' },
-      { id: 'earthquake', label: '🌍 EARTHQUAKE', color: '#A5805C' },
-      { id: 'lightning',  label: '⚡ LIGHTNING', color: '#FFD53D' },
-    ];
-    const empties = [];
-    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-      if (grid[r][c] === null) empties.push([r, c]);
-    }
-    empties.sort(() => Math.random() - 0.5);
-    const picks = empties.slice(0, stormCount);
-    if (picks.length > 0) {
-      const variant = stormTypes[Math.floor(Math.random() * 3)];
-      for (const [r, c] of picks) {
-        grid[r][c] = 'void_' + (currentBoss.stihiya || 'tide');
-        _ch3State.stormCells.push({ r, c, turnsLeft: 2, type: variant.id });
-      }
-      // Threat banner copy now reflects what each variant DOES on
-      // intensify so the player can pattern-read at a glance.
-      const _suffix = variant.id === 'blizzard' ? ' — clear or adjacent cells freeze'
-                    : variant.id === 'earthquake' ? ' — clear or a board cell locks 3T'
-                    : ' — clear or a row gets struck';
-      const _label = picks.length > 1 ? variant.label + ' ×' + picks.length : variant.label;
-      const _msg = '⚠ ' + _label + ' in 2 turns' + _suffix;
-      try { showThreatBanner(_msg, 3500); } catch (e) {}
-      try { render(); } catch (e) {}
-    }
-  }
-  // ===== VOIDPRIESTESS — CONFESSION READ =====
-  // Roll N debuffs per turn (N = phase). Each lasts 3 turns. Effects read
-  // by relevant combat hooks (debuffs array drives flags below).
-  if (_ch3BossId === 'priestess') {
-    const debuffPool = [
-      'hunter_silenced',  // Hunter ULT damage halved (×0.5 mult)
-      'mage_halved',      // Mage amp window mult halved (×0.5 mult)
-      'tank_halved',      // Tank ULT shield gain halved (applyTankUlt hook)
-      'captain_disabled', // Captain dual buff disabled (mult clamped to 1.0)
-      'warrior_blocked',  // No piece may overlap row 0 while a Warrior is in deck (canPlace gate)
-    ];
-    // Decrement existing debuff timers, drop expired
-    _ch3State.debuffs = _ch3State.debuffs
-      .map(d => ({ id: d.id, turns: d.turns - 1 }))
-      .filter(d => d.turns > 0);
-    // Add new debuffs based on phase (avoid duplicates)
-    for (let i = 0; i < phase; i++) {
-      const choices = debuffPool.filter(p => !_ch3State.debuffs.some(d => d.id === p));
-      if (choices.length === 0) break;
-      const pick = choices[Math.floor(Math.random() * choices.length)];
-      _ch3State.debuffs.push({ id: pick, turns: 3 });
-      try { flashText('✦ CONFESSION: ' + pick.replace('_', ' ').toUpperCase(), '#C0A6DF'); } catch (e) {}
-    }
-  }
-  // ===== ROOT-OF-NOTHING — WITHER =====
-  // Wither N random cells per turn (N = phase). Withered cells are
-  // permanent void_grove that cannot be cleared. Boss heals 5% HP per
-  // wither standing 3+ turns (capped at +15% per tick).
-  // 2026-04-29 — Block 6.5 DEBT-4 — Phase 3 acceleration. Spec §2.5:
-  // at 33-0% HP, "cells wither faster (1 turn instead of 3)" — withers
-  // start healing immediately on turn 1 instead of needing 3-turn aging.
-  if (_ch3BossId === 'root') {
-    const witherCount = phase;
-    const witherAgeThreshold = (phase >= 3) ? 1 : 3;
-    const empties = [];
-    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) {
-      if (grid[r][c] === null) empties.push([r, c]);
-    }
-    empties.sort(() => Math.random() - 0.5);
-    const picks = empties.slice(0, witherCount);
-    for (const [r, c] of picks) {
-      grid[r][c] = 'void_grove';
-      _ch3State.witherCells.push({ r, c, age: 0 });
-    }
-    // Age existing withers; heal boss for any wither past the phase-aware threshold.
-    let healCount = 0;
-    _ch3State.witherCells.forEach(w => {
-      w.age++;
-      if (w.age >= witherAgeThreshold && grid[w.r] && grid[w.r][w.c] === 'void_grove') healCount++;
-    });
-    if (healCount > 0) {
-      const healAmt = Math.floor(bossMaxHP * 0.05 * Math.min(3, healCount));
-      bossHP = Math.min(bossMaxHP, bossHP + healAmt);
-      try { flashText('🌑 WITHER HEAL +' + healAmt, '#6E7A6A'); } catch (e) {}
-      try { if (typeof renderBossHP === 'function') renderBossHP(); } catch (e) {}
-    }
-    if (picks.length > 0) {
-      try { flashText('🌑 WITHER ×' + picks.length, '#6E7A6A'); } catch (e) {}
-      try { render(); } catch (e) {}
-    }
-  }
-  // ===== ARCHIVAL ETERNAL — LIBRARIAN SEAL =====
-  // Apply N seals per turn (N = phase). Seals are 2-turn debuffs read
-  // by combat hooks. Pool: combo_cap_4 / ults_disabled / dmg_halved.
-  if (_ch3BossId === 'archival') {
-    // 2026-04-27 — Block 6.5 DEBT-6: extended seal pool (7 of 7 from spec §2.6).
-    const sealPool = [
-      'combo_cap_4', 'ults_disabled', 'dmg_halved',
-      'charge_frozen',        // hero per-cell charges = 0 next turn
-      'placement_costs_hp',   // -1 HP per placement
-      'element_drops_random', // captain element drop bonus disabled
-      'captain_inverted',     // captain dual buff inverted (×1/value)
-    ];
-    _ch3State.seals = _ch3State.seals
-      .map(s => ({ id: s.id, turns: s.turns - 1 }))
-      .filter(s => s.turns > 0);
-    let sealsAppliedThisTurn = 0;
-    for (let i = 0; i < phase; i++) {
-      const choices = sealPool.filter(p => !_ch3State.seals.some(s => s.id === p));
-      if (choices.length === 0) break;
-      const pick = choices[Math.floor(Math.random() * choices.length)];
-      _ch3State.seals.push({ id: pick, turns: 2 });
-      sealsAppliedThisTurn++;
-      try { flashText('📜 SEAL: ' + pick.replace(/_/g, ' ').toUpperCase(), '#E8D88A'); } catch (e) {}
-    }
-    // 2026-04-29 — Block 6.5 DEBT-6 — Phase 3 seal-stack heal. Spec §2.6:
-    // "Phase 3 (33-0%): 3 seals per turn AND boss heals 2% HP per seal applied;
-    //  defeat boss before seal-stacking overwhelms."
-    if (phase >= 3 && sealsAppliedThisTurn > 0) {
-      const sealHeal = Math.floor(bossMaxHP * 0.02 * sealsAppliedThisTurn);
-      if (sealHeal > 0) {
-        bossHP = Math.min(bossMaxHP, bossHP + sealHeal);
-        try { flashText('📜 ARCHIVE HEAL +' + sealHeal, '#E8D88A'); } catch (e) {}
-        try { if (typeof renderBossHP === 'function') renderBossHP(); } catch (e) {}
-      }
-    }
-  }
-}
-
-// Helpers used by combat hooks to read Ch3 archetype state.
-export function _ch3HasDebuff(id) {
-  return _ch3BossId === 'priestess' && Array.isArray(_ch3State.debuffs)
-      && _ch3State.debuffs.some(d => d.id === id);
-}
-export function _ch3HasSeal(id) {
-  return _ch3BossId === 'archival' && Array.isArray(_ch3State.seals)
-      && _ch3State.seals.some(s => s.id === id);
-}
-// Twilight DUAL SHIFT — returns multiplier for hero damage based on hero
-// element + boss state. Default 1.0. Hunters with bonus element get +50%;
-// other heroes get -25%.
-export function _ch3TwilightMult(hero) {
-  if (_ch3BossId !== 'twilight' || !hero) return 1.0;
-  const isHunter = hero.newRole === 'hunter';
-  if (_ch3State.lightActive && hero.stihiya === 'umbra' && isHunter) return 1.50;
-  if (_ch3State.darkActive  && hero.stihiya === 'solar' && isHunter) return 1.50;
-  return 0.75;
-}
-
-// 2026-04-30 — Boss-aura render: paints light/dark/both classes on the
-// boss portrait based on Twilight/Priestess dual-state mask. Stripped at
-// fight init so a prior fight's aura doesn't leak through.
-export function _ch3RenderBossAura() {
-  const wrap = document.getElementById('bossImgWrap');
-  if (!wrap) return;
-  wrap.classList.remove('boss-aura-light', 'boss-aura-dark', 'boss-aura-both');
-  if (_ch3BossId !== 'twilight' && _ch3BossId !== 'priestess') return;
-  const light = !!(_ch3State && _ch3State.lightActive);
-  const dark  = !!(_ch3State && _ch3State.darkActive);
-  if (light && dark) wrap.classList.add('boss-aura-both');
-  else if (light)    wrap.classList.add('boss-aura-light');
-  else if (dark)     wrap.classList.add('boss-aura-dark');
-}
-
-// 2026-04-30 — Dual-state announcer. Fires a state banner ONLY on mask
-// transitions (light→both, dark→light, etc.) — not every tick once a
-// phase has settled. Guards against re-firing on resume / replay.
-export function _ch3MaybeAnnounceDualState() {
-  if (_ch3BossId !== 'twilight' && _ch3BossId !== 'priestess') return;
-  const light = !!(_ch3State && _ch3State.lightActive);
-  const dark  = !!(_ch3State && _ch3State.darkActive);
-  const mask = (light && dark) ? 'both' : light ? 'light' : dark ? 'dark' : 'none';
-  if (mask === _ch3LastDualState) return;
-  _ch3LastDualState = mask;
-  if (mask === 'none') return;
-  const isPriestess = (_ch3BossId === 'priestess');
-  if (mask === 'both') {
-    try { flashStateBanner(isPriestess ? '✦ TWIN CONFESSION · LIGHT + DARK' : '☯ TWILIGHT · LIGHT + DARK ACTIVE', '#C0A6DF', 2800); } catch (e) {}
-  } else if (mask === 'light') {
-    try { flashStateBanner(isPriestess ? '✦ LIGHT CONFESSION' : '☀ LIGHT VEIL', '#E8D88A', 2400); } catch (e) {}
-  } else if (mask === 'dark') {
-    try { flashStateBanner(isPriestess ? '✦ DARK CONFESSION' : '🌑 DARK VEIL', '#9B59D6', 2400); } catch (e) {}
-  }
-}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // FTUE BOSS GUARANTEES (legacy 47134-47235, COMBAT v2.1 P8 PR #8.B)
@@ -1263,35 +875,13 @@ if (typeof window !== 'undefined') {
   window.EMBER_GRUNT            = EMBER_GRUNT;
   window.CHRONICLE              = CHRONICLE;
   window.FTUE_GRUNT_VOID_SPAWN  = FTUE_GRUNT_VOID_SPAWN;
-  // ===== Ch3 scaffolding =====
-  Object.defineProperty(window, '_ch3BossId', {
-    configurable: true,
-    get: () => _ch3BossId,
-    set: (v) => { _ch3BossId = v; },
-  });
-  Object.defineProperty(window, '_ch3State', {
-    configurable: true,
-    get: () => _ch3State,
-    set: (v) => { _ch3State = v; },
-  });
-  Object.defineProperty(window, '_ch3LastDualState', {
-    configurable: true,
-    get: () => _ch3LastDualState,
-    set: (v) => { _ch3LastDualState = v; },
-  });
+  // ===== Ch3 shared Maps (canonical owner: bosses.js — consumed by
+  // archetype-ticks.js Storm tick, battle-screen.js cell render, grid.js
+  // canPlace gates). The Ch3 state machine itself (_ch3BossId / _ch3State /
+  // _ch3LastDualState) + the storm helpers + tickChapter3Boss family are
+  // canonical in src/ui/archetype-ticks.js as of T1.13.2.
   window._stormBlizzardFreezes        = _stormBlizzardFreezes;
   window._stormEarthquakeLocks        = _stormEarthquakeLocks;
-  window._stormApplyBlizzardFreeze    = _stormApplyBlizzardFreeze;
-  window._stormApplyEarthquakeLock    = _stormApplyEarthquakeLock;
-  window._stormApplyLightningRow      = _stormApplyLightningRow;
-  window._ch3PhaseFromHp              = _ch3PhaseFromHp;
-  window.initChapter3Boss             = initChapter3Boss;
-  window.tickChapter3Boss             = tickChapter3Boss;
-  window._ch3HasDebuff                = _ch3HasDebuff;
-  window._ch3HasSeal                  = _ch3HasSeal;
-  window._ch3TwilightMult             = _ch3TwilightMult;
-  window._ch3RenderBossAura           = _ch3RenderBossAura;
-  window._ch3MaybeAnnounceDualState   = _ch3MaybeAnnounceDualState;
   // ===== FTUE_BOSS_GUARANTEES (sacred per CLAUDE.md §2.5) =====
   window.FTUE_BOSS_GUARANTEES   = FTUE_BOSS_GUARANTEES;
   window.FTUE_TUTORIAL_TEXTS    = FTUE_TUTORIAL_TEXTS;
