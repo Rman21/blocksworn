@@ -212,7 +212,7 @@ auto-disappears in T1.10 when the rewiring lands:
 - [x] T1.10.5 — `damage-channels.js` (v2.1 P1) — **DONE 2026-05-11** (commits `31a3786`, `cdf37df`; 457 LoC / 16 exports; SACRED v2.1 P1 Mitigation Matrix + 4 channel formulas + shield-absorption order byte-perfect; cross-boundary `getSquadMitigation`/`getHeroMitigationKey` belong in heroes.js — flagged for T1.10.9 audit)
 - [x] T1.10.6 — `stagger-loop.js` (v2.1 P2) — **DONE 2026-05-11** (commits `83782cf`, `668b1c9`; **1021 LoC / 48 exports**; SACRED v2.1 P2 ACTIVE/STAGGER/RECOVERY + PRESSURE_MAX=100 + PRESSURE_GAIN table + STAGGER_DURATION=4 + RECOVERY=2 + STAGGER_CHAINING + Overflow conversion 40/30/500/10/revenge 1.5× byte-perfect; window-exposure bridge via `Object.defineProperty` for legacy bare-identifier reads; 5 v2.1 P2 PRs co-extracted per encapsulation; 0 new bare-string keys)
 - [x] T1.10.7 — `bosses.js` — **DONE 2026-05-11** (commits `cc7d0bc`, `fecd2c2`; **1,309 LoC / 60 exports**; 25 BOSSES (Ch1-5×5) + 25 archetypes + 25 matchups flat post-Object.assign byte-perfect; FTUE_BOSS_GUARANTEES + TOWER_UROBOROS_SEASONAL + BOSS_VOICES sacred; Ch3 scaffolding + window-exposure bridge for boss state; **memory conflict resolved** — Ch4-5 boss DATA in legacy, only player ACCESS gated via progression flags; 0 new bare-string keys)
-- [ ] T1.10.8 — `reactivity-events.js` (v2.1 P4) — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
+- [x] T1.10.8 — `reactivity-events.js` (v2.1 P4) — **DONE 2026-05-11** (commits `52bd102`, DOCS pending; **1,440 LoC / 68 exports**; SACRED v2.1 P4 phase-gate adaptations at 70%/35% HP + REACTIVITY_TELEGRAPH_MS=3000 byte-perfect; 22 archetype handlers (10 archetypes × 2 gates + tower_voidfang × 2) + 7 EFFECT_HANDLERS + BOSS_PHASES table for 25 bosses + VOIDFANG override; 14 reactivity state vars + Voidfang shroud slice + 3 FTUE Chronicler intros; v2.1 P4 implementation status CONFIRMED — resolves Execution Plan §23 "VERIFY"; **1 NEW bare-string key flagged** — `VOIDFANG_DEFEATED_KEY = 'blocksworn_voidfang_defeated'` stored as `'1'`, read with `=== '1'` — added to T1.10.9 shim allow-list)
 - [ ] T1.10.9 — `battle.js` + final wire (`index.html` → uses `src/main.js`; legacy demoted to read-only archive)
 
 **Discipline:** ONE SUB-SYSTEM AT A TIME. After each: smoke + visual must pass. Commit `[T1.10.N]`. STOP on first failure.
@@ -227,6 +227,7 @@ Legacy stored `FTUE_STORAGE_KEY` as **bare string** (e.g., `'pyredrake_fight'`),
 - `seenIntroVideo` (T1.10.1, 3 sites)
 - `onboardingSeen` (T1.10.1, 2 sites)
 - `blocksworn_chapter_1_complete` … `blocksworn_chapter_5_complete` (T1.10.2 — 5 keys) — stored as literal `'true'`, read with `=== 'true'`. JSON-routing breaks chapter-complete semantics.
+- `blocksworn_voidfang_defeated` (T1.10.8 — 1 key) — stored as literal `'1'`, read with `=== '1'`. JSON-routing breaks the boolean semantics. Setter sites: legacy line 57911 (boss-defeat) + 38648 (debug reset clears).
 
 **Migration shim algorithm:**
 1. `const raw = localStorage.getItem(key)`
@@ -944,6 +945,147 @@ Module owns: boss archetype + matchup data; boss identity state vars (currentBos
 11. **`hasCompletedChapter` referenced in `_isChapterContentUnlocked` consumer.** Legacy declares `_isChapterContentUnlocked` at line 20483 (right after the BOSSES let). I extracted `setChapter` but NOT `_isChapterContentUnlocked` (which itself reads `isContentUnlocked` + `hasCompletedChapter`). Both stay in legacy via /* global */ — they belong to the Tower / content-drop schedule module (separate sprint). My `setChapter` extraction defensively calls through `typeof _isChapterContentUnlocked === 'function'` so it gracefully degrades to "Ch5 locked" when the helper isn't available.
 
 **Time:** ~3 hours (1,309 LoC byte-perfect copy across 13 source regions + 22-readonly + 3-writable globals declared + module-private state via getter/setter pattern + window-exposure mirror with Object.defineProperty bridges for 6 writable boss-identity vars + 3 writable Ch3 vars + BOSSES dynamic getter + commit/docs cycle)
+
+---
+
+### T1.10.8 — REVIEW (2026-05-11)
+
+**Code commit:** `52bd102` — `[T1.10.8] Extract reactivity events to src/core/reactivity-events.js`
+**DOCS commit:** follows (this entry)
+**File created:** `src/core/reactivity-events.js` (1,440 lines, 68 named exports = 1 BOSS_PHASES table + 1 EFFECT_HANDLERS object + 1 REACTIVITY_HANDLERS object + 1 REACTIVITY_ARCHETYPE_COLORS frozen table + 2 phase-gate constants (REACTIVITY_PHASE_GATES + re-exports of REACTIVITY_TELEGRAPH_MS + REACTIVITY_BANNER_DURATION_MS) + 1 battlePhasesTriggered Set + 32 reactivity-state accessor functions (16 vars × get/set) + 4 Voidfang-shroud accessor functions + 1 VOIDFANG_DEFEATED_KEY + 14 dispatcher / cinematic / UI / FTUE functions — counting line-by-line `export` declarations)
+
+**Implementation summary:**
+
+Phase-gate reactivity events extracted byte-perfect from legacy `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` across eight source regions:
+- BOSS_PHASES table — 25 main-campaign bosses + VOIDFANG override (lines 27361-27397, 30333-30336)
+- battlePhasesTriggered Set (27401)
+- EFFECT_HANDLERS — 5 legacy + 2 Voidfang extensions (27404-27471, 30377-30390)
+- maybePhaseTransition (P4 #4.A shim + #4.B rewrite, 27474-27494, 27941-28020), firePhase legacy effects-array dispatcher (27496-27538), _phaseSubtitleFromEffects (27540-27550)
+- 5-beat phase transition cinematic — vPlayPhaseTransition + _toRoman + showPhaseTransitionOverlay (deprecated rollback) + showBossPhaseDialog placeholder (27554-27641)
+- P4 PR #4.B reactivity state vars (14 vars + engineerElectrifiedRows + 2 helpers) + 22 REACTIVITY_HANDLERS + triggerReactivityEvent dispatcher + _resetReactivityState idempotent reset (27655-28045)
+- P4 PR #4.D UI surfaces — REACTIVITY_ARCHETYPE_COLORS + _archetypeFromEventId + showReactivityTelegraph (3s wind-up banner with countdown + lazy DOM build + CSS keyframes injection) + showReactivityFX (archetype-tinted screen flash) + renderBossPhaseIndicator (P1/P2/P3 chip on boss portrait) + showBossIntelOverlay (pre-battle popup with archetype/matchup/reactivities/TTK) + renderSquadTTKForecast + _computeSquadEffectiveDPS + 3 FTUE Chronicler intros (_maybeTriggerPhaseIntro / _maybeTriggerReactivityIntro / _maybeTriggerTelegraphIntro) + _registerPhase4Dialogs + _phase4FtueGateOk (28069-28394)
+- Voidfang shroud slice — _voidfangShroudActive + voidfangDefeated + VOIDFANG_DEFEATED_KEY (NEW bare-string for shim allow-list) + shroudTick + clearVoidfangTints (30338-30374)
+- Console helpers — forcePhase (drop bossHP + trigger) + resetBattlePhases (30024-30033)
+
+Module owns: BOSS_PHASES table (25 main-campaign bosses + VOIDFANG); EFFECT_HANDLERS legacy dispatch (5 + 2 Voidfang extensions); REACTIVITY_HANDLERS (22 entries); 14 reactivity state vars + engineerElectrifiedRows + 2 dispatcher counters; battlePhasesTriggered per-battle Set; dispatch chain (maybePhaseTransition, triggerReactivityEvent, firePhase, _phaseSubtitleFromEffects, _resetReactivityState); 5-beat cinematic (vPlayPhaseTransition / _toRoman / showPhaseTransitionOverlay / showBossPhaseDialog placeholder); UI surfaces (showReactivityTelegraph + lazy banner DOM + CSS keyframes / showReactivityFX overlay / renderBossPhaseIndicator chip + lazy builder / showBossIntelOverlay / renderSquadTTKForecast / _computeSquadEffectiveDPS); REACTIVITY_ARCHETYPE_COLORS palette + _archetypeFromEventId helper; 3 FTUE Chronicler dialog intros + _registerPhase4Dialogs + _phase4FtueGateOk; Voidfang shroud slice (state + shroudTick + clearVoidfangTints + VOIDFANG_DEFEATED_KEY); console helpers (forcePhase + resetBattlePhases).
+
+**Sacred cow preservation (v2.1 P4):**
+- **Phase gates 70%/35%** — `REACTIVITY_PHASE_GATES = Object.freeze([70, 35])` (percent thresholds for BOSS_PHASES dispatch). Fractional aliases `PHASE_GATE_P1_TO_P2 = 0.70` / `PHASE_GATE_P2_TO_P3 = 0.35` continue to live in `bosses.js` (T1.10.7) for the boss state-machine `getCurrentBossPhase` helper. **Byte-perfect to legacy.**
+- **Telegraph timing** — `REACTIVITY_TELEGRAPH_MS = 3000` re-exported from bosses.js (T1.10.7 owns the canonical declaration). 3-second wind-up before any reactivity handler fires; banner displays for `REACTIVITY_BANNER_DURATION_MS = 1500` after countdown. UX commitment per spec §13.3. **Byte-perfect.**
+- **22 reactivity handlers** — every per-archetype reaction parameter preserved verbatim:
+  - **Berserker:** +20% dmg (p1_p2), stagger immune 3T (p2_p3)
+  - **Armored:** +2 shield stacks (p1_p2), 30% board → void_3 (p2_p3)
+  - **Phoenix:** revive +20% maxHP heal (p1_p2), fire aura 3 HP/T (p2_p3)
+  - **Assassin:** stealth 1T + 1.50× next attack (p1_p2), backstab chain 3T (p2_p3)
+  - **Bruiser:** 1.50× next attack (p1_p2), 5 random void_2 spawns (p2_p3)
+  - **Hypnotist:** dual suggest (p1_p2), silence 2T (p2_p3)
+  - **Engineer:** 4 cell lockdown 40T (p1_p2), 2 electrified rows (p2_p3)
+  - **Frenzy:** max stacks 8 (p1_p2), maul chain every 3T (p2_p3)
+  - **Tempo Disruptor:** skip 1 player turn (p1_p2), board wipe + chargedCells.clear (p2_p3)
+  - **Battery:** +50% charge rate (p1_p2), 40 signature damage detonate (p2_p3)
+  - **Tower Voidfang:** +30% boss attack dmg (p1_p2), ×0.70 player pressure gain (p2_p3)
+- **BOSS_PHASES table** — 25 main-campaign bosses (Ch1-Ch5 × 5 each) + VOIDFANG. Standardized 70/35 thresholds per spec §3.3. Ch3-Ch5 reuse Ch1/Ch2 archetype reactivities per spec.
+- **Telegraph→execute pattern** — `showReactivityTelegraph(eventId)` [3s wind-up banner] → `setTimeout REACTIVITY_TELEGRAPH_MS` → `handler()` + `logBattleEvent` breadcrumb + FTUE intro hooks. Non-blocking — gameplay continues during wind-up.
+- **Tower bypass** — `_phase5IsReactivitySuppressed()` gate suppresses dispatch in Tower mode (competitive sandbox) EXCEPT for Voidfang (tower_voidfang_p1_p2 / p2_p3 ARE designed for Tower-end ritual). Visual cinematic + camera shake preserved either way.
+- **FTUE lockout** — `isFtueActive()` short-circuits maybePhaseTransition entirely (Block 6.1 invariant — FTUE has its own scripted beats).
+- **Floor 1 (Trial) suppression** — Voidfang exception preserved.
+- **Single-fire per call** — once a gate fires, `battlePhasesTriggered.add(key)` + early return prevents double-fire if multiple gates cross same frame.
+
+**v2.1 P4 implementation status CONFIRMED — resolves Execution Plan §23 "VERIFY":**
+Legacy contains a **complete, shipping implementation** of the v2.1 P4 Reactivity Events system across PRs #4.A (BOSS_PHASES restructure to 70/35 + reactivity field), #4.B (22 handlers + state vars + dispatcher + reset), #4.C (single-row→two-row engineer + frenzy maul counter), #4.D (UI surfaces + 3 FTUE Chronicler dialogs + phase indicator chip + intel overlay + TTK forecast), and Block 6.3 VOIDFANG shroud extensions. The 22 archetype handlers cover all 10 archetypes (berserker, armored, phoenix, assassin, bruiser, hypnotist, engineer, frenzy, tempo_disruptor, battery) × 2 gates + tower_voidfang × 2. The Tower bypass (#5.C) is correctly wired. All 25 main-campaign bosses + VOIDFANG fallback are mapped. No gaps; no TODO stubs. **The v2.1 P4 system is fully implemented, byte-identical to spec, and now extracted to a standalone module.**
+
+**Storage rewires (T1.08 abstraction):** **1 new bare-string key** flagged for T1.10.9 migration shim allow-list:
+- `VOIDFANG_DEFEATED_KEY = 'blocksworn_voidfang_defeated'` — stored as literal `'1'`, read with `=== '1'`. JSON-routing breaks the boolean semantics. Setter sites: legacy line 57911 (boss-defeat any-floor) + 38648 (debug reset clears). The module's IIFE-style boot-time read (`voidfangDefeated = localStorage.getItem(VOIDFANG_DEFEATED_KEY) === '1';`) is preserved verbatim.
+
+All 14 reactivity state vars + engineerElectrifiedRows + battlePhasesTriggered Set + `_phase4FrenzyAttackCounter` + `_phase4LastReactivityFiredAt` are per-battle ephemeral — initialized at battle start (via `_resetReactivityState`), garbage-collected at battle end.
+
+**ESLint globals added** (specific identifiers, why):
+- **Readonly (~25 identifiers):** `flashText`, `flashStateBanner`, `vibrate`, `hitBoss`, `vHaptic`, `render`, `renderBossHP`, `updateBossHpUI` (T1.09 feel + T1.11 UI render); `getComputedStyle` (DOM browser global for lazy chip builder); `currentBoss`, `bossMaxHP`, `currentChapter`, `BOSSES`, `BOSS_ARCHETYPES`, `ARCHETYPE_MATCHUP`, `BOSS_TTK_TARGETS`, `getCurrentBossPhase` (T1.10.7 bosses); `grid`, `SIZE`, `chargedCells`, `engineerLockedCells` (T1.10.3 grid); `applyChannelDamage` (T1.10.5 damage-channels — battery detonate); `bossAttack`, `currentFloorId`, `_isTowerBattle`, `_phase5IsReactivitySuppressed`, `isFtueActive`, `seenDialogs`, `playDialog`, `DIALOGS`, `placementCount` (T1.10.9 battle / FTUE / dialog); `HERO_DECK`, `TIER_DAMAGE_MULT`, `heroUpgrades`, `isHeroMythic` (T1.10.4 heroes — TTK forecast); `logEvent`, `logBattleEvent` (T1.11 analytics).
+- **Writable (5 identifiers):** `bossHP` (Phoenix p1_p2 revive heal + forcePhase console helper writes), `bossAttackDmgMult` (berserker p1_p2 + tower_voidfang p1_p2 + EFFECT_HANDLERS.voidBoost), `attackCountdown` (EFFECT_HANDLERS.enrage re-sync), `engineerElectrifiedRow`, `engineerElectrifiedTurns` (engineer p2_p3 legacy single-row fallback writes).
+
+**TODO markers:** 0 inline TODO comments. All forward references are documented in the "OWNS" / "DOES NOT OWN" comment block at the top + the /* global */ inventory. The narrative comments contain ~15 references to T1.10.7 / T1.10.9 / T1.11 (documentation pointers only — not code markers).
+
+**Logger migration:**
+- 4 `console.warn(...)` / `console.log(...)` / `console.error(...)` call sites in extracted regions → `log.warn(...)` / `log.debug(...)` / `log.error(...)`: spawnBurst failure (legacy 27443), dialog phase failure (27468), reactivity handler error (27919), P4 dialog registration failure (28353), forcePhase no-bossMaxHP guard (30029), Phase tracker cleared log (30033), [Phase 4 PR #4.A] reactivity pending placeholder (27523), [phase dialog placeholder] stub (27640). Per T1.08 logger contract. Module imports `log` from `../services/logger.js`.
+
+**Engineering judgment:**
+- **`bossAttack()` NOT extracted** (legacy line 59033). Reactivity state vars (bossNextAttackBonus / frenzyMaxStacks / frenzyMaulComboActive / frenzyMaulInterval / bossStealthTurns / bossBackstabChainTurns / bossChargeRateMult / skipPlayerTurnsCount / bossFireAuraActive / bossFireAuraDmg) are CONSUMED by `bossAttack` — but `bossAttack` itself is a multi-block battle-loop function with deep cross-module wiring (heroes.js Bulwark / RAIDERS / IRONSCALE / IRONBELLY; grid void cap; signature damage hook; tutorial gates). T1.10.9 (battle.js) territory.
+- **`addPressure` consumer integration NOT touched** (legacy line 39426, owned by T1.10.6 stagger-loop). `addPressure` reads `pressureGainMult` (voidfang p2_p3 debuff multiplier) and `bossStaggerImmuneTurns` (berserker p2_p3 clamp). T1.10.6 already declares these as `/* global */` writable; my module-private state + window.defineProperty bridge keeps both modules reading the same instance.
+- **`tickStaggerState` Phoenix fire aura tick NOT touched** (legacy line 39346, owned by T1.10.6). Reads `bossFireAuraActive` + `bossFireAuraDmg`. Same /* global */ bridge pattern as `pressureGainMult`.
+- **Engineer hero state vars `engineerElectrifiedRow` + `engineerElectrifiedTurns`** — legacy module-scope `let` declarations. T1.10.8 reactivity handler `engineer_p2_p3` writes both via /* global :writable */ (no new module-private state for these — they belong to engineer hero motif state in heroes.js T1.10.4 / future engineer-archetype module). `engineerElectrifiedRows` (the array variant — note plural) is OWNED by reactivity-events because it's a P4 PR #4.C addition specifically for the 2-row reactivity event.
+- **`engineerLockedCells` Map** — legacy 6×6 cell-key → unlock-turns Map. Owned by T1.10.3 grid.js (per its `/* global */` block) — my engineer_p1_p2 handler writes via the /* global */ Map reference. No new ownership claim.
+- **Voidfang dialog chain DEFERRED to T1.11** — `DIALOG_LINES.voidfang_p1_a/b` … `defeat_e` + `chapter_3_outro` + `fin_card` + `replayVoidfangEnding` console helper. These are NARRATIVE voice (sacred per CLAUDE.md §2.3); their natural home is the dialog module (T1.11). T1.10.8 owns only the REACTIVITY slice of Voidfang state (shroud flag + per-turn tick + tint cleanup + defeat flag + VOIDFANG_DEFEATED_KEY persistence).
+- **Voidfang BOSS_PHASES override LANDED FLAT** in main BOSS_PHASES map (no post-load mutation at module level). Legacy declares `const BOSS_PHASES = { ... }` then runs `BOSS_PHASES['VOIDFANG'] = [...]` at line 30333 — we mirror as a single direct entry in the table. This is permissible because the legacy override carries the SAME reactivity event names (`tower_voidfang_p1_p2` / `_p2_p3`); no information lost.
+- **`BOSS_PHASES` is NOT `Object.freeze`'d.** Legacy uses a non-frozen `const` so the line-30333 VOIDFANG override + the line-30377 EFFECT_HANDLERS extensions can mutate it. We mirror — not Object.freeze — so future legacy assignments through the window bridge keep working until T1.10.9 canonicalizes. **Mentioned for visibility:** T1.10.9 can choose to Object.freeze after consolidating override paths.
+- **Module-private state via `let` + Object.defineProperty bridge** — same pattern as T1.10.6 (stagger-loop) + T1.10.7 (bosses). Legacy bodies that read/write bare identifiers (`bossShieldCount = 0;` in the FTUE finalizer, `pressureGainMult = 0.7;` in addPressure debuff, etc.) route through module-private state via the configurable getter/setter. T1.10.9 wire-up replaces the bridge with explicit imports + setter calls.
+- **Module size policy:** at 1,440 LoC this module exceeds the §3.4 AAA+ 500-LoC file-length guideline, but it's pure-relocation byte-perfect from a single legacy domain (reactivity events + their UI surfaces + FTUE intros + Voidfang shroud); splitting would fracture the reactivity dispatch across multiple files and complicate the T1.10.9 wire-up. Same precedent as T1.10.4 heroes.js (3,972 LoC) and T1.10.7 bosses.js (1,309 LoC). Accept the violation as a transitional state until T1.10.9.
+- **`maybePhaseTransition` exported as single canonical** — legacy declares two `function maybePhaseTransition()` at lines 27474 AND 27941. The second (P4 #4.B) is the live shadow that runs in production (later declaration overrides earlier in legacy hoisting). I extracted only the P4 #4.B version (the live one); the earlier #4.A shim is annotated in the OWNS section as "covered by the #4.B path".
+- **`_voidfangShroudActive` module-scope variable** — legacy declares as a `let`, but the EFFECT_HANDLERS.umbralShroud and clearVoidfangTints handlers WRITE to it directly. We mirror via module-private `let` + Object.defineProperty bridge so legacy umbralShroud/gridTint callers via the window-bridge continue to mutate the module's instance.
+
+**Verification (all gates green):**
+- `npm run lint` → 0 errors / 0 warnings
+- `npm run test:unit` → 6/6 pass (~101ms)
+- `npm run test:smoke` → 2/2 pass (~3.4s)
+- `npm run test:visual` → 22/22 pass under 2% (~13.4s)
+- `npm run build` → succeeds. dist/assets/index.js = 0.75KB; dist/assets/index.css = 368.77KB (unchanged — new module tree-shakes out, nothing imports it yet, as expected — T1.10.9 final wire-up flips legacy → src/)
+- Legacy `wc -c` = 21,480,494; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` — byte-identical
+
+**Self-check:**
+- [x] Acceptance: REACTIVITY_PHASE_GATES = [70, 35] + REACTIVITY_TELEGRAPH_MS = 3000 + REACTIVITY_BANNER_DURATION_MS = 1500 byte-perfect (re-exported from bosses.js T1.10.7 canonical)
+- [x] Acceptance: BOSS_PHASES table — 25 main-campaign bosses (Ch1-Ch5 × 5 each) + VOIDFANG tower fallback, FLAT post-mutation map, every entry uses standardized 70/35 thresholds + reactivity event names
+- [x] Acceptance: 22 REACTIVITY_HANDLERS — 10 archetypes × 2 gates + tower_voidfang × 2, every per-archetype reaction parameter byte-perfect (multipliers, durations, cell counts, board-conversion percentages, signature damage values, color codes)
+- [x] Acceptance: 7 EFFECT_HANDLERS (legacy effects-array dispatch — enrage / voidBoost / cleanse / spawnBurst / healPartial / dialog + umbralShroud / gridTint Voidfang extensions, FLAT post-mutation)
+- [x] Acceptance: 14 reactivity state vars + engineerElectrifiedRows + 2 dispatcher counters via module-private state + window.defineProperty bridge (configurable: true)
+- [x] Acceptance: maybePhaseTransition (telegraph→execute + Tower bypass + FTUE lockout + Floor 1 suppression + legacy effects-array fallback) byte-perfect
+- [x] Acceptance: triggerReactivityEvent (3s telegraph wind-up → handler → analytics → FTUE reactivity intro) byte-perfect
+- [x] Acceptance: firePhase legacy effects-array dispatcher preserved as fallback path (no live BOSS_PHASES entries use it after P4 #4.A restructure, but EFFECT_HANDLERS.umbralShroud/gridTint remain referenceable)
+- [x] Acceptance: vPlayPhaseTransition 5-beat cinematic + _toRoman + showPhaseTransitionOverlay (deprecated rollback) + showBossPhaseDialog placeholder byte-perfect
+- [x] Acceptance: 6 UI surfaces (showReactivityTelegraph + banner builder + countdown + CSS keyframes injection; showReactivityFX archetype-tinted overlay; renderBossPhaseIndicator + chip builder; showBossIntelOverlay; renderSquadTTKForecast + _computeSquadEffectiveDPS) byte-perfect
+- [x] Acceptance: 3 FTUE Chronicler intros (_maybeTriggerPhaseIntro / _maybeTriggerReactivityIntro / _maybeTriggerTelegraphIntro) + _registerPhase4Dialogs + _phase4FtueGateOk byte-perfect with sacred Chronicler dialog text preserved verbatim
+- [x] Acceptance: REACTIVITY_ARCHETYPE_COLORS palette (12 entries) + _archetypeFromEventId regex helper byte-perfect
+- [x] Acceptance: _resetReactivityState idempotent battle-init reset byte-perfect
+- [x] Acceptance: Voidfang shroud slice (_voidfangShroudActive + voidfangDefeated + VOIDFANG_DEFEATED_KEY + shroudTick + clearVoidfangTints) byte-perfect with boot-time localStorage read preserved
+- [x] Acceptance: console helpers (forcePhase + resetBattlePhases) byte-perfect
+- [x] Acceptance: v2.1 P4 implementation status CONFIRMED — 22 handlers + 25 bosses + UI surfaces + FTUE intros + Tower bypass + Voidfang shroud all present and shipping in legacy; resolves Execution Plan §23 "VERIFY"
+- [x] Acceptance: imports from src/core/bosses.js (T1.10.7 for phase-gate + telegraph constants) + src/services/logger.js (T1.08)
+- [x] Acceptance: window.defineProperty bridge for legacy bare-identifier reads/writes (16 reactivity state vars + 2 dispatcher counters + _voidfangShroudActive)
+- [x] Acceptance: legacy HTML byte-identical (wc -c = 21,480,494; SHA-256 unchanged)
+- [x] Acceptance: all gates green (lint 0/0, unit 6/6, smoke 2/2, visual 22/22, build 372KB)
+- [x] Acceptance: nothing imports the new module — tree-shakes out for T1.10.8 (correct — T1.10.9 final wire-up flips legacy → src/)
+- [x] Sacred cows: phase gates 70%/35% unchanged. REACTIVITY_TELEGRAPH_MS = 3000 unchanged. All 22 reactivity event parameters unchanged. Chronicler dialog text preserved verbatim. TTK formula `boss_hp = expected_squad_dps × target_ttk_seconds` upheld (re-exported from T1.10.7 via shared `BOSS_TTK_TARGETS`).
+- [x] DO NOT TOUCH: legacy HTML — not modified; index.html — not modified; src/main.js — not modified; src/core/{ftue-state,progression,grid,heroes,damage-channels,stagger-loop,bosses}.js (T1.10.1-T1.10.7) — not modified; other src/ modules (data/feel/services) — not modified; CSS / baselines / tests / CI / husky — not modified
+- [x] DO NOT TOUCH: phase gate thresholds (70%/35%) — unchanged; telegraph timing (3000ms) — unchanged; per-archetype reaction values — byte-perfect
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.10.8; did NOT start T1.10.9 (battle.js + final wire-up)
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **1 NEW bare-string storage key:** `VOIDFANG_DEFEATED_KEY = 'blocksworn_voidfang_defeated'` — stored as literal `'1'`, read with `=== '1'`. JSON-routing breaks the boolean semantics. **Added to T1.10.9 migration shim allow-list** (this module updates the "Known bare-string keys" list above). Setter sites legacy line 57911 (any-floor boss-defeat sets to '1') + 38648 (debug reset removes). Module IIFE-style boot-time read preserved.
+
+2. **v2.1 P4 implementation status confirmed COMPLETE in legacy** — resolves Execution Plan §23 "VERIFY" status flag. The "VERIFY" annotation in cross-reference was conservative bookkeeping pending the T1.10.8 extraction pass; this module's audit confirms full implementation: 22 archetype handlers spanning 10 archetypes × 2 gates + tower_voidfang × 2; BOSS_PHASES coverage of all 25 main-campaign bosses + VOIDFANG; UI surfaces (telegraph banner + reactivity FX + phase indicator chip + intel overlay + TTK forecast); 3 FTUE Chronicler dialogs; Tower bypass with Voidfang exception; FTUE lockout; Floor 1 (Trial) suppression with Voidfang exception; single-fire-per-call guard via `battlePhasesTriggered` Set; idempotent `_resetReactivityState`. No gaps, no TODO stubs in the extracted regions. **CTO recommendation:** flip Execution Plan §23 "VERIFY" → "VERIFIED — full v2.1 P4 system implemented and now relocated to src/core/reactivity-events.js".
+
+3. **`bossAttack()` consumes ~10 reactivity state vars but is NOT extracted** — bossNextAttackBonus / frenzyMaxStacks / frenzyMaulComboActive / frenzyMaulInterval / bossStealthTurns / bossBackstabChainTurns / bossChargeRateMult / skipPlayerTurnsCount / bossFireAuraActive / bossFireAuraDmg are all reactivity-event-driven and CONSUMED by bossAttack (legacy line 59033) + maybeBossAttack (58936). Same pattern as T1.10.7's deferral — reactivity-events owns the STATE (and reset path); bossAttack remains a battle-loop concern for T1.10.9. The /* global :writable */ inventory in this module's preamble documents which vars bossAttack must keep accessing via the window bridge.
+
+4. **`tickStaggerState` Phoenix fire aura tick lives in T1.10.6 stagger-loop** — reads `bossFireAuraActive` + `bossFireAuraDmg` from this module via /* global */ (T1.10.6 already declares them as readonly globals — see T1.10.6 closeout finding #6). The cross-module read is intentional: state is owned here (reactivity-driven write), per-turn drain is owned by the stagger state-machine tick loop.
+
+5. **`addPressure` gates on `pressureGainMult` (voidfang p2_p3 debuff) + `bossStaggerImmuneTurns` (berserker p2_p3 clamp)** — same cross-module pattern as above. T1.10.6 declares both as /* global :writable */. The reset path (`_resetReactivityState`) handles both; the write paths are limited to the reactivity handlers themselves; the read path is in stagger-loop's `addPressure`.
+
+6. **`engineerElectrifiedRow` + `engineerElectrifiedTurns` belong to engineer hero motif** (heroes.js T1.10.4 / future engineer archetype tick handler). The P4 reactivity `engineer_p2_p3` handler writes both via /* global :writable */ as a "legacy single-row fallback so #4.B works even without #4.C wiring" — but the per-turn drain + cell-render is consumed by the engineer hero handler in legacy. T1.10.8 owns the NEW 2-row variant (`engineerElectrifiedRows`) which is reactivity-specific. T1.10.9 wire-up will canonicalize the relationship.
+
+7. **`hitBoss` (feel layer camera shake) referenced via /* global */** — legacy global from feel/animations.js (T1.09). Called from maybePhaseTransition + firePhase for the cinematic shake on phase gate crossings. No ownership claim; just a forward reference.
+
+8. **`logBattleEvent` referenced via /* global */** — legacy analytics helper logging "BOSS ADAPTS" breadcrumbs to the Death Flashback log. Owned by T1.11 analytics module. No ownership claim.
+
+9. **`showReactivityTelegraph` lazy banner DOM builder injects CSS keyframes** (`@keyframes rtb-pulse` + `rtb-fire`) via a `<style id="phase4TelegraphStyle">` element appended to `document.head`. Idempotent guard (`if (!document.getElementById('phase4TelegraphStyle'))`). The CSS is pure-relocation byte-perfect from legacy line 28128. **CTO consideration:** T1.10.9 wire-up could consolidate this into a static `src/styles/` rule rather than runtime injection; left as-is for byte-perfect parity.
+
+10. **`vPlayPhaseTransition` consumes feel/animations CSS classes** (`.phase-freeze`, `.phase-roar`, `.phase-pulse`, `.p-phase-shockwave`, `.p-phase-card`) defined in legacy CSS at line ~7257. These are part of T1.09 feel/animations territory; the JavaScript orchestration lives here because it's reactivity-trigger-bound. T1.10.9 wire-up should ensure CSS migration sequencing.
+
+11. **`BOSS_PHASES` NOT `Object.freeze`'d** — see Engineering judgment item above. Legacy mutation pattern preserved (`const BOSS_PHASES = {...}` + later `BOSS_PHASES['VOIDFANG'] = [...]`). The post-mutation FLAT map is landed in the export. T1.10.9 can choose to Object.freeze after consolidation.
+
+12. **`triggerReactivityEvent` uses `setTimeout` for the telegraph→execute gap** — 3000ms non-blocking. Gameplay continues during the wind-up. Banner countdown runs in parallel via a separate setInterval timer (`_phase4TelegraphTimer`). Both timers preserved verbatim.
+
+**Time:** ~3 hours (1,440 LoC byte-perfect copy across 8 source regions + ~25-readonly + 5-writable globals declared + module-private state via let + Object.defineProperty bridge for 16 reactivity vars + 2 dispatcher counters + _voidfangShroudActive + window-exposure mirror across 5 sections + CSS keyframes injection preserved + 3 FTUE Chronicler dialogs registered via setTimeout-deferred IIFE + commit/docs cycle)
 
 ---
 
