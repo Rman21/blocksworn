@@ -202,7 +202,16 @@ auto-disappears in T1.10 when the rewiring lands:
 
 ### TASK-011 (T1.10) — Extract core game logic to `src/core/` (XL — the watershed task)
 
-**Status:** **COMPLETE (REVIEW) — 9/9 sub-tasks landed 2026-05-11** — awaiting CTO sign-off for DONE. Roman GO'd 2026-05-11; T1.10.1 (FTUE state) launched first, T1.10.9 (battle orchestrator + migration shim) landed last. Total src/core/ surface: **12,164 LoC across 9 modules**.
+**Status:** ✅ **COMPLETE — 9/9 sub-tasks DONE 2026-05-11** (CTO signed off). T1.10 watershed task closed. Total src/core/ surface: **12,164 LoC across 9 modules**.
+
+**Deferred from T1.10 → T1.11 cleanup** (CTO call — these are FX/DOM-coupled, naturally belong with UI extraction):
+- Per-archetype tick handlers (~1,500 LoC, 10 archetypes) — battle.js currently calls via `/* global */` stubs with `typeof` guards
+- `onBossDefeated` (535 LoC) — cross-cutting reward / progression / dialog / analytics chain — better as separate `rewards.js` module or progression.js follow-up
+
+**Cross-boundary audits deferred to T1.13 verify pass:**
+- `placePiece` return-value polish (legacy `undefined` → new `true`; callers test `=== false` literal so semantics hold)
+- ~600 LoC legacy dead hero code (`ultEmber/Solar/Tide/Grove/Umbra`, orc/troll/human helpers — none HERO_ROSTER-bound)
+- `getSquadMitigation` / `getHeroMitigationKey` ownership (currently in channels, logically belong in heroes)
 
 **Sub-task progress:**
 - [x] T1.10.1 — `ftue-state.js` — **DONE 2026-05-11** (commits `e12d27b`, `ec4e409`; 21 exports / 475 LoC; sacred FTUE_BEATS/TRANSITIONS preserved byte-perfect via import from T1.07)
@@ -213,7 +222,7 @@ auto-disappears in T1.10 when the rewiring lands:
 - [x] T1.10.6 — `stagger-loop.js` (v2.1 P2) — **DONE 2026-05-11** (commits `83782cf`, `668b1c9`; **1021 LoC / 48 exports**; SACRED v2.1 P2 ACTIVE/STAGGER/RECOVERY + PRESSURE_MAX=100 + PRESSURE_GAIN table + STAGGER_DURATION=4 + RECOVERY=2 + STAGGER_CHAINING + Overflow conversion 40/30/500/10/revenge 1.5× byte-perfect; window-exposure bridge via `Object.defineProperty` for legacy bare-identifier reads; 5 v2.1 P2 PRs co-extracted per encapsulation; 0 new bare-string keys)
 - [x] T1.10.7 — `bosses.js` — **DONE 2026-05-11** (commits `cc7d0bc`, `fecd2c2`; **1,309 LoC / 60 exports**; 25 BOSSES (Ch1-5×5) + 25 archetypes + 25 matchups flat post-Object.assign byte-perfect; FTUE_BOSS_GUARANTEES + TOWER_UROBOROS_SEASONAL + BOSS_VOICES sacred; Ch3 scaffolding + window-exposure bridge for boss state; **memory conflict resolved** — Ch4-5 boss DATA in legacy, only player ACCESS gated via progression flags; 0 new bare-string keys)
 - [x] T1.10.8 — `reactivity-events.js` (v2.1 P4) — **DONE 2026-05-11** (commits `52bd102`, DOCS pending; **1,440 LoC / 68 exports**; SACRED v2.1 P4 phase-gate adaptations at 70%/35% HP + REACTIVITY_TELEGRAPH_MS=3000 byte-perfect; 22 archetype handlers (10 archetypes × 2 gates + tower_voidfang × 2) + 7 EFFECT_HANDLERS + BOSS_PHASES table for 25 bosses + VOIDFANG override; 14 reactivity state vars + Voidfang shroud slice + 3 FTUE Chronicler intros; v2.1 P4 implementation status CONFIRMED — resolves Execution Plan §23 "VERIFY"; **1 NEW bare-string key flagged** — `VOIDFANG_DEFEATED_KEY = 'blocksworn_voidfang_defeated'` stored as `'1'`, read with `=== '1'` — added to T1.10.9 shim allow-list)
-- [x] T1.10.9 — `battle.js` orchestrator + MANDATORY migration shim — **REVIEW 2026-05-11** (commits `007eb21`, DOCS pending; **1,759 LoC / 19 exports** for battle.js + **183 LoC / 3 exports** for migrate.js + **163 LoC / 5 tests** for migrate.test.js; SACRED combo crit mult stack + Overflow conversion + FIRE_MULT_CAP clamp byte-perfect; pulled deferred-from-T1.10.7 items: bossAttack 188L + getEffectiveBossStats 23L + _phase8GetAdaptiveHpMultiplier 11L; FTUE launchers startPyredrakeFtueBattle/startGruntFtueBattle/startChronicleFtueBattle/finalizeFtue; lifecycle startBossBattle 529L + exitBattle + spec aliases startBattle/endBattle/playerTurn/bossTurn/tickBattle/checkVictory/checkDefeat; dealDamage 256L + showVictoryModal 163L + showDefeatModal 65L; migration shim covers all 9 bare-string keys with idempotent sentinel; **per-archetype tick handlers (~1500 LoC, 10 archetypes) + onBossDefeated 535L DEFERRED** — legacy keeps ownership, battle.js calls via /* global */ stubs, resolution path T1.11 or T1.10.10 cleanup; 0 new bare-string keys; all gates green)
+- [x] T1.10.9 — `battle.js` orchestrator + MANDATORY migration shim — **DONE 2026-05-11** (commits `007eb21`, `2205516`; **1,759 LoC / 19 exports** battle.js + **183 LoC / 3 exports** migrate.js + **163 LoC / 5 tests** migrate.test.js; SACRED combo crit + Overflow conversion + FIRE_MULT_CAP byte-perfect; pulled deferred T1.10.7 items: bossAttack + getEffectiveBossStats + Phase 8 dispatcher; 4 FTUE launchers; migration shim 9 keys + idempotent sentinel + `_looksLikeJSON` discriminator bug caught by unit tests; per-archetype tick handlers + onBossDefeated deferred to T1.11)
 
 **Scope clarification for T1.10.9:** Original Execution Plan T1.10 footer said "replace index.html at end" — but per the Plan's broader sequence, **`index.html` switchover belongs to T1.12** (`Wire main.js entry point`), not T1.10.9. T1.10.9 deliverables:
 1. Extract `src/core/battle.js` orchestrator (main battle loop tying all T1.10.1-T1.10.8 modules together)

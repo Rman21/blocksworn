@@ -3,14 +3,15 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (8/9 sub-tasks done — ONLY T1.10.9 LEFT)
-- **Overall progress:** ~37% (Phase 1 watershed — 89% of T1.10 done)
-- **Next milestone:** T1.10.9 — battle.js orchestrator + MANDATORY migration shim (9 bare-string keys)
-- **After T1.10.9:** Phase 1 progress 10/20; remaining T1.11 (UI screens) + T1.12 (main.js wire — THE switchover) + T1.13 (verify) + cleanup T1.14-T1.20
-- **Migration shim allow-list (9 keys):** FTUE_STORAGE_KEY, seenIntroVideo, onboardingSeen, blocksworn_chapter_{1..5}_complete, blocksworn_voidfang_defeated
-- **Cumulative core/ LoC:** ftue 475 + progression 1128 + grid 603 + heroes 3972 + channels 457 + stagger 1021 + bosses 1309 + reactivity 1440 = **10,405 LoC** in src/core/
-- **v2.1 P4 status:** CONFIRMED implemented in legacy (resolves Plan §23 "VERIFY")
-- **Last updated:** 2026-05-11 by CTO (after T1.10.8 review)
+- **Phase progress:** 10 / 20 done ✅ **HALFWAY THROUGH PHASE 1** — T1.10 COMPLETE (9/9 sub-tasks)
+- **Overall progress:** ~50% (Phase 1 — watershed task closed)
+- **Next milestone:** T1.11 — Extract UI screens to `src/ui/` (Menu, Battle screen, Shop, Tower, Season, Profile, Select, Dailies)
+- **Migration shim:** ✅ implemented (9 keys, idempotent, 5 tests passing); active on first boot post-T1.12 switchover
+- **Cumulative src/core/ LoC:** **12,164 LoC across 9 modules** (battle 1759 + heroes 3972 + reactivity 1440 + bosses 1309 + progression 1128 + stagger 1021 + grid 603 + ftue 475 + channels 457)
+- **v2.1 P4 status:** CONFIRMED implemented (resolves Plan §23 "VERIFY")
+- **Memory:** Ch4-5 data/gating distinction clarified
+- **Deferred to T1.11 / T1.13:** per-archetype tick handlers (~1,500 LoC), onBossDefeated (535 LoC), placePiece return polish, ~600 LoC dead hero code, getSquadMitigation ownership
+- **Last updated:** 2026-05-11 by CTO (after T1.10.9 review — T1.10 closed)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -54,7 +55,10 @@
 
 **Week 4-5: Logic + UI extraction**
 - [x] T1.09 — Extract feel layer (haptics, animations, particles, narrator) — **DONE 2026-05-11** (commits `8ed5679`, `39bc613`; 3 new modules + 7 functions; sacred timings 180/440/300/260/220/380/420ms all byte-perfect)
-- [ ] T1.10 — Extract core game logic to `src/core/` — TODO (XL — sub-tasked T1.10.1-T1.10.9)
+- [x] T1.10 — Extract core game logic to `src/core/` — ✅ **DONE 2026-05-11** (9/9 sub-tasks; **12,164 LoC across 9 modules**; sacred v2.1 P1+P2+P4 all preserved byte-perfect; migration shim landed for 9 bare-string keys)
+- [ ] T1.11 — Extract UI screens to `src/ui/` — TODO (Menu, Battle, Shop, Tower, Season, Profile, Select, Dailies; pulls in deferred per-archetype tick handlers + onBossDefeated)
+- [ ] T1.12 — Wire `src/main.js` entry point — TODO (**THE switchover**: index.html → src/main.js as primary render path; legacy demoted to read-only archive)
+- [ ] T1.13 — Verify game runs identically + visual regression pass — TODO (manual playthrough + Lighthouse ≥90 + bundle <5MB + 22/22 visual ≤2%)
 
 **Week 4-5: Logic + UI extraction**
 - [ ] T1.09 — Extract feel layer (haptics, animations, particles, narrator) — TODO

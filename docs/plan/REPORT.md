@@ -910,6 +910,103 @@ T1.10 progress: 2/9 sub-tasks done (~22%).
 
 ---
 
+## REPORT-13: T1.10 Watershed Complete — Phase 1 50% Milestone
+
+**Date:** 2026-05-11
+**Phase:** 1 — XL watershed task closed
+**Trigger:** All 9 T1.10 sub-tasks landed clean; CTO sign-off
+
+### Summary
+
+**T1.10 (the XL watershed task) is COMPLETE.** All 9 sub-tasks (T1.10.1 through T1.10.9) closed in a single working day. **12,164 LoC of game logic extracted into 9 modular files in `src/core/`** — every line preserved byte-perfect from the legacy 21MB HTML. Sacred v2.1 P1 + P2 + P4 systems all verified intact. Migration shim landed and tested. Phase 1 progress now 10/20 (50%).
+
+### T1.10 sub-task summary
+
+| # | Module | LoC | Exports | Sacred preserved |
+|---|---|---|---|---|
+| T1.10.1 | ftue-state.js | 475 | 21 | FTUE_BEATS / TRANSITIONS / SCRIPTS / BOSS_GUARANTEES |
+| T1.10.2 | progression.js | 1,128 | 79 | TIER_COSTS_V18, one-Mythic, T2/T3/Mythic 1.872× |
+| T1.10.3 | grid.js | 603 | 26 | combo crit dom-count, GRID_SATURATION 0.75/8HP, VOID_TICK 0.5% |
+| T1.10.4 | heroes.js | 3,972 | ~135 | HERO_ULT_COST, Aegis Conductor, Squad Conductor, 25/25 Mythic |
+| T1.10.5 | damage-channels.js | 457 | 16 | Mitigation Matrix 5×4, 4 channel formulas, shield order |
+| T1.10.6 | stagger-loop.js | 1,021 | 48 | PRESSURE_MAX=100, STAGGER=4, RECOVERY=2, Overflow 40/30/500/10 |
+| T1.10.7 | bosses.js | 1,309 | 60 | 25 BOSSES + 25 archetypes + UROBOROS + BOSS_VOICES |
+| T1.10.8 | reactivity-events.js | 1,440 | 68 | Phase gates [70,35], 22 archetype handlers, telegraph 3000ms |
+| T1.10.9 | battle.js + migrate.js | 1,759 + 183 | 19 + 3 | bossAttack, dealDamage central dispatch, 9-key migration shim |
+| **Total** | **9 modules** | **12,347 LoC** | **>450 exports** | All v2.1 P1+P2+P4 sacred + Aegis/Squad + Mythic + 25 heroes + 25 bosses |
+
+### Migration shim (T1.10.9)
+
+The first sub-task (T1.10.1) surfaced a data-loss risk: legacy stored 9 localStorage keys as **bare strings**, but T1.08's storage abstraction JSON-parses (would silently reset every player's save on T1.12 switchover). Each subsequent sub-task audited for more bare-string keys.
+
+**Final allow-list (9 keys):**
+- `blocksworn_ftue_beat` (FTUE state — T1.10.1)
+- `seenIntroVideo`, `onboardingSeen` (intro overlays — T1.10.1)
+- `blocksworn_chapter_{1..5}_complete` (5 chapter flags — T1.10.2)
+- `blocksworn_voidfang_defeated` (Tower victory — T1.10.8)
+
+`src/services/migrate.js`: idempotent one-shot, sentinel `blocksworn_storage_v2_migrated`. 5 unit tests passing. Engineering catch: first draft's `_looksLikeJSON` discriminator incorrectly treated `'true'`/`'false'`/`'null'` as already-JSON; unit tests caught it before commit (fixed to require leading `"`/`{`/`[` only). **Tests caught a real bug — incremental migration with checkpoints works.**
+
+### Cross-system observations confirmed
+
+- **v2.1 P4 status** (Plan §23 flagged "VERIFY"): CONFIRMED fully implemented in legacy — all 22 archetype handlers, all UI surfaces, all FTUE intros present
+- **Memory conflict resolved** (Ch4-5): Plan + Memory both correct — Plan says DATA exists, Memory says player ACCESS is gated. Both true. Memory updated.
+- **Migration discipline scaled:** 9 sub-tasks × pure relocation × byte-perfect sacred preservation × `/* global */` markers for cross-module wires × commit per sub-task with smoke+visual gates. Zero regressions, zero rework, one bug caught by unit tests.
+
+### Deferred to T1.11 / T1.13
+
+**T1.11 (UI screens) cleanup:**
+- Per-archetype tick handlers (~1,500 LoC, 10 archetypes) — FX/DOM-coupled, natural fit with UI
+- `onBossDefeated` (535 LoC) — cross-cutting reward/dialog/analytics chain
+
+**T1.13 (verify pass) audit:**
+- `placePiece` return-value polish (legacy `undefined` → new `true`)
+- ~600 LoC legacy dead hero code (ultEmber/Solar/Tide/Grove/Umbra, orc/troll/human helpers — `kept as dead code` per legacy comments)
+- `getSquadMitigation` / `getHeroMitigationKey` ownership (currently in channels, logically belongs in heroes)
+
+### Pattern: `/* global */` + Object.defineProperty bridge
+
+Two engineering patterns emerged as the scaffolding for incremental migration:
+1. **`/* global :writable */` directives** for legacy module-scope `let` bindings used across multiple sub-tasks (hp, shieldCount, bossHP, currentBoss, etc.)
+2. **`Object.defineProperty` getters on `window.*`** (T1.10.6 + T1.10.7) — so legacy code reading bare identifiers continues working when the new module exists
+
+Both patterns will be retired naturally during T1.12 wire-up when legacy stops being primary.
+
+### Tech debt status (unchanged through T1.10)
+
+- ~4 moderate npm transitive vulnerabilities → schedule security pass post-T1.10
+- coin.png / cristal.png pre-existing url() warnings → resolves naturally during T1.11/T1.13
+- `mobile/fresh-chronicle-intro.png` 2.06MB → fine for now
+- @playwright/test version drift → consider pin after Phase 1
+
+### Sequencing forward (Phase 1 endgame)
+
+| Task | Effort | Notes |
+|---|---|---|
+| T1.11 | M-L | Extract UI screens to `src/ui/`; pulls in deferred tick handlers + onBossDefeated |
+| T1.12 | M | Wire `src/main.js` — **THE switchover**; legacy demoted to archive |
+| T1.13 | M | Verify pass — full FTUE manual playthrough, Lighthouse ≥90, bundle <5MB, all 22 visual ≤2%, cross-boundary audits |
+| T1.14 | L | DELETE artifact subsystem (v2.1 P1 §4 completion) |
+| T1.15 | S | DELETE Cosmic Memorial (v2.1 P5 §7 completion) |
+| T1.16 | S | DELETE legacy `--v-*` CSS tokens (already partial) |
+| T1.17 | M | Replace 100-hearts UI in combat top bar |
+| T1.18 | M | Consolidate shop pack systems |
+| T1.19 | L | Complete v2.1 Mythic ability framework |
+| T1.20 | M | Complete v2.1 Player Segments |
+
+ETA at current pace: 3-5 sessions to Phase 1 complete.
+
+### Roman push status
+
+Still pending; 50 commits on branch. T1.10 closeout is a natural inflection point — pushing now would:
+- Validate WebKit + mobile-safari on CI Linux runner
+- Surface any CI workflow bugs before T1.11 turbulence
+- Give Roman a clear PR to review (10/20 of Phase 1 ready for inspection)
+
+Not blocking T1.11 start, but recommended.
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host
