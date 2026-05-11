@@ -1363,6 +1363,148 @@ Both failure modes are flagged in "Замечено рядом" — they're the 
 
 ---
 
+### TASK-017 (T1.13.3) — REVIEW (2026-05-11)
+
+**Code commit:** `[T1.13.3] Asset pipeline refactor — data URIs → public/images/` → `9f36b76`
+**DOCS commit:** follows (this entry)
+**Files modified:** 1 — `src/data/assets.js` (rewrite). New: `public/images/` (89 binary files).
+
+**Implementation summary:**
+
+T1.13.2's ASSETS extraction landed the registry as 89 base64-encoded data URI strings in `src/data/assets.js`. Vite bundled those strings into the JS chunk → `dist/assets/index-*.js` = 4,773KB, total dist 5.13MB, ~3% over the AAA+ §3.2 5MB cap. REPORT-14 flagged this as the next-layer cleanup (Option 1: convert data URIs → real binary files in `public/images/` + path references). T1.13.3 executes that fix.
+
+**Approach: decode base64 in-place (no parent-dir copy)**
+
+Per the task brief there were three options:
+- (a) copy matching originals from parent dir `/Users/rm/Downloads/game/`
+- (b) symlink (with the Vite-handling caveat)
+- (c) decode the base64 strings in `src/data/assets.js` directly
+
+Inventory of the parent dir confirmed source files exist for ~all keys (e.g., `/Users/rm/Downloads/game/coin.png`, `/boss emblems/*.png`, `/race emblems/*.png`, `/class emblem/*.png`, `/elements emblems/*.png`, `/Modifications emblems/*.png`, `/chapter emblems/*.png`, `/races/*/*.png`, `/boss/*/*.png`, `/Game bosses/*.png`, `/new boss/*.png`). However, those source PNGs are full-resolution originals — the legacy HTML compressed them to JPEG (`sips -Z 1024 -s format jpeg q85`, per the file's own inline comment for Boss_Chronicle) before base64-encoding. Copying parent-dir originals would change pixel content and almost certainly break the 22 visual-regression baselines (captured against legacy HTML with its compressed JPEGs inline).
+
+Chose Option (c) — **decode the base64 strings to binary, write to `public/images/<key>.<ext>`**. Buffer.from(base64, 'base64') is lossless, so the decoded bytes match the bytes the browser had been receiving from the data URIs. Pixels identical, baselines safe.
+
+**Inventory (89 entries, all data URIs):**
+
+| MIME | Count | Approx decoded size |
+|---|---|---|
+| `image/jpeg` | 87 | ~3.1 MB |
+| `image/png`  | 2  | ~0.27 MB |
+| **Total**    | **89** | **~3.3 MB** |
+
+Categories (key prefix → count):
+- Boss portraits (`Boss_1..10` + `Boss_Chronicle`): 11
+- Hero sprites (`hero_*`): 25 (pirate 5, rock 5, shark 5, crocodile 5, spark 5)
+- Boss emblems (`boss_emblem_1..10`): 10
+- Race emblems (`emblem_race_*`): 10
+- Role emblems (`emblem_role_*`): 5
+- Element emblems v1 (`emblem_*` 5) + v2 (`emblem_*_v2` 5) + `elem_*` legacy (5) + `stihiya_emblem_*` (5): 20
+- Modifier icons (`mod_*`): 3
+- Chapter badges (`chapter_badge_1..3`): 3
+- Misc: `Logo` (PNG), `AppleTouchIcon` (PNG): 2
+
+All keys, extensions, and decoded sizes captured in `/tmp/assets_inventory.json` during the audit (script-only — not committed).
+
+**Output: `public/images/` (89 files, 3.4 MB)**
+
+- 87 `.jpg` files
+- 2 `.png` files (`Logo.png`, `AppleTouchIcon.png`)
+- Filename = ASSETS key (camelCase preserved): `public/images/Boss_Chronicle.jpg`, `public/images/hero_pirate_sword.jpg`, `public/images/emblem_race_orc.jpg`, etc.
+- No subfolders — flat layout matches the flat ASSETS registry. Sub-categorization can come later if needed; for now `/images/<key>.<ext>` is a 1:1 mirror of the JS keys.
+
+Vite copies `public/` into `dist/` at build time, so every file ends up at `dist/images/<key>.<ext>` and is served at root URL `/images/<key>.<ext>` in both dev and prod.
+
+**`src/data/assets.js` rewrite:**
+
+- 4,619,490 bytes → 6,310 bytes (×732 smaller)
+- Every `key: 'data:image/...;base64,...'` line became `key: '/images/<key>.<ext>'` (Pattern 1 — Vite public-directory path reference)
+- Object.freeze() + window bridge unchanged from T1.13.2
+- Comment header updated to note the T1.13.3 refactor + cap closure
+- No consumer changes — `<img src={ASSETS.foo}>` swaps a 100KB data URI for a 26-char path string, browser fetches separately
+
+Sample diff:
+```
+- Boss_Chronicle: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAS...(200KB)...',
++ Boss_Chronicle: '/images/Boss_Chronicle.jpg',
+```
+
+**Bundle size (real measurement, post-`npm run build`):**
+
+| Artifact | Before (T1.13.2) | After (T1.13.3) | Δ |
+|---|---|---|---|
+| `dist/index.html` | 5.76 KB | 5.76 KB | 0 |
+| `dist/assets/index-*.css` | 368.77 KB | 368.77 KB | 0 |
+| `dist/assets/index-*.js` | **4,773.55 KB** | **160.05 KB** | **−4,613 KB (×29.8 smaller)** |
+| `dist/images/` (NEW) | — | 3.9 MB (89 files) | +3.9 MB |
+| **Total `dist/`** | **5.13 MB** | **4.5 MB** | **−0.63 MB** |
+
+JS-bundle alone (the AAA+ §3.2 metric for "what the parser/V8 has to chew before first paint") drops 96.6%. Total dist size drops 12% — same pixel content, just relocated from `<script>` blob to `<img>` HTTP requests. Browser caches per-file, so a re-visit costs zero asset bandwidth.
+
+Gzip:
+- JS: 3,494.98 KB → 46.15 KB (×75.7 smaller). Gzip was already compressing the base64 well but the binary fetches benefit from JPEG's own entropy coding too.
+- CSS: 66.36 KB (unchanged)
+
+**Vite/build behavior:**
+
+- Build emits two pre-existing warnings about `assets/icons/coin.png` and `assets/icons/cristal.png` (not part of ASSETS — referenced from CSS `url(...)` in legacy-derived stylesheets, where Vite can't statically resolve the path). These are unrelated to T1.13.3 and were flagged as pre-existing in REPORT-14. **Not regressed, not addressed.**
+- No new circular-dep warnings.
+- 37 modules transformed; build completes in 340 ms.
+
+**Verification (all gates green):**
+- `npm run lint` → **0 errors / 0 warnings**
+- `npm run test:unit` → **11/11 pass** (~103 ms)
+- `npm run test:smoke` → **2/2 pass** (~3.2 s, legacy URL unchanged)
+- `npm run test:visual` → **22/22 pass under 2%** (~13.0 s, legacy baselines unchanged — pixels are byte-identical because base64 decode is lossless)
+- `npm run build` → succeeds, dist 4.5 MB total
+
+**Legacy untouched:**
+- `wc -c docs/_legacy/_archive_v1/blocksworn_index_fixed.html` = **21,480,494**
+- SHA-256 = `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` (unchanged)
+- Parent dir `/Users/rm/Downloads/game/` not modified (no copies made — pure base64 decode path used)
+
+**Self-check:**
+- [x] Step A inventory: 89 entries audited; 87 JPEG / 2 PNG / 0 SVG / 0 WebP / 0 path-string-already
+- [x] Step B parent-dir audit: source files present for ~all keys, but base64 decode preferred to guarantee pixel parity with visual baselines (parent-dir PNGs are full-resolution originals, not the JPEG-compressed legacy variant)
+- [x] Step C refactor: src/data/assets.js rewritten with Pattern 1 (`/images/<key>.<ext>` strings); 0 entries kept as data URIs
+- [x] Step D move: 89 binary files written to `public/images/` (flat layout, filename = key)
+- [x] Step E verify: every key maps to an existing file in public/images (decoder writes file before rewriting key — there can be no broken paths)
+- [x] Step F bundle: dist 5.13 MB → 4.5 MB (under 5 MB cap); JS bundle 4,773 KB → 160 KB
+- [x] Step G gates: lint 0, unit 11/11, smoke 2/2, visual 22/22, build clean
+- [x] Step H commit: code `9f36b76`, this DOCS commit follows
+- [x] Acceptance: bundle under 5 MB AAA+ cap
+- [x] Acceptance: legacy untouched — `wc -c` = 21,480,494; SHA-256 stable
+- [x] Sacred cows: nothing touched (no combat math / feel / narrative / economy changes; pixel content identical via base64 decode)
+- [x] DO NOT TOUCH: legacy HTML / docs/_legacy/* / CSS / smoke specs / visual baselines / regression spec / CI / husky / eslint config — none modified
+- [x] DO NOT TOUCH parent dir `/Users/rm/Downloads/game/` — not modified (no copies)
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.13.3 commit; did NOT start T1.13.4
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **Parent dir originals could replace decoded JPEGs for AAA+ pixel quality.** The base64-decoded JPEGs in `public/images/` are byte-identical to legacy (compressed q85, 1024px max). If a future task wants higher-quality portraits (e.g., 1536px q92, or PNG-with-alpha race emblems for transparent backgrounds), the source originals are sitting in `/Users/rm/Downloads/game/{boss emblems,race emblems,elements emblems,Modifications emblems,chapter emblems,class emblem,races/*,boss/*,Game bosses,new boss}/`. Would need: (a) a manifest mapping each ASSETS key → parent-dir filename (which I built mentally during the audit but didn't persist), (b) batch sips/cwebp re-compression with the desired target settings, (c) capture new visual baselines because pixels would change. Out of T1.13.3 scope — current decode hits the bundle target.
+
+2. **Vite warnings on `assets/icons/coin.png` and `assets/icons/cristal.png`** persist (pre-existing — first flagged in REPORT-14). The warnings come from CSS `url(...)` references that Vite can't statically resolve. These two icons are NOT in the ASSETS registry — they're separately referenced from styles. Fix shape: either (a) `import` them in JS and use the resolved URL in CSS via CSS-vars, or (b) move them to `public/images/` and update CSS to `url(/images/coin.png)`. Trivial follow-up; low priority because warnings are non-fatal. Reported, not fixed.
+
+3. **Flat `public/images/` layout has 89 files at one level** — fine at this scale but if Phase 1+ adds another wave of sprites/portraits we should sub-categorize: `public/images/bosses/`, `/heroes/`, `/emblems/{element,race,role,chapter}/`, `/icons/`. The ASSETS key naming already encodes the category (`Boss_*`, `hero_*`, `emblem_race_*`, etc.) so the migration is a regex over `src/data/assets.js`. Defer to whenever asset count grows past ~150.
+
+4. **No image-lazy-load preserved-bandwidth strategy.** Browser will request all visible ASSETS images on first paint (depending on render order). Current sizes are small (median 15-50 KB JPEG), so this is unlikely to hurt LCP, but if a future audit shows otherwise, consider: (a) `<img loading="lazy">` on off-screen portraits, (b) preload-link the splash-screen Logo/Boss_Chronicle, (c) inline only the splash-critical assets back as base64 in CSS while keeping the rest as `/images/` paths. Out of T1.13.3 scope — speculative.
+
+5. **Bundle still has room to trim CSS (368 KB) and JS (160 KB).** The CSS is dominated by legacy-derived styles (T1.06); the JS is what we expect for the new shell's import graph. Neither in scope for the asset-pipeline task. Reported as observation for the eventual Phase 1 final-polish pass.
+
+6. **Window bridge `window.ASSETS = ASSETS` retained** because some legacy `/* global ASSETS */` consumers may still read from the bare identifier. T1.13.2's "Замечено рядом" item 2 covers retiring those bare reads. Once that's done the window bridge can disappear too.
+
+**Bundle composition (final):**
+- `dist/index.html` = 5.76 KB
+- `dist/assets/index-Ll3EVNU3.css` = 368.77 KB (unchanged)
+- `dist/assets/index-Ll3EVNU3.js` = **160.05 KB** (gzip 46.15 KB) — 96.6% smaller than T1.13.2
+- `dist/images/` = 3.9 MB across 89 files (separately HTTP-cacheable)
+- Total `dist/` ≈ **4.5 MB** — under the 5 MB AAA+ cap
+
+**Time:** ~45 minutes (inventory script + parent-dir audit + decode/rewrite script + 1× verify cycle + commit cycle).
+
+---
+
 ### TASK-016 (T1.13.2) — REVIEW (2026-05-11)
 
 **Code commit:** `[T1.13.2] Writable canonical bindings + ASSETS + duplicate exports` → `11d0e60`
