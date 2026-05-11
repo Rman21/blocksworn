@@ -2,11 +2,14 @@
 // Spec: docs/plan/00_EXECUTION_PLAN.md §13 T1.03.
 // Four projects (desktop chromium + webkit, mobile chrome Pixel 7, mobile safari iPhone 14).
 // webServer auto-starts `npm run dev` on :5173.
+// 2026-05-11 — TASK-004 (T1.04): widen testDir to ./tests so the visual
+// baseline + (later) regression specs are discovered alongside smoke tests.
+// npm scripts target subpaths explicitly (test:smoke, test:visual:baseline).
 
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/smoke',
+  testDir: './tests',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

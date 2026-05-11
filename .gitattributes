@@ -1,0 +1,4 @@
+# 2026-05-11 — TASK-004 (T1.04): visual baseline PNGs as binary.
+# Prevents `git diff` from rendering PNG bytes as text and prevents auto
+# line-ending normalization on Windows checkouts.
+*.png binary
