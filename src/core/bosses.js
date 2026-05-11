@@ -143,12 +143,13 @@ import {
   TOWER_BOSS_TTK_TARGETS,
 } from '../data/bosses.js';
 import { ASSETS } from '../data/assets.js';
+import { playDialogScript } from '../ui/dialog.js';
 import { log } from '../services/logger.js';
 
+// T1.13.4: playDialogScript flipped from /* global */ to ES import (boss-voice firing).
 // Residual legacy-owned tokens:
 /* global flashText, flashStateBanner, vibrate, showThreatBanner, render,
    renderHP, renderBossHP */
-/* global playDialogScript */
 /* global chapter2Unlocked, chapter3Unlocked, chapter4Unlocked,
    isContentUnlocked,
    closeFloorSelector */

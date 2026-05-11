@@ -1,4 +1,9 @@
 // 2026-05-11 — TASK-008 (T1.07): game-balance constants relocated from legacy.
+// 2026-05-11 — TASK-018 (T1.13.4): SQUAD_MAX named export added; legacy-only
+//   constant gets a proper home. Mutable per-boss-defeat progression (3 → 4
+//   after Boss 2 → 5 after Boss 4) preserved via getSquadMax / setSquadMax
+//   accessors + window bridge. Retires the `_SQUAD_MAX_FALLBACK` shim in
+//   src/core/progression.js.
 //
 // Sacred per CLAUDE.md §2.1:
 //   - combo crit formula values inside BALANCE (xp, fireMultCap, etc.)
@@ -233,3 +238,29 @@ export const BALANCE = Object.freeze({
 // (`{1:1, 2:2, 3:3}`) has zero read callsites; it's dead code that T1.10
 // removal will sweep up.
 export const TIER_COSTS = Object.freeze({ 1: 1, 2: 2, 3: 3, 4: 5 });
+
+// ─── SQUAD_MAX (legacy 21222-21225) ────────────────────────────────────────
+// Block B3: SQUAD_MAX is mutable. Progression: 3 (default) → 4 (after Boss 2) →
+// 5 (after Boss 4). Hooked from onBossDefeated. Persisted in localStorage.
+//
+// Module-private `let` + accessors keep the mutation surface explicit. The
+// `window.SQUAD_MAX` bridge keeps legacy-style /* global SQUAD_MAX */ readers
+// (and the legacy `SQUAD_MAX = n` writer sites at legacy 21402 / 21449 /
+// 24985) live-binding compatible. Initial value byte-perfect from legacy.
+let _squadMax = 3;
+export const SQUAD_MAX_STORAGE_KEY = 'blocksworn_squad_max';
+
+export function getSquadMax() { return _squadMax; }
+export function setSquadMax(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return;
+  _squadMax = v;
+}
+
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'SQUAD_MAX', {
+    configurable: true,
+    get: () => _squadMax,
+    set: (v) => { _squadMax = v; },
+  });
+}

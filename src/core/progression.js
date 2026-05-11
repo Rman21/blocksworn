@@ -108,8 +108,8 @@
 // new. Comments above this line replicate legacy intent.
 
 // T1.13.1: /* global */ → ES imports for resolved src/ exports.
-/* global SQUAD_MAX,
-   heroFragments, getHeroFragments, saveHeroFragmentsToStorage,
+// T1.13.4: SQUAD_MAX flipped from /* global */ to import (src/data/balance.js).
+/* global heroFragments, getHeroFragments, saveHeroFragmentsToStorage,
    saveGoldToStorage,
    towerState, saveTowerState,
    flashText, vibrate, closeFloorSelector,
@@ -119,7 +119,7 @@
    _maybeShowEndgameKitEligibilityCelebration */
 // LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
-import { BALANCE, TIER_COSTS } from '../data/balance.js';
+import { BALANCE, TIER_COSTS, getSquadMax } from '../data/balance.js';
 import { CHAPTERS } from '../data/chapters.js';
 import { HERO_ROSTER, STARTER_HEROES } from './heroes.js';
 import { applyBossEmblems, getCurrentChapter, setCurrentChapterValue } from './bosses.js';
@@ -161,19 +161,17 @@ import { log } from '../services/logger.js';
 //   legacy 38350 `let chapter4Unlocked = false;`
 //   legacy 38351 `let selectedBossIdx = null;`
 //
-// SQUAD_MAX is a legacy global resolved through the window scope chain at
-// activeSquad init time (set by data/heroes consumers); we read it
-// defensively because the legacy declaration order ran AFTER SQUAD_MAX
-// existed. Here we fall back to 5 if SQUAD_MAX is not yet defined at
-// module-init time — reconcileSquadUnlocks() later slices to the actual cap.
+// T1.13.4: SQUAD_MAX now lives in src/data/balance.js (mutable per Boss-defeat
+// progression: 3 → 4 after Boss 2 → 5 after Boss 4). The T1.13.2-era
+// `_SQUAD_MAX_FALLBACK = 5` defensive shim retires here; we read the live
+// value via getSquadMax() at module init. reconcileSquadUnlocks() later
+// slices to the actual cap on each squad mutation.
 let gold = 0;
 let essences = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
-const _SQUAD_MAX_FALLBACK = (typeof globalThis !== 'undefined' && typeof globalThis.SQUAD_MAX === 'number')
-  ? globalThis.SQUAD_MAX : 5;
 let activeSquad = HERO_ROSTER
   .filter(h => STARTER_HEROES.has(h.id))
   .map(h => h.id)
-  .slice(0, _SQUAD_MAX_FALLBACK);
+  .slice(0, getSquadMax());
 let favorites = new Set();
 let activeModifiers = new Set();
 let chapterProgress = { 1: 0, 2: 0, 3: 0 };
@@ -716,7 +714,7 @@ export function lockHero(heroId) {
     if (si >= 0) {
       activeSquad.splice(si, 1);
       for (const s of HERO_ROSTER) {
-        if (activeSquad.length >= SQUAD_MAX) break;
+        if (activeSquad.length >= getSquadMax()) break;
         if (!STARTER_HEROES.has(s.id)) continue;
         if (activeSquad.includes(s.id)) continue;
         activeSquad.push(s.id);
@@ -736,16 +734,16 @@ export function lockHero(heroId) {
 export function reconcileSquadUnlocks() {
   if (typeof activeSquad === 'undefined') return;
   activeSquad = activeSquad.filter(id => isHeroUnlocked(id));
-  if (activeSquad.length < SQUAD_MAX) {
+  if (activeSquad.length < getSquadMax()) {
     for (const h of HERO_ROSTER) {
-      if (activeSquad.length >= SQUAD_MAX) break;
+      if (activeSquad.length >= getSquadMax()) break;
       if (!STARTER_HEROES.has(h.id)) continue;
       if (activeSquad.includes(h.id)) continue;
       activeSquad.push(h.id);
     }
   }
   // Trim in case caller handed us an over-length squad
-  if (activeSquad.length > SQUAD_MAX) activeSquad.length = SQUAD_MAX;
+  if (activeSquad.length > getSquadMax()) activeSquad.length = getSquadMax();
 }
 
 // ─── Dungeon / floor progress (legacy 25224-25284) ────────────────────────
@@ -1125,7 +1123,7 @@ export function loadProgress() {
     // V3.0 Block 0.1: restore activeSquad, then strip any locked heroes and pad with starters.
     // Also runs on fresh defaults — harmless (default squad is all starters).
     if (Array.isArray(data.activeSquad) && data.activeSquad.length > 0) {
-      activeSquad = data.activeSquad.slice(0, SQUAD_MAX);
+      activeSquad = data.activeSquad.slice(0, getSquadMax());
     }
     reconcileSquadUnlocks();
   } catch(_e) {

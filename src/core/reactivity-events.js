@@ -172,6 +172,8 @@ import { applyChannelDamage } from './damage-channels.js';
 import { bossAttack } from './battle.js';
 import { isFtueActive } from './ftue-state.js';
 import { isHeroMythic } from './progression.js';
+// T1.13.4: playDialog + seenDialogs flipped from /* global */ to ES import.
+import { playDialog, showBossPhaseDialog } from '../ui/dialog.js';
 import { vHaptic } from '../feel/haptics.js';
 import { logEvent } from '../services/analytics.js';
 import { log } from '../services/logger.js';
@@ -188,9 +190,12 @@ import { log } from '../services/logger.js';
 // Engineer hero state (residual legacy-owned):
 /* global engineerElectrifiedRow:writable, engineerElectrifiedTurns:writable */
 // Stagger-loop & battle (residual legacy-owned):
+// T1.13.4: playDialog flipped to ES import (src/ui/dialog.js). seenDialogs
+// stays /* global */ — dialog.js exposes it via the window bridge and the
+// readers below use defensive `typeof seenDialogs === 'undefined'` checks.
 /* global bossAttackDmgMult:writable, attackCountdown:writable,
    currentFloorId, _isTowerBattle, _phase5IsReactivitySuppressed,
-   seenDialogs, playDialog, DIALOGS, placementCount */
+   seenDialogs, DIALOGS, placementCount */
 // Heroes (residual legacy-owned):
 /* global HERO_DECK, TIER_DAMAGE_MULT, heroUpgrades */
 // Analytics (residual legacy-owned):
@@ -949,12 +954,11 @@ export function _toRoman(n) {
   return map[n] || String(n);
 }
 
-// Block 6.2 replaces this stub with real DIALOG_LINES lookup.
-// Kept here so Block 6.1 is independently functional — phase transitions fire
-// correctly without dialog content.
-export function showBossPhaseDialog(dialogId) {
-  log.debug('[phase dialog placeholder]', dialogId);
-}
+// T1.13.4: legacy Block 6.1 stub deleted — real showBossPhaseDialog now lives
+// in src/ui/dialog.js and is imported above. The stub's only role was to keep
+// Block 6.1 independently functional before Block 6.2's DIALOG_LINES lookup
+// landed; now that dialog.js owns both the stub-shape AND the registry, there's
+// only one canonical resolver.
 
 // 2026-05-02 — COMBAT v2.1 P4 §5.8: battle-init reactivity state reset.
 // Called from existing battle-init reset chain alongside resetStaggerState

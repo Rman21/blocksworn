@@ -163,6 +163,9 @@ import { _getBossSignatureTier, CHANNEL_SIGNATURE_DMG, applyChannelDamage } from
 import { getHeroLevel, saveProgress } from './progression.js';
 import { STIHIYAS } from '../data/elements.js';
 import { isFtueActive } from './ftue-state.js';
+// T1.13.4: playDialog flipped from /* global */ to ES import; seenDialogs stays
+// /* global */ — bridged on window from src/ui/dialog.js with defensive typeof reads.
+import { playDialog } from '../ui/dialog.js';
 import { speakNarrator } from '../feel/narrator.js';
 import { logEvent } from '../services/analytics.js';
 import { log } from '../services/logger.js';
@@ -182,7 +185,7 @@ import { log } from '../services/logger.js';
 // Sacred constants (residual legacy-owned):
 /* global MAX_SHIELD */
 // FTUE dialog (residual legacy-owned):
-/* global seenDialogs, playDialog */
+/* global seenDialogs */
 // Tower overflow ratio override (residual legacy-owned):
 /* global OVERFLOW_TO_TOWER_BATTLE_TOWER */
 // Phase 3 hook bus (residual legacy-owned):

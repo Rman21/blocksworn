@@ -30,6 +30,9 @@
 import { isFtueActive } from '../core/ftue-state.js';
 import { showScreen, goToSelect } from './router.js';
 import { startBossBattle } from '../core/battle.js';
+// T1.13.4: playDialog flipped from /* global */ to ES import; getSquadMax() from balance.
+import { playDialog } from './dialog.js';
+import { getSquadMax } from '../data/balance.js';
 import { log } from '../services/logger.js';
 
 /* global vRenderTopbar, vRenderChapter, vRenderBossCard, vRenderSquadDock,
@@ -37,8 +40,8 @@ import { log } from '../services/logger.js';
    renderBossProgression, renderChapterToggle, renderEssenceStrip,
    renderResourceBarHpMit,
    gold, gems,
-   activeSquad, SQUAD_MAX, seenDialogs,
-   playDialog, flashText, rebuildHeroDeck,
+   activeSquad, seenDialogs,
+   flashText, rebuildHeroDeck,
    bossesDefeated, chapterProgress, currentChapter,
    BOSSES, selectedBossIdx, currentBossIdx */
 /* global currentBossIdx:writable, bossesDefeated:writable, chapterProgress:writable */
@@ -78,10 +81,10 @@ export function renderMenu() {
 
 // ─── startBattleFromMenu — primary CTA (legacy 66569-66609) ─────────────────
 export function startBattleFromMenu() {
-  if (activeSquad.length < SQUAD_MAX) {
+  if (activeSquad.length < getSquadMax()) {
     // 2026-04-27 — Pre-Lich (and any post-bump) tutorial. The classic flash
     // "SELECT 5 HEROES" is terse; for the FIRST time the player hits this
-    // gate after SQUAD_MAX bumped to 5 (post-Phoenix), show a clear dialog
+    // gate after getSquadMax() bumped to 5 (post-Phoenix), show a clear dialog
     // explaining WHY + route them to the Select screen so they can add the
     // missing hero. Gated by seenDialogs so subsequent under-squad attempts
     // get the lighter flash. Suppressed during FTUE so scripted onboarding
@@ -89,7 +92,7 @@ export function startBattleFromMenu() {
     try {
       const ftueOff = (typeof isFtueActive !== 'function') || !isFtueActive();
       const seen    = (typeof seenDialogs !== 'undefined') && seenDialogs;
-      if (ftueOff && SQUAD_MAX === 5 && seen && !seen.has('tut_pre_lich_check')) {
+      if (ftueOff && getSquadMax() === 5 && seen && !seen.has('tut_pre_lich_check')) {
         if (typeof playDialog === 'function') {
           playDialog('tut_pre_lich_check', () => {
             // After dialog: route to Select screen so player can fill the slot.
@@ -99,7 +102,7 @@ export function startBattleFromMenu() {
         }
       }
     } catch (e) {}
-    flashText(`SELECT ${SQUAD_MAX} HEROES`, '#E85D4A');
+    flashText(`SELECT ${getSquadMax()} HEROES`, '#E85D4A');
     return;
   }
   // Task #1.7: Energy gate removed.

@@ -63,12 +63,16 @@ import {
 import { clearVoidfangTints, VOIDFANG_DEFEATED_KEY } from '../core/reactivity-events.js';
 import { getEffectiveBossStats, showVictoryModal, showDefeatModal } from '../core/battle.js';
 import { renderResourceBar } from './menu.js';
+// T1.13.4: dialog system extracted to src/ui/dialog.js.
+import { playDialog, DIALOG_LINES, getBossDialogPrefix } from './dialog.js';
 import { STIHIYAS, STIHIYA_COLORS } from '../data/elements.js';
 import { BALANCE } from '../data/balance.js';
 import { vPlayBossDieFx, vCleanupBossDeathFx } from '../feel/animations.js';
 import { logEvent, EVT } from '../services/analytics.js';
 import { log } from '../services/logger.js';
 
+// T1.13.4: playDialog + DIALOG_LINES + getBossDialogPrefix flipped to ES import.
+// seenDialogs stays /* global */ — bridged on window from dialog.js.
 /* global currentBoss, currentBossIdx, currentChapter, currentFloorId,
    bossesDefeated, bossHP, bossMaxHP, bossArchetype, revivesRemaining,
    chapterProgress, BOSSES, BOSS_REWARD,
@@ -77,9 +81,9 @@ import { log } from '../services/logger.js';
    HERO_ROSTER, activeSquad, essences, gold,
    ftueBeat, _isTowerBattle, _currentRacePureRace,
    plunderActive, plunderEmberCounter, racePureCleared,
-   seenDialogs, DIALOG_LINES, voidfangDefeated,
+   seenDialogs, voidfangDefeated,
    battleDamageTaken,
-   getRewardMultiplier, getBossHeroReward, getBossDialogPrefix,
+   getRewardMultiplier, getBossHeroReward,
    showChapterCompleteCelebration,
    applyReward, applyBossDefeatProgression,
    addArtifact, addGold, awardWinGold, addHeroFragments, addGems,
@@ -97,7 +101,7 @@ import { log } from '../services/logger.js';
    playHeroUnlock, playContextMusic,
    flashText, vibrate, renderBossHP, renderHP,
    sleep,
-   trackMissionEvent, playDialog,
+   trackMissionEvent,
    addSeasonXP, saveGoldToStorage */
 /* global bossHP:writable, gameEnded:writable, revivesRemaining:writable,
    bossesDefeated:writable, chapterProgress:writable,

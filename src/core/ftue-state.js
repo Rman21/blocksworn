@@ -58,6 +58,11 @@
 // new. Comments above this line replicate legacy intent.
 
 // T1.13.1: /* global */ → ES imports for resolved src/ exports.
+// T1.13.4: playDialogScript + dialog state (dialogActive, dialogClickLock,
+//   _pendingDialogRequest, _dialogDeferredQueue) flipped from /* global */ to
+//   import from src/ui/dialog.js. The 5 module-private state vars are still
+//   read/written via the window bridge in dialog.js (cross-module legacy
+//   teardown pattern); the playDialogScript function is now an ES import.
 import {
   FTUE_BEATS,
   FTUE_TRANSITIONS,
@@ -66,15 +71,21 @@ import {
 } from '../data/ftue-scripts.js';
 import { resetBossVoiceFlags } from './bosses.js';
 import { ASSETS } from '../data/assets.js';
+import { playDialogScript } from '../ui/dialog.js';
 import * as storage from '../services/storage.js';
 import { log } from '../services/logger.js';
 
 // Residual legacy-owned tokens:
-/* global playDialogScript, showLeaderChoiceModal,
+/* global showLeaderChoiceModal,
    revealHero, flashText, vibrate,
    _dialogDeferredQueue, _chronoActive, _hideChronoBeat, location */
 /* global _pendingDialogRequest:writable, dialogActive:writable, dialogClickLock:writable */
 // LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
+// NB: dialog state (_pendingDialogRequest / dialogActive / dialogClickLock /
+// _dialogDeferredQueue) is now module-private inside src/ui/dialog.js and
+// exposed back on window via Object.defineProperty(window, ...) bridges; the
+// /* global */ declarations above stay for legacy-style writable bridge reads
+// inside _skipOnboarding teardown.
 
 // ─── Module-private state ──────────────────────────────────────────────────
 // Legacy declared `let ftueBeat = 'not_started'` at file scope (line 24061).

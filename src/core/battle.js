@@ -147,6 +147,8 @@ import {
   clearVoidfangTints, shroudTick, showBossIntelOverlay,
 } from './reactivity-events.js';
 import { applyChannelDamage, applyBossSignatureDamage, _getBossSignatureTier } from './damage-channels.js';
+// T1.13.4: dialog system flipped from /* global */ to ES import.
+import { playDialogScript, playDialog, DIALOG_LINES, getBossDialogPrefix } from '../ui/dialog.js';
 import { speakNarrator } from '../feel/narrator.js';
 import { vHaptic } from '../feel/haptics.js';
 import { vPlayLineClearBurst, vPlayBossDieFx, vCleanupBossDeathFx } from '../feel/animations.js';
@@ -246,9 +248,10 @@ import { logEvent, EVT } from '../services/analytics.js';
 // Reward / floor / dungeon (T1.10.2 follow-up + dungeon module):
 /* global currentFloorId, _isFtueOnly */
 
-// FTUE chronograph + dialog (T1.11 dialog module):
-/* global playDialogScript, playDialog, seenDialogs, DIALOG_LINES,
-   getBossDialogPrefix, maybeShowBattleTutorial, _dialogDeferredQueue:writable,
+// FTUE chronograph + dialog (T1.13.4 dialog module — src/ui/dialog.js):
+// playDialogScript / playDialog / DIALOG_LINES / getBossDialogPrefix imported.
+// seenDialogs + state queues stay /* global */ — bridged on window from dialog.js.
+/* global seenDialogs, maybeShowBattleTutorial, _dialogDeferredQueue:writable,
    _pendingDialogRequest:writable */
 
 // Education / tutorials (T1.11):
