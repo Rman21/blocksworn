@@ -5,8 +5,109 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Blocksworn</title>
 </head>
-<body>
-  <div id="app"></div>
+<body class="a-screen">
+  <!-- 2026-05-11 — TASK-014 (T1.12): THE switchover. Minimal static DOM scaffold
+       extracted from legacy <body> (docs/_legacy/_archive_v1/blocksworn_index_fixed.html
+       16650-71012) so render functions targeting `getElementById('screen*')` etc.
+       find their mount points when src/main.js becomes the primary entry path.
+
+       DO NOT inline content from legacy — render functions fill containers.
+       This file provides ONLY id-anchored mount points for:
+         · 8 screen containers (screenMenu .. screenDailies)
+         · Persistent overlays (#dialogOverlay, #introVideoOverlay, #narrator)
+         · Persistent modals (#modal victory/defeat, #infoModal, #leaderChoiceModal,
+           etc.) closed/opened by router + battle code.
+
+       Legacy IDs + class names preserved verbatim so existing src/styles/ CSS
+       targets correctly and any future visual regression baselines remain
+       compatible.
+
+       T1.13 manual playthrough validates the actual render chain. -->
+
+  <!-- ============ SCREEN CONTAINERS (one .active at a time, switched by router.showScreen) ============ -->
+  <div class="screen" id="screenMenu"></div>
+  <div class="screen v-secondary v-profile" id="screenProfile"></div>
+  <div class="screen" id="screenSelect"></div>
+  <div class="screen" id="screenBattle"></div>
+  <div class="screen v-shop a-shop" id="screenShop"></div>
+  <div class="screen v-secondary v-dailies" id="screenDailies"></div>
+  <div class="screen v-secondary v-tower" id="screenTower"></div>
+  <div class="screen v-secondary v-season" id="screenSeason"></div>
+
+  <!-- ============ PERSISTENT OVERLAYS (z-layered above screens) ============ -->
+  <!-- Narrator caption strip (legacy line 17286). -->
+  <div class="narrator" id="narrator"></div>
+
+  <!-- Intro video overlay (legacy 18074-18077). Hidden by default; FTUE intro plays it. -->
+  <div id="introVideoOverlay" class="intro-video-overlay hidden">
+    <video id="introVideoPlayer" class="intro-video-player" playsinline muted preload="auto"></video>
+    <div class="intro-video-skip" id="introVideoSkip">SKIP ▸</div>
+  </div>
+
+  <!-- Full-screen dialog overlay for FTUE + story beats (legacy 18091-18100). -->
+  <div id="dialogOverlay" class="dialog-overlay hidden">
+    <button type="button" id="dialogSkipBtn" class="dialog-skip-btn" hidden>SKIP ▸</button>
+    <div class="dialog-portrait-wrap">
+      <img id="dialogPortrait" class="dialog-portrait-img" alt="" />
+    </div>
+    <div class="dialog-speaker" id="dialogSpeaker"></div>
+    <div class="dialog-text" id="dialogText"></div>
+    <button type="button" id="dialogCtaBtn" class="dialog-cta-btn" hidden></button>
+    <div class="dialog-tap-hint" id="dialogTapHint">tap to continue</div>
+  </div>
+
+  <!-- ============ PERSISTENT MODALS (opened/closed by router + battle/FTUE code) ============ -->
+  <!-- Victory / defeat modal — render path fills modalTitle/modalLabel/modalStats/modalNextBoss. -->
+  <div class="modal a-result" id="modal">
+    <div class="modal-box" id="modalBox">
+      <div class="modal-boss-emblem" id="modalBossEmblem"></div>
+      <div class="modal-title" id="modalTitle">—</div>
+      <div class="modal-label" id="modalLabel">—</div>
+      <div class="modal-stats" id="modalStats"></div>
+      <div id="modalNextBoss"></div>
+      <button class="btn" id="modalBtn">—</button>
+    </div>
+  </div>
+
+  <!-- Info / profile modal (legacy 18010). -->
+  <div class="modal" id="infoModal" data-info-tab="profile"></div>
+
+  <!-- Locked-hero modal (legacy 18041). -->
+  <div class="modal" id="lockedHeroModal"></div>
+
+  <!-- Hero detail modal (legacy 18154). -->
+  <div class="modal v-hero-sheet a-hero-detail a-hero-detail--spec" id="heroDetailModal"></div>
+
+  <!-- Leader choice modal (V3.0 Block 1.2, legacy 18103). -->
+  <div class="modal leader-choice-modal hidden" id="leaderChoiceModal"></div>
+
+  <!-- Tower modals (legacy 17416-17497). -->
+  <div class="tower-ach-modal hidden" id="towerAchModal"></div>
+  <div class="tower-heart-modal hidden" id="towerHeartModal"></div>
+  <div class="tower-buff-modal hidden" id="towerBuffModal"></div>
+  <div class="tower-pact-modal hidden" id="towerPactModal"></div>
+  <div class="tower-floor-clear-modal hidden" id="towerFloorClearModal"></div>
+
+  <!-- Avatar picker + username editor modals (legacy 16931 / 16949). -->
+  <div class="modal" id="avatarPickerModal"></div>
+  <div class="modal" id="usernameEditorModal"></div>
+
+  <!-- Misc dialog/coming-soon/buff/boss-details modals (legacy 17724-17770). -->
+  <div id="audioSettingsModal" class="audio-settings-modal" aria-hidden="true" role="dialog"></div>
+  <div id="comingSoonModal" class="coming-soon-modal" aria-hidden="true" role="dialog"></div>
+  <div id="buffModal" class="buff-modal" aria-hidden="true" role="dialog"></div>
+  <div id="bossDetailsModal" class="boss-details-modal" aria-hidden="true" role="dialog"></div>
+
+  <!-- Art picker / inventory / synergy info — referenced by router.showScreen close-on-nav loop. -->
+  <div class="modal" id="artPickerModal"></div>
+  <div class="modal" id="artInventoryModal"></div>
+  <div class="modal" id="synergyInfoModal"></div>
+
+  <!-- Captain mark / mythic threshold / tank-ult mode modals — referenced by core. -->
+  <div class="modal" id="captainMarkModal"></div>
+  <div class="modal" id="mythicThresholdModal"></div>
+  <div class="modal" id="tankUltModeModal"></div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
