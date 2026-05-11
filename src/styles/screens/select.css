@@ -1,0 +1,252 @@
+/* Boss-select / dialog / chapter-complete screen.
+ * Pure relocation (T1.06).
+ */
+
+/* Generic button re-skin inside modal */
+.a-hero-detail button.detail-primary,
+.a-hero-detail .select-btn,
+.a-hero-detail .squad-toggle-btn,
+.a-hero-detail .detail-add-squad {
+  background: linear-gradient(180deg, var(--a-fire-300) 0%, var(--a-fire-700) 100%);
+  border: 2px solid var(--a-fire-100);
+  border-radius: var(--a-radius-btn);
+  padding: 12px 16px;
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: #2a0808;
+  text-transform: uppercase;
+  cursor: pointer;
+  width: 100%;
+  box-shadow: var(--a-shadow-cta);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+}
+
+/* ===== V3.0 PHASE 1 BLOCK 1.2 — DIALOG OVERLAY + LEADER CHOICE ===== */
+.dialog-overlay {
+  --dialog-glow: #FFD53D; /* updated per speaker by playDialogScript */
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(8,8,20,0.92);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; padding: 28px 20px;
+  cursor: pointer;
+  animation: dialogFadeIn 0.35s ease-out;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.dialog-overlay.hidden { display: none; }
+.dialog-portrait-wrap {
+  width: 160px; height: 160px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 2px solid var(--dialog-glow);
+  box-shadow: 0 0 36px rgba(255,213,61,0.32), 0 0 0 1px rgba(255,255,255,0.08) inset;
+  background: #0F0F1F;
+  flex-shrink: 0;
+}
+.dialog-portrait-img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center top;
+  display: block;
+  pointer-events: none;
+}
+.dialog-speaker {
+  font-size: 16px; font-weight: 800;
+  letter-spacing: 3px;
+  color: var(--dialog-glow);
+  text-transform: uppercase;
+  text-shadow: 0 0 8px rgba(0,0,0,0.6);
+}
+.dialog-text {
+  max-width: 480px;
+  min-height: 72px;
+  font-size: 15px; line-height: 1.55;
+  color: #F5F3EC;
+  text-align: center;
+  padding: 0 8px;
+  letter-spacing: 0.2px;
+}
+/* 2026-04-30 — Polish v0.2 Track G §G.4 step 5: tap-to-continue hint goes
+   from near-invisible muted (#6E6C80, weight 400, 32% pulse trough — players
+   thought screens were still loading) to readable secondary-text token at
+   body weight, with a gentle ±10% breathing pulse so it reads as
+   interactive without strobing. Plan-spec colors: #6a5840 → #a09080. The
+   project's --a-text-secondary already maps to #A8A5B8 which sits in the
+   spec band; using the token keeps it consistent with hub/HUD muted copy. */
+.dialog-tap-hint {
+  margin-top: 4px;
+  font-size: 11px; letter-spacing: 2.5px;
+  color: var(--a-text-secondary, #A8A5B8);
+  font-weight: 600;
+  animation: tapPulse 1.6s ease-in-out infinite;
+}
+.dialog-tap-hint[hidden] { display: none !important; }
+/* Persistent BIG CTA button for the single Chronicle pre-battle screen
+   (plan §G.4 step 2). Sized to read as the dominant action on the
+   overlay; gold border + glow matches the dialog's --dialog-glow palette
+   so it doesn't fight the speaker frame. */
+.dialog-cta-btn {
+  margin-top: 10px;
+  padding: 14px 36px;
+  background: linear-gradient(180deg, #FFB800, #C97A05);
+  border: 2px solid #FFE07A;
+  border-radius: 10px;
+  font-family: 'Anton', 'Bebas Neue', 'Impact', sans-serif;
+  font-size: 20px; font-weight: 800; letter-spacing: 2.4px;
+  color: #1A1208;
+  text-shadow: 0 1px 1px rgba(255,255,255,0.4);
+  box-shadow: 0 0 24px rgba(255,184,0,0.55), 0 4px 0 rgba(0,0,0,0.4);
+  cursor: pointer;
+  transition: transform 0.12s ease-out, box-shadow 0.18s ease-out;
+  animation: ctaPulse 2.0s ease-in-out infinite;
+}
+.dialog-cta-btn:hover { transform: translateY(-1px); box-shadow: 0 0 32px rgba(255,184,0,0.75), 0 5px 0 rgba(0,0,0,0.4); }
+.dialog-cta-btn:active { transform: translateY(1px); box-shadow: 0 0 18px rgba(255,184,0,0.45), 0 2px 0 rgba(0,0,0,0.4); }
+.dialog-cta-btn[hidden] { display: none !important; }
+@media (max-height: 720px) {
+  .dialog-overlay { gap: 12px; padding: 20px 16px; }
+  .dialog-portrait-wrap { width: 120px; height: 120px; }
+  .dialog-speaker { font-size: 14px; }
+  .dialog-text    { font-size: 14px; min-height: 56px; max-width: 400px; }
+}
+.chapter-complete-box {
+  background: var(--a-bg-radial, radial-gradient(circle at 50% 0%, #1f1530 0%, #0c0b1a 70%));
+  border: 2px solid var(--a-gold-700, #B3822E);
+  border-radius: 4px;
+  padding: 32px 24px;
+  text-align: center;
+  max-width: 340px;
+  box-shadow: 0 0 32px rgba(255,213,61,0.25), 0 0 0 1px rgba(255,213,61,0.4);
+}
+.chapter-complete-title {
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--a-gold-100, #FFE597);
+  letter-spacing: 2px;
+  text-shadow: 0 0 12px rgba(255,213,61,0.5);
+}
+.chapter-complete-subtitle {
+  color: var(--a-text-secondary, #A8A5B8);
+  font-size: 12px;
+  letter-spacing: 3px;
+  margin-top: 16px;
+}
+.chapter-complete-chapter {
+  color: var(--a-fire-300, #FF7B4A);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-top: 8px;
+}
+.chapter-complete-message {
+  color: var(--a-text-primary, #E4E1F0);
+  margin-top: 24px;
+  font-size: 14px;
+  font-style: italic;
+}
+.chapter-complete-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+/* Leader choice modal */
+.leader-choice-modal.hidden { display: none !important; }
+.leader-choice-box {
+  max-width: 340px;
+  text-align: center;
+  border-color: #FFD53D !important;
+  box-shadow: 0 0 28px rgba(255,213,61,0.3), 0 0 0 1px #FFD53D;
+  padding: 20px 18px !important;
+}
+.leader-choice-title {
+  font-size: 16px; font-weight: 800;
+  letter-spacing: 2px;
+  color: #FFD53D;
+  margin-bottom: 3px;
+  text-shadow: 0 0 8px rgba(255,213,61,0.35);
+}
+.leader-choice-sub {
+  font-size: 11px; letter-spacing: 1px;
+  color: #8A88A0;
+  margin-bottom: 16px;
+}
+.leader-choice-options {
+  display: flex; gap: 10px;
+  justify-content: center;
+  align-items: stretch;
+}
+.leader-choice-option {
+  flex: 1; min-width: 0;
+  background: linear-gradient(180deg, #1A1B2E 0%, #0F0F1F 100%);
+  border: 2px solid #3D3F5E;
+  border-radius: 12px;
+  padding: 10px 8px;
+  cursor: pointer;
+  color: #F5F3EC;
+  text-align: center;
+  transition: transform 0.12s, border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.leader-choice-option:hover, .leader-choice-option:active {
+  transform: scale(1.04);
+  border-color: #FFD53D;
+  box-shadow: 0 0 18px rgba(255,213,61,0.45);
+}
+.leader-choice-option.grommar { --accent: #E85D4A; }
+.leader-choice-option.skarn   { --accent: #FFD53D; }
+.leader-choice-option:hover { border-color: var(--accent, #FFD53D); }
+.leader-choice-portrait {
+  width: 100%; aspect-ratio: 1;
+  object-fit: cover; object-position: center top;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  border: 1px solid rgba(255,255,255,0.1);
+  pointer-events: none;
+}
+/* TASK #2.2b: graceful fallback if portrait fails to load — show emoji crown card
+   instead of broken-image icon. Triggered by JS onerror handler in showLeaderChoiceModal. */
+.leader-choice-option.leader-choice-no-portrait::before {
+  content: '👑';
+  display: block;
+  width: 100%; aspect-ratio: 1;
+  font-size: 64px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, var(--a-gold-700, #6a4a28) 0%, var(--a-gold-900, #2a1810) 100%);
+  border: 1px solid var(--a-gold-500, #a07530);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.leader-choice-name {
+  font-size: 13px; font-weight: 800;
+  letter-spacing: 1.2px;
+  margin-bottom: 2px;
+}
+.leader-choice-role {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  margin-bottom: 5px;
+}
+.leader-choice-quote {
+  font-size: 10px;
+  line-height: 1.35;
+  color: #A8A5B8;
+  font-style: italic;
+  min-height: 28px;
+}
+
+/* ===== V3.0 PHASE 2 BLOCK 2.1 — FLOOR SELECTOR OVERLAY ===== */
+.floor-selector {
+  position: fixed; inset: 0;
+  z-index: 9000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  animation: dialogFadeIn 0.25s ease-out;
+}
+.floor-selector.hidden { display: none; }

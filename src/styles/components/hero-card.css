@@ -1,0 +1,339 @@
+/* Hero card patterns (used cross-screen on roster, squad, battle).
+ * Pure relocation (T1.06).
+ */
+
+/* --- Hero Card --- */
+.a-hero-card {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--a-radius-card);
+  background:
+    radial-gradient(ellipse at center bottom,
+      var(--stihiya-bg-glow, rgba(255,90,58,0.3)) 0%,
+      var(--a-bg-surface) 55%,
+      var(--a-bg-deepest) 100%);
+  border: var(--a-border-medium);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform var(--a-dur-tap) var(--a-ease-out);
+}
+.a-hero-card:active { transform: scale(0.96); }
+.a-hero-card__element-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--stihiya-color, var(--a-ember));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: white;
+  font-weight: 900;
+  box-shadow: 0 0 8px var(--stihiya-glow);
+}
+.a-hero-card__rarity-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.a-hero-card__rarity-badge--common {
+  background: var(--a-rarity-common);
+  color: #1a0f08;
+}
+.a-hero-card__rarity-badge--rare {
+  background: var(--a-rarity-rare);
+  color: #08304a;
+}
+.a-hero-card__rarity-badge--epic {
+  background: var(--a-rarity-epic);
+  color: #fff;
+}
+.a-hero-card__rarity-badge--legendary {
+  background: linear-gradient(180deg, var(--a-fire-300), var(--a-fire-700));
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.5);
+  box-shadow: 0 0 8px rgba(255,184,74,0.6);
+}
+.a-hero-card__rarity-badge--mythic {
+  background: linear-gradient(135deg, var(--a-umbra), var(--a-fire-500));
+  color: #fff;
+  box-shadow: 0 0 10px rgba(192,106,223,0.8);
+}
+.a-hero-card__portrait {
+  width: 60%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%,
+    var(--stihiya-color),
+    var(--stihiya-dark, var(--a-ember-dk)));
+  box-shadow:
+    0 0 12px var(--stihiya-glow),
+    inset 0 -4px 8px rgba(0,0,0,0.4);
+  margin-bottom: 6px;
+  position: relative;
+  overflow: hidden;
+}
+.a-hero-card__portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+.a-hero-card__name {
+  font-family: var(--a-font-display);
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--a-text-gold);
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  text-align: center;
+  line-height: 1;
+}
+.a-hero-card__stars {
+  font-size: 10px;
+  color: var(--a-gold-500);
+  margin-top: 2px;
+}
+.a-hero-card--ember {
+  --stihiya-color: var(--a-ember);
+  --stihiya-dark: var(--a-ember-dk);
+  --stihiya-glow: rgba(255,90,58,0.5);
+  --stihiya-bg-glow: rgba(255,90,58,0.25);
+  border-color: rgba(255,90,58,0.4);
+}
+.a-hero-card--tide {
+  --stihiya-color: var(--a-tide);
+  --stihiya-dark: var(--a-tide-dk);
+  --stihiya-glow: rgba(74,219,255,0.5);
+  --stihiya-bg-glow: rgba(74,219,255,0.25);
+  border-color: rgba(74,219,255,0.4);
+}
+.a-hero-card--grove {
+  --stihiya-color: var(--a-grove);
+  --stihiya-dark: var(--a-grove-dk);
+  --stihiya-glow: rgba(122,236,74,0.5);
+  --stihiya-bg-glow: rgba(122,236,74,0.22);
+  border-color: rgba(122,236,74,0.4);
+}
+.a-hero-card--solar {
+  --stihiya-color: var(--a-solar);
+  --stihiya-dark: var(--a-solar-dk);
+  --stihiya-glow: rgba(255,225,74,0.5);
+  --stihiya-bg-glow: rgba(255,225,74,0.22);
+  border-color: rgba(255,225,74,0.4);
+}
+.a-hero-card--umbra {
+  --stihiya-color: var(--a-umbra);
+  --stihiya-dark: var(--a-umbra-dk);
+  --stihiya-glow: rgba(192,106,223,0.5);
+  --stihiya-bg-glow: rgba(192,106,223,0.22);
+  border-color: rgba(192,106,223,0.4);
+}
+
+/* SPRINT.1 §4.8 — tier-cap-reached styling. When applied to hero-detail
+   panel: level-up button visually softens (50% opacity), ascend button
+   pulses with purple glow to draw the eye toward ascension as the only
+   way to push level cap higher. Toggled via JS in renderHeroDetailLevel. */
+.tier-cap-reached .detail-levelup-btn {
+  opacity: 0.5;
+}
+.tier-cap-reached .detail-ascend-btn {
+  animation: ascend-glow 2s ease-in-out infinite;
+}
+.crypt-aftermath .cla-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(155, 89, 214, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 70%, rgba(255, 184, 74, 0.35) 0%, transparent 60%),
+    rgba(0, 0, 0, 0.92);
+  animation: claBgFade 0.8s ease-in-out forwards;
+}
+.crypt-aftermath .cla-content {
+  position: relative;
+  z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+  padding: 40px 24px;
+  max-width: 90%;
+  text-align: center;
+}
+.crypt-aftermath .cla-line {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #E8DCFF;
+  text-shadow: 0 0 12px rgba(155, 89, 214, 0.55), 0 0 24px rgba(0, 0, 0, 0.85);
+  opacity: 0;
+  transform: translateY(8px);
+}
+.crypt-aftermath .cla-line-1 { animation: claLineEnter 0.9s ease-out 0.6s forwards; }
+.crypt-aftermath .cla-line-2 { animation: claLineEnter 0.9s ease-out 2.0s forwards; }
+.crypt-aftermath .cla-line-3 { animation: claLineEnter 0.9s ease-out 3.4s forwards; }
+.crypt-aftermath .cla-banner {
+  margin-top: 16px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  background: linear-gradient(135deg, #FFB84A 0%, #9B59D6 50%, #FFB84A 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 28px rgba(255, 184, 74, 0.65);
+  opacity: 0;
+  animation: claBannerEnter 1.2s ease-out 5.0s forwards;
+}
+/* 2026-04-28 — Player Education Stage 9 (BLOCKSWORN_PLAYER_EDUCATION.md §12).
+   World Map reveal layered into the existing Crypt Lich aftermath cinematic.
+   After the 3 poetic lines + Chapter 2 banner, 4 region cards slide in
+   staggered (Chapter 1 cleared / Chapter 2 NEW / Tower / Daily Quests).
+   Each card is color-themed; the NEW card pulses with violet glow to draw
+   attention; cleared card has a gold check chip. Total cinematic is ~8.4s
+   from start to CTA — adds ~2s vs the previous 6.4s flow. */
+.crypt-aftermath .cla-regions {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(94%, 460px);
+  opacity: 0;
+  animation: claLineEnter 0.7s ease-out 5.6s forwards;
+}
+.crypt-aftermath .cla-region {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 14px;
+  background: linear-gradient(180deg, rgba(255, 213, 61, 0.06), rgba(0, 0, 0, 0.40));
+  border: 1px solid rgba(255, 213, 61, 0.22);
+  border-radius: 10px;
+  text-align: left;
+  opacity: 0;
+  transform: translateX(-14px);
+}
+.crypt-aftermath .cla-region:nth-child(1) { animation: claRegionSlide 0.7s ease-out 5.8s forwards; }
+.crypt-aftermath .cla-region:nth-child(2) { animation: claRegionSlide 0.7s ease-out 6.2s forwards; }
+.crypt-aftermath .cla-region:nth-child(3) { animation: claRegionSlide 0.7s ease-out 6.6s forwards; }
+.crypt-aftermath .cla-region:nth-child(4) { animation: claRegionSlide 0.7s ease-out 7.0s forwards; }
+.crypt-aftermath .cla-region.is-new {
+  border-color: rgba(187, 96, 255, 0.7);
+  background: linear-gradient(180deg, rgba(155, 89, 214, 0.20), rgba(0, 0, 0, 0.42));
+}
+.crypt-aftermath .cla-region.is-new::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 0 0 rgba(187, 96, 255, 0);
+  animation: claRegionPulse 2.4s ease-in-out 7.4s infinite;
+}
+.crypt-aftermath .cla-region {
+  position: relative;
+}
+.crypt-aftermath .cla-region-icon {
+  flex-shrink: 0;
+  width: 32px;
+  font-size: 22px;
+  text-align: center;
+  line-height: 1;
+  filter: drop-shadow(0 0 10px currentColor);
+}
+.crypt-aftermath .cla-region-info { flex: 1; min-width: 0; }
+.crypt-aftermath .cla-region-name {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  margin-bottom: 2px;
+}
+.crypt-aftermath .cla-region-desc {
+  font-size: 11px;
+  color: #B8B0D0;
+  letter-spacing: 0.4px;
+  line-height: 1.3;
+}
+.crypt-aftermath .cla-region-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  border-radius: 12px;
+  font-family: var(--a-font-display, 'Cinzel', serif);
+}
+.crypt-aftermath .cla-region.is-cleared .cla-region-badge {
+  color: #FFD53D;
+  background: rgba(255, 213, 61, 0.16);
+  border: 1px solid rgba(255, 213, 61, 0.35);
+}
+.crypt-aftermath .cla-region.is-new .cla-region-badge {
+  color: #F0E0FF;
+  background: rgba(155, 89, 214, 0.42);
+  border: 1px solid rgba(187, 96, 255, 0.70);
+  text-shadow: 0 0 8px #BB60FF;
+}
+.crypt-aftermath .cla-region:not(.is-cleared):not(.is-new) .cla-region-badge {
+  color: #C8C5D4;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.crypt-aftermath .cla-cta {
+  margin-top: 22px;
+  padding: 12px 32px;
+  font-size: 13px; font-weight: 800; letter-spacing: 0.20em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #FFB84A 0%, #9B59D6 100%);
+  color: #1a1530;
+  border: none; border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(155, 89, 214, 0.55), 0 0 18px rgba(255, 184, 74, 0.45);
+  opacity: 0;
+  transition: filter 0.18s ease, transform 0.12s ease;
+  animation: claLineEnter 0.8s ease-out 8.0s forwards;
+}
+.crypt-aftermath .cla-cta:hover  { filter: brightness(1.08); }
+.crypt-aftermath .cla-cta:active { transform: scale(0.97); }
+/* 2026-04-30 — Polish v0.2 Track I §I.3: dual-CTA row with secondary
+   MAIN MENU escape. Primary keeps the gradient + glow; secondary is a
+   ghost button so the primary still reads as the dominant action. */
+.crypt-aftermath .cla-cta-row {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.crypt-aftermath .cla-cta-secondary {
+  margin-top: 0;
+  padding: 10px 26px;
+  background: transparent;
+  color: var(--a-text-secondary, #B7B0C8);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 11px; letter-spacing: 0.18em;
+  box-shadow: none;
+  animation: claLineEnter 0.8s ease-out 8.4s forwards;
+}
+.crypt-aftermath .cla-cta-secondary:hover { filter: none; color: #F5F3EC; border-color: rgba(255,255,255,0.32); }
+
+/* 2026-05-01 — SPRINT 3A: ArchivalAftermath court purple-gold theme variant.
+   Reuses .crypt-aftermath / .cla-* base styles; overrides accent colors only.
+   Court palette: #BB60FF (judicial purple) + #FFD53D (royal gold) gradient. */
+#archivalAftermath .cla-banner {
+  background: linear-gradient(90deg, #FFD53D 0%, #BB60FF 50%, #FFD53D 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 22px rgba(187, 96, 255, 0.55);
+}
+#archivalAftermath .cla-cta {
+  background: linear-gradient(180deg, #BB60FF 0%, #8E40CC 100%);
+  box-shadow: 0 4px 22px rgba(187, 96, 255, 0.50), inset 0 1px 0 rgba(255,255,255,0.22);
+}

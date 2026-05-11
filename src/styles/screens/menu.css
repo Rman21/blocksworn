@@ -1,0 +1,2570 @@
+/* Menu / hub / roster / settings screen styles.
+ * Includes Arena Premium framework primitives (.a-screen, .a-panel, …).
+ * Pure relocation (T1.06).
+ */
+
+/* 2026-04-30 — Combat UI Redesign §18.5 (PR 6/6): legacy
+   .v-battle-player-hp row's hide rule removed alongside the DOM
+   element itself. Hearts function is now in .combat-top-bar (count
+   + heart icon) and .v-battle-boss-card (4 individual heart ticks).
+   Selector kept addressable for any external CSS but no longer hides
+   anything since the row is gone. */
+
+/* ===========================================================
+   SETTINGS MENU — opens on top-bar ⚙ tap (PR 3/6 Final Polish).
+   Spec: BLOCKSWORN_COMBAT_UI_FINAL_POLISH.md §6.
+
+   REPLACES the pause menu (PR #70) per Roman's Q1 = "Replace"
+   directive. The earlier pause-menu pattern (Resume / Restart /
+   Sound / Quit modal in center of screen) is gone — this is the
+   AAA mobile pattern: right-edge slide-in panel with primary
+   navigation (Profile, Codex, Audio, Help) and Exit Battle as the
+   destructive option.
+
+   Items per spec §6.2 minus Language (English-only per
+   project_localization_eng_only memory; will revisit if i18n
+   sprint approved). Audio Settings is a stub modal preserving
+   the existing mute toggle behaviour from the old pause menu —
+   Roman's Q4 said "ok use stubs for missing screens". Codex
+   delegates to the existing showInfoModal (PROFILE/HEROES/etc
+   tabs already serve as a mini-codex). Profile delegates to
+   openProfileSheet which the avatar chip on the home screen
+   already uses. Help is a stub. Exit Battle uses native confirm()
+   per spec §6.5 then routes to returnToMenuFromBattle.
+   =========================================================== */
+.settings-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal, 300) - 1);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.24s var(--ease-out, ease-out);
+}
+.settings-menu-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.settings-menu {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(320px, 80vw);
+  z-index: var(--z-modal, 300);
+  background: var(--combat-bg-elevated, rgba(20, 25, 40, 0.98));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.5);
+  transform: translateX(100%);
+  transition: transform 0.30s var(--ease-out, ease-out);
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  font-family: var(--a-font-body, system-ui, sans-serif);
+}
+.settings-menu.open {
+  transform: translateX(0);
+}
+
+.settings-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.settings-menu-header-title {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: var(--fs-md, 13px);
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--a-gold-100, #FFE066);
+}
+.settings-menu-close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.16s, border-color 0.16s;
+}
+.settings-menu-close:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.30);
+}
+
+.settings-menu-list {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 0;
+}
+
+.settings-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: transparent;
+  color: var(--combat-text-primary, #fff);
+  text-align: left;
+  font-family: inherit;
+  font-size: var(--fs-md, 13px);
+  cursor: pointer;
+  transition: background 0.16s ease-out;
+}
+.settings-menu-item:hover,
+.settings-menu-item:focus-visible {
+  background: rgba(255, 255, 255, 0.05);
+  outline: none;
+}
+.settings-menu-item:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+.settings-menu-item-icon {
+  font-size: 20px;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.settings-menu-item-content {
+  flex: 1;
+  min-width: 0;
+}
+.settings-menu-item-label {
+  font-weight: 600;
+  margin-bottom: 2px;
+  letter-spacing: 0.3px;
+  color: var(--combat-text-primary, #fff);
+}
+.settings-menu-item-description {
+  font-size: 11px;
+  color: var(--combat-text-secondary, rgba(255, 255, 255, 0.6));
+  line-height: 1.3;
+}
+
+.settings-menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 8px 16px;
+}
+
+.settings-menu-item.danger .settings-menu-item-label {
+  color: #FF8585;
+}
+.settings-menu-item.danger:hover {
+  background: rgba(220, 20, 60, 0.10);
+}
+
+/* ===========================================================
+   AUDIO SETTINGS STUB MODAL — opens from settings menu (PR 3/6).
+   Preserves the mute toggle behaviour from the removed pause-menu
+   sound row. Layered above the settings menu (z-index higher).
+   "More options coming soon" hints at the future polish pass per
+   Q4. Same fade-in / × close / tap-overlay-to-close pattern as
+   the buff modal so the interaction grammar is consistent.
+   =========================================================== */
+.audio-settings-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal, 300) + 10);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.audio-settings-modal[aria-hidden="false"] { display: flex; }
+.audio-settings-modal-card {
+  background: var(--combat-bg-elevated, rgba(20, 25, 40, 0.98));
+  border: 1px solid rgba(255, 215, 0, 0.22);
+  border-radius: var(--radius-lg, 12px);
+  padding: 20px;
+  width: 100%;
+  max-width: 320px;
+  font-family: var(--a-font-body, system-ui, sans-serif);
+  color: var(--combat-text-primary, #fff);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  animation: settingsStubFadeIn 0.22s var(--ease-out, ease-out);
+}
+.audio-settings-title {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--a-gold-100, #FFE066);
+  margin: 0 0 16px;
+}
+.audio-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.audio-settings-row:first-of-type {
+  border-top: none;
+}
+.audio-settings-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--combat-text-primary, #fff);
+}
+.audio-settings-toggle {
+  padding: 6px 14px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--combat-text-primary, #fff);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.16s, border-color 0.16s;
+}
+.audio-settings-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.30);
+}
+.audio-settings-toggle.muted {
+  border-color: rgba(220, 20, 60, 0.50);
+  color: #FF8585;
+  background: rgba(220, 20, 60, 0.10);
+}
+.audio-settings-note {
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: var(--radius-md, 8px);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 11px;
+  color: var(--combat-text-secondary, rgba(255, 255, 255, 0.55));
+  font-style: italic;
+  line-height: 1.4;
+  text-align: center;
+}
+.audio-settings-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+.audio-settings-close-btn {
+  padding: 8px 18px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--combat-text-primary, #fff);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+/* Help / Codex stubs share the same lightweight modal grammar.
+   Single-purpose "Coming soon" sheets — Roman's Q4 said polish
+   pass at the end will fill these in. */
+.coming-soon-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-modal, 300) + 10);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.coming-soon-modal[aria-hidden="false"] { display: flex; }
+.coming-soon-modal-card {
+  background: var(--combat-bg-elevated, rgba(20, 25, 40, 0.98));
+  border: 1px solid rgba(255, 215, 0, 0.22);
+  border-radius: var(--radius-lg, 12px);
+  padding: 24px;
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+  font-family: var(--a-font-body, system-ui, sans-serif);
+  color: var(--combat-text-primary, #fff);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  animation: settingsStubFadeIn 0.22s var(--ease-out, ease-out);
+}
+.coming-soon-modal-icon {
+  font-size: 36px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+.coming-soon-modal-title {
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--a-gold-100, #FFE066);
+  margin: 0 0 8px;
+}
+.coming-soon-modal-body {
+  font-size: 12px;
+  color: var(--combat-text-secondary, rgba(255, 255, 255, 0.65));
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+.coming-soon-modal-close {
+  padding: 8px 22px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--combat-text-primary, #fff);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+/* ============================================= */
+/* ===== ARENA PREMIUM · REUSABLE COMPONENTS === */
+/* ============================================= */
+
+/* --- Screen background + panel --- */
+.a-screen {
+  background: var(--a-bg-radial);
+  color: var(--a-text-primary);
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: var(--a-font-body);
+}
+.a-panel {
+  background: var(--a-bg-surface);
+  border: var(--a-border-thin);
+  border-radius: var(--a-radius-card);
+  box-shadow: var(--a-shadow-lift);
+  padding: 12px;
+}
+
+/* --- Typography --- */
+.a-title {
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  color: var(--a-text-gold);
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+.a-title--h1 { font-size: 22px; }
+.a-title--h2 { font-size: 17px; }
+.a-title--h3 { font-size: 14px; }
+.a-label-kicker {
+  font-family: var(--a-font-display);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: var(--a-gold-500);
+  text-transform: uppercase;
+}
+
+/* --- Pedestal (круглый постамент под героем) --- */
+.a-pedestal {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 0.35;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center top,
+    var(--a-gold-700) 0%,
+    var(--a-gold-900) 50%,
+    var(--a-bg-deepest) 90%);
+  box-shadow:
+    inset 0 2px 4px rgba(255,184,74,0.2),
+    inset 0 -4px 8px rgba(0,0,0,0.6),
+    0 4px 16px rgba(0,0,0,0.5);
+}
+.a-pedestal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 40%, rgba(255,184,74,0.15) 0%, transparent 50%),
+    radial-gradient(circle at 70% 60%, rgba(0,0,0,0.3) 0%, transparent 50%);
+  opacity: 0.6;
+}
+.a-pedestal-rune {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 28%;
+  aspect-ratio: 1 / 1.1;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  background: var(--stihiya-color, var(--a-ember));
+  box-shadow: 0 0 20px var(--stihiya-glow, rgba(255,90,58,0.7));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: rgba(0,0,0,0.8);
+  font-weight: 900;
+}
+.a-pedestal--ember .a-pedestal-rune {
+  --stihiya-color: var(--a-ember);
+  --stihiya-glow: rgba(255,90,58,0.7);
+}
+.a-pedestal--tide .a-pedestal-rune {
+  --stihiya-color: var(--a-tide);
+  --stihiya-glow: rgba(74,219,255,0.7);
+}
+.a-pedestal--grove .a-pedestal-rune {
+  --stihiya-color: var(--a-grove);
+  --stihiya-glow: rgba(122,236,74,0.7);
+}
+.a-pedestal--solar .a-pedestal-rune {
+  --stihiya-color: var(--a-solar);
+  --stihiya-glow: rgba(255,225,74,0.7);
+}
+.a-pedestal--umbra .a-pedestal-rune {
+  --stihiya-color: var(--a-umbra);
+  --stihiya-glow: rgba(192,106,223,0.7);
+}
+/* --- Main Hub (Arena Premium) --- */
+.a-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: max(20px, env(safe-area-inset-top, 0px) + 16px) 14px 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 448px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+.a-hub-topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.a-hub-avatar-chip {
+  padding: 3px 10px 3px 3px !important;
+  gap: 8px;
+}
+.a-hub-avatar-chip .a-hub-avatar-img-wrap {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--a-bg-well);
+  border: 1px solid var(--a-gold-700);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.a-hub-avatar-chip .a-hub-avatar-img-wrap img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.a-hub-avatar-chip .a-hub-avatar-lvl {
+  font-size: 10px; font-weight: 900;
+  color: var(--a-gold-300);
+  letter-spacing: 1px;
+}
+.a-hub-avatar-chip .a-hub-avatar-lvl b { color: var(--a-text-gold); }
+
+.a-hub-chips {
+  display: flex; gap: 4px;
+  margin-left: auto;
+}
+.a-hub-chips .a-btn-chip { padding: 4px 8px; font-size: 11px; }
+.a-chip-ic { font-size: 12px; line-height: 1; }
+.a-chip-ic.gold   { color: var(--a-gold-300); }
+.a-chip-ic.gem    { color: var(--a-tide); }
+.a-chip-ic.energy { color: var(--a-solar); }
+
+/* 2026-04-27 — Image-based icons (replace emoji/glyph fallbacks).
+ * Background images set via JS-injected CSS vars (applyUiIconCssVars).
+ * Empty <span> renders as a square icon — text content cleared. */
+.a-chip-ic.gold,
+.a-chip-ic.gem {
+  width: 18px; height: 18px;
+  display: inline-block;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  vertical-align: middle;
+  font-size: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+.a-chip-ic.gold { background-image: var(--icon-gold, url('assets/icons/coin.png')); }
+.a-chip-ic.gem  { background-image: var(--icon-crystal, url('assets/icons/cristal.png')); }
+/* Empty span fallback — render emblem icon when no text content */
+.a-chip-ic.gold:empty, .a-chip-ic.gem:empty { width: 18px; height: 18px; }
+.a-chip-plus {
+  margin-left: 2px; font-weight: 900;
+  width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--a-fire-500);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 10px;
+  box-shadow: 0 0 6px rgba(255,90,58,0.6);
+}
+
+.a-hub-burger {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background: rgba(26,16,40,0.7);
+  border: 1px solid var(--a-gold-700);
+  color: var(--a-gold-300);
+  font-size: 18px;
+  font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.a-hub-burger:active { background: rgba(255,184,74,0.1); border-color: var(--a-gold-300); }
+
+.a-hub-heading {
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.a-hub-heading .a-label-kicker { font-size: 10px; }
+
+/* ===== 2026-04-27 — Chapter picker (compact pill + dropdown) ===== */
+.a-hub-chapter-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+.a-hub-chapter-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: linear-gradient(180deg, rgba(58, 42, 24, 0.55), rgba(26, 15, 8, 0.55));
+  border: 1px solid var(--a-gold-700, rgba(255, 184, 74, 0.4));
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.15s ease-out, border-color 0.15s ease-out, box-shadow 0.15s ease-out;
+  font-family: inherit;
+  color: inherit;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.a-hub-chapter-pick:active { transform: scale(0.96); }
+.a-hub-chapter-pick:hover {
+  border-color: var(--a-gold-300, #FFD53D);
+  box-shadow: 0 0 8px rgba(255, 213, 61, 0.25);
+}
+.a-hub-chapter-pick.open {
+  border-color: var(--a-gold-300, #FFD53D);
+  box-shadow: 0 0 10px rgba(255, 213, 61, 0.35);
+}
+.a-hub-chapter-pick .a-hub-chapter-chev {
+  font-size: 9px;
+  color: var(--a-gold-300, #FFD53D);
+  opacity: 0.8;
+  transition: transform 0.2s ease-out;
+}
+.a-hub-chapter-pick.open .a-hub-chapter-chev { transform: rotate(180deg); }
+/* Solo state — only Ch1 available. Hide chevron, drop interactive cues. */
+.a-hub-chapter-pick.solo {
+  border-color: transparent;
+  background: transparent;
+  cursor: default;
+  padding: 0;
+}
+.a-hub-chapter-pick.solo .a-hub-chapter-chev { display: none; }
+.a-hub-chapter-pick.solo:hover {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Dropdown menu — drops down from picker, centered */
+.a-hub-chapter-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 6px;
+  gap: 4px;
+  background: linear-gradient(180deg, rgba(20, 12, 6, 0.95), rgba(8, 5, 3, 0.95));
+  border: 1px solid var(--a-gold-700, rgba(255, 184, 74, 0.5));
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 14px rgba(255, 213, 61, 0.15);
+  z-index: 50;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.a-hub-chapter-menu.hidden { display: none; }
+.a-hub-chapter-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--a-text-primary, #E8E6DF);
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.a-hub-chapter-item:hover {
+  background: rgba(255, 213, 61, 0.08);
+  border-color: var(--a-gold-700, rgba(255, 184, 74, 0.4));
+}
+.a-hub-chapter-item.active {
+  background: rgba(255, 213, 61, 0.12);
+  border-color: var(--a-gold-300, #FFD53D);
+}
+.a-hub-chapter-item.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.a-hub-chapter-item.locked:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: transparent;
+}
+.a-hub-chapter-item-num {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 1px;
+}
+.a-hub-chapter-item-name {
+  font-size: 9.5px;
+  letter-spacing: 0.8px;
+  opacity: 0.85;
+}
+
+.a-hub-heading .a-title--h1 {
+  font-size: 24px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9), 0 0 16px rgba(255,184,74,0.3);
+}
+.a-hub-sub {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--a-text-secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.a-hub-diff {
+  display: flex; gap: 3px; margin-top: 2px;
+}
+.a-hub-diff .star { color: var(--a-gold-300); font-size: 12px; text-shadow: 0 0 6px rgba(255,184,74,0.6); }
+.a-hub-diff .star.empty { color: var(--a-gold-900); text-shadow: none; }
+
+.a-hub-boss {
+  position: relative;
+  width: 100%;
+  max-width: 220px;
+  margin: 4px auto 0;
+  aspect-ratio: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.a-hub-boss-portrait {
+  position: relative;
+  width: 78%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 30% 30%, var(--p-current-aura-bg, rgba(255,184,74,0.2)), var(--a-bg-deepest));
+  box-shadow:
+    0 0 30px var(--p-current-aura, rgba(255,184,74,0.35)),
+    0 0 60px var(--p-current-aura-wide, rgba(255,184,74,0.18)),
+    inset 0 -8px 20px rgba(0,0,0,0.5);
+  z-index: 2;
+  margin-bottom: -8%;
+}
+
+/* ===== POLISH v1 · PHASE 1 · HUB BOSS IDLE ===== */
+.a-hub-boss-portrait {
+  animation: pIdleBreathe var(--p-idle-duration) var(--p-idle-ease) infinite;
+  transform-origin: center bottom; /* "вдох" от пьедестала */
+  will-change: transform;
+}
+/* При activeness-классе (если JS добавит .is-engaged на hover/tap) — останавливаем */
+.a-hub-boss.is-engaged .a-hub-boss-portrait {
+  animation-play-state: paused;
+}
+
+/* ===== POLISH v1 · PHASE 2 · HUB BOSS ELEMENT AURA ===== */
+.a-hub-boss[data-element="ember"] {
+  --p-current-aura: var(--p-aura-ember);
+  --p-current-aura-wide: rgba(255, 90, 58, 0.22);
+  --p-current-aura-bg: rgba(255, 90, 58, 0.20);
+}
+.a-hub-boss[data-element="tide"] {
+  --p-current-aura: var(--p-aura-tide);
+  --p-current-aura-wide: rgba(74, 219, 255, 0.22);
+  --p-current-aura-bg: rgba(74, 219, 255, 0.20);
+}
+.a-hub-boss[data-element="grove"] {
+  --p-current-aura: var(--p-aura-grove);
+  --p-current-aura-wide: rgba(122, 236, 74, 0.22);
+  --p-current-aura-bg: rgba(122, 236, 74, 0.20);
+}
+.a-hub-boss[data-element="solar"] {
+  --p-current-aura: var(--p-aura-solar);
+  --p-current-aura-wide: rgba(255, 225, 74, 0.22);
+  --p-current-aura-bg: rgba(255, 225, 74, 0.20);
+}
+.a-hub-boss[data-element="umbra"] {
+  --p-current-aura: var(--p-aura-umbra);
+  --p-current-aura-wide: rgba(192, 106, 223, 0.22);
+  --p-current-aura-bg: rgba(192, 106, 223, 0.20);
+}
+
+.a-hub-boss-portrait img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+.a-hub-boss-pedestal {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  z-index: 1;
+}
+
+.a-hub-progress {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 4px;
+}
+.a-hub-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--a-bg-well);
+  border: 1px solid var(--a-gold-900);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);
+}
+.a-hub-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--a-fire-700), var(--a-fire-300), var(--a-gold-300));
+  box-shadow: 0 0 8px rgba(255,184,74,0.6);
+  transition: width 300ms var(--a-ease-out);
+}
+.a-hub-progress-ofn {
+  font-family: var(--a-font-num);
+  font-weight: 900;
+  font-size: 11px;
+  color: var(--a-gold-300);
+  min-width: 34px;
+  text-align: right;
+}
+
+/* ===== POLISH v1 · PHASE 2 · CHAPTER PROGRESS NODES ===== */
+.a-hub-progress-bar { position: relative; height: 10px; /* +2px чтобы nodes помещались */ }
+
+.a-hub-progress-nodes {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  pointer-events: none;
+  z-index: 2;
+}
+.a-hub-progress-node {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--a-bg-deepest);
+  border: 2px solid var(--a-gold-900);
+  align-self: center;
+  transition: background 320ms var(--a-ease-out), border-color 320ms var(--a-ease-out), box-shadow 320ms;
+  flex-shrink: 0;
+}
+.a-hub-progress-node.cleared {
+  background: var(--a-gold-300);
+  border-color: var(--a-fire-100);
+  box-shadow: 0 0 8px rgba(255, 184, 74, 0.8);
+}
+.a-hub-progress-node.current {
+  background: var(--a-fire-500);
+  border-color: var(--a-fire-100);
+  box-shadow: 0 0 10px var(--a-fire-500);
+  animation: pAuraPulse 1800ms ease-in-out infinite;
+  --p-current-aura: rgba(255, 90, 58, 0.8);
+}
+
+/* Shimmer в progress-fill — движущийся блик */
+.a-hub-progress-fill {
+  position: relative;
+  overflow: hidden;
+}
+.a-hub-progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 100%
+  );
+  animation: pShimmer 2400ms linear infinite;
+}
+
+.a-hub-rewards {
+  display: flex; align-items: center; gap: 8px;
+  justify-content: center;
+}
+.a-hub-rewards-lbl {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--a-text-muted);
+  font-weight: 700;
+}
+.a-hub-rewards-items {
+  display: flex; gap: 6px;
+}
+.a-hub-rewards-items .rw {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  background: linear-gradient(180deg, rgba(58,42,24,0.9), rgba(26,15,8,0.9));
+  border: 1px solid var(--a-gold-700);
+  border-radius: 8px;
+  font-family: var(--a-font-num);
+  font-weight: 800;
+  font-size: 11px;
+  color: var(--a-gold-300);
+}
+.a-hub-rewards-items .ic { font-size: 11px; }
+.a-hub-rewards-items .ic.gold { color: var(--a-gold-300); }
+.a-hub-rewards-items .ic.xp   { color: var(--a-solar); }
+
+.a-hub-squad {
+  position: relative;
+  background: var(--a-bg-surface);
+  border: var(--a-border-thin);
+  border-radius: var(--a-radius-card);
+  padding: 10px 12px 12px;
+  box-shadow: var(--a-shadow-lift);
+}
+.a-hub-squad > .a-label-kicker {
+  display: block; margin-bottom: 8px;
+}
+.a-hub-squad-slots {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+/* 2026-04-29 polish v0.1 Track B: each squad slot wraps avatar + name.
+ * Plan §B.2 wanted hero names visible under each portrait without a tap. */
+.a-hub-squad-slots .v-avatar-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+.a-hub-squad-slots .v-avatar-slot .v-avatar { width: 100%; }
+.a-hub-squad-slots .v-avatar-name {
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: var(--a-gold-300, #FFD53D);
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-height: 1.2em;
+}
+.a-hub-squad-slots .v-avatar-slot.empty .v-avatar-name { opacity: 0.3; }
+/* 2026-04-29 polish v0.1 Track B: boss name + sub + diff sit BELOW the
+ * portrait now (was above as H1). Center the meta block. */
+.a-hub-boss-meta {
+  margin: 6px 16px 4px;
+  text-align: center;
+}
+.a-hub-squad-edit {
+  position: absolute;
+  top: 8px; right: 10px;
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  background: rgba(26,16,40,0.8);
+  border: 1px solid var(--a-gold-700);
+  color: var(--a-gold-300);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.a-hub-squad-edit:active { background: rgba(255,184,74,0.12); }
+
+/* Squad slot styling — JS creates .v-avatar.<stihiya> or .v-avatar.empty */
+.a-hub-squad-slots .v-avatar {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 30% 30%,
+    var(--slot-color, var(--a-gold-700)),
+    var(--slot-dark, var(--a-bg-deepest)));
+  box-shadow:
+    0 0 12px var(--slot-glow, rgba(255,184,74,0.3)),
+    inset 0 -3px 6px rgba(0,0,0,0.5),
+    0 2px 6px rgba(0,0,0,0.6);
+  border: 2px solid var(--slot-border, var(--a-gold-700));
+  color: var(--a-gold-500);
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 20px;
+}
+.a-hub-squad-slots .v-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+.a-hub-squad-slots .v-avatar.empty {
+  background: radial-gradient(circle at 30% 30%, var(--a-gold-900), var(--a-bg-well));
+  border-style: dashed;
+  color: var(--a-gold-500);
+}
+.a-hub-squad-slots .v-avatar.ember {
+  --slot-color: var(--a-ember); --slot-dark: var(--a-ember-dk);
+  --slot-glow: rgba(255,90,58,0.55); --slot-border: rgba(255,90,58,0.5);
+}
+.a-hub-squad-slots .v-avatar.tide {
+  --slot-color: var(--a-tide); --slot-dark: var(--a-tide-dk);
+  --slot-glow: rgba(74,219,255,0.55); --slot-border: rgba(74,219,255,0.5);
+}
+.a-hub-squad-slots .v-avatar.grove {
+  --slot-color: var(--a-grove); --slot-dark: var(--a-grove-dk);
+  --slot-glow: rgba(122,236,74,0.55); --slot-border: rgba(122,236,74,0.5);
+}
+.a-hub-squad-slots .v-avatar.solar {
+  --slot-color: var(--a-solar); --slot-dark: var(--a-solar-dk);
+  --slot-glow: rgba(255,225,74,0.55); --slot-border: rgba(255,225,74,0.5);
+}
+.a-hub-squad-slots .v-avatar.umbra {
+  --slot-color: var(--a-umbra); --slot-dark: var(--a-umbra-dk);
+  --slot-glow: rgba(192,106,223,0.55); --slot-border: rgba(192,106,223,0.5);
+}
+
+/* 2026-04-30 — Polish v0.2 Track I §I.4.4: WHAT'S NEW accordion. Mounts
+   on the home hub for ~3 days after Ch.1 unlock and contains the four
+   freshly-opened systems (Ch.2 / Tower / Daily / Battle Pass) the
+   cinematic showed. Default collapsed; tap header to expand. The whole
+   block hides when its expiry timestamp passes (vRenderWhatsNew). */
+.a-hub-whatsnew {
+  margin: 0 16px 4px;
+  border: 1px solid rgba(255, 213, 61, 0.30);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(40, 28, 8, 0.45), rgba(20, 14, 4, 0.65));
+  overflow: hidden;
+}
+.a-hub-whatsnew[hidden] { display: none !important; }
+.a-hub-whatsnew-head {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--a-text-secondary, #A8A5B8);
+  text-align: left;
+  font-family: var(--a-font-display, sans-serif);
+}
+.a-hub-whatsnew-head:hover { background: rgba(255, 213, 61, 0.06); }
+.a-hub-whatsnew-kicker {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  text-transform: uppercase;
+}
+.a-hub-whatsnew-sub {
+  flex: 1;
+  font-size: 10.5px; letter-spacing: 0.8px;
+  color: var(--a-text-secondary, #A8A5B8);
+  text-transform: uppercase;
+}
+.a-hub-whatsnew-chev {
+  font-size: 12px;
+  color: var(--a-gold-300, #FFD53D);
+  transition: transform 0.18s ease-out;
+}
+.a-hub-whatsnew-head[aria-expanded="true"] .a-hub-whatsnew-chev { transform: rotate(180deg); }
+.a-hub-whatsnew-body {
+  display: flex; flex-direction: column; gap: 0;
+  padding: 0 12px 8px;
+  border-top: 1px solid rgba(255, 213, 61, 0.18);
+}
+.a-hub-whatsnew-body[hidden] { display: none !important; }
+.a-hub-whatsnew-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+}
+.a-hub-whatsnew-item:last-child { border-bottom: 0; }
+.a-hub-whatsnew-icon {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  text-shadow: 0 0 8px currentColor;
+}
+.a-hub-whatsnew-text { min-width: 0; }
+.a-hub-whatsnew-name {
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 12px; font-weight: 800; letter-spacing: 1.2px;
+  color: #F5F3EC;
+  text-transform: uppercase;
+}
+.a-hub-whatsnew-desc {
+  font-size: 10.5px;
+  color: var(--a-text-secondary, #A8A5B8);
+  margin-top: 2px;
+}
+
+.a-hub-cta-wrap {
+  margin-top: 4px;
+}
+.a-hub-battle-btn {
+  height: 56px;
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px;
+  letter-spacing: 3px;
+}
+
+/* ===== POLISH v1 · PHASE 1 · HUB CTA AURA ===== */
+/* CTA "BATTLE" — subtle glow pulse чтобы тянуть внимание */
+.a-hub-battle-btn {
+  animation: pAuraPulse 3000ms ease-in-out infinite;
+  --p-current-aura: rgba(255, 138, 74, 0.45);
+}
+.a-hub-battle-btn:active { animation: none; }
+
+.a-hub-cta-sub {
+  background: rgba(0,0,0,0.3);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--a-solar);
+  letter-spacing: 1px;
+}
+
+/* Hub drawer */
+.a-hub-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--a-dur-enter) var(--a-ease-out);
+}
+.a-hub-drawer[aria-hidden="false"] {
+  pointer-events: auto;
+  opacity: 1;
+}
+.a-hub-drawer-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(5,3,8,0.7);
+  backdrop-filter: blur(4px);
+}
+.a-hub-drawer-panel {
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: min(86vw, 340px);
+  background: var(--a-bg-elevated);
+  border-left: var(--a-border-medium);
+  padding: max(20px, env(safe-area-inset-top, 0px) + 16px) 16px 20px;
+  display: flex; flex-direction: column; gap: 16px;
+  transform: translateX(100%);
+  transition: transform var(--a-dur-enter) var(--a-ease-out);
+  box-shadow: -8px 0 24px rgba(0,0,0,0.6);
+}
+.a-hub-drawer[aria-hidden="false"] .a-hub-drawer-panel {
+  transform: translateX(0);
+}
+.a-hub-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.a-hub-drawer-close {
+  padding: 6px 12px;
+  font-size: 16px;
+  line-height: 1;
+}
+.a-hub-drawer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.a-hub-drawer-grid .a-btn-ghost {
+  padding: 14px 10px;
+  font-size: 12px;
+  text-align: left;
+  display: flex; align-items: center; gap: 8px;
+  position: relative;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.a-hub-drawer-grid .a-btn-ghost .v-badge {
+  position: absolute;
+  top: 6px; right: 6px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  background: var(--a-fire-500);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 9px; font-weight: 900;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+/* --- Roster screen chrome --- */
+.a-loadout {
+  display: flex;
+  flex-direction: column;
+  max-width: 448px;
+  margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: max(16px, env(safe-area-inset-top, 0px) + 8px);
+  background: var(--a-bg-radial);
+}
+.a-loadout-topbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px 8px;
+}
+.a-loadout-title-wrap {
+  flex: 1; text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px;
+}
+.a-loadout-title-wrap .a-title--h2 { letter-spacing: 3px; }
+.a-loadout-count {
+  font-family: var(--a-font-num);
+  font-weight: 800;
+  font-size: 10px;
+  color: var(--a-gold-500);
+  letter-spacing: 1px;
+}
+.a-loadout-count #aHeroesOwnedCount { color: var(--a-gold-300); }
+.a-loadout-search {
+  display: flex; gap: 8px;
+  padding: 4px 14px 8px;
+}
+.a-loadout-search input {
+  flex: 1;
+  background: var(--a-bg-well);
+  border: 1px solid var(--a-gold-700);
+  border-radius: var(--a-radius-btn);
+  padding: 8px 12px;
+  color: var(--a-text-primary);
+  font-family: var(--a-font-body);
+  font-size: 13px;
+  outline: none;
+}
+.a-loadout-search input::placeholder { color: var(--a-text-muted); }
+.a-loadout-search input:focus { border-color: var(--a-gold-300); box-shadow: 0 0 0 2px rgba(255,184,74,0.15); }
+
+/* --- Squad strip (top section of roster) --- */
+.a-squad-strip {
+  margin: 4px 12px 10px;
+  padding: 10px 12px;
+  background: var(--a-bg-surface);
+  border: var(--a-border-thin);
+  border-radius: var(--a-radius-card);
+  box-shadow: var(--a-shadow-lift);
+}
+.a-squad-strip .v-squad-strip-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 8px;
+}
+.a-squad-strip-count {
+  font-family: var(--a-font-num);
+  font-weight: 900;
+  font-size: 11px;
+  color: var(--a-gold-300);
+}
+.a-squad-strip .a-hub-squad-slots { gap: 6px; }
+
+/* --- Synergy row --- */
+.a-synergy-row {
+  display: flex; gap: 6px;
+  overflow-x: auto;
+  padding: 0 12px 8px;
+  scrollbar-width: none;
+}
+.a-synergy-row::-webkit-scrollbar { display: none; }
+.a-synergy-row .v-syn-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px;
+  background: linear-gradient(180deg, rgba(58,42,24,0.6), rgba(26,15,8,0.6));
+  border: 1px solid var(--a-gold-700);
+  border-radius: 12px;
+  font-family: var(--a-font-body);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--a-text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.a-synergy-row .v-syn-pill .detail {
+  font-weight: 500;
+  color: var(--a-text-secondary);
+}
+/* 2026-04-27 — race-passive pill variant. Uses inline border/text color from
+ * the race's _RACE_PASSIVE_DETAILS color so each pill is element-tinted.
+ * Slightly more saturated background to distinguish from generic synergies. */
+.a-synergy-row .v-syn-pill-race {
+  background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.35));
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+.a-synergy-row .v-syn-pill-race .detail {
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+.a-synergy-row .v-syn-empty {
+  font-size: 10px;
+  color: var(--a-text-muted);
+  letter-spacing: 1px;
+  padding: 5px 8px;
+}
+
+/* --- Filter bar --- */
+.a-filter-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 12px 8px;
+}
+.a-filter-tabs {
+  display: flex; gap: 4px;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.a-filter-tabs::-webkit-scrollbar { display: none; }
+.a-filter-tab {
+  padding: 6px 12px;
+  background: linear-gradient(180deg, rgba(58,42,24,0.5), rgba(26,15,8,0.7));
+  border: 1px solid var(--a-gold-700);
+  border-radius: var(--a-radius-chip);
+  font-family: var(--a-font-display);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--a-text-secondary);
+  cursor: pointer;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.a-filter-tab.active {
+  background: linear-gradient(180deg, var(--a-gold-300), var(--a-fire-700));
+  color: #1a0f08;
+  border-color: var(--a-gold-100);
+  box-shadow: 0 0 10px rgba(255,184,74,0.45);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+}
+.a-filter-sort {
+  padding: 6px 10px;
+  background: rgba(26,16,40,0.7);
+  border: 1px solid var(--a-gold-700);
+  border-radius: var(--a-radius-chip);
+  font-family: var(--a-font-display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--a-gold-300);
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+  flex-shrink: 0;
+}
+.a-filter-sort:active { background: rgba(255,184,74,0.1); }
+
+.a-filter-subrow {
+  display: flex; gap: 6px;
+  overflow-x: auto;
+  padding: 0 12px 8px;
+  max-height: 0; opacity: 0;
+  transition: max-height 220ms var(--a-ease-out), opacity 160ms var(--a-ease-out);
+  scrollbar-width: none;
+}
+.a-filter-subrow::-webkit-scrollbar { display: none; }
+.a-filter-subrow.open { max-height: 64px; opacity: 1; }
+.a-filter-subrow .v-sub-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 10px;
+  background: rgba(26,16,40,0.7);
+  border: 1px solid var(--a-gold-900);
+  border-radius: 14px;
+  font-family: var(--a-font-body);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--a-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.a-filter-subrow .v-sub-chip.active {
+  background: rgba(255,184,74,0.15);
+  border-color: var(--a-gold-300);
+  color: var(--a-gold-300);
+}
+
+/* --- Roster grid + Arena hero card skin on .v-hero-card --- */
+.a-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 0 12px 16px;
+}
+.a-roster-grid .roster-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--a-text-muted);
+  font-family: var(--a-font-display);
+  font-weight: 700;
+  letter-spacing: 2px;
+  font-size: 12px;
+}
+
+/* Arena skin applied to .v-hero-card (JS creates them with stihiya class) */
+.a-roster-grid .v-hero-card {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--a-radius-card);
+  background:
+    radial-gradient(ellipse at center bottom,
+      var(--stihiya-bg-glow, rgba(255,90,58,0.3)) 0%,
+      var(--a-bg-surface) 55%,
+      var(--a-bg-deepest) 100%);
+  border: 2px solid var(--stihiya-border, rgba(255,90,58,0.4));
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform var(--a-dur-tap) var(--a-ease-out);
+  box-shadow:
+    0 0 14px var(--stihiya-glow, rgba(255,90,58,0.25)),
+    0 4px 10px rgba(0,0,0,0.5);
+  /* override Vivid inherited styles */
+  display: block;
+  padding: 0;
+}
+.a-roster-grid .v-hero-card:active { transform: scale(0.96); }
+.a-roster-grid .v-hero-card > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  z-index: 1;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6));
+}
+.a-roster-grid .v-hero-card::before {
+  /* bottom fade for legibility */
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 50%;
+  background: linear-gradient(180deg, transparent 0%, rgba(5,3,8,0.85) 60%, rgba(5,3,8,0.95) 100%);
+  z-index: 2;
+  pointer-events: none;
+}
+.a-roster-grid .v-hero-card .name-lbl {
+  position: absolute;
+  left: 6px; right: 6px; bottom: 6px;
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--a-text-gold);
+  letter-spacing: 0.5px;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.95);
+  z-index: 3;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Element variants — set stihiya vars */
+.a-roster-grid .v-hero-card.ember {
+  --stihiya-border: rgba(255,90,58,0.55);
+  --stihiya-glow: rgba(255,90,58,0.3);
+  --stihiya-bg-glow: rgba(255,90,58,0.35);
+}
+.a-roster-grid .v-hero-card.tide {
+  --stihiya-border: rgba(74,219,255,0.55);
+  --stihiya-glow: rgba(74,219,255,0.3);
+  --stihiya-bg-glow: rgba(74,219,255,0.3);
+}
+.a-roster-grid .v-hero-card.grove {
+  --stihiya-border: rgba(122,236,74,0.55);
+  --stihiya-glow: rgba(122,236,74,0.3);
+  --stihiya-bg-glow: rgba(122,236,74,0.28);
+}
+.a-roster-grid .v-hero-card.solar {
+  --stihiya-border: rgba(255,225,74,0.55);
+  --stihiya-glow: rgba(255,225,74,0.3);
+  --stihiya-bg-glow: rgba(255,225,74,0.28);
+}
+.a-roster-grid .v-hero-card.umbra {
+  --stihiya-border: rgba(192,106,223,0.55);
+  --stihiya-glow: rgba(192,106,223,0.3);
+  --stihiya-bg-glow: rgba(192,106,223,0.3);
+}
+
+/* Element badge (top-left) — synthesized via ::after on each element card */
+.a-roster-grid .v-hero-card.ember::after,
+.a-roster-grid .v-hero-card.tide::after,
+.a-roster-grid .v-hero-card.grove::after,
+.a-roster-grid .v-hero-card.solar::after,
+.a-roster-grid .v-hero-card.umbra::after {
+  position: absolute;
+  top: 6px; left: 6px;
+  width: 22px; height: 22px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+  font-weight: 900;
+  color: #fff;
+  z-index: 5;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  box-shadow: 0 0 6px var(--stihiya-glow), 0 1px 2px rgba(0,0,0,0.6);
+}
+.a-roster-grid .v-hero-card.ember::after { content: '🔥'; background: var(--a-ember); }
+.a-roster-grid .v-hero-card.tide::after  { content: '💧'; background: var(--a-tide); }
+.a-roster-grid .v-hero-card.grove::after { content: '🌿'; background: var(--a-grove); }
+.a-roster-grid .v-hero-card.solar::after { content: '☀'; background: var(--a-solar); color: #2a1a00; }
+.a-roster-grid .v-hero-card.umbra::after { content: '🌙'; background: var(--a-umbra); }
+
+/* Rarity badge — Arena look */
+.a-roster-grid .v-hero-card .v-rarity-badge {
+  position: absolute;
+  top: 6px; right: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  z-index: 5;
+  line-height: 1.2;
+}
+.a-roster-grid .v-hero-card .v-rarity-badge.common    { background: var(--a-rarity-common); color: #1a0f08; }
+.a-roster-grid .v-hero-card .v-rarity-badge.rare      { background: var(--a-rarity-rare); color: #08304a; }
+.a-roster-grid .v-hero-card .v-rarity-badge.epic      { background: var(--a-rarity-epic); color: #fff; }
+.a-roster-grid .v-hero-card .v-rarity-badge.legendary { background: linear-gradient(180deg, var(--a-fire-300), var(--a-fire-700)); color: #fff; text-shadow: 0 1px 0 rgba(0,0,0,0.5); box-shadow: 0 0 8px rgba(255,184,74,0.6); }
+.a-roster-grid .v-hero-card .v-rarity-badge.mythic    { background: linear-gradient(135deg, var(--a-umbra), var(--a-fire-500)); color: #fff; box-shadow: 0 0 10px rgba(192,106,223,0.8); }
+
+/* ===== POLISH v1 · PHASE 8 · ROSTER CARD EXTRAS ===== */
+/* Rarity badge repositioned → top-LEFT below element-badge, so top-right is free for race icon */
+.a-roster-grid .v-hero-card .v-rarity-badge {
+  top: 30px;
+  right: auto;
+  left: 6px;
+}
+
+.a-roster-grid .v-hero-card .a-hero-power {
+  position: absolute;
+  bottom: 40px; left: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid var(--a-gold-700);
+  border-radius: 6px;
+  font-family: var(--a-font-num);
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--a-gold-300);
+  z-index: 4;
+  letter-spacing: 0.5px;
+}
+.a-roster-grid .v-hero-card .a-hero-power .ic { color: var(--a-solar); font-size: 9px; }
+
+.a-roster-grid .v-hero-card .a-hero-equipped {
+  position: absolute;
+  /* 2026-04-29 — was top:30 right:6, but that aligned with the COM rarity
+   * badge at top:30 left:6 and the two pills together formed a visible
+   * horizontal stripe across the card. Stack below COM on the left side
+   * so the right edge stays clear (only race emblem at top:6). */
+  top: 52px; left: 6px;
+  padding: 2px 5px;
+  background: linear-gradient(180deg, var(--a-grove), var(--a-grove-dk, #2d7a18));
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 4px;
+  font-family: var(--a-font-display);
+  font-size: 8px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 1px;
+  z-index: 5;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.5);
+  box-shadow: 0 0 6px rgba(122, 236, 74, 0.6);
+}
+
+/* 2026-04-27 — Block 6.4 — Tier 2 Ascension badge on roster card.
+ * Cosmic-purple chip in the bottom-right corner. Distinguishes ascended
+ * heroes at a glance. Slight glow + diagonal shine = "earned" feel. */
+.a-roster-grid .v-hero-card .a-hero-t2-badge {
+  position: absolute;
+  bottom: 38px; right: 6px;
+  padding: 2px 6px;
+  background: linear-gradient(135deg, #C0A6DF 0%, #6B4A99 100%);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 4px;
+  font-family: var(--a-font-display);
+  font-size: 8.5px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.8px;
+  z-index: 5;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 8px rgba(192, 166, 223, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  animation: t2BadgePulse 2.4s ease-in-out infinite;
+}
+
+/* 2026-04-27 — Role-verb tag on roster card. Sits just above the name label.
+ * Single-word combat verb (CREATE / AMPLIFY / DETONATE / PROTECT / ENABLE)
+ * for at-a-glance squad-building decisions. Matches design palette. */
+.a-roster-grid .v-hero-card .a-hero-role-tag {
+  position: absolute;
+  left: 6px; right: 6px; bottom: 24px;
+  text-align: center;
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  font-weight: 900;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 0.8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95);
+  z-index: 3;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+/* Race emblem icon — top-right */
+.a-roster-grid .v-hero-card .a-hero-race {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--a-gold-700);
+  z-index: 4;
+}
+.a-roster-grid .v-hero-card .a-hero-race img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+/* If equipped badge is present + race icon: nudge equipped down to avoid collision */
+.a-roster-grid .v-hero-card .a-hero-race + .a-hero-equipped,
+.a-roster-grid .v-hero-card .a-hero-equipped {
+  /* equipped remains at top:30px right:6px — race occupies top:6px, so no conflict */
+}
+
+/* Rich empty state */
+.a-roster-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.a-roster-empty-icon {
+  font-size: 48px;
+  opacity: 0.4;
+  filter: grayscale(0.5);
+}
+.a-roster-empty-title {
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  color: var(--a-text-primary);
+  text-transform: uppercase;
+}
+.a-roster-empty-sub {
+  font-family: var(--a-font-body);
+  font-size: 12px;
+  color: var(--a-text-muted);
+  max-width: 220px;
+  line-height: 1.4;
+}
+.a-roster-empty-cta {
+  margin-top: 8px;
+  padding: 8px 20px !important;
+  font-size: 11px !important;
+  letter-spacing: 1.5px !important;
+  text-transform: uppercase;
+}
+
+/* Small inner widgets */
+.a-roster-grid .v-hero-card .fav-star {
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.5);
+  border: none;
+  color: var(--a-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 6;
+  opacity: 0;
+  transition: opacity var(--a-dur-tap) var(--a-ease-out);
+}
+.a-roster-grid .v-hero-card .fav-star.active {
+  opacity: 1;
+  color: var(--a-gold-300);
+  text-shadow: 0 0 8px rgba(255,184,74,0.7);
+}
+.a-roster-grid .v-hero-card .fav-star.active ~ .v-rarity-badge { display: none; }
+
+.a-roster-grid .v-hero-card .crown {
+  position: absolute;
+  top: -2px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  filter: drop-shadow(0 0 6px rgba(255,184,74,0.8));
+  z-index: 5;
+}
+.a-roster-grid .v-hero-card .level-pip {
+  position: absolute;
+  bottom: 22px; left: 6px;
+  padding: 1px 6px;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid var(--a-gold-700);
+  border-radius: 4px;
+  font-family: var(--a-font-num);
+  font-weight: 900;
+  font-size: 9px;
+  color: var(--a-gold-300);
+  z-index: 4;
+  letter-spacing: 0.5px;
+}
+.a-roster-grid .v-hero-card .tier-mark {
+  position: absolute;
+  bottom: 22px; right: 6px;
+  min-width: 16px;
+  padding: 1px 4px;
+  background: linear-gradient(180deg, var(--a-fire-300), var(--a-fire-700));
+  border: 1px solid var(--a-fire-100);
+  border-radius: 4px;
+  font-family: var(--a-font-num);
+  font-weight: 900;
+  font-size: 9px;
+  color: #fff;
+  text-align: center;
+  z-index: 4;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.5);
+}
+
+.a-roster-grid .v-hero-card.locked {
+  filter: grayscale(0.8) brightness(0.45);
+}
+/* Task #1.4: Clockwork placeholders — distinct from normal locked (craftable) state. */
+.a-roster-grid .v-hero-card.phase2-locked {
+  filter: grayscale(1) brightness(0.55);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.a-roster-grid .v-hero-card.phase2-locked .lock-icn {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--a-font-display, monospace);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  padding: 4px 8px;
+  background: rgba(12,14,26,0.85);
+  border: 1px solid var(--a-gold-300, #FFD74A);
+  color: var(--a-gold-300, #FFD74A);
+  border-radius: 3px;
+  z-index: 5;
+}
+.a-roster-grid .v-hero-card.locked .lock-icn {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  filter: brightness(1.6);
+  z-index: 5;
+  opacity: 0.85;
+}
+.a-roster-grid .v-hero-card.craftable {
+  filter: none;
+  animation: aCardCraftable 1600ms ease-in-out infinite;
+}
+.a-roster-grid .v-hero-card.craftable .lock-icn { display: none; }
+.a-roster-grid .v-hero-card.craftable .claim-icn {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 4px 10px;
+  background: linear-gradient(180deg, var(--a-fire-300), var(--a-fire-700));
+  border: 2px solid var(--a-fire-100);
+  border-radius: 8px;
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 11px;
+  color: #fff;
+  letter-spacing: 1px;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.5);
+  box-shadow: 0 0 12px rgba(255,184,74,0.7);
+  z-index: 5;
+}
+
+.a-roster-grid .v-hero-card.in-squad {
+  border-color: var(--a-gold-300);
+  box-shadow: 0 0 18px rgba(255,184,74,0.65), 0 4px 10px rgba(0,0,0,0.5);
+}
+.a-roster-grid .v-hero-card.in-squad::before {
+  background: linear-gradient(180deg, transparent 0%, rgba(42,24,16,0.85) 60%, rgba(42,24,16,0.95) 100%);
+}
+.a-roster-grid .v-hero-card.awakened {
+  animation: aCardAwakened 2400ms ease-in-out infinite;
+}
+
+/* PROFILE BACKGROUNDS — applied to home hub via .a-hub or fallback body */
+body.cosmetic-bg-burning_coast .a-hub,
+body.cosmetic-bg-burning_coast #screenMenu {
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(232,93,74,0.22), transparent 70%),
+    var(--a-bg-radial, #14091F) !important;
+}
+body.cosmetic-bg-frozen_deep .a-hub,
+body.cosmetic-bg-frozen_deep #screenMenu {
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(74,219,255,0.22), transparent 70%),
+    linear-gradient(180deg, #061421 0%, #02080C 100%) !important;
+}
+body.cosmetic-bg-eternal_dawn .a-hub,
+body.cosmetic-bg-eternal_dawn #screenMenu {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,213,61,0.30), transparent 65%),
+    linear-gradient(180deg, #2a1a05 0%, #0a0612 100%) !important;
+}
+
+/* ----- Roster tab (P5) ----- */
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.roster-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.18);
+  border-radius: 8px;
+  text-align: center;
+}
+
+/* Tall narrow viewports — iPhone SE and below */
+@media (max-height: 700px) {
+  .a-hub { gap: 10px; }
+  .a-hub-heading .a-title--h1 { font-size: 20px; }
+  .a-hub-boss { max-width: 170px; }
+  .a-hub-battle-btn { height: 50px; font-size: 16px; }
+}
+
+/* Active/focus states: no blue system outline on tap */
+.a-btn-cta:focus-visible,
+.a-btn-ghost:focus-visible,
+.a-btn-chip:focus-visible,
+.a-icon-btn:focus-visible,
+.a-bottom-nav__item:focus-visible,
+.a-hub-burger:focus-visible,
+.a-hero-card:focus-visible,
+.a-roster-grid .v-hero-card:focus-visible {
+  outline: 2px solid var(--a-gold-300);
+  outline-offset: 2px;
+}
+
+/* 2026-04-27 — Block 6.5 DEBT-9: Cosmic Memorial — defeated Chapter 3 bosses
+   as ethereal cosmetic guides on the home hub. Pure cosmetic per spec §12.3.
+   2026-04-29 — Polish pass: bumped ghost size 32→36, layered drop-shadow glow,
+   added particle-dust ::before that drifts upward, breathing aura on ::after,
+   memorial strip got a subtle starfield backdrop. Keeps the existing "fallen
+   guides" tone but reads as intentional premium cosmetic. */
+.a-hub-memorial {
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(192,106,223,0.4);
+  border-radius: 10px;
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(192,106,223,0.10) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 70%, rgba(255,213,61,0.06) 0%, transparent 45%),
+    linear-gradient(180deg, rgba(192,106,223,0.10), rgba(0,0,0,0.30));
+  text-align: center;
+  box-shadow:
+    inset 0 0 12px rgba(192,106,223,0.10),
+    0 0 14px rgba(192,106,223,0.18);
+}
+.a-hub-memorial-lbl {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 1.8px;
+  color: rgba(220,180,250,0.95);
+  text-shadow:
+    0 0 6px rgba(192,106,223,0.65),
+    0 0 12px rgba(192,106,223,0.30);
+  display: block;
+  margin-bottom: 6px;
+}
+.a-hub-memorial-strip {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.a-hub-memorial-ghost {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(192,106,223,0.7);
+  background: rgba(0,0,0,0.45);
+  overflow: hidden;
+  position: relative;
+  filter:
+    grayscale(0.45) brightness(0.85)
+    drop-shadow(0 0 4px rgba(192,106,223,0.75))
+    drop-shadow(0 0 9px rgba(192,106,223,0.45));
+  animation: memorialFloat 4s ease-in-out infinite;
+}
+.a-hub-memorial-ghost img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.78;
+}
+/* Particle dust — three small radial sparkles drifting upward inside the
+ * portrait. Pure CSS, no asset. The drift loop staggers per-ghost via
+ * animation-delay set on the parent. */
+.a-hub-memorial-ghost::before {
+  content: '';
+  position: absolute; inset: -4px;
+  background:
+    radial-gradient(circle at 18% 90%, rgba(220,180,250,0.85) 0px, transparent 1.2px),
+    radial-gradient(circle at 72% 95%, rgba(255,213,61,0.70) 0px, transparent 1.0px),
+    radial-gradient(circle at 50% 100%, rgba(220,180,250,0.65) 0px, transparent 1.4px);
+  background-repeat: no-repeat;
+  pointer-events: none;
+  animation: memorialDust 3.6s linear infinite;
+  opacity: 0.85;
+  z-index: 2;
+}
+/* Breathing aura — radial gradient that pulses in opacity. */
+.a-hub-memorial-ghost::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(192,106,223,0.30), transparent 70%);
+  pointer-events: none;
+  animation: memorialAura 3.2s ease-in-out infinite;
+  z-index: 1;
+}
+
+/* Prevent body double-scroll on Arena screens (html already overflow:hidden) */
+.a-hub, .a-loadout, .a-shop { overflow-x: hidden; }
+
+/* Stop the legacy .v-btn-primary / .v-btn-secondary from leaking into Arena screens
+   (they're still defined in CSS but referenced in splash markup — scope them) */
+.a-hub .v-btn-primary,
+.a-hub .v-btn-secondary { all: unset; }
+
+/* Arena body default — body has .a-screen class, but safari may apply body type style too */
+body.a-screen { background: var(--a-bg-radial); }
+
+/* ===== SCREENS ===== */
+/* MENU SCREEN */
+.menu-wrap {
+  width: 100%; max-width: 420px; margin: 0 auto;
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+  padding: max(10px, env(safe-area-inset-top, 0px) + 4px) 20px max(10px, env(safe-area-inset-bottom, 0px) + 4px);
+  box-sizing: border-box; position: relative;
+  background: radial-gradient(ellipse at top, rgba(232,184,74,0.08), transparent 50%), #0F0F1F;
+}
+.menu-logo {
+  font-size: 38px; font-weight: 800; letter-spacing: 4px;
+  background: linear-gradient(180deg, #fff 0%, #E8B84A 60%, #c99c31 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 0 30px rgba(232,184,74,0.4);
+  margin-bottom: 4px;
+}
+.section-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 2px; color: #A8A5B8;
+  margin-bottom: 6px; display: flex; justify-content: space-between; align-items: baseline;
+}
+.section-label .hint { font-size: 9px; color: #6e6c80; font-weight: 500; letter-spacing: 0.5px; }
+.squad-section { 
+  background: rgba(255,255,255,0.04); padding: 10px; border-radius: 10px; 
+  border: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+}
+.squad-slots { display: flex; gap: 5px; justify-content: space-between; }
+.squad-slot {
+  flex: 1; aspect-ratio: 0.85; border-radius: 8px;
+  background: rgba(0,0,0,0.4); border: 2px dashed rgba(255,255,255,0.15);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; cursor: pointer;
+}
+.squad-slot.filled { border-style: solid; border-color: var(--glow, #3D3F5E); }
+.squad-slot img { width: 100%; height: 100%; object-fit: cover; }
+.squad-slot .remove-x {
+  position: absolute; top: 2px; right: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(0,0,0,0.7); color: #fff; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+.squad-slot.empty-hint { color: #4d4f60; font-size: 18px; font-weight: 700; }
+.squad-synergy { 
+  margin-top: 6px;
+  font-size: 9px; color: #A8A5B8;
+  letter-spacing: 0.2px; line-height: 1.2;
+}
+.squad-synergy b { color: #E8B84A; }
+
+/* Race archetype reference panel */
+.race-hints {
+  flex-shrink: 0; padding: 8px 10px;
+  background: rgba(232,184,74,0.04); border: 1px solid rgba(232,184,74,0.15);
+  border-radius: 8px; font-size: 9.5px; line-height: 1.5;
+  color: #A8A5B8; letter-spacing: 0.2px;
+}
+.race-hints .hint-title {
+  font-size: 9px; font-weight: 700; color: #E8B84A; letter-spacing: 1.5px;
+  margin-bottom: 4px;
+}
+.race-hints .races-row { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.race-hints .races-row span b { color: #E4E1F0; font-weight: 700; }
+.race-hints .bonus-tier { display: flex; justify-content: space-between; gap: 6px; margin-top: 2px; font-size: 9px; }
+.race-hints .bonus-tier span b { color: #E8B84A; }
+
+.roster-section { 
+  flex: 1; display: flex; flex-direction: column; min-height: 0;
+}
+/* V18.5: FILTER BAR — two rows (race, faction), horizontal scroll for growing roster */
+.roster-filters {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-bottom: 6px; flex-shrink: 0;
+}
+.roster-filter-row {
+  display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  padding: 2px 1px;
+}
+.roster-filter-row::-webkit-scrollbar { display: none; }
+.filter-btn {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 9px; border-radius: 12px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  color: #A8A5B8; font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+  text-transform: uppercase; cursor: pointer; font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+  white-space: nowrap; user-select: none;
+}
+.filter-btn:active { transform: scale(0.94); }
+.filter-btn.active {
+  background: linear-gradient(135deg, rgba(232,184,74,0.28), rgba(232,93,74,0.18));
+  border-color: rgba(255,213,61,0.6);
+  color: #FFD53D;
+  box-shadow: 0 0 8px rgba(232,184,74,0.25);
+}
+.filter-btn .fdot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  box-shadow: 0 0 4px currentColor;
+}
+/* V18.12: icon-only filter chip for stihiya emblems — compact, emblem-forward */
+.filter-btn.icon-only {
+  padding: 0; width: 30px; height: 30px; border-radius: 50%;
+  justify-content: center;
+  background: rgba(255,255,255,0.04); border: 1.5px solid rgba(255,255,255,0.12);
+}
+.filter-btn.icon-only img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+  opacity: 0.72; transition: opacity 0.15s, transform 0.1s;
+}
+.filter-btn.icon-only:active img { transform: scale(0.92); }
+.filter-btn.icon-only.active {
+  background: transparent;
+  border-color: var(--fg-color, #FFD53D);
+  box-shadow: 0 0 10px var(--fg-color, rgba(232,184,74,0.55));
+}
+.filter-btn.icon-only.active img { opacity: 1; }
+/* V18.15: dim non-matching chips when a related filter is active */
+.filter-btn.icon-only.dim {
+  border-color: rgba(255,255,255,0.05);
+  opacity: 0.5;
+}
+.filter-btn.icon-only.dim img {
+  opacity: 0.35;
+  filter: grayscale(0.8);
+}
+/* V18.5: ROSTER GRID — 5 columns, vertical scroll. Card size matches menu-squad-card scale. */
+.roster-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;
+  overflow-y: auto; overflow-x: hidden;
+  padding: 4px 2px 6px;
+  flex: 1; min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  align-content: start;
+}
+.roster-grid::-webkit-scrollbar { display: none; }
+.roster-empty {
+  grid-column: 1 / -1;
+  padding: 20px 10px; text-align: center;
+  color: #6e6c80; font-size: 11px; letter-spacing: 1px;
+}
+.roster-card {
+  /* V18.5: compact grid card — matches menu-squad-card proportions */
+  aspect-ratio: 0.78;
+  border-radius: 8px; overflow: hidden;
+  background: #1a1b2e; border: 1.5px solid var(--glow, #3D3F5E);
+  position: relative; cursor: pointer; transition: transform 0.12s;
+  min-width: 0;
+}
+.roster-card:hover, .roster-card:active { transform: scale(1.06); }
+.roster-card.in-squad { 
+  box-shadow: 0 0 0 1.5px var(--glow), 0 0 8px var(--glow);
+  border-color: #fff;
+}
+.roster-card img { 
+  width: 100%; height: 100%; object-fit: cover;
+  object-position: center top;
+  pointer-events: none; display: block;
+}
+.roster-card .role-badge-small {
+  position: absolute; top: 2px; left: 2px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: rgba(0,0,0,0.7); color: #fff; font-size: 7px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255,255,255,0.25);
+  overflow: hidden;
+}
+.roster-card .role-badge-small img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+}
+.roster-card .fav-btn {
+  position: absolute; top: 2px; right: 2px;
+  width: 15px; height: 15px; border-radius: 50%;
+  background: rgba(0,0,0,0.7); color: #6e6c80; font-size: 9px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255,255,255,0.2); cursor: pointer; line-height: 1;
+}
+.roster-card .fav-btn.active { color: #E8B84A; background: rgba(232,184,74,0.25); border-color: #E8B84A; }
+.roster-card .roster-tier-mark {
+  position: absolute; top: 2px; right: 2px;
+  font-size: 7px; font-weight: 800;
+  padding: 1px 3px; border-radius: 3px;
+  background: linear-gradient(135deg, #FFD53D, #C9A961);
+  color: #1A0F00; letter-spacing: 0.3px;
+  box-shadow: 0 0 4px rgba(255,213,61,0.6);
+  pointer-events: none;
+}
+.roster-card .name-label {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.98) 30%, transparent);
+  padding: 10px 3px 3px; text-align: center; font-size: 8px;
+  font-weight: 700; letter-spacing: 0.3px; color: #fff;
+  line-height: 1.1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.roster-card .squad-pos {
+  position: absolute; bottom: 12px; right: 2px;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--glow, #3D3F5E); color: #fff; font-size: 8px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid #fff;
+}
+.select-wrap .menu-btn.fight { width: 100%; max-width: none; flex-shrink: 0; }
+
+/* ===== V3.0 PHASE 0 BLOCK 0.1 — LOCKED HERO STYLING ===== */
+/* Silhouette treatment on locked roster cards. Card still clickable (routes to locked modal),
+   but visual cues make its gated status obvious: desaturated + dimmed + lock overlay. */
+.roster-card.locked {
+  opacity: 0.42;
+  filter: grayscale(1) brightness(0.65);
+  border-color: #2A2B40;
+  cursor: pointer;
+}
+.roster-card.locked:hover, .roster-card.locked:active { transform: scale(1.04); }
+.roster-card.locked img {
+  /* Darker silhouette on top of grayscale */
+  filter: brightness(0.55) contrast(1.1);
+}
+.roster-card.locked::after {
+  content: '🔒';
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  filter: none; opacity: 1;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+  pointer-events: none;
+  z-index: 3;
+}
+.roster-card.locked .name-label {
+  /* Dim the name even further so locked heroes read as "unknown" */
+  color: #8A88A0;
+}
+
+/* Locked hero info modal — centered card with portrait + flavor */
+.locked-hero-box {
+  --locked-glow: #3D3F5E;
+  max-width: 280px;
+  text-align: center;
+  border-color: var(--locked-glow) !important;
+  box-shadow: 0 0 24px rgba(0,0,0,0.6), 0 0 0 1px var(--locked-glow);
+}
+.locked-hero-portrait-wrap {
+  position: relative;
+  width: 120px; height: 120px;
+  margin: 0 auto 10px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid var(--locked-glow);
+  background: #0F0F1F;
+}
+.locked-hero-img {
+  width: 100%; height: 100%; object-fit: cover;
+  object-position: center top;
+  filter: grayscale(1) brightness(0.5);
+  display: block;
+}
+.locked-hero-lock {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 38px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+  pointer-events: none;
+}
+.locked-hero-name {
+  font-size: 16px; font-weight: 800;
+  letter-spacing: 1px; color: #D0CDE0;
+  margin-bottom: 3px;
+}
+.locked-hero-meta {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.8px; opacity: 0.85;
+  margin-bottom: 12px;
+}
+.locked-hero-reason {
+  font-size: 11px; line-height: 1.5;
+  color: #A8A5B8;
+  padding: 10px 12px;
+  background: rgba(255,213,61,0.06);
+  border: 1px solid rgba(255,213,61,0.18);
+  border-radius: 8px;
+}
+.locked-hero-reason b { color: #FFD53D; }
+
+/* ===== V3.0 PHASE 0 BLOCK 0.2 — HERO FRAGMENT SYSTEM ===== */
+/* Fragment progress on locked roster cards */
+.roster-card.locked .fragment-bar {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 4px; background: rgba(0,0,0,0.7);
+  filter: none; opacity: 1;
+  z-index: 2;
+  pointer-events: none;
+}
+.roster-card.locked .fragment-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #E8B84A 0%, #FFD53D 100%);
+  box-shadow: 0 0 4px rgba(255,213,61,0.55);
+  transition: width 0.4s ease-out;
+  pointer-events: none;
+}
+.roster-card.locked .fragment-text {
+  position: absolute; bottom: 5px; right: 3px;
+  font-size: 8px; font-weight: 800;
+  color: #FFD53D;
+  letter-spacing: 0.3px;
+  filter: none; opacity: 1;
+  z-index: 2;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+  pointer-events: none;
+}
+/* Craftable state — 50/50 fragments reached. Spec: pulsing CLAIM overlay.
+   Higher specificity (2 classes) overrides the plain .locked::after 🔒 rule. */
+.roster-card.locked.craftable {
+  opacity: 0.95;
+  filter: grayscale(0.2) brightness(0.95);
+  border-color: #3DD66E;
+  animation: craftPulse 1.5s ease-in-out infinite;
+  cursor: pointer;
+}
+.roster-card.locked.craftable img {
+  filter: brightness(0.85) contrast(1.05);
+}
+.roster-card.locked.craftable::after {
+  content: 'CLAIM';
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #3DD66E;
+  padding: 4px 8px;
+  background: rgba(15,15,31,0.92);
+  border: 1.5px solid #3DD66E;
+  border-radius: 6px;
+  text-shadow: 0 0 6px rgba(61,214,110,0.55);
+  box-shadow: 0 0 12px rgba(61,214,110,0.45);
+}
+.roster-card.locked.craftable .fragment-fill {
+  background: linear-gradient(90deg, #3DD66E 0%, #6DF095 100%);
+  box-shadow: 0 0 6px rgba(61,214,110,0.75);
+}
+.roster-card.locked.craftable .fragment-text {
+  color: #3DD66E;
+}
+/* Fragment progress block inside the locked-hero modal */
+.locked-hero-frag-wrap {
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: rgba(255,213,61,0.06);
+  border: 1px solid rgba(255,213,61,0.18);
+  border-radius: 8px;
+}
+.locked-hero-frag-bar {
+  position: relative;
+  height: 8px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.locked-hero-frag-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #E8B84A 0%, #FFD53D 100%);
+  box-shadow: 0 0 6px rgba(255,213,61,0.5);
+  border-radius: 4px;
+  transition: width 0.4s ease-out;
+}
+.locked-hero-frag-text {
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #FFD53D;
+  text-align: center;
+}
+.locked-hero-claim {
+  background: linear-gradient(135deg, #3DD66E 0%, #2BA856 100%) !important;
+  color: #0A0A1A !important;
+  font-weight: 800 !important;
+  letter-spacing: 1px !important;
+  border-color: #3DD66E !important;
+  box-shadow: 0 0 16px rgba(61,214,110,0.55) !important;
+  animation: craftPulse 1.5s ease-in-out infinite;
+}
+
+/* ===== V3.0 PHASE 0 BLOCK 0.3 — GOLD & ENERGY RESOURCE STRIP ===== */
+.resource-strip {
+  display: flex; gap: 8px; align-items: stretch;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.resource-counter {
+  display: flex; gap: 5px; align-items: center;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1A1B2E 0%, #0F0F1F 100%);
+  border: 1px solid #3D3F5E;
+  font-size: 13px; font-weight: 800;
+  letter-spacing: 0.3px;
+  line-height: 1;
+  min-height: 30px;
+}
+.resource-counter .resource-icon {
+  font-size: 15px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7));
+}
+.resource-counter .resource-amt {
+  color: #E4E1F0;
+  font-variant-numeric: tabular-nums;
+}
+.resource-counter.gold {
+  border-color: rgba(255,213,61,0.45);
+  box-shadow: inset 0 0 8px rgba(255,213,61,0.08);
+}
+.resource-counter.gold .resource-amt { color: #FFD53D; }
+/* .resource-counter.energy CSS removed 2026-04-28 — Energy system gone (Task #1.7). */
+/* V3.0 Phase 3 Block 3.1: gem chip — matches resource-counter aesthetic,
+   violet accent. Clickable, hover nudge to signal tap-affordance. */
+.resource-counter.gem {
+  border-color: rgba(140,59,255,0.5);
+  box-shadow: inset 0 0 8px rgba(140,59,255,0.10);
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.resource-counter.gem:hover, .resource-counter.gem:active {
+  transform: scale(1.05);
+  box-shadow: inset 0 0 8px rgba(140,59,255,0.18), 0 0 10px rgba(140,59,255,0.3);
+}
+.resource-counter.gem .resource-amt { color: #BB60FF; }
+.resource-counter .regen-timer {
+  font-size: 9px; font-weight: 700;
+  color: #8A88A0;
+  margin-left: 4px;
+  letter-spacing: 0.4px;
+  font-variant-numeric: tabular-nums;
+}
+.resource-counter .regen-timer.max {
+  color: #3DD66E;
+  letter-spacing: 1px;
+}
+
+@media (max-height: 720px) {
+  .resource-strip { margin-bottom: 4px; }
+  .resource-counter { padding: 4px 8px; font-size: 12px; min-height: 26px; }
+  .resource-counter .resource-icon { font-size: 13px; }
+  .resource-counter .regen-timer { font-size: 8px; }
+}
+
+/* .no-energy-* modal CSS removed 2026-04-28 — Energy system gone (Task #1.7). */
+
+/* ===== 2026-04-27 — INTRO VIDEO OVERLAY ===== */
+/* Shown once on first launch. z-index 10000 — above dialog overlay so it
+ * never collides with FTUE narration. Tap or "SKIP" to dismiss; ends auto-
+ * dismisses via JS `ended` listener. */
+.intro-video-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  background: #000;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  animation: introFadeIn 0.4s ease-out;
+}
+.intro-video-overlay.hidden { display: none; }
+.intro-video-overlay.fading {
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+}
+.intro-video-player {
+  max-width: 100%;
+  max-height: 100vh;
+  width: auto; height: auto;
+  object-fit: contain;
+}
+.intro-video-skip {
+  position: absolute;
+  top: 16px; right: 16px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 213, 61, 0.5);
+  border-radius: 6px;
+  font-family: 'Anton', 'Bebas Neue', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #FFD53D;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  z-index: 10001;
+  opacity: 0.85;
+  transition: opacity 0.2s ease-out;
+}
+.intro-video-skip:hover { opacity: 1; }
+.roster-card .leader-badge { top: 2px; right: 2px; }
+.menu-squad-card .leader-badge { top: 2px; right: 2px; font-size: 12px; }
+.squad-slot .leader-badge { top: 2px; right: 2px; font-size: 12px; }
+/* When a card already has a tier-mark in the top-right, nudge the crown left
+   so they don't overlap. tier-mark uses top:2px;right:2px too. */
+.roster-card .roster-tier-mark + .leader-badge,
+.roster-card:has(.roster-tier-mark) .leader-badge { right: 26px; }
+.currency-chip.gold-chip { color: #FFD53D; border-color: rgba(255,213,61,0.35); }
+.currency-chip.gem-chip  { color: #BB60FF; border-color: rgba(140,59,255,0.45); }
+
+/* ===== V3.0 PHASE 5 BLOCK 5.1 — DAILY BUTTON + BADGE + DAILIES SCREEN ===== */
+.menu-btn.daily-btn {
+  position: relative;
+  background: linear-gradient(180deg, rgba(140,59,255,0.35) 0%, rgba(68,29,138,0.45) 100%);
+  border: 1px solid #8C3BFF;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+
+/* ===== V3.0 PHASE 7 BLOCK 7.1 — ENDLESS TOWER ===== */
+.menu-btn.tower-btn {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255,213,61,0.2) 0%, rgba(255,77,31,0.3) 100%);
+  border: 1px solid #FFD53D;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+
+/* ===== V3.0 PHASE 7 BLOCK 7.5 — SEASON PASS ===== */
+.menu-btn.season-btn {
+  position: relative;
+  background: linear-gradient(180deg, rgba(140,59,255,0.2) 0%, rgba(255,213,61,0.15) 100%);
+  border: 1px solid #8C3BFF;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.detail-actions .btn.in-squad { background: #E85D4A; }
+.detail-actions .btn.in-squad:active { background: #ff6b54; }
+/* 2026-04-29 polish v0.1 Track D — demote the squad-toggle CTA so the
+ * primary UPGRADE action wins visual hierarchy. EQUIP-state shows as an
+ * outlined ghost button; once the hero is in squad the destructive
+ * REMOVE state stays red-prominent so misclicks aren't silent. */
+#detailSquadBtn:not(.in-squad) {
+  background: transparent !important;
+  color: var(--a-gold-300, #FFD53D) !important;
+  border: 1px solid var(--a-gold-700, #B3822E) !important;
+  font-size: 12px !important;
+  padding: 8px 10px !important;
+  letter-spacing: 1px;
+  margin-top: 6px !important;
+  box-shadow: none !important;
+}
+#detailSquadBtn:not(.in-squad):hover  { background: rgba(255,213,61,0.08) !important; }
+#detailSquadBtn:not(.in-squad):active { transform: scale(0.98); }
+
+/* Roster card level pip — tiny chip in the bottom-left corner. Tapping it opens
+   hero detail modal directly (shortcut + prevents collision with card squad-toggle). */
+.roster-card .level-pip {
+  position: absolute;
+  bottom: 3px; left: 3px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255,213,61,0.25);
+  color: #FFD53D;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  line-height: 1.3;
+  pointer-events: none;
+  z-index: 3;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+.roster-card.locked .level-pip { opacity: 0.35; }
+/* iPhone SE narrow (375px) — tighter roster grid, smaller tier buttons */
+@media (max-width: 380px) {
+  .menu-logo-img { max-width: 130px; }
+  .roster-grid { gap: 4px; padding: 3px 1px 4px; }
+  .roster-card .name-label { font-size: 7px; padding: 8px 2px 2px; }
+  .filter-btn { padding: 3px 7px; font-size: 9px; }
+  .hero-detail-box { padding: 14px 14px 12px; }
+  .detail-portrait { width: 64px; height: 74px; }
+  .detail-name { font-size: 17px; }
+  .tier-btn { padding: 7px 10px; }
+  .tier-btn .tier-effect { font-size: 11px; }
+  .essence-counter { padding: 3px 8px 3px 5px; font-size: 13px; gap: 5px; }
+  .essence-counter .ess-icon { width: 20px; height: 20px; }
+}
+
+/* V18.21: touch targets — all interactive elements ≥ 40×40 effective tap area (Apple HIG + Material) */
+.filter-btn.icon-only {
+  min-width: 34px; min-height: 34px;
+}
+
+/* V16: chapter toggle on menu */
+.chapter-toggle { display: flex; gap: 4px; margin: 2px auto 6px; padding: 3px; background: #0F0F1F; border: 1px solid #3D3F5E; border-radius: 10px; width: fit-content; }
+.chapter-toggle .ch-tab { background: transparent; color: #A8A5B8; border: none; padding: 6px 14px; font-family: inherit; font-size: 10px; font-weight: 700; letter-spacing: 2px; border-radius: 6px; cursor: pointer; transition: background 0.2s, color 0.2s; }
+.chapter-toggle .ch-tab.active { background: linear-gradient(135deg, rgba(255,213,61,0.25), rgba(232,93,74,0.18)); color: #FFD53D; box-shadow: inset 0 0 0 1px rgba(255,213,61,0.4); }
+.chapter-toggle .ch-tab.locked { opacity: 0.4; cursor: not-allowed; }
+.chapter-toggle .ch-tab.locked::after { content: ' 🔒'; font-size: 9px; }
+
+/* In-squad collection cards keep their stronger selection glow but still breathe */
+.roster-card.in-squad.ember { animation: stihiyaEmberPulse 2.2s ease-in-out infinite; }
+.roster-card.in-squad.tide  { animation: stihiyaTideShimmer 2.6s ease-in-out infinite; }
+.roster-card.in-squad.grove { animation: stihiyaGroveBreath 2.8s ease-in-out infinite; }
+.roster-card.in-squad.solar { animation: stihiyaSolarRadiate 2.4s ease-in-out infinite; }
+.roster-card.in-squad.umbra { animation: stihiyaUmbraVeil 3.0s ease-in-out infinite; }
+/* When .hit or .defeated classes are applied, their animation rules already take over because
+   they're declared LATER in the stylesheet and have equal specificity. Keep them authoritative. */
+
+/* V17.3: ROSTER cards now use the main stihiya animations (with outer glow).
+   In the album layout only 1-2 cards visible at a time, so outer glow bleed into
+   neighbors is nearly invisible and actually creates a rich, cohesive stihiya feel.
+   (Inset-only variants removed — were too subtle on the big album cards.) */
+.roster-card.ember { animation: stihiyaEmberPulse   2.8s ease-in-out infinite; }
+.roster-card.tide  { animation: stihiyaTideShimmer  3.4s ease-in-out infinite; }
+.roster-card.grove { animation: stihiyaGroveBreath  3.6s ease-in-out infinite; }
+.roster-card.solar { animation: stihiyaSolarRadiate 3.0s ease-in-out infinite; }
+.roster-card.umbra { animation: stihiyaUmbraVeil    3.8s ease-in-out infinite; }
+.roster-card.in-squad.ember { animation: stihiyaEmberPulse   2.2s ease-in-out infinite; }
+.roster-card.in-squad.tide  { animation: stihiyaTideShimmer  2.6s ease-in-out infinite; }
+.roster-card.in-squad.grove { animation: stihiyaGroveBreath  2.8s ease-in-out infinite; }
+.roster-card.in-squad.solar { animation: stihiyaSolarRadiate 2.4s ease-in-out infinite; }
+.roster-card.in-squad.umbra { animation: stihiyaUmbraVeil    3.0s ease-in-out infinite; }
+/* Keep .in-squad explicit outline ring above the pulsing glow */
+.roster-card.in-squad { outline: 2px solid #fff; outline-offset: -4px; }
+
+/* --- Chapter toggle badges (V17) --- */
+.chapter-toggle { 
+  gap: 10px; padding: 6px 10px; background: rgba(15,15,31,0.85);
+  border: 1px solid #3D3F5E; border-radius: 14px;
+}
+.chapter-toggle .ch-tab {
+  width: 44px; height: 44px; padding: 3px; border-radius: 8px;
+  background: rgba(0,0,0,0.35); border: 1.5px solid transparent;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+  overflow: hidden;
+}
+.chapter-toggle .ch-tab img {
+  width: 100%; height: 100%; object-fit: contain; display: block;
+  filter: saturate(0.85) brightness(0.75);
+  transition: filter 0.25s, transform 0.25s;
+}
+.chapter-toggle .ch-tab:hover img, .chapter-toggle .ch-tab:active img { transform: scale(1.06); }
+.chapter-toggle .ch-tab.active {
+  border-color: rgba(255,213,61,0.65);
+  background: rgba(255,213,61,0.08);
+  box-shadow: 0 0 14px rgba(255,213,61,0.35), inset 0 0 10px rgba(255,213,61,0.1);
+}
+.chapter-toggle .ch-tab.active img {
+  filter: saturate(1.15) brightness(1.05) drop-shadow(0 0 4px rgba(255,213,61,0.4));
+}
+.chapter-toggle .ch-tab.locked { opacity: 0.45; cursor: not-allowed; }
+.chapter-toggle .ch-tab.locked img { filter: saturate(0.25) brightness(0.55) grayscale(0.6); }
+.chapter-toggle .ch-tab.locked::after { content: '🔒'; position: absolute; font-size: 18px; background: rgba(0,0,0,0.55); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+.chapter-toggle .ch-tab { position: relative; }
+/* MATCHUP hint on menu — shows selected boss's archetype and stihiya strong/weak */
+.matchup-hint {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.4px;
+  color: #A8A5B8;
+  text-align: center;
+  margin: 6px 0 0;
+  padding: 4px 8px;
+  background: rgba(61, 63, 94, 0.25);
+  border-radius: 6px;
+}
+.matchup-hint b { color: #F5F3EC; font-weight: 800; letter-spacing: 0.8px; }
+.matchup-hint span { font-weight: 800; }

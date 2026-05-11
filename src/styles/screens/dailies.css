@@ -1,0 +1,37 @@
+/* Dailies / weekly missions screen.
+ * Pure relocation (T1.06).
+ */
+
+.daily-btn-icon { font-size: 16px; line-height: 1; }
+.daily-btn-label { letter-spacing: 2.5px; }
+.daily-badge {
+  position: absolute; top: -6px; right: -6px;
+  min-width: 20px; height: 20px; padding: 0 5px;
+  border-radius: 10px;
+  background: #E85D4A; color: #FFF;
+  font-size: 11px; font-weight: 800; letter-spacing: 0;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 8px rgba(232,93,74,0.6);
+  border: 2px solid #1A1B2E;
+}
+.daily-badge.hidden { display: none; }
+
+#screenDailies {
+  padding: 40px 14px 24px;
+  overflow-y: auto;
+}
+.dailies-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.dailies-header { text-align: center; padding: 0 4px; }
+.dailies-header h2 {
+  margin: 0; font-size: 20px; letter-spacing: 4px;
+  color: #F5F3EC; font-weight: 800;
+}
+.weekly-missions-list {
+  display: flex; flex-direction: column; gap: 8px;
+}

@@ -1,0 +1,316 @@
+/* Design tokens — CSS custom properties.
+ * Extracted from legacy `<style>` in docs/_legacy/_archive_v1/blocksworn_index_fixed.html.
+ * Pure relocation: no values changed during migration (T1.06).
+ */
+
+:root {
+  /* Legacy vivid token block already removed in source; Arena Premium `--a-*`
+     tokens below are the single source of design values. */
+
+  /* 2026-04-30 — Mobile UX Fix v0.1 §9.1: modern viewport unit + safe-area
+     CSS variables. Exposed as tokens so every screen / sticky element /
+     responsive sizing rule references one source of truth instead of
+     re-typing `env(safe-area-inset-*)`. Falls back to 0px on browsers
+     that don't support the env() function. */
+  --viewport-height:        100dvh;       /* dynamic — adapts to mobile UI */
+  --small-viewport-height:  100svh;       /* smallest possible viewport */
+  --large-viewport-height:  100lvh;       /* largest possible viewport */
+  --safe-area-top:          env(safe-area-inset-top, 0px);
+  --safe-area-bottom:       env(safe-area-inset-bottom, 0px);
+  --safe-area-left:         env(safe-area-inset-left, 0px);
+  --safe-area-right:        env(safe-area-inset-right, 0px);
+
+  /* 2026-04-30 — Mobile UX Fix v0.1 §5: --cell-size as an informational
+     token. The .grid itself still auto-scales via
+     `width: min(100%, calc(100dvh - 480px))` + `1fr` columns +
+     `aspect-ratio: 1/1` (proven layout — kept untouched), but other
+     code paths (drag-ghost, piece previews, JS animations) can now
+     read var(--cell-size) for size-consistent rendering. The clamp()
+     fallback handles browsers without JS; calculateBoardSize() updates
+     the var on resize / orientationchange so it tracks the actual
+     rendered cell size. */
+  --cell-size: clamp(35px, 8vw, 50px);
+
+  /* ========================================================== */
+  /* === COMBAT UI AAA+ REDESIGN — Foundation Tokens (PR 1/6) === */
+  /* ========================================================== */
+  /* 2026-04-30 — Per BLOCKSWORN_COMBAT_UI_REDESIGN.md §9-§11 + §16.
+     Phase 1 of the AAA+ redesign migration: expose the full design
+     system as CSS variables. Zero visual impact in this PR — these
+     tokens are NOT consumed by existing rules yet. Phases 2-6 (top bar,
+     hero squad, boss refinement, tray pill, responsive) build on this
+     foundation.
+
+     Naming convention: spec-prefixed (no leading `--a-` prefix) so the new
+     tokens sit alongside the existing Arena Premium palette without
+     shadowing. When migration completes, the older `--a-*` tokens can be
+     deprecated. */
+
+  /* §9.1 Spacing scale */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* §9.2 Border radius */
+  --radius-xs:    2px;
+  --radius-sm:    4px;
+  --radius-md:    8px;
+  --radius-lg:   12px;
+  --radius-full: 9999px;
+
+  /* §9.3 Shadow tokens */
+  --shadow-sm:    0 1px 2px rgba(0, 0, 0, 0.20);
+  --shadow-md:    0 4px 12px rgba(0, 0, 0, 0.30);
+  --shadow-lg:    0 8px 24px rgba(0, 0, 0, 0.40);
+  --shadow-glow:  0 0 12px var(--element-color, rgba(255, 184, 74, 0.5));
+  --shadow-inner: inset 0 0 8px rgba(0, 0, 0, 0.30);
+
+  /* §9.4 Z-index scale */
+  --z-base:         0;     /* background, board */
+  --z-elevated:     10;    /* boss area, hero row */
+  --z-sticky:      100;    /* tray (already in use) */
+  --z-overlay:     200;    /* modal backdrops */
+  --z-modal:       300;    /* modal content */
+  --z-notification: 400;   /* toasts, flashText */
+  --z-tooltip:     500;    /* tooltips */
+  --z-critical:   1000;    /* errors, blocking dialogs */
+
+  /* §10.1 Combat UI backgrounds (spec-prefixed; coexists with --a-bg-*) */
+  --combat-bg-primary:   #0A0F1A;
+  --combat-bg-secondary: #0F1423;
+  --combat-bg-tertiary:  #1A2235;
+  --combat-bg-elevated:  rgba(20, 25, 40, 0.95);
+
+  /* §10.1 Combat UI borders */
+  --combat-border-subtle:  rgba(255, 255, 255, 0.05);
+  --combat-border-default: rgba(255, 255, 255, 0.10);
+  --combat-border-strong:  rgba(255, 255, 255, 0.20);
+
+  /* §10.1 Combat UI text */
+  --combat-text-primary:   #FFFFFF;
+  --combat-text-secondary: rgba(255, 255, 255, 0.7);
+  --combat-text-tertiary:  rgba(255, 255, 255, 0.5);
+  --combat-text-disabled:  rgba(255, 255, 255, 0.3);
+
+  /* §10.2 Element colors — Fire / Ember */
+  --el-fire-light:   #FFB347;
+  --el-fire-base:    #FF6B35;
+  --el-fire-dark:    #CC4A1F;
+  --el-fire-glow:    rgba(255, 107, 53, 0.50);
+  --el-fire-bg:      rgba(255, 107, 53, 0.15);
+  --el-fire-border:  rgba(255, 107, 53, 0.30);
+
+  /* §10.2 Frost / Tide */
+  --el-frost-light:  #6BB6FF;
+  --el-frost-base:   #4A9FFF;
+  --el-frost-dark:   #2980E6;
+  --el-frost-glow:   rgba(74, 159, 255, 0.50);
+  --el-frost-bg:     rgba(74, 159, 255, 0.15);
+  --el-frost-border: rgba(74, 159, 255, 0.30);
+
+  /* §10.2 Earth / Grove */
+  --el-earth-light:  #6BE08F;
+  --el-earth-base:   #4ADB6D;
+  --el-earth-dark:   #2EB856;
+  --el-earth-glow:   rgba(74, 219, 109, 0.50);
+  --el-earth-bg:     rgba(74, 219, 109, 0.15);
+  --el-earth-border: rgba(74, 219, 109, 0.30);
+
+  /* §10.2 Dark / Umbra */
+  --el-dark-light:   #A66FCC;
+  --el-dark-base:    #8B4FBC;
+  --el-dark-dark:    #6F35A0;
+  --el-dark-glow:    rgba(139, 79, 188, 0.50);
+  --el-dark-bg:      rgba(139, 79, 188, 0.15);
+  --el-dark-border:  rgba(139, 79, 188, 0.30);
+
+  /* §10.2 Light / Solar */
+  --el-light-light:  #FFE066;
+  --el-light-base:   #FFD700;
+  --el-light-dark:   #FFA500;
+  --el-light-glow:   rgba(255, 215, 0, 0.50);
+  --el-light-bg:     rgba(255, 215, 0, 0.15);
+  --el-light-border: rgba(255, 215, 0, 0.30);
+
+  /* §10.3 Race colors — accent palette */
+  --race-pirates:     #DC143C;
+  --race-pirates-glow: rgba(220, 20, 60, 0.50);
+  --race-rockband:    #FF1493;
+  --race-rockband-glow: rgba(255, 20, 147, 0.50);
+  --race-sharks:      #E6F3FF;
+  --race-sharks-glow:  rgba(230, 243, 255, 0.50);
+  --race-crocodiles:  #228B22;
+  --race-crocodiles-glow: rgba(34, 139, 34, 0.50);
+  --race-sparks:      #FFD700;
+  --race-sparks-glow:  rgba(255, 215, 0, 0.50);
+
+  /* §10.4 Semantic colors */
+  --hp-full:     #4ADB6D;
+  --hp-mid:      #FFD700;
+  --hp-low:      #FF6B35;
+  --hp-critical: #DC143C;
+  --hearts-color: #DC143C;
+  --hearts-glow:  rgba(220, 20, 60, 0.50);
+
+  /* §11 Typography — sizes only; font-family already in Arena tokens. */
+  --fs-xs:  9px;    /* hero name, tier badge, tiny meta */
+  --fs-sm: 11px;    /* boss meta, HP text, hero charge */
+  --fs-md: 13px;    /* boss name on small phones, tray text */
+  --fs-lg: 16px;    /* boss name, modal headings */
+  --fs-xl: 20px;    /* boss-details modal title */
+  --fs-2xl: 24px;   /* victory / defeat titles */
+
+  /* §11 Font weights */
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold: 600;
+  --fw-bold:    700;
+  --fw-black:   800;
+
+  /* §16 Layout heights — single source of truth for stack budget.
+     2026-04-30 — Combat UI Final Polish §3 (PR 1/6): tightened budget to
+     give the 8×8 board ~25px more vertical room (was clipping top + bottom
+     rows on iPhone 13). Boss 110→100 (compact buff banner removed in PR 2),
+     hero 95→90 (slightly tighter portraits), tray 105→95 (element pill
+     migrating to top bar in PR 4 frees the right rail). Net board gain
+     visible immediately even before later PRs land — the calc() budget
+     in .grid (line ~9654) is reduced in lock-step. */
+  --top-bar-height:    40px;
+  --boss-area-height: 100px;
+  --boss-portrait:     72px;
+  --hero-row-height:   90px;
+  --hero-portrait:     60px;
+  --tray-height:       95px;
+}
+
+:root {
+  /* ========================================= */
+  /* =====       ARENA PREMIUM TOKENS    ===== */
+  /* ========================================= */
+
+  /* Deep warm base — основа всего UI (replaces legacy sky token chain). */
+  --a-bg-deepest:  #050308;   /* Самый тёмный (за всем) */
+  --a-bg-base:     #0a0612;   /* Основной фон screen */
+  --a-bg-surface:  #150a1c;   /* Карточки, панели */
+  --a-bg-elevated: #1a1028;   /* Приподнятые элементы (модалки) */
+  --a-bg-well:     #08040e;   /* Углубления (inputs, прогресс-бары) */
+
+  /* Radial background — градиент для main screens */
+  --a-bg-radial:  radial-gradient(ellipse at top, #1a1028 0%, #0a0612 60%, #050308 100%);
+
+  /* Patinated gold — главный акцент (replaces cold white) */
+  --a-gold-100: #f5d888;    /* Яркий gold для заголовков */
+  --a-gold-300: #ffb84a;    /* Стандартный gold (LVL badges, active) */
+  --a-gold-500: #a07530;    /* Muted gold (secondary text) */
+  --a-gold-700: #6a4a28;    /* Gold border, outline */
+  --a-gold-900: #2a1810;    /* Deep brown-gold (shadows) */
+
+  /* Fire orange — primary CTA, Ember accents */
+  --a-fire-100: #ffd08a;    /* Highlight */
+  --a-fire-300: #ff8a4a;    /* Bright fire */
+  --a-fire-500: #ff5a3a;    /* Pure ember */
+  --a-fire-700: #c04a1a;    /* Deep fire shadow */
+  --a-fire-900: #6a1a08;    /* CTA 3D-depth shadow */
+
+  /* Element colors — rebalanced for dark background (saturated) */
+  --a-ember:    #ff5a3a;
+  --a-ember-lt: #ff8a4a;
+  --a-tide:     #4adbff;
+  --a-tide-lt:  #6ad5ff;
+  --a-grove:    #7aec4a;
+  --a-grove-lt: #9aff5a;
+  --a-solar:    #ffe14a;
+  --a-solar-lt: #ffee8a;
+  --a-umbra:    #c06adf;
+  --a-umbra-lt: #e199ff;
+
+  /* Element DARKER variants для фонов */
+  --a-ember-dk: #3a0f08;
+  --a-tide-dk:  #082848;
+  --a-grove-dk: #0a2808;
+  --a-solar-dk: #2a2008;
+  --a-umbra-dk: #2a0840;
+
+  /* Text hierarchy на тёмном фоне */
+  --a-text-primary:   #f5e8d0;   /* Warm white, не чистый */
+  --a-text-gold:      #f5d888;   /* Заголовки */
+  --a-text-secondary: #a09080;   /* Вторичный */
+  --a-text-muted:     #6a5840;   /* Хинты */
+  --a-text-disabled:  #4a3828;
+
+  /* Rarity colors (для карточек героев) */
+  --a-rarity-common:    #8a7a60;
+  --a-rarity-rare:      #4adbff;
+  --a-rarity-epic:      #c06adf;
+  --a-rarity-legendary: #ffb84a;
+  --a-rarity-mythic:    #ff5a3a;
+
+  /* Borders — Arena использует patinated gold, не white */
+  --a-border-thin:    1px solid var(--a-gold-700);
+  --a-border-medium:  2px solid var(--a-gold-500);
+  --a-border-strong:  2px solid var(--a-gold-300);
+
+  /* Shadows — для глубины и premium ощущения */
+  --a-shadow-inset:   inset 0 -4px 8px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.05);
+  --a-shadow-lift:    0 4px 12px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,184,74,0.1);
+  --a-shadow-glow-gold:  0 0 16px rgba(255,184,74,0.4);
+  --a-shadow-glow-fire:  0 0 18px rgba(255,90,58,0.55);
+  --a-shadow-cta: 0 3px 0 var(--a-fire-900), 0 0 14px rgba(255,138,74,0.4);
+
+  /* Radii — чуть менее rounded чем Vivid (premium feel) */
+  --a-radius-btn:      12px;
+  --a-radius-card:     16px;
+  --a-radius-chip:     10px;
+  --a-radius-avatar:   50%;
+  --a-radius-modal:    20px;
+  --a-radius-pedestal: 50%;  /* Круглый постамент */
+
+  /* Fonts — остаёмся в sans-serif, но переходим на Poppins/Inter Black */
+  --a-font-display: 'Poppins', 'Inter', -apple-system, sans-serif;  /* 900 weight для заголовков */
+  --a-font-body:    'Inter', -apple-system, sans-serif;             /* 400-600 для тела */
+  --a-font-num:     'Poppins', 'Inter', sans-serif;                 /* 700-900 для цифр */
+
+  /* Motion */
+  --a-dur-tap:   120ms;
+  --a-dur-enter: 280ms;
+  --a-ease-out:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --a-ease-in:   cubic-bezier(0.4, 0, 0.68, 0.06);
+
+  /* ===== POLISH v1 · PHASE 0 · SHARED TOKENS ===== */
+
+  /* Idle breathing — baseline для всех живых UI-элементов */
+  --p-idle-duration: 3200ms;
+  --p-idle-ease: ease-in-out;
+
+  /* Hit-flash timings */
+  --p-flash-fast: 120ms;
+  --p-flash-med: 240ms;
+  --p-flash-slow: 480ms;
+
+  /* Cinematic beats — для boss death / phase transition */
+  --p-beat-hit-pause: 300ms;
+  --p-beat-flash: 200ms;
+  --p-beat-dissolve: 1800ms;
+  --p-beat-zoom: 2200ms;
+
+  /* Element aura colors — exposed для JS чтобы ставить --p-current-aura inline */
+  --p-aura-ember: rgba(255, 90, 58, 0.55);
+  --p-aura-tide:  rgba(74, 219, 255, 0.55);
+  --p-aura-grove: rgba(122, 236, 74, 0.55);
+  --p-aura-solar: rgba(255, 225, 74, 0.55);
+  --p-aura-umbra: rgba(192, 106, 223, 0.55);
+
+  /* Element aura glow (более tight для inner shadows) */
+  --p-aura-ember-tight: rgba(255, 90, 58, 0.85);
+  --p-aura-tide-tight:  rgba(74, 219, 255, 0.85);
+  --p-aura-grove-tight: rgba(122, 236, 74, 0.85);
+  --p-aura-solar-tight: rgba(255, 225, 74, 0.85);
+  --p-aura-umbra-tight: rgba(192, 106, 223, 0.85);
+
+  /* Status effect icon sizing */
+  --p-status-size: 18px;
+  --p-status-gap: 3px;
+}

@@ -1,0 +1,105 @@
+/* Bottom nav + tab nav.
+ * Pure relocation (T1.06).
+ */
+
+/* --- Bottom Nav --- */
+.a-bottom-nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(10,6,18,0.4), rgba(10,6,18,0.95));
+  border-top: 1px solid rgba(138,74,32,0.3);
+  position: sticky;
+  bottom: 0;
+}
+.a-bottom-nav__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--a-text-muted);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color var(--a-dur-tap) var(--a-ease-out);
+  background: none;
+  border: none;
+}
+.a-bottom-nav__item.is-active {
+  color: var(--a-gold-300);
+  background: rgba(255, 184, 74, 0.08);
+}
+.a-bottom-nav__icon {
+  font-size: 18px;
+  line-height: 1;
+}
+/* 2026-04-27 — Image-based bottom nav icons. Background-image set per
+ * variant (.nav-icon-home/heroes/tower/shop) via injected CSS vars. */
+.a-bottom-nav__icon.nav-icon-home,
+.a-bottom-nav__icon.nav-icon-heroes,
+.a-bottom-nav__icon.nav-icon-tower,
+.a-bottom-nav__icon.nav-icon-shop {
+  display: inline-block;
+  width: 22px; height: 22px;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  font-size: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+}
+.a-bottom-nav__icon.nav-icon-home   { background-image: var(--icon-home, none); }
+.a-bottom-nav__icon.nav-icon-heroes { background-image: var(--icon-heroes, none); }
+.a-bottom-nav__icon.nav-icon-tower  { background-image: var(--icon-tower, none); }
+.a-bottom-nav__icon.nav-icon-shop   { background-image: var(--icon-shop, none); }
+
+/* Bottom nav — Arena skin on top of .v-bottom-nav for JS compatibility */
+.a-bottom-nav.v-bottom-nav {
+  margin-top: auto;
+  padding-top: 8px;
+}
+.a-bottom-nav .v-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--a-text-muted);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color var(--a-dur-tap) var(--a-ease-out);
+  background: none;
+  border: none;
+  position: relative;
+}
+.a-bottom-nav .v-nav-item.active {
+  color: var(--a-gold-300);
+  background: rgba(255, 184, 74, 0.08);
+}
+.a-bottom-nav .v-nav-item .a-bottom-nav__icon,
+.a-bottom-nav .v-nav-item .icn {
+  font-size: 18px;
+  line-height: 1;
+}
+.a-bottom-nav .v-nav-item .v-badge {
+  position: absolute;
+  top: 2px; right: 14%;
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  background: var(--a-fire-500);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 900;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 6px rgba(255,90,58,0.6);
+}

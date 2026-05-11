@@ -1,0 +1,1556 @@
+/* Shop screen + monetization UI.
+ * Pure relocation (T1.06).
+ */
+
+/* 2026-04-27 — Block H.10 — Cosmetic Shop UI (HERO_COMPENDIUM §11.3). */
+.shop-cosmetics-header {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #C0A6DF;
+  text-align: center;
+  margin: 24px 0 8px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(192,166,223,0.4);
+}
+.shop-cosmetic-btn {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: linear-gradient(180deg, rgba(192,166,223,0.08), rgba(0,0,0,0.30));
+  border: 1.5px solid rgba(192,166,223,0.35);
+  border-radius: 8px;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s;
+  text-align: left;
+}
+.shop-cosmetic-btn:not(:disabled):active { transform: scale(0.98); }
+.shop-cosmetic-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.shop-cosmetic-btn.equipped {
+  background: linear-gradient(180deg, rgba(93,202,121,0.20), rgba(0,0,0,0.30));
+}
+
+/* 2026-04-27 — Block H.5 — Pack System UI (HERO_COMPENDIUM §11.2 + §14.2). */
+.shop-pack-header {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300);
+  text-align: center;
+  margin: 6px 0 14px;
+}
+/* ===== SPRINT.2 SOCIAL.1 — Friend system locked-state styles ===== */
+.social-locked-card {
+  background: linear-gradient(160deg, rgba(168, 138, 200, 0.15), rgba(168, 138, 200, 0.04));
+  border: 1px dashed rgba(168, 138, 200, 0.4);
+  border-radius: 12px;
+  padding: 24px 16px;
+  text-align: center;
+}
+.slc-icon {
+  font-size: 36px;
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+.slc-title {
+  font-family: var(--a-display-font, sans-serif);
+  font-size: 15px; font-weight: bold;
+  color: #C0A6DF;
+  letter-spacing: 1.5px;
+  margin-bottom: 4px;
+}
+.slc-reason {
+  font-size: 12px; color: #A8A5B8;
+  margin-bottom: 12px;
+}
+.slc-preview {
+  font-size: 11px; color: #888;
+  font-style: italic;
+  margin-bottom: 14px;
+}
+.slc-fc-preview {
+  font-size: 12px; color: #E8E5F5;
+  background: rgba(255, 213, 61, 0.08);
+  padding: 8px;
+  border-radius: 6px;
+}
+.slc-fc-preview strong { color: #FFD53D; letter-spacing: 1px; }
+
+/* ===== SHOP.1-REV — Welcome Gift + Tower Climber's Pack styles ===== */
+
+/* Welcome Gift Modal (overlay + card) */
+.welcome-gift-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8, 6, 18, 0.92);
+  display: none;
+  z-index: 10000;
+  align-items: center; justify-content: center;
+  padding: 20px;
+}
+.welcome-gift-overlay.active { display: flex; }
+.welcome-gift-overlay.claimed { animation: wg-fade-out 0.6s ease-out forwards; }
+.welcome-gift-card {
+  background: linear-gradient(160deg, #1A1432, #0F0B22);
+  border: 2px solid #FFD53D;
+  border-radius: 16px;
+  padding: 24px 20px;
+  max-width: 340px; width: 100%;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(255, 213, 61, 0.4);
+}
+.welcome-gift-title {
+  font-family: var(--a-display-font, sans-serif);
+  font-size: 16px; font-weight: bold;
+  color: #FFD53D; margin-bottom: 8px;
+  letter-spacing: 1.5px;
+}
+.welcome-gift-sub {
+  font-size: 12px; color: #A8A5B8;
+  margin-bottom: 18px; font-style: italic;
+}
+.welcome-gift-items {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 22px;
+}
+.wgi {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 213, 61, 0.08);
+  border: 1px solid rgba(255, 213, 61, 0.3);
+  border-radius: 8px; padding: 10px 14px;
+}
+.wgi-icon { font-size: 22px; }
+.wgi-amt {
+  font-family: var(--a-display-font, sans-serif);
+  font-size: 18px; font-weight: bold;
+  color: #FFD53D;
+}
+.wgi-name {
+  font-size: 11px; color: #C8C5D8;
+  letter-spacing: 0.8px;
+  flex-grow: 1; text-align: right;
+}
+.welcome-gift-claim {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(180deg, #FFD53D, #C8A02D);
+  border: none; border-radius: 10px;
+  font-family: var(--a-display-font, sans-serif);
+  font-size: 16px; font-weight: bold;
+  color: #1A1432;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.welcome-gift-claim:hover  { transform: translateY(-1px); }
+.welcome-gift-claim:active { transform: scale(0.98); }
+
+/* Welcome Gift Banner (in-shop, dismissed-but-unclaimed) */
+.welcome-gift-banner {
+  display: flex; align-items: center; gap: 10px;
+  background: linear-gradient(90deg, rgba(255, 213, 61, 0.15), rgba(255, 213, 61, 0.05));
+  border: 1px solid #FFD53D;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.wgb-icon { font-size: 22px; }
+.wgb-text {
+  flex-grow: 1;
+  font-size: 12px; color: #FFD53D;
+  letter-spacing: 0.5px;
+}
+.wgb-cta {
+  padding: 6px 14px;
+  background: #FFD53D; color: #1A1432;
+  border: none; border-radius: 6px;
+  font-weight: bold; font-size: 11px;
+  cursor: pointer;
+}
+
+/* Tower Climber's Pack — featured tile styling */
+.shop-tower-climber-pack {
+  position: relative;
+  border-color: #4DD0E1 !important;
+  background: linear-gradient(160deg, rgba(77, 208, 225, 0.18), rgba(77, 208, 225, 0.04)) !important;
+}
+.shop-tower-climber-pack.pulse-glow {
+  animation: tcp-pulse 1.4s ease-in-out 3;
+}
+.shop-tcp-badge {
+  position: absolute;
+  top: -8px; right: 8px;
+  padding: 3px 8px;
+  background: #4DD0E1; color: #0A0815;
+  font-size: 10px; font-weight: bold;
+  border-radius: 4px;
+  letter-spacing: 0.8px;
+}
+
+/* Shop nav button pulse (until first shop visit post-unlock) */
+.shop-nav-pulse {
+  animation: nav-pulse 1.6s ease-in-out infinite;
+}
+
+/* ===== End SHOP.1-REV styles ===== */
+
+.shop-pack-btn {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 4px 12px;
+  width: 100%;
+  padding: 14px 14px;
+  margin-bottom: 12px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(0,0,0,0.30));
+  border: 2px solid var(--a-gold-500);
+  border-radius: 12px;
+  color: #FFFFFF;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s;
+  align-items: center;
+}
+.shop-pack-btn:not(:disabled):active { transform: scale(0.98); }
+.shop-pack-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+.shop-pack-emoji {
+  grid-row: span 2;
+  font-size: 36px;
+  text-align: center;
+  text-shadow: 0 0 8px rgba(255,213,61,0.6);
+}
+.shop-pack-name {
+  font-family: var(--a-font-display);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--a-gold-300);
+  text-align: left;
+}
+.shop-pack-desc {
+  font-size: 10px;
+  color: #B8B5C4;
+  text-align: left;
+  grid-column: 2;
+}
+.shop-pack-cost {
+  grid-row: span 2;
+  font-size: 14px;
+  color: var(--a-gold-300);
+  font-weight: 700;
+  text-align: right;
+}
+.shop-pack-divider {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #9A98A4;
+  text-align: center;
+  margin: 18px 0 10px;
+  border-top: 1px dashed rgba(255,213,61,0.3);
+  padding-top: 12px;
+}
+.shop-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.shop-pack-race {
+  grid-template-columns: 36px 1fr auto;
+  padding: 10px 10px;
+  margin-bottom: 0;
+}
+.shop-pack-race .shop-pack-emoji { font-size: 26px; }
+.shop-pack-race .shop-pack-name  { font-size: 11px; }
+.shop-pack-race .shop-pack-desc  { font-size: 9px; }
+.shop-pack-race .shop-pack-cost  { font-size: 11px; }
+.shop-pack-footer {
+  font-size: 10px;
+  color: #6E6B7B;
+  font-style: italic;
+  text-align: center;
+  margin-top: 16px;
+  padding: 0 12px;
+}
+
+/* ===== PHASE A — Monetization Shop (gem packs + first purchase + convert) ===== */
+/* 2026-04-28 — Per BLOCKSWORN_MONETIZATION.md §3.2/§10.3/§8.5. */
+.shop-gem-pack {
+  background: linear-gradient(180deg, rgba(140,59,255,0.18), rgba(0,0,0,0.4)) !important;
+}
+.shop-gem-pack .shop-pack-name { color: #BB60FF !important; }
+.shop-gem-pack .shop-pack-cost { color: #FFFFFF; font-size: 16px; font-weight: 800; }
+.shop-gem-pack .shop-pack-emoji { text-shadow: 0 0 10px rgba(187,96,255,0.7); }
+.shop-gem-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #000;
+  font-weight: 800;
+  vertical-align: middle;
+}
+.shop-gem-firstbonus {
+  margin-top: 4px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: #FFD53D;
+  font-weight: 700;
+}
+/* First-Purchase Bonus banner — gold-violet gradient, gentle pulse. */
+.shop-first-purchase-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 6px 0 14px;
+  background: linear-gradient(90deg, rgba(255,213,61,0.18), rgba(140,59,255,0.18));
+  border: 2px solid #FFD53D;
+  border-radius: 12px;
+  box-shadow: 0 0 16px rgba(255,213,61,0.25);
+  animation: fpBannerPulse 2.4s ease-in-out infinite;
+}
+.shop-fp-icon { font-size: 36px; flex: 0 0 auto; filter: drop-shadow(0 0 6px rgba(255,213,61,0.6)); }
+.shop-fp-text { flex: 1; }
+.shop-fp-title {
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #FFD53D;
+  font-weight: 800;
+}
+.shop-fp-sub {
+  font-size: 10px;
+  color: #FFFFFF;
+  margin-top: 2px;
+  letter-spacing: 0.5px;
+}
+/* Gold→Gems convert button — bridges the two currency colors. */
+.shop-gold-convert {
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(140,59,255,0.10)) !important;
+  border-color: rgba(187,96,255,0.6) !important;
+}
+.shop-gold-convert .shop-pack-name { color: #BB60FF !important; }
+.shop-gold-convert .shop-pack-cost { color: #FFD53D; font-size: 12px; }
+
+/* ===== PHASE B — Pack Lineup CSS (Big/Premium/Ultimate + pity + drop boost) ===== */
+.shop-pack-big      { border-color: #5DCA79 !important; background: linear-gradient(180deg, rgba(93,202,121,0.14), rgba(0,0,0,0.4)) !important; }
+.shop-pack-big .shop-pack-name { color: #5DCA79 !important; }
+.shop-pack-premium  { border-color: #FFD53D !important; background: linear-gradient(180deg, rgba(255,213,61,0.16), rgba(0,0,0,0.4)) !important; }
+.shop-pack-premium .shop-pack-name { color: #FFD53D !important; }
+.shop-pack-ultimate { border-color: #BB60FF !important; background: linear-gradient(135deg, rgba(187,96,255,0.20), rgba(255,213,61,0.12)) !important; box-shadow: 0 0 16px rgba(187,96,255,0.30); }
+.shop-pack-ultimate .shop-pack-name { color: #BB60FF !important; font-size: 14px; }
+.shop-pack-dual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.shop-pack-dual .shop-pack-btn { margin-bottom: 0; }
+/* Pity progress bar — shown above PACK lineup so player tracks anti-RNG protection. */
+.shop-pity-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.08), rgba(0,0,0,0.30));
+  border: 1px solid rgba(255,213,61,0.35);
+  border-radius: 10px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: #B8B5C4;
+}
+.shop-pity-bar .label { font-weight: 700; color: #FFD53D; }
+.shop-pity-bar .track {
+  flex: 1;
+  height: 8px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.shop-pity-bar .fill {
+  height: 100%;
+  background: linear-gradient(90deg, #FFD53D, #FFAA00);
+  transition: width 0.4s ease;
+}
+.shop-pity-bar .count {
+  font-weight: 800;
+  color: #FFFFFF;
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: right;
+}
+/* Premium drop rate banner — only visible while window active (Ultimate Pack 7d). */
+.shop-drop-boost {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+  background: linear-gradient(90deg, rgba(187,96,255,0.18), rgba(93,202,121,0.18));
+  border: 2px solid #BB60FF;
+  border-radius: 10px;
+  box-shadow: 0 0 14px rgba(187,96,255,0.30);
+}
+.shop-drop-boost .icon { font-size: 24px; }
+.shop-drop-boost .text { flex: 1; font-size: 10px; line-height: 1.4; color: #FFFFFF; }
+.shop-drop-boost .text strong { color: #BB60FF; letter-spacing: 1.5px; }
+.season-premium-status.subscriber {
+  background: linear-gradient(90deg, rgba(187,96,255,0.30), rgba(255,213,61,0.20));
+  border: 1px solid #BB60FF;
+}
+/* Subscribe shortcut in Shop ("Battle Pass" tile) */
+.shop-sub-tile {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(187,96,255,0.18) 0%, rgba(255,213,61,0.15) 100%);
+  border: 2px solid #BB60FF;
+  border-radius: 12px;
+  color: #FFFFFF;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 0 14px rgba(187,96,255,0.25);
+}
+.shop-sub-tile.active {
+  background: linear-gradient(180deg, rgba(187,96,255,0.16), rgba(0,0,0,0.30));
+  border-color: rgba(187,96,255,0.6);
+  cursor: default;
+  box-shadow: none;
+}
+.shop-sub-tile-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.shop-sub-tile-icon {
+  font-size: 24px;
+  color: #FFD53D;
+  text-shadow: 0 0 10px rgba(255,213,61,0.7);
+  flex: 0 0 auto;
+}
+.shop-sub-tile-info { flex: 1; }
+.shop-sub-tile-title {
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: #BB60FF;
+  font-weight: 800;
+}
+.shop-sub-tile-sub {
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: #E4E1F0;
+  margin-top: 2px;
+}
+
+/* ===== PHASE D — Bundles + Limited Offers (anti-FOMO design) ===== */
+/* Limited Offer banner — gentle 3-7d countdown, never red urgency. */
+.shop-weekly-offer {
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  margin: 0 0 14px;
+  background: linear-gradient(135deg, rgba(255,213,61,0.18), rgba(187,96,255,0.16));
+  border: 2px solid #FFD53D;
+  border-radius: 14px;
+  color: #FFFFFF;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 0 18px rgba(255,213,61,0.20);
+  position: relative;
+  overflow: hidden;
+}
+.shop-weekly-offer:hover, .shop-weekly-offer:active { transform: scale(0.99); }
+.shop-weekly-offer.purchased {
+  background: rgba(168,165,184,0.10);
+  border-color: rgba(168,165,184,0.4);
+  box-shadow: none;
+  cursor: default;
+  filter: grayscale(0.4);
+}
+.shop-weekly-tag {
+  display: inline-block;
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255,213,61,0.20);
+  color: #FFD53D;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.shop-weekly-title {
+  font-family: var(--a-font-display);
+  font-size: 16px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin-bottom: 4px;
+}
+.shop-weekly-contents {
+  font-size: 11px;
+  color: #E4E1F0;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+.shop-weekly-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: #B8B5C4;
+  letter-spacing: 0.5px;
+}
+.shop-weekly-cost {
+  font-family: var(--a-font-num);
+  font-size: 16px;
+  font-weight: 800;
+  color: #FFD53D;
+}
+
+/* Bundle cards — 3 tiers (Squad / Rapid / Endgame Kit) */
+.shop-bundle {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  color: #FFFFFF;
+  transition: transform 0.15s;
+}
+.shop-bundle:hover, .shop-bundle:active { transform: scale(0.99); }
+.shop-bundle:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.4); }
+.shop-bundle-squad {
+  background: linear-gradient(180deg, rgba(93,202,121,0.16), rgba(0,0,0,0.30));
+  border: 2px solid #5DCA79;
+}
+.shop-bundle-rapid {
+  background: linear-gradient(180deg, rgba(255,170,0,0.16), rgba(0,0,0,0.30));
+  border: 2px solid #FFAA00;
+}
+.shop-bundle-endgame {
+  background: linear-gradient(135deg, rgba(187,96,255,0.20), rgba(255,213,61,0.18));
+  border: 2px solid #BB60FF;
+  box-shadow: 0 0 18px rgba(187,96,255,0.30);
+}
+.shop-bundle-title {
+  font-family: var(--a-font-display);
+  font-size: 13px;
+  letter-spacing: 1.3px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.shop-bundle-squad   .shop-bundle-title { color: #5DCA79; }
+.shop-bundle-rapid   .shop-bundle-title { color: #FFAA00; }
+.shop-bundle-endgame .shop-bundle-title { color: #BB60FF; font-size: 14px; }
+.shop-bundle-contents {
+  font-size: 10px;
+  color: #E4E1F0;
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+.shop-bundle-cost {
+  font-family: var(--a-font-num);
+  font-size: 14px;
+  font-weight: 800;
+  color: #FFD53D;
+  text-align: right;
+}
+
+/* Race Launch Bundle row — 5 races as small cards */
+.shop-race-bundle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.shop-race-bundle-card {
+  padding: 10px 10px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(0,0,0,0.30));
+  border: 2px solid var(--rb-color, #FFD53D);
+  cursor: pointer;
+  text-align: left;
+  color: #FFFFFF;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.shop-race-bundle-card:hover, .shop-race-bundle-card:active { transform: scale(0.98); }
+.shop-race-bundle-card:disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.5); }
+.shop-race-bundle-card .name {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1px;
+  font-weight: 800;
+  color: var(--rb-color, #FFD53D);
+}
+.shop-race-bundle-card .desc { font-size: 9px; color: #B8B5C4; margin: 3px 0; }
+.shop-race-bundle-card .cost {
+  font-family: var(--a-font-num);
+  font-size: 11px;
+  font-weight: 800;
+  color: #FFD53D;
+  text-align: right;
+  margin-top: 4px;
+}
+
+/* ===== PHASE E — Convenience + Rewarded Ads ===== */
+/* 24h Mega Buff active banner — orange gradient, pulse */
+.shop-buff-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  background: linear-gradient(90deg, rgba(255,170,0,0.20), rgba(255,213,61,0.18));
+  border: 2px solid #FFAA00;
+  border-radius: 12px;
+  box-shadow: 0 0 14px rgba(255,170,0,0.30);
+  animation: buffPulse 2.4s ease-in-out infinite;
+}
+.shop-buff-banner .icon { font-size: 24px; }
+.shop-buff-banner .text { flex: 1; font-size: 10px; line-height: 1.4; color: #FFFFFF; letter-spacing: 0.3px; }
+.shop-buff-banner .text strong { color: #FFAA00; letter-spacing: 1.5px; font-size: 11px; }
+/* Convenience card (Mega Buff / Squad Boost / Daily Gift) */
+.shop-conv {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  color: #FFFFFF;
+  transition: transform 0.15s;
+}
+.shop-conv:hover, .shop-conv:active { transform: scale(0.99); }
+.shop-conv:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.4); }
+.shop-conv-buff   { background: linear-gradient(180deg, rgba(255,170,0,0.16), rgba(0,0,0,0.30)); border: 2px solid #FFAA00; }
+.shop-conv-squad  { background: linear-gradient(180deg, rgba(93,202,121,0.16), rgba(0,0,0,0.30)); border: 2px solid #5DCA79; }
+.shop-conv-daily  { background: linear-gradient(180deg, rgba(255,213,61,0.16), rgba(0,0,0,0.30)); border: 2px solid #FFD53D; }
+.shop-conv-title {
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.3px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.shop-conv-buff   .shop-conv-title { color: #FFAA00; }
+.shop-conv-squad  .shop-conv-title { color: #5DCA79; }
+.shop-conv-daily  .shop-conv-title { color: #FFD53D; }
+.shop-conv-contents {
+  font-size: 10px;
+  color: #E4E1F0;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+.shop-conv-cost {
+  font-family: var(--a-font-num);
+  font-size: 13px;
+  font-weight: 800;
+  color: #FFD53D;
+  text-align: right;
+}
+.shop-conv-cooldown {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #A8A5B8;
+  margin-top: 2px;
+}
+/* Ad Center — N watch-ad cards in a row */
+.shop-ad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.shop-ad-card {
+  padding: 10px 8px;
+  background: linear-gradient(180deg, rgba(63,169,255,0.14), rgba(0,0,0,0.30));
+  border: 2px solid #3FA9FF;
+  border-radius: 10px;
+  color: #FFFFFF;
+  cursor: pointer;
+  text-align: center;
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.shop-ad-card:hover, .shop-ad-card:active { transform: scale(0.97); }
+.shop-ad-card:disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.5); }
+.shop-ad-card .icon { font-size: 22px; display: block; margin-bottom: 4px; }
+.shop-ad-card .label {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  color: #3FA9FF;
+  font-weight: 700;
+}
+.shop-ad-card .reward {
+  font-size: 10px;
+  color: #FFD53D;
+  margin-top: 4px;
+  font-weight: 700;
+}
+.shop-ad-counter {
+  font-size: 10px;
+  color: #A8A5B8;
+  text-align: center;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.shop-ad-counter strong { color: #3FA9FF; }
+/* Mock ad full-screen overlay */
+.mock-ad-overlay {
+  position: fixed; inset: 0;
+  z-index: 10010;
+  background: rgba(0,0,0,0.92);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.mock-ad-overlay.active { display: flex; }
+.mock-ad-content {
+  width: 100%;
+  max-width: 360px;
+  background: #12121E;
+  border: 1px solid #3FA9FF;
+  border-radius: 16px;
+  padding: 18px;
+  text-align: center;
+  position: relative;
+}
+.mock-ad-tag {
+  position: absolute;
+  top: 8px; left: 12px;
+  padding: 3px 8px;
+  background: rgba(255,255,255,0.10);
+  border-radius: 4px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #B8B5C4;
+  font-weight: 800;
+}
+.mock-ad-bg {
+  height: 200px;
+  margin: 16px 0;
+  background: linear-gradient(135deg, #1a1a2e, #2a2a3e);
+  border: 1px dashed rgba(255,255,255,0.10);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+}
+.mock-ad-emoji {
+  font-size: 90px;
+  filter: grayscale(0.3);
+  opacity: 0.7;
+}
+.mock-ad-msg {
+  font-size: 13px;
+  color: #B8B5C4;
+  letter-spacing: 0.4px;
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.mock-ad-reward {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: rgba(255,213,61,0.20);
+  border-radius: 6px;
+  color: #FFD53D;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+.mock-ad-timer {
+  font-family: var(--a-font-num);
+  font-size: 28px;
+  font-weight: 900;
+  color: #3FA9FF;
+  margin-bottom: 10px;
+}
+.mock-ad-skip {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(180deg, #3FA9FF 0%, #1F7FCC 100%);
+  border: none;
+  border-radius: 10px;
+  color: #FFFFFF;
+  font-family: var(--a-font-display);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.mock-ad-skip:disabled { background: rgba(255,255,255,0.06); color: #6E6B7B; cursor: not-allowed; }
+
+/* ===== PHASE F — First-Time UX + Pop-ups (anti-FOMO) ===== */
+/* Shop lock — hide every shop nav entry for days 1-6. */
+body.shop-locked [data-nav="shop"],
+body.shop-locked [onclick*="goToShop"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Pack reveal — bonus loot strip below cards (T2/T3/gold/essence). */
+.pack-reveal-bonus {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 14px 0 6px;
+  padding: 0 12px;
+}
+.pack-reveal-bonus span {
+  display: inline-block;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.20), rgba(0,0,0,0.4));
+  border: 1px solid rgba(255,213,61,0.45);
+  border-radius: 10px;
+  font-family: var(--a-font-num);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: #FFD53D;
+  animation: bonusFadeIn 0.6s ease-out backwards;
+  animation-delay: 1.4s;
+}
+
+/* Pack Reveal modal — chest opens, cards flip in (per spec §14.2 — 1.5s). */
+.pack-reveal-modal { display: none; }
+.pack-reveal-modal.active {
+  display: flex;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.78);
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  animation: fadeIn 0.25s ease-out;
+}
+.pack-reveal-box {
+  position: relative;
+  background: linear-gradient(180deg, #1A1429, #0A0612);
+  border: 2px solid var(--a-gold-500);
+  border-radius: 14px;
+  padding: 24px 18px;
+  width: min(95vw, 380px);
+  max-height: 90vh;
+  overflow-y: auto;
+  text-align: center;
+  box-shadow: 0 0 40px rgba(255,213,61,0.45);
+}
+.pack-reveal-title {
+  font-family: var(--a-font-display);
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--a-gold-300);
+  margin-bottom: 14px;
+  text-shadow: 0 0 6px rgba(255,213,61,0.7);
+}
+/* 2026-04-29 — Pack opening cinematic upgrade per BLOCKSWORN_MONETIZATION.md
+   §12.2. Per-kind chest theming with progressively dramatic glow + idle
+   pulse: standard/race/big use 📦 with element-tinted glow, premium gets
+   🎁 with continuous gold pulse, ultimate uses 💠 with cosmic violet+gold
+   double-glow at 96px. Shake-on-open still fires for all kinds. */
+.pack-chest {
+  font-size: 64px;
+  text-align: center;
+  margin: 6px 0 12px;
+  display: inline-block;
+  filter: drop-shadow(0 0 12px rgba(255,213,61,0.7));
+  transition: transform 1.5s ease-out, filter 1.5s ease-out;
+  color: var(--chest-glow-color, #FFD53D);
+}
+.pack-chest.opening {
+  transform: scale(1.4) rotate(8deg);
+  filter: drop-shadow(0 0 24px currentColor) brightness(1.4);
+  animation: packChestShake 0.6s ease-in-out;
+}
+/* Per-kind variants — each picks a chest-glow-color via CSS var so the
+   shadow + animation reference currentColor consistently. */
+.pack-chest.kind-standard { --chest-glow-color: #FFD53D; }
+.pack-chest.kind-big      { --chest-glow-color: #5DCA79; font-size: 72px; }
+.pack-chest.kind-race     { /* race color set inline via style attribute */ }
+.pack-chest.kind-premium {
+  --chest-glow-color: #FFD53D;
+  font-size: 80px;
+  animation: packChestPremiumPulse 2.4s ease-in-out infinite;
+}
+.pack-chest.kind-ultimate {
+  --chest-glow-color: #BB60FF;
+  font-size: 96px;
+  animation: packChestUltimatePulse 1.6s ease-in-out infinite;
+}
+.pack-reveal-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 14px 0;
+  min-height: 60px;
+}
+.pack-card {
+  width: 96px;
+  padding: 10px 6px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.75));
+  border: 2px solid var(--a-gold-500);
+  border-radius: 10px;
+  text-align: center;
+  opacity: 0;
+  transform: rotateY(180deg) scale(0.6);
+  animation: packCardFlip 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  /* 2026-04-29 — overflow:hidden contains meta + portrait rendering inside the
+     card boundary; prior version let text leak right of the card on Safari. */
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.pack-card-portrait {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  margin: 0 auto 6px;
+  overflow: hidden;
+  background: radial-gradient(circle, rgba(255,213,61,0.10), rgba(0,0,0,0.4));
+  border: 1.5px solid currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+.pack-card-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Hide broken portraits cleanly so the fallback gradient + element border
+   carry the visual identity instead of a broken-image icon. */
+.pack-card-portrait img:not([src]),
+.pack-card-portrait img[src=""] { display: none; }
+.pack-card-name {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  color: var(--a-gold-300);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pack-card-meta {
+  font-size: 9px;
+  color: #9A98A4;
+  margin-top: 3px;
+  letter-spacing: 0.5px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pack-reveal-claim {
+  margin-top: 16px;
+  padding: 10px 24px;
+  background: linear-gradient(180deg, var(--a-gold-300), var(--a-gold-700));
+  border: none;
+  border-radius: 10px;
+  color: #1A0A05;
+  font-family: var(--a-font-display);
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  font-weight: 800;
+}
+.pack-reveal-claim:active { transform: scale(0.96); }
+
+/* NOTE: .grid, .tray, .cell, .piece are INTENTIONALLY NOT STYLED HERE.
+   They retain their existing rules (cell elemental colors live in JS/CSS
+   variables like --cell-ember etc, set via STIHIYA_COLORS from JS). */
+
+/* --- Shop (Arena skin) --- */
+.a-shop {
+  background: var(--a-bg-radial);
+  color: var(--a-text-primary);
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex; flex-direction: column;
+  max-width: 448px;
+  margin: 0 auto;
+  padding-top: max(16px, env(safe-area-inset-top, 0px) + 8px);
+  font-family: var(--a-font-body);
+}
+.a-shop-topbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px 12px;
+}
+.a-shop-title {
+  flex: 1; text-align: center;
+  letter-spacing: 3px;
+}
+.a-shop-balances {
+  display: flex; gap: 4px;
+}
+
+/* Shop tabs (DEALS/PACKS/HEROES) */
+.a-shop-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px 14px 10px;
+}
+.a-shop-tabs .shop-tab {
+  flex: 1;
+  padding: 8px 6px;
+  background: linear-gradient(180deg, rgba(58,42,24,0.5), rgba(26,15,8,0.7));
+  border: 1px solid var(--a-gold-700);
+  border-radius: var(--a-radius-chip);
+  font-family: var(--a-font-display);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--a-text-secondary);
+  cursor: pointer;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.a-shop-tabs .shop-tab.active {
+  background: linear-gradient(180deg, var(--a-gold-300), var(--a-fire-700));
+  color: #1a0f08;
+  border-color: var(--a-gold-100);
+  box-shadow: 0 0 12px rgba(255,184,74,0.5);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+}
+.a-shop-tabs .shop-tab:active { transform: scale(0.96); }
+
+.a-shop-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 14px 16px;
+}
+.a-shop-body .shop-section.hidden { display: none; }
+.a-shop-body .shop-empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--a-text-muted);
+  font-family: var(--a-font-body);
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--a-bg-surface);
+  border: var(--a-border-thin);
+  border-radius: var(--a-radius-card);
+}
+
+/* Pack cards */
+.a-shop-body .pack-card {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  background: var(--a-bg-surface);
+  border: var(--a-border-thin);
+  border-radius: var(--a-radius-card);
+  padding: 12px;
+  box-shadow: var(--a-shadow-lift);
+  margin-bottom: 10px;
+  position: relative;
+  overflow: hidden;
+}
+.a-shop-body .pack-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 30%;
+  background: radial-gradient(ellipse at center top, rgba(255,184,74,0.08), transparent 70%);
+  pointer-events: none;
+}
+.a-shop-body .pack-icon {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, var(--a-gold-300), var(--a-gold-900));
+  border: 2px solid var(--a-gold-300);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+  color: #2a1810;
+  box-shadow:
+    0 0 14px rgba(255,184,74,0.5),
+    inset 0 -3px 6px rgba(0,0,0,0.4);
+  flex-shrink: 0;
+  z-index: 1;
+}
+.a-shop-body .pack-body {
+  min-width: 0;
+  display: flex; flex-direction: column; gap: 3px;
+  z-index: 1;
+}
+.a-shop-body .pack-name {
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 14px;
+  color: var(--a-text-gold);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+.a-shop-body .pack-desc {
+  font-family: var(--a-font-body);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--a-text-secondary);
+}
+.a-shop-body .pack-rewards {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  font-family: var(--a-font-num);
+  font-weight: 700;
+  font-size: 10px;
+  color: var(--a-gold-300);
+  margin-top: 2px;
+}
+.a-shop-body .pack-rewards .pack-bonus {
+  color: var(--a-fire-300);
+  text-shadow: 0 0 6px rgba(255,138,74,0.5);
+  font-weight: 900;
+}
+.a-shop-body .pack-buy {
+  background: linear-gradient(180deg, var(--a-fire-300) 0%, var(--a-fire-700) 100%);
+  border: 2px solid var(--a-fire-100);
+  border-radius: var(--a-radius-btn);
+  padding: 10px 14px;
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #2a0808;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+  box-shadow: var(--a-shadow-cta);
+  cursor: pointer;
+  white-space: nowrap;
+  z-index: 1;
+  min-width: 72px;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.a-shop-body .pack-buy:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--a-fire-900);
+}
+.a-shop-body .pack-buy:disabled,
+.a-shop-body .pack-buy[disabled] {
+  background: rgba(58,42,24,0.6);
+  border-color: var(--a-gold-700);
+  color: var(--a-text-muted);
+  text-shadow: none;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Convenience cards */
+.a-shop-body .conv-section-label {
+  font-family: var(--a-font-display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--a-text-muted);
+  text-transform: uppercase;
+  text-align: center;
+  padding: 14px 0 8px;
+}
+.a-shop-body .conv-card {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  background: var(--a-bg-surface);
+  border: var(--a-border-thin);
+  border-radius: var(--a-radius-card);
+  padding: 10px;
+  box-shadow: var(--a-shadow-lift);
+  margin-bottom: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.a-shop-body .conv-icon {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, var(--a-solar-lt), var(--a-solar-dk));
+  border: 2px solid var(--a-solar);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px;
+  color: #2a2008;
+  box-shadow: 0 0 12px rgba(255,225,74,0.4), inset 0 -3px 6px rgba(0,0,0,0.4);
+  flex-shrink: 0;
+}
+.a-shop-body .conv-portrait {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center top;
+  border: 2px solid var(--a-gold-300);
+  box-shadow: 0 0 10px rgba(255,184,74,0.4);
+  flex-shrink: 0;
+  background: var(--a-bg-deepest);
+}
+.a-shop-body .conv-body {
+  min-width: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.a-shop-body .conv-name {
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 13px;
+  color: var(--a-text-gold);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+.a-shop-body .conv-desc {
+  font-family: var(--a-font-body);
+  font-size: 11px;
+  color: var(--a-text-secondary);
+  line-height: 1.3;
+}
+.a-shop-body .conv-disabled-reason {
+  font-size: 10px;
+  color: var(--a-fire-300);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.a-shop-body .conv-progress {
+  height: 6px;
+  background: var(--a-bg-deepest);
+  border: 1px solid var(--a-gold-900);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);
+}
+.a-shop-body .conv-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--a-fire-700), var(--a-gold-300));
+  box-shadow: 0 0 6px rgba(255,184,74,0.5);
+  transition: width 300ms var(--a-ease-out);
+}
+.a-shop-body .conv-buy {
+  background: linear-gradient(180deg, var(--a-fire-300) 0%, var(--a-fire-700) 100%);
+  border: 2px solid var(--a-fire-100);
+  border-radius: var(--a-radius-btn);
+  padding: 8px 12px;
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: #2a0808;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+  box-shadow: var(--a-shadow-cta);
+  cursor: pointer;
+  white-space: nowrap;
+  min-width: 72px;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.a-shop-body .conv-buy:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--a-fire-900);
+}
+.a-shop-body .conv-buy:disabled,
+.a-shop-body .conv-buy[disabled] {
+  background: rgba(58,42,24,0.6);
+  border-color: var(--a-gold-700);
+  color: var(--a-text-muted);
+  text-shadow: none;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* ===== V3.0 PHASE 3 BLOCK 3.1 — SHOP SCREEN ===== */
+#screenShop {
+  padding: 18px 14px 30px;
+  display: none;
+}
+#screenShop.active { display: block; }
+.shop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px 14px;
+  margin-top: 30px; /* leave room for back-btn at top-left */
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 14px;
+}
+.shop-header h2 {
+  margin: 0;
+  letter-spacing: 4px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #F5F3EC;
+  text-shadow: 0 0 8px rgba(140,59,255,0.3);
+}
+.shop-balances {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.shop-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 0 4px;
+  margin-bottom: 0;
+}
+.shop-tab {
+  flex: 1;
+  padding: 9px 4px;
+  border: 1px solid #3D3F5E;
+  border-bottom: none;
+  background: rgba(0,0,0,0.3);
+  color: #A8A5B8;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.shop-tab:hover:not(.active) {
+  color: #F5F3EC;
+  background: rgba(140,59,255,0.08);
+}
+.shop-tab.active {
+  background: linear-gradient(180deg, rgba(140,59,255,0.25), rgba(140,59,255,0.08));
+  color: #F5F3EC;
+  border-color: #8C3BFF;
+  box-shadow: 0 -2px 10px rgba(140,59,255,0.2);
+}
+.shop-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 12px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 0 0 12px 12px;
+  border: 1px solid #3D3F5E;
+  border-top: none;
+  -webkit-overflow-scrolling: touch;
+  min-height: 240px;
+}
+.shop-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.shop-section.hidden { display: none; }
+.shop-empty {
+  text-align: center;
+  color: #8A88A0;
+  padding: 34px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: 0.3px;
+}
+
+@media (max-height: 720px) {
+  #screenShop { padding: 14px 10px 24px; }
+  .shop-header { padding: 0 4px 10px; margin-top: 26px; }
+  .shop-header h2 { font-size: 17px; }
+  .shop-tab { padding: 7px 3px; font-size: 9px; }
+  .shop-body { padding: 10px 8px; min-height: 200px; }
+}
+
+/* ===== V3.0 PHASE 3 BLOCK 3.2 — PAID PACK CARDS ===== */
+.pack-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(140,59,255,0.18) 0%, rgba(255,213,61,0.08) 100%);
+  border: 1px solid rgba(140,59,255,0.45);
+  box-shadow: 0 0 14px rgba(140,59,255,0.12);
+}
+.pack-icon {
+  font-size: 36px;
+  line-height: 1;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
+}
+.pack-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pack-name {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  color: #F5F3EC;
+  text-shadow: 0 0 6px rgba(140,59,255,0.4);
+}
+.pack-desc {
+  font-size: 10px;
+  color: #A8A5B8;
+  letter-spacing: 0.3px;
+  line-height: 1.4;
+}
+.pack-rewards {
+  font-size: 10px;
+  color: #FFD53D;
+  margin-top: 3px;
+  line-height: 1.45;
+  letter-spacing: 0.2px;
+  word-wrap: break-word;
+}
+.pack-bonus {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(255,77,31,0.4), rgba(255,213,61,0.25));
+  color: #FF4D1F;
+  font-weight: 800;
+  font-size: 9px;
+  letter-spacing: 1px;
+  margin-left: 3px;
+  text-shadow: 0 0 4px rgba(0,0,0,0.6);
+}
+.pack-buy {
+  padding: 10px 12px;
+  border: 1px solid #FFD53D;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #FFD53D 0%, #E89D1F 100%);
+  color: #1A1B2E;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  transition: filter 0.12s, transform 0.12s;
+  min-width: 64px;
+}
+.pack-buy:hover, .pack-buy:active {
+  filter: brightness(1.12);
+  transform: scale(1.03);
+}
+
+@media (max-height: 720px) {
+  .pack-card { padding: 10px; gap: 8px; }
+  .pack-icon { font-size: 28px; }
+  .pack-name { font-size: 11px; }
+  .pack-desc { font-size: 9px; }
+  .pack-rewards { font-size: 9px; }
+  .pack-buy { padding: 8px 10px; font-size: 10px; min-width: 56px; }
+}
+
+/* ===== V3.0 PHASE 3 BLOCK 3.3 — CONVENIENCE CARDS ===== */
+.conv-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 11px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.32);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.conv-icon {
+  font-size: 26px;
+  line-height: 1;
+  width: 44px;
+  text-align: center;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+}
+.conv-portrait {
+  width: 44px; height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  object-position: center top;
+  border: 2px solid #FFD53D;
+  flex-shrink: 0;
+  background: #0F0F1F;
+}
+.conv-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.conv-name {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #F5F3EC;
+}
+.conv-desc {
+  font-size: 10px;
+  color: #A8A5B8;
+  letter-spacing: 0.2px;
+}
+.conv-disabled-reason {
+  font-size: 9px;
+  color: #8A88A0;
+  font-style: italic;
+  margin-top: 1px;
+}
+.conv-progress {
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 3px;
+}
+.conv-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #FFD53D, #FF7340);
+  transition: width 0.35s ease-out;
+}
+.conv-buy {
+  padding: 9px 12px;
+  border: 1px solid #8C3BFF;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #A866FF 0%, #6D29D4 100%);
+  color: #F5F3EC;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  transition: filter 0.12s, transform 0.12s;
+  min-width: 66px;
+}
+.conv-buy:hover:not([disabled]),
+.conv-buy:active:not([disabled]) {
+  filter: brightness(1.15);
+  transform: scale(1.03);
+}
+.conv-buy[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+.conv-section-label {
+  font-size: 9px;
+  color: #8A88A0;
+  letter-spacing: 3px;
+  padding: 10px 4px 2px;
+  font-weight: 700;
+  text-align: center;
+}
+
+@media (max-height: 720px) {
+  .conv-card { padding: 9px; gap: 8px; }
+  .conv-icon { font-size: 22px; width: 36px; }
+  .conv-portrait { width: 36px; height: 36px; }
+  .conv-name { font-size: 11px; }
+  .conv-desc { font-size: 9px; }
+  .conv-buy { padding: 7px 10px; font-size: 10px; min-width: 56px; }
+}
