@@ -207,7 +207,7 @@ auto-disappears in T1.10 when the rewiring lands:
 **Sub-task progress:**
 - [x] T1.10.1 — `ftue-state.js` — **DONE 2026-05-11** (commits `e12d27b`, `ec4e409`; 21 exports / 475 LoC; sacred FTUE_BEATS/TRANSITIONS preserved byte-perfect via import from T1.07)
 - [x] T1.10.2 — `progression.js` — **DONE 2026-05-11** (commits `981c136`, `3005c69`; 79 exports / 1128 LoC; TIER_COSTS sacred + one-Mythic + T2/T3/Mythic bonuses byte-perfect; 5 chapter-complete bare-string keys flagged for T1.10.9 shim)
-- [ ] T1.10.3 — `grid.js` — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
+- [x] T1.10.3 — `grid.js` — **REVIEW 2026-05-11** (commit `73358d0`; 26 exports / 603 LoC; sacred combo crit dominant-count surfaced via countElementsInCells helper + v2.1 P1 GRID_SATURATION channel byte-perfect; 0 new bare-string keys — grid is per-battle ephemeral)
 - [ ] T1.10.4 — `heroes.js`
 - [ ] T1.10.5 — `damage-channels.js` (v2.1 P1)
 - [ ] T1.10.6 — `stagger-loop.js` (v2.1 P2)
@@ -403,6 +403,93 @@ Progression system extracted byte-perfect from legacy `docs/_legacy/_archive_v1/
 
 ---
 
+### T1.10.3 — REVIEW (2026-05-11)
+
+**Code commit:** `73358d0` — `[T1.10.3] Extract grid to src/core/grid.js`
+**DOCS commit:** follows (this entry)
+**File created:** `src/core/grid.js` (603 lines, 26 named exports = 23 functions + 1 alias + 2 derived helpers)
+
+**Implementation summary:**
+
+Grid system extracted byte-perfect from legacy `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` across the following regions: module-scope state declaration (line 40012); battle-start allocator triple (55510, 55525, 55585); tray refill `newPieces` (55801-55811); piece-shape helper `cellsOf` (55813-55819); placement validator `canPlace` (55821-55866 — includes boss blocker reads for VOIDPRIESTESS warrior_blocked, Grovewarden Root Bind, Stormshepherd Blizzard/Earthquake); piece commit `place` → `placePiece` (55868-55913 — includes tempo_disruptor skip-gate, motif bloom/radiant hooks, placement_costs_hp seal, vHaptic/audio/mission tracking); full row/col scan `findLines` → `findClearableLines` (55915-55920); element-set extraction `stihiyasIn` (55922-55927); animated line-clear `clearLines` (55929-56045 — includes Pressure tiering, engineer Critical Mass damage, Root-of-Nothing wither neighbor-clear escape, permanent-frozen + engineer-locked immunity); `gridFillRatio` (56260-56264); v2.1 P1 channel triggers `applyVoidTickIfAny` + `applyGridSaturationIfAny` (39001-39033); constants `SIZE` + `MAX_HP` + `CHANNEL_VOID_TICK_PCT` + `CHANNEL_GRID_SATURATION_*` (19950, 19956, 19967-19969).
+
+**Sacred cow preservation:**
+- **Combo crit dominant-element count (CLAUDE.md §2.1):** legacy computes `domCount = Math.max(...Object.values(counts))` inline inside the combat damage path (line 63696), where `counts` is the per-element tally over the cleared cells (legacy 63566-63573). The grid module surfaces the underlying primitive as a new `countElementsInCells(rows, cols)` helper + a thin `getDominantElementCount(rows, cols)` wrapper — both pure, both following the legacy counting semantics exactly (void cells excluded via `hasOwnProperty` test against the ember/tide/grove/solar/umbra dictionary, matching `if (v && counts.hasOwnProperty(v))` at line 63572). The combat damage path at line 63696 is NOT touched here — T1.10.5 / T1.10.9 will refactor the inline pattern to call through these helpers without modifying the sacred multiplier formula `total_dmg × (1 + dominantCount × combo × 10%)`.
+- **v2.1 P1 GRID_SATURATION channel (CLAUDE.md §2.5):** `applyGridSaturationIfAny` preserved byte-perfect — same `occupied` loop semantics (counts everything non-null incl. void + charged + frozen), same `ratio < CHANNEL_GRID_SATURATION_THRESHOLD` early-return, same `applyChannelDamage('saturation', CHANNEL_GRID_SATURATION_DMG, { occupied, totalCells, ratio })` payload. Threshold 0.75 and flat damage 8 HP unchanged.
+- **v2.1 P1 VOID channel:** `applyVoidTickIfAny` preserved byte-perfect — `floor(voidCount * MAX_HP * CHANNEL_VOID_TICK_PCT)` formula, void-cell detection via `cell.startsWith('void_')`, early-return on zero count, zero rawDmg short-circuit.
+- **All cell-mutation semantics:** `place()` piece-deposit loop with bloom-token consume + radiant marking; `clearLines()` wipe loop with `permanentFrozenCells` and `engineerLockedCells` immunity; Critical Mass electrified-row damage (50 dmg per cleared cell, shield-first absorption); Root-of-Nothing wither neighbor-clear escape (4-neighbor adjacency, void_grove → null mutation with witherCells survivor split). All preserved byte-perfect.
+- **canPlace blocker order:** warrior_blocked seal → Grovewarden Root Bind → Stormshepherd Blizzard + Earthquake → bounds + collision. Order matters for short-circuit semantics; preserved exactly.
+
+**Storage rewires (T1.08 abstraction):** **0 keys**. Grid is a per-battle ephemeral state — allocated fresh in `initGrid()` (called from legacy `startBossBattle` line 55510), torn down implicitly at battle end via the next allocation. No localStorage reads, no localStorage writes. **No new bare-string keys to flag for the T1.10.9 migration shim.**
+
+**ESLint globals added** (specific identifiers, why):
+- Readonly: `SIZE`, `MAX_HP`, `SHAPES`, `weightedStihiya`, `sleep` (legacy module-scope constants + RNG helper; T1.10.5 / data-consolidation territory); `CHANNEL_VOID_TICK_PCT`, `CHANNEL_GRID_SATURATION_THRESHOLD`, `CHANNEL_GRID_SATURATION_DMG`, `applyChannelDamage` (T1.10.5 damage-channels); `addPressure`, `PRESSURE_GAIN` (T1.10.6 stagger-loop); `_grovewardenRootBindCells`, `_stormBlizzardFreezes`, `_stormEarthquakeLocks`, `permanentFrozenCells`, `engineerLockedCells`, `engineerElectrifiedRow`, `engineerElectrifiedRows`, `engineerElectrifiedTurns`, `_ch3BossId`, `_ch3State`, `_ch3HasDebuff`, `_ch3HasSeal` (T1.10.8 reactivity-events); `HERO_DECK`, `currentBoss`, `shroudTick`, `vPlayLineClearBurst`, `playCellPlacement`, `maybeMarkRadiant`, `bloomTokens`, `consumeBloomEarly`, `trackMissionEvent`, `showDefeatModal`, `render`, `flashStateBanner`, `flashText`, `vibrate`, `vHaptic` (battle / heroes / UI / audio refs; T1.10.7 / T1.10.9 / T1.11).
+- Writable: `hp`, `shieldCount`, `battleDamageTaken`, `gameEnded`, `skipPlayerTurnsCount`. These are legacy module-scope `let` declarations (line 40012 + 55525) that `placePiece` + `clearLines` mutate (placement_costs_hp seal, Critical Mass damage). T1.10.9 wire-up will flip canonical ownership into combat modules. No `eslint-disable no-unused-vars` was needed — all five writable globals are read AND written in this module.
+
+**TODO markers:** 12 total
+- `TODO(T1.10.5)` × 2 — SHAPES + weightedStihiya (RNG tray) + motif bloom/radiant hooks (battle).
+- `TODO(T1.10.6)` × 2 — addPressure + PRESSURE_GAIN (stagger-loop); skipPlayerTurnsCount tempo gate.
+- `TODO(T1.10.7)` × 0 — (covered by /* global */ but no inline TODOs, since the grid module doesn't have a forward-coupling point that needs a re-wire marker in code).
+- `TODO(T1.10.8)` × 3 — shroudTick (Voidfang); boss blocker sets + _ch3HasDebuff; engineer electrified rows + wither cells + _ch3HasSeal.
+- `TODO(T1.11)` × 2 — flashStateBanner / vibrate / vHaptic / playCellPlacement / trackMissionEvent (UI + audio in placePiece); cellEls DOM query + .clearing class + render() (clearLines UI).
+- `TODO(T1.09)` × 1 — vPlayLineClearBurst is already in src/feel/animations.js (T1.09 done), but the call site stays as /* global */ ref pending battle wire-up. Marker preserved for completeness; not a new sub-task ask.
+
+**Logger migration:** 1 `console.warn(...)` call inside `clearLines` (line-clear pressure failure handler at legacy 55941) → `log.warn(...)`. Per T1.08 logger contract. Module imports `log` from `../services/logger.js`.
+
+**Engineering judgment:**
+- **`place` exported under canonical name `placePiece`** per task brief; the legacy name `place` would shadow nothing else but the brief's API surface uses `placePiece`. The default-return semantics changed minimally: legacy `place` returned `undefined` on success and `false` on tempo_disruptor reject; the extracted `placePiece` returns `true` on success and `false` on reject (more explicit + caller-friendly without changing behavior — the legacy caller `if (place(...) === false)` semantics still hold since `=== false` was the strict reject test). **Sacred-equivalent**: every legacy callsite either ignores the return value or compares to literal `false`; no callsite reads truthy on success.
+- **`findLines` exported as both `findClearableLines` (canonical, per brief) and `findLines` (legacy alias).** Two-name export keeps T1.10.9 wire-up simple (legacy callers don't need to be renamed at the wire-up step).
+- **Two NEW helpers added** (`countElementsInCells`, `getDominantElementCount`) to surface the inline combo-crit-count pattern. These are pure, side-effect-free, and match legacy line 63566-63573 + 63696 semantics byte-perfect. They are NOT called from elsewhere in T1.10.3 — they exist as the public surface T1.10.5 / T1.10.9 will refactor toward. Adding the helpers does not change runtime behavior. Documented as sacred + linked to CLAUDE.md §2.1.
+- **`computeGridSaturation()` added** as a read-only saturation-ratio surface, returning `{ occupied, totalCells, ratio, overThreshold }`. Decoupled from the damage-firing trigger so HUD / diagnostic consumers can read the level without applying damage. Pure — no I/O.
+- **State accessors added** (`getGrid`, `getCell`, `setCell`, `getPieces`, `getKnownDeadZones`, `setKnownDeadZones`, `getPlacementCount`, `setPlacementCount`) to expose the module-private state through a clean API. T1.10.9 wire-up will route legacy callers through these instead of the ambient globals.
+- **`initGrid()` consolidates 3 legacy writes** (line 55510 grid alloc, 55525 placementCount=0, 55585 knownDeadZones=new Set()) into one allocator. Reduces the per-battle ceremony to a single function call once wire-up flips. `resetGrid()` added for symmetry (frees references on defeat/victory) — not invoked by legacy, exposed for completeness.
+- **Sacred dominant-count semantics preserved exactly**: legacy uses `counts.hasOwnProperty(v)` to filter void cells (a void cell like `'void_ember'` doesn't satisfy `hasOwnProperty('void_ember')` against the {ember,tide,grove,solar,umbra} dictionary). The extracted helper uses `Object.prototype.hasOwnProperty.call(counts, v)` for the same semantics with one nit: it's defensive against `Object.create(null)` callers (legacy uses object literal, so both are equivalent). Behavior identical.
+- **`place` + `clearLines` extracted** with full /* global */ cross-deps despite combat coupling — per the brief's explicit list. This is the bigger / heavier portion (~150 lines) but the alternative ("leave in legacy") would split the grid module across two homes and force T1.10.9 to re-extract. Following T1.10.1's pattern (extracted `onFtueBeatChanged` with all 10+ cross-deps as globals).
+- **`newPieces` extracted** — small island, calls only shroudTick + SHAPES + weightedStihiya. Cleaner if it lives here than in T1.10.9's battle module.
+
+**Verification (all gates green):**
+- `npm run lint` → 0 errors / 0 warnings
+- `npm run test:unit` → 6/6 pass (~108ms)
+- `npm run test:smoke` → 2/2 pass (~3.5s)
+- `npm run test:visual` → 22/22 pass under 2% (~13.8s)
+- `npm run build` → succeeds. dist/assets/index.js = 0.75KB; dist/assets/index.css = 368.77KB (unchanged — new module tree-shakes out, nothing imports it yet, as expected per Step E of the assignment)
+- Legacy `wc -c` = 21,480,494; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` — byte-identical
+
+**Self-check:**
+- [x] Acceptance: grid system extracted — board state allocator, piece tray, cellsOf, canPlace, placePiece, findClearableLines, stihiyasIn, clearLines, gridFillRatio, applyVoidTickIfAny, applyGridSaturationIfAny
+- [x] Acceptance: dominant-element count helpers surfaced (countElementsInCells, getDominantElementCount) — sacred per CLAUDE.md §2.1, byte-perfect from legacy 63566-63573
+- [x] Acceptance: v2.1 P1 GRID_SATURATION + VOID channel triggers byte-perfect (threshold 0.75 + flat 8 dmg + 0.5% MAX_HP/cell unchanged)
+- [x] Acceptance: imports from src/services/logger.js (T1.08) only — no data-module deps needed (SIZE/MAX_HP/SHAPES still legacy)
+- [x] Acceptance: no window globals introduced (only `/* global */` directives for legacy refs that move later)
+- [x] Acceptance: mutable state module-private (getGrid/getCell/setCell accessors; pieces + placementCount + knownDeadZones via getters/setters)
+- [x] Acceptance: legacy HTML byte-identical (wc -c + SHA-256 verified)
+- [x] Acceptance: all gates green (lint 0/0, unit 6/6, smoke 2/2, visual 22/22, build 372KB)
+- [x] Acceptance: nothing imports the new module — tree-shakes out for T1.10.3 (correct — T1.10.9 final wire-up flips legacy → src/)
+- [x] Sacred cows: combo crit dominant-count semantics preserved (hasOwnProperty filter, void-cell exclusion). GRID_SATURATION threshold + dmg unchanged. VOID_TICK rate unchanged. Sacred formula `total_dmg × (1 + dominantCount × combo × 10%)` NOT touched (lives in legacy line 63696 untouched).
+- [x] DO NOT TOUCH: legacy HTML — not modified; index.html — not modified; src/main.js — not modified; src/core/ftue-state.js (T1.10.1) — not modified; src/core/progression.js (T1.10.2) — not modified; other src/ modules (data/feel/services) — not modified; CSS / baselines / tests / CI / husky — not modified
+- [x] DO NOT TOUCH: combo crit formula — NOT modified (legacy 63696 untouched); GRID_SATURATION calc — byte-perfect; VOID_TICK calc — byte-perfect
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.10.3; did NOT start T1.10.4
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **NO new bare-string storage keys.** The grid module touches zero localStorage keys — grid is per-battle ephemeral state, allocated in `initGrid()` and torn down implicitly. The T1.10.9 migration shim allow-list (currently FTUE + intro-video + 5 chapter-complete keys) does NOT need additions from T1.10.3.
+
+2. **SIZE / MAX_HP / SHAPES / STIHIYAS / STIHIYA_COLORS not in src/data/.** These five legacy module-scope constants (lines 19950, 19956, 20069, 20070, 20304) are core grid + element data but live in legacy until a future data-consolidation pass. Declared `/* global */` in grid.js. **CTO recommendation:** consider a small T1.10.X data sub-task (or fold into T1.10.5 damage-channels since CHANNEL_* constants belong to the same data block) to consolidate these into src/data/grid.js + src/data/elements.js (the latter already exists per `ls src/data/`). Low priority for now — works as legacy globals.
+
+3. **Combat damage path (legacy line 63566-63573 inline counts + 63696 sacred multiplier)** is the next consumer that will refactor to call `countElementsInCells(rows, cols)` + `getDominantElementCount(rows, cols)`. This is T1.10.5 (damage-channels) or T1.10.9 (battle main loop) territory. The grid module is now ready to absorb that call without further interface churn. The sacred formula at line 63696 (`critMult = 1 + domCount * count * CRIT_MULT_K`) stays exactly as it is.
+
+4. **Void cell spawning lives in legacy bossAttack / archetype handlers** (legacy 41024 `grid[r][c] = 'void_' + currentBoss.stihiya`, 27419 VOID BOOST, 30359 priestess, 42738-42799 solar voids, 56013 + 60610 wither, 65282 cleanse, 27767 VOID RAIN, etc.). Grid module exposes `isVoidCell(value)` + `countVoidCells()` for readers; the writer (boss-spawned blocker grid mutations) stays with the boss/reactivity systems. T1.10.7 (bosses) + T1.10.8 (reactivity-events) territory.
+
+5. **`place()` legacy return value vs extracted `placePiece` return value.** Legacy `place` returned `undefined` on the success path (no explicit `return`) and `false` on the tempo_disruptor reject. Extracted `placePiece` returns `true` on success + `false` on reject. **All known legacy callers compare against `=== false` literally** (or ignore the return value), so the change is semantically transparent — but if a future caller reads truthy on success, they'd get a non-undefined truthy now. CTO: flag for the T1.10.9 wire-up audit; trivial to revert if any caller depends on the legacy undefined.
+
+6. **clearLines DOM coupling** — `document.querySelectorAll('.grid .cell')` query + `.classList.add('clearing')` toggle + `render()` callback after wither break — preserved inline with TODO(T1.11) markers. The cleanest separation would lift the animation choreography into a UI module + leave a hook for the grid-mutation core to call. Out of scope for T1.10.3 (would change the call-graph). Flagged for T1.11 (ui) wire-up.
+
+**Time:** ~2.5 hours
+
+---
+
 ## GAME DESIGNER
 
 (no active tasks — Designer activated в Phase 2)
@@ -482,4 +569,4 @@ Progression system extracted byte-perfect from legacy `docs/_legacy/_archive_v1/
 ---
 
 **Maintained by:** CTO agent
-**Last update:** 2026-05-11 — T1.09 → REVIEW (3 feel modules extracted, sacred timings byte-perfect)
+**Last update:** 2026-05-11 — T1.10.3 → REVIEW (grid module extracted, 26 exports, GRID_SATURATION + dominant-count surface byte-perfect, 0 new bare-string keys)
