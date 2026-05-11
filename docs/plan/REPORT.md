@@ -669,6 +669,59 @@ Still pending; non-blocking. 20 commits on branch now. Roman has visibility — 
 
 ---
 
+## REPORT-09: T1.08 Services Review
+
+**Date:** 2026-05-11
+**Author:** CTO
+**Phase:** 1 — Week 2 third migration task; first unit tests introduced
+**Trigger:** TASK-009 submitted REVIEW
+
+### Summary
+
+T1.08 PASS on first submission. **First Vitest unit tests on the project** + **first new CI job** (the `unit` slot). 6 service modules cleanly extracted. Bundle unchanged at 372KB. All gates green.
+
+### Engineering highlights
+
+- **`Object.create(null)` for mock storage backing:** Game Dev caught a subtle prototype-key collision risk (a legacy key named `'toString'` could shadow `Object.prototype.toString` if backing is `{}`). Defensive coding — good catch.
+
+- **Vitest discovery scope conflict:** default Vitest discovers `*.spec.js` AND `*.test.js`, which collides with Playwright's `.spec.js` files. Game Dev added minimal `vitest.config.js` (16 lines) scoping to `tests/unit/**/*.test.js`. Clean fix.
+
+- **CI chain reorganization:** Game Dev slotted `unit` between `lint` and `build` (so build needs unit, smoke + visual need build). This means unit failure transitively blocks all downstream jobs. Alternative was parallel `unit` (faster on green, no transitive block on failure) — but for Phase 1 migration discipline, transitive blocking is correct (any unit fail = nobody runs smoke/visual against broken code).
+
+- **`import.meta.env.PROD` for logger:** Vite-provided constant. Works at build time, evaluated to boolean. Good idiom for production-aware logging.
+
+- **Analytics `EVT` dictionary:** 51 event keys mirrored byte-for-byte from legacy. This is a quiet but important migration discipline win — if any event name drifts during T1.10 wiring, analytics breaks silently.
+
+### Sacred cow status
+
+No sacred cows directly in scope for T1.08. Sentry DSN placeholder unchanged per spec. Logger thresholds aren't sacred (operational concern, not gameplay).
+
+### Tech debt — net change
+
+- **+2 moderate npm transitive vulnerabilities** (from Vitest's dep tree — different from the earlier Playwright ones). Total now ~4 across the project. Still non-blocking. Will batch into a single security audit task after T1.10 or T1.20.
+- Other items unchanged.
+
+### Sequencing forward
+
+T1.09 (feel layer animations/particles/narrator function) → **T1.10 (XL core logic)**.
+
+T1.09 is the last "easy" migration before T1.10. T1.10 is the watershed — it wires `src/data/` + `src/feel/` + `src/services/` imports for the first time (bundle will grow from 372KB to whatever the actual game JS produces), replaces legacy HTML as the primary render path, and is sub-tasked `T1.10.1 → T1.10.9` per Execution Plan §13 T1.10.
+
+### Phase 1 Week 2 status
+
+- T1.06 CSS ✅
+- T1.07 Data ✅
+- T1.08 Services ✅
+- T1.09 Feel (in-flight next) — should close Week 2
+
+After T1.09: 9/20 done. Then Week 3-4 = T1.10 (the XL).
+
+### Roman push status
+
+Still pending. 24 commits on branch now. Roman can push any time to validate CI WebKit/mobile-safari coverage. Non-blocking for T1.09+.
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host
