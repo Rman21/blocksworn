@@ -856,6 +856,60 @@ T1.10.2 launched in background after this commit.
 
 ---
 
+## REPORT-12: T1.10.2 Progression Review
+
+**Date:** 2026-05-11
+**Phase:** 1 — Week 3 watershed; second sub-task of T1.10 closed
+**Trigger:** T1.10.2 submitted REVIEW; all gates green
+
+### Summary
+
+T1.10.2 PASS on first submission. 1128 LoC, **79 named exports** (51 functions + 17 constants + 6 storage keys + 5 ascension consts) in `src/core/progression.js`. Sacred TIER_COSTS + one-Mythic-per-save constraint + T2/T3/Mythic damage bonuses byte-perfect. All gates green.
+
+### Sacred cow verification (CTO confirmed via Agent self-report)
+
+- **`TIER_COSTS = {1:1, 2:2, 3:3, 4:5}`** imported from `src/data/balance.js` (T1.07 canonical V18); `upgradeHero` byte-perfect
+- **One-Mythic-per-save:** `getMythicMissing` returns `{type: 'mythic_taken', byHero: otherMythic}` when slot taken (legacy lines 20720-20722); byte-perfect
+- **T2/T3/Mythic damage multipliers** (1.20 × 1.20 × 1.30 = 1.872×): preserved verbatim
+
+### Critical findings — migration shim allow-list growing
+
+T1.10.2 surfaced **5 more bare-string localStorage keys** that need T1.10.9's migration shim:
+- `blocksworn_chapter_1_complete` through `blocksworn_chapter_5_complete`
+- Legacy stores literal `'true'` via `localStorage.setItem(key, 'true')`, reads with `=== 'true'` strict equality
+- Routing through T1.08 `storage.setItem` would JSON.stringify → `'"true"'` on disk; `storage.getItem` → JSON.parse → boolean `true`; then `true === 'true'` is `false` → silent regression resets chapter-complete to never-completed
+
+Agent correctly **preserved these as raw `localStorage` calls** in the extracted code with `TODO(T1.10.9)` markers. T1.10.9 migration shim must cover them.
+
+**Running migration shim allow-list (8 keys / key families):**
+- T1.10.1: `FTUE_STORAGE_KEY`, `seenIntroVideo`, `onboardingSeen`
+- T1.10.2: `blocksworn_chapter_{1..5}_complete`
+
+### State ownership boundary observation
+
+T1.10.2 surfaced an important architectural fact: `chapterProgress`, `bossesDefeated`, `currentChapter`, `chapter{2,3,4}Unlocked`, `essences`, `heroUpgrades` are **legacy module-scope `let` bindings** that the entire legacy codebase reads + writes ambiently. Extracting them as module-private to `progression.js` NOW would break the legacy save/load contract (loadProgress reads/writes legacy globals; legacy battle/UI code reads them).
+
+**Agent's correct call:** functions mutate via `/* global ... :writable */` directives. T1.10.9 final wire-up takes canonical ownership.
+
+This is the same pattern T1.10.1 used for `_pendingDialogRequest`, `dialogActive`, `dialogClickLock`. **Consistent migration discipline** across sub-tasks.
+
+### Engineering observations
+
+- 79 exports is large but expected — progression touches: chapters, heroes, levels, tiers, T1/T2/T3, Mythic, stars, gold/essence economy, tower floors, hero unlocks. It's a wide system.
+- **ESLint v9 quirk** with writable-only globals (declared via `/* global X:writable */` but never read in this module) triggered `no-unused-vars` — agent worked around with `/* eslint-disable no-unused-vars */` scoped wrap. Acceptable.
+- 8 TODO markers documenting future rewires: T1.10.4 heroes, T1.10.7 bosses, T1.10.9 (×2: bare-string shim + state ownership flip), T1.11 (×4: DOM/UI)
+
+### Sequencing forward
+
+- ✅ T1.10.1 ftue-state (21 exports, 475 LoC)
+- ✅ T1.10.2 progression (79 exports, 1128 LoC)
+- 🔄 T1.10.3 grid.js (next — board state, line clears, void cells; medium-risk)
+- T1.10.4-T1.10.9 queued
+
+T1.10 progress: 2/9 sub-tasks done (~22%).
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host

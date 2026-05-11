@@ -3,12 +3,12 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (1/9 sub-tasks done: T1.10.1)
-- **Overall progress:** ~25% (Phase 1 watershed task started)
+- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (2/9 sub-tasks done: T1.10.1 + T1.10.2)
+- **Overall progress:** ~27% (Phase 1 watershed task — 22% of T1.10 done)
 - **Next milestone:** T1.10.9 final wire-up — new shell becomes primary
-- **Active sub-task:** T1.10.2 — Extract progression.js (chapter/hero unlocks/ascension)
-- **Critical for T1.10.9:** localStorage migration shim — see TASKS.md mandatory note (legacy bare-string keys break under T1.08's JSON.parse)
-- **Last updated:** 2026-05-11 by CTO (after T1.10.1 review)
+- **Active sub-task:** T1.10.3 — Extract grid.js (board state, line clears, void cells)
+- **Critical for T1.10.9:** localStorage migration shim — 8 bare-string keys flagged so far (FTUE + 5 chapter-complete + intro/onboarding); grows as T1.10.3-T1.10.8 extract more
+- **Last updated:** 2026-05-11 by CTO (after T1.10.2 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)

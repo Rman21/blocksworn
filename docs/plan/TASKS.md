@@ -206,8 +206,8 @@ auto-disappears in T1.10 when the rewiring lands:
 
 **Sub-task progress:**
 - [x] T1.10.1 — `ftue-state.js` — **DONE 2026-05-11** (commits `e12d27b`, `ec4e409`; 21 exports / 475 LoC; sacred FTUE_BEATS/TRANSITIONS preserved byte-perfect via import from T1.07)
-- [x] T1.10.2 — `progression.js` — **REVIEW** (commit `981c136`; 79 exports / 1128 LoC; sacred TIER_COSTS imported from T1.07; one-Mythic-per-save constraint preserved byte-perfect)
-- [ ] T1.10.3 — `grid.js`
+- [x] T1.10.2 — `progression.js` — **DONE 2026-05-11** (commits `981c136`, `3005c69`; 79 exports / 1128 LoC; TIER_COSTS sacred + one-Mythic + T2/T3/Mythic bonuses byte-perfect; 5 chapter-complete bare-string keys flagged for T1.10.9 shim)
+- [ ] T1.10.3 — `grid.js` — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
 - [ ] T1.10.4 — `heroes.js`
 - [ ] T1.10.5 — `damage-channels.js` (v2.1 P1)
 - [ ] T1.10.6 — `stagger-loop.js` (v2.1 P2)
@@ -220,7 +220,15 @@ auto-disappears in T1.10 when the rewiring lands:
 **⚠️ MANDATORY for T1.10.9 wire-up** (flagged by T1.10.1 Game Dev — HIGH priority):
 Legacy stored `FTUE_STORAGE_KEY` as **bare string** (e.g., `'pyredrake_fight'`), but T1.08's `storage.getItem` JSON-parses and returns `defaultValue` on bare strings. **Without one-shot migration shim in T1.10.9, existing player saves will silently reset to `not_started`** when new shell takes over. Same caveat for `seenIntroVideo` + `onboardingSeen` (5 ad-hoc legacy localStorage calls left raw with TODO(T1.11) markers).
 
-**Migration shim spec (for T1.10.9 prompt):** for each known legacy bare-string key (`FTUE_STORAGE_KEY`, `seenIntroVideo`, `onboardingSeen`, others discovered during T1.10.2-T1.10.8 extractions), run once on first boot post-wire-up:
+**Migration shim spec (for T1.10.9 prompt):** for each known legacy bare-string key, run once on first boot post-wire-up.
+
+**Known bare-string keys (allow-list — grows during T1.10.3-T1.10.8 extractions):**
+- `FTUE_STORAGE_KEY` (T1.10.1) — stored as `'pyredrake_fight'` etc.
+- `seenIntroVideo` (T1.10.1, 3 sites)
+- `onboardingSeen` (T1.10.1, 2 sites)
+- `blocksworn_chapter_1_complete` … `blocksworn_chapter_5_complete` (T1.10.2 — 5 keys) — stored as literal `'true'`, read with `=== 'true'`. JSON-routing breaks chapter-complete semantics.
+
+**Migration shim algorithm:**
 1. `const raw = localStorage.getItem(key)`
 2. If `raw === null` → skip
 3. If `raw.startsWith('"') || raw.startsWith('{') || raw.startsWith('[')` → already JSON, skip
