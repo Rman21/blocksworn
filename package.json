@@ -8,8 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:smoke": "playwright test tests/smoke",
-    "test:visual": "echo \"visual regression wired up in T1.05\" && exit 0",
+    "test:smoke": "playwright test tests/smoke --project=chromium --project=mobile-chrome",
+    "test:smoke:full": "playwright test tests/smoke",
+    "test:visual": "echo \"visual regression wired up in T1.04\" && exit 0",
     "lint": "echo \"lint wired up in T1.05\" && exit 0"
   },
   "devDependencies": {

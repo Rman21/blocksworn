@@ -3,11 +3,11 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 2 / 20 tasks done (T1.01, T1.02)
-- **Overall progress:** ~3% (Phase 1 week 1 of 6-8)
-- **Next milestone:** T1.05 — CI pipeline green (week 1 target)
-- **Active task:** T1.03 — Playwright + smoke test infrastructure (assignment ready)
-- **Last updated:** 2026-05-11 by CTO (after T1.01 + T1.02 review)
+- **Phase progress:** 3 / 20 tasks done (T1.01, T1.02, T1.03)
+- **Overall progress:** ~5% (Phase 1 week 1 of 6-8)
+- **Next milestone:** T1.05 — CI pipeline green (week 1 target — within reach)
+- **Active task:** T1.04 — Capture visual regression baseline (assignment ready)
+- **Last updated:** 2026-05-11 by CTO (after T1.03 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -38,8 +38,8 @@
 **Week 1: Infrastructure**
 - [x] T1.01 — Setup Vite scaffold + new repository — **DONE 2026-05-11** (commits `c9cf50e`, `6c010ef`)
 - [x] T1.02 — Create CLAUDE.md repository file — **DONE 2026-05-11** (verification only — copied in Initial Setup `41da1eb`)
-- [ ] T1.03 — Setup Playwright + smoke test infrastructure — TODO (Game Dev — assignment ready)
-- [ ] T1.04 — Capture visual regression baseline — TODO
+- [x] T1.03 — Setup Playwright + smoke test infrastructure — **DONE 2026-05-11** (commits `8d79a61`, `8773ca6` + CTO script split; chromium green; WebKit deferred to CI)
+- [ ] T1.04 — Capture visual regression baseline — TODO (Game Dev — assignment ready)
 - [ ] T1.05 — Setup CI pipeline — TODO
 
 **Week 2-3: Data + Services + CSS extraction**

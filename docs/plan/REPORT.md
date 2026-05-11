@@ -163,6 +163,65 @@ Not yet. Tester still on standby until T1.05 (CI ready). At that point I will as
 
 ---
 
+## REPORT-03: T1.03 Review + WebKit constraint decision
+
+**Date:** 2026-05-11
+**Author:** CTO
+**Phase:** 1
+**Trigger:** TASK-003 submitted REVIEW with one-question rule blocker
+
+### Summary
+
+T1.03 delivered correct Playwright + smoke infrastructure. Host platform (macOS 13 arm64) cannot install WebKit binary (Playwright 1.59 requires macOS 14+ for WebKit on Apple Silicon). CTO decided to accept the work as DONE with a script-level workaround so local `npm run test:smoke` exits 0; CI on Linux runner (T1.05) will run all 4 projects without constraint.
+
+### Decision: WebKit constraint handling
+
+**Three options considered (raised by Dev via one-question rule):**
+
+1. **Accept current state, rely on CI for WebKit** — config defines all 4 projects, but webkit + mobile-safari fail at browser launch on this host. *(Dev's recommendation.)*
+2. **Add `test.skip(browserName === 'webkit', ...)`** in the spec file — would also skip on CI. *(Bad — defeats purpose of CI coverage.)*
+3. **Downgrade Playwright** to a version that supported webkit on mac13-arm64 *(High risk, unclear if such version exists.)*
+
+**CTO chose Option 1 + script split** (cleaner than pure Option 1):
+
+- `package.json` `test:smoke` (local default) → filters to `chromium + mobile-chrome` projects → exits 0 on Roman's host
+- `package.json` `test:smoke:full` (new) → runs all 4 projects → CI uses this
+- `playwright.config.js` untouched (all 4 projects defined; script filter is the correct layer for host-specific divergence)
+- T1.05 spec updated in TASKS.md to require CI uses `test:smoke:full`, not `test:smoke`
+
+### Why this is the right call
+
+- AAA+ principle: smoke tests MUST pass on dev machine (a red smoke run rots developer trust in the safety net)
+- The WebKit gap is environment-only, not project-level — CI on Ubuntu has no such constraint
+- Forward compatibility: if Roman upgrades to macOS 14+, local `test:smoke` can be expanded to all 4 projects via a one-line script edit
+- No code lock-in to host limitation: `playwright.config.js` is unchanged from spec
+
+### Notable T1.03 engineering observation
+
+The legacy HTML (21MB single file) contains a **malformed nested HTML comment** near line 18129 — pattern: `<!-- ... <!-- ... -->`. Browsers tolerate this; **parse5** (used by Vite's `transformIndexHtml` step) rejects it with `nested-comment` error → HTTP 500. Without a workaround, Vite dev server cannot serve the legacy HTML at all.
+
+Dev's solution: a `serveLegacyHtmlRaw` Vite plugin (`vite.config.js`) that intercepts the exact legacy URL and serves raw bytes, bypassing the HTML transform pipeline entirely. Legacy HTML stays untouched (sacred, byte-identical at 21,480,494 bytes). Plugin documented in-file.
+
+This pattern (raw passthrough for legacy assets) may resurface in T1.04 (visual baseline) and T1.06 (CSS migration) — keep an eye on it.
+
+### Tech debt items (still tracked)
+
+Continuing from REPORT-01/02:
+- 2 moderate npm transitive vulnerabilities → defer to T1.05 lint/CI security
+- `@playwright/test` version drift `^1.47 → 1.59.1` semver-allowed; consider exact-pin discussion at T1.05
+- npm 11.12.1 → 11.14.1 cosmetic
+- Legacy HTML's malformed nested comment is a v1 authoring bug — will be naturally fixed during T1.06+ code migration out of single HTML
+
+### Phase 1 Week 1 progress
+
+3 / 20 tasks done in roughly 1 working session (with ~50% of time burned on ESC-01 Node install). T1.04 (visual baseline) assignment ready. T1.05 (CI pipeline) next after. Week 1 plan still tracking.
+
+### Bug Testing Required
+
+Not yet. Tester engagement first triggers at T1.05 completion (full CI green) — at that point I will assign a pre-T1.06 smoke audit (baseline test pass against legacy HTML, before migration starts).
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host
