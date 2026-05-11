@@ -209,7 +209,7 @@ auto-disappears in T1.10 when the rewiring lands:
 - [x] T1.10.2 — `progression.js` — **DONE 2026-05-11** (commits `981c136`, `3005c69`; 79 exports / 1128 LoC; TIER_COSTS sacred + one-Mythic + T2/T3/Mythic bonuses byte-perfect; 5 chapter-complete bare-string keys flagged for T1.10.9 shim)
 - [x] T1.10.3 — `grid.js` — **DONE 2026-05-11** (commits `73358d0`, `226fb7d`; 26 exports / 603 LoC; sacred combo-crit dominant-count + GRID_SATURATION + VOID_TICK 0.5%/cell byte-perfect; 0 new bare-string keys — grid is per-battle ephemeral; minor `placePiece` return-value polish flagged for T1.10.9 audit)
 - [x] T1.10.4 — `heroes.js` — **DONE 2026-05-11** (commits `7196ec1`, `3725199`; **3,972 LoC** biggest sub-task; HERO_ROSTER 25/25 + 25 fire + 25 ultTwist + 10 fireDelta + 10 ultDelta + Aegis Conductor + Squad Conductor + 25/25 Mythic descriptors — all byte-perfect; ~600 LoC legacy dead code deferred to T1.10.9 audit; 0 new bare-string keys)
-- [ ] T1.10.5 — `damage-channels.js` (v2.1 P1) — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
+- [x] T1.10.5 — `damage-channels.js` (v2.1 P1) — **DONE 2026-05-11** (code commit `31a3786`, DOCS follows; 457 LoC / 16 exports = 4 CH_* canonical names + 5 channel constants + 3 mitigation tables + 4 functions; SACRED Mitigation Matrix + 4-channel formulas + shield-absorption order byte-perfect; 0 new bare-string keys — channel math is per-battle ephemeral)
 - [ ] T1.10.6 — `stagger-loop.js` (v2.1 P2)
 - [ ] T1.10.7 — `bosses.js`
 - [ ] T1.10.8 — `reactivity-events.js` (v2.1 P4)
@@ -605,6 +605,107 @@ File-level `/* eslint-disable no-empty, no-unused-vars */` (legacy uses `try { .
 
 ---
 
+### T1.10.5 — REVIEW (2026-05-11)
+
+**Code commit:** `31a3786` — `[T1.10.5] Extract 4-channel damage system to src/core/damage-channels.js`
+**DOCS commit:** follows (this entry)
+**File created:** `src/core/damage-channels.js` (457 lines, 16 named exports = 4 CH_* canonical names + 5 channel-damage constants + 3 mitigation tables + 4 functions)
+
+**Implementation summary:**
+
+4-channel damage system extracted byte-perfect from legacy `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` across **8 source regions**:
+
+- **4 channel-damage constants (19966-19979):** `CHANNEL_DEADZONE_DMG=5`, `CHANNEL_VOID_TICK_PCT=0.005`, `CHANNEL_GRID_SATURATION_THRESHOLD=0.75`, `CHANNEL_GRID_SATURATION_DMG=8`, `CHANNEL_SIGNATURE_DMG` (tutorial:12, gatekeeper:16, mid_act:20, act_boss:24, finale:28) — all `Object.freeze`'d.
+- **Mitigation Matrix (19982-20002):** `MITIGATION_CAP=0.70`, `MITIGATION_TABLE` (5 keys × 4 tiers — guard 0.05/0.08/0.12/0.18, weaver_mage 0.02/0.04/0.07/0.10, weaver_captain 0.01/0.03/0.05/0.08, striker_warrior 0.01/0.02/0.03/0.05, striker_hunter 0.00/0.01/0.02/0.04), `LEVEL_MITIGATION_PER` (5 keys — guard 0.005, weaver_mage 0.002, weaver_captain 0.0015, striker_warrior 0.001, striker_hunter 0.0008) — all sacred per CLAUDE.md §2.5.
+- **channelLabel (38825-38833):** 4-channel human-readable map used by toast text + Sentry breadcrumbs.
+- **showChannelFX (38838-38867):** per-channel toast + vibrate + HP-band tint styles map (deadzone #E85D4A 🩸 [80], void_tick #9B59E8 🟣 [40,30,40], signature #FF8C00 ⚔ [120,50,120], saturation #FFD700 ⚠ [50,30,50,30,50]).
+- **showMitigationFX (38872-38879):** 250ms-delayed green sub-toast for the mitigated amount.
+- **applyChannelDamage central dispatcher (38881-38993):** THE single point of entry for ALL player damage. Shield-absorption ordering (AEGIS → MAELEN frozen ward → normal shield) → mitigation (`getSquadMitigation()` + T2 Tank reactive + IRONSCALE T3 Iron Hide) → AEGIS PROTOCOL HP→Pressure reroute → HP application → Tank pressure conversion (+ Phase 3 hook + FTUE intro) → T2 Tank reactive auto-shield trigger → channel + mitigation FX → renderHP → FTUE channel/mitigation intros → `logEvent('channel_damage', ...)` analytics breadcrumb. Math.floor(rawDmg × (1-mitigation)) + Math.max(rawDmg>0?1:0, mitigated) min-1 floor preserved. Returns final HP damage applied.
+- **_getBossSignatureTier (39044-39069):** maps current boss → CHANNEL_SIGNATURE_DMG tier. Reads `currentBoss.roleTier` (canonical P4) || `currentBoss.signatureTier` (backward-compat) || global-boss-number fallback (n=1→tutorial, n=25→finale, n%5===0→act_boss, n%5∈{1,2}→gatekeeper, else mid_act) || Tower→'gatekeeper'.
+- **applyBossSignatureDamage (39071-39082):** signature damage entry — gates FTUE-only/training-dummy bosses, resolves tier via `_getBossSignatureTier`, fires `applyChannelDamage('signature', sigDmg, {tier, bossName})`.
+
+**Sacred cow preservation (CLAUDE.md §2.5 — v2.1 P1 spine of combat):**
+
+- **4 channel name constants** — exported under v2.1-spec canonical names (`CH_DEAD_ZONE`, `CH_VOID`, `CH_SIGNATURE`, `CH_GRID_SATURATION`). String values match the **legacy channel keys** every consumer keys off (`'deadzone'` / `'void_tick'` / `'signature'` / `'saturation'`). Renaming the string values would silently break `showChannelFX` style map, FTUE dialog ID gate, mitigation-bar HUD (legacy 70067/70148), and Sentry breadcrumbs.
+- **Mitigation Matrix byte-perfect:** `MITIGATION_CAP=0.70` (hard 70% ceiling — player never-immune), 5 role keys × 4 tier columns in `MITIGATION_TABLE`, 5 role keys in `LEVEL_MITIGATION_PER`. Every numeric value matches legacy 19986-20002.
+- **Channel damage formulas byte-perfect:** DEADZONE 5 HP/pocket, VOID 0.5% MAX_HP/cell/tick, GRID_SATURATION 0.75 threshold + 8 HP flat, SIGNATURE tier map 12/16/20/24/28.
+- **Shield-absorption ordering preserved exactly:** AEGIS (consume nothing, increment aegisUsed, gate by `_t2BonusInDeck('spark_tank','autoBlockCountBonus')`) → MAELEN frozen ward (hold without consuming, tinted by `STIHIYA_COLORS.tide`) → normal shield (consume one). Same `shieldCount > 0` outer guard. Same exit paths (showChannelFX with `blocked=true`, return 0).
+- **Mitigation application order preserved:** base `getSquadMitigation()` → T2 Tank reactive `_getT2TankMitigationBoost` (HP≤50% → mit ×2 cap 70%) → IRONSCALE T3 Iron Hide `_getIronscaleIronHideMitBonus` (additive cap 85%) → Math.floor(rawDmg × (1 - mitigation)) → Math.max(rawDmg>0?1:0, mitigated) min-1 floor.
+- **AEGIS PROTOCOL HP→Pressure reroute byte-perfect:** triggers AFTER mitigation, BEFORE HP application. All channels flow through this gate. `addPressure(finalDmg, 'aegis_protocol')` + `showAegisProtocolFX(finalDmg)` + `showChannelFX(channel, 0, true, meta)` + early-return 0.
+- **Tank pressure conversion preserved:** `_computeTankPressureConversion(finalDmg)` → `addPressure(tankConv, 'tank_absorb')` + `showTankConversionFX` + `_firePhase3Hook('onTankAbsorb', ...)` + `_maybeTriggerTankConversionIntro` FTUE hook.
+- **T2 Tank reactive auto-shield trigger preserved** (`_maybeFireT2TankReactive`).
+- **FTUE channel + mitigation intros preserved** (`_maybeTriggerChannelIntro`, `_maybeTriggerMitigationIntro`) — fire after HP application + FX, before analytics.
+- **Analytics breadcrumb preserved:** `logEvent('channel_damage', {channel, rawDmg, finalDmg, mitigated, mitigation: round(mit*100)/100})`.
+- **`_getBossSignatureTier` resolution preserved:** roleTier > signatureTier > Tower→'gatekeeper' > global-boss-number fallback. Tower-mode skip rule + tutorial/finale/act_boss/gatekeeper/mid_act decision tree byte-perfect.
+
+**Storage rewires (T1.08 abstraction):**
+
+- **0 new bare-string localStorage keys.** Channel damage math is per-battle ephemeral — the dispatcher mutates `hp` / `shieldCount` / `battleDamageTaken` (writable globals) and reads `currentBoss` / `currentChapter` / `_isTowerBattle` (read-only globals). **The T1.10.9 migration shim allow-list (FTUE + intro-video + 5 chapter-complete keys from T1.10.1 + T1.10.2) does NOT need additions from T1.10.5.**
+
+**ESLint globals added** (specific identifiers, why):
+
+- File-level `/* eslint-disable no-empty, no-unused-vars */` — the dispatcher uses `try { ... } catch (e) {}` patterns abundantly (12+ catches in the legacy body); preserving byte-perfect requires accepting them, and legacy uses `catch (e)` not `catch (_e)`.
+- **Readonly (~25 identifiers):** `getSquadMitigation` (heroes territory, legacy 38768 — consumed by mitigation step); Tank ULT helpers `_t2BonusInDeck`, `_getT2TankMitigationBoost`, `_getIronscaleIronHideMitBonus`, `_computeTankPressureConversion`, `_maybeFireT2TankReactive`, `aegisActive`, `aegisProtocolTurnsActive`, `maelenShieldNoDecay`, `showAegisProtocolFX`, `showTankConversionFX`, `_firePhase3Hook`, `_maybeTriggerTankConversionIntro` (Aegis Conductor in heroes.js T1.10.4 exposes these — read here); `addPressure` (T1.10.6 stagger-loop writer — Tank conversion + AEGIS PROTOCOL route HP→Pressure via this); FTUE intros `_maybeTriggerChannelIntro`, `_maybeTriggerMitigationIntro` (legacy globals — fired after FX); boss context `currentBoss`, `currentChapter`, `currentBossIdx`, `_isTowerBattle` (T1.10.7 territory — read by `_getBossSignatureTier`); `STIHIYA_COLORS` (T1.07 data — MAELEN frozen ward banner tint); `MAX_HP` (data-consolidation target — referenced in mitigation comment block + consumed via grid.applyVoidTickIfAny upstream); feel/UI/analytics `flashText`, `flashStateBanner`, `vibrate`, `speakNarrator`, `renderHP`, `logEvent`.
+- **Writable (4 identifiers):** `aegisUsed` (incremented by the AEGIS shield-absorption branch), `hp` (HP application), `shieldCount` (normal-shield consume branch), `battleDamageTaken` (analytics-side accumulator on HP application).
+
+**TODO markers:** 0 explicit `TODO(T1.10.N)` markers in code — the wide `/* global */` directive set is the wire-up surface. Each global identifier *is* an implicit TODO marker pointing to its future home (e.g., `addPressure` → T1.10.6 stagger-loop, `currentBoss` → T1.10.7 bosses, `_maybeTriggerChannelIntro` → future FTUE follow-up, `flashText` / `renderHP` → T1.11 ui).
+
+**Engineering judgment:**
+
+- **Constants live in the module that OWNS them, not data/.** The brief considered routing `CHANNEL_*` + `MITIGATION_*` through `src/data/balance.js`, but the legacy constants block at lines 19966-20002 sits IMMEDIATELY adjacent to the dispatcher block at 38816-39091 conceptually — they're 4-channel damage system metadata, not generic game balance. Co-locating constants + dispatcher in `damage-channels.js` matches the T1.10.3 grid.js pattern (`computeGridSaturation` + threshold constant in same module) and the T1.10.4 heroes.js pattern (`AEGIS_PROTOCOL_DURATION` + activator in same module). Future data-consolidation pass can flatten if needed; not in T1.10.5 scope.
+- **`window.applyChannelDamage` + constant exposure mirrors legacy 39084-39091.** The dispatcher publishes `window.applyChannelDamage`, `window.applyBossSignatureDamage`, `window.channelLabel`, `window._getBossSignatureTier` PLUS the 8 channel/mitigation constants. Legacy bodies that consume these ambient (dead-zone scanner line 63992, revenge attack 39323, phoenix fire aura 39394, HUD mitigation bar 70067/70148, grid.js T1.10.3 `/* global applyChannelDamage */`) keep working until T1.10.9 wire-up flips imports. This is the same window-bridge pattern T1.10.4 uses for `renderCaptainMarkBadge`.
+- **DEAD_ZONE has NO dedicated handler function — by design.** Legacy line 63988-63992 computes `rawDmg = newDead * CHANNEL_DEADZONE_DMG` inline inside the dead-zone scanner (battle territory) and fires `applyChannelDamage('deadzone', rawDmg, {deadCount: newDead})`. The dispatcher does NOT need a `applyDeadZone()` wrapper; the constant + the channel key + the dispatcher are sufficient. T1.10.9 will move the dead-zone scanner; this module owns the constant + the dispatch path.
+- **`getSquadMitigation` NOT extracted to heroes.js T1.10.4.** The heroes module was extracted before T1.10.5; `getSquadMitigation` (legacy 38768-38790) + `getHeroMitigationKey` (38691-38694) sit in heroes territory but weren't pulled when heroes was extracted. They consume `HERO_DECK` / `activeSquad` / `getHeroStats` and would naturally belong next to those. For T1.10.5 they remain legacy globals consumed via `/* global */`. **CTO recommendation:** T1.10.9 audit / future heroes follow-up should move them into `heroes.js` alongside `getHeroStats`.
+- **FTUE channel + mitigation intros NOT extracted to ftue-state.js T1.10.1.** `_maybeTriggerChannelIntro` + `_maybeTriggerMitigationIntro` (legacy 39098-39134) are tightly coupled to `applyChannelDamage` (called from end of dispatcher path) and consult `seenDialogs` + `currentChapter` + `isFtueActive` + `playDialog`. They're legacy-FTUE-side, not state-machine-side, so they don't fit `ftue-state.js` cleanly. Left in legacy until a future FTUE follow-up consolidates the channel/mitigation/pressure/stagger/recovery/overflow intro family in one module.
+- **Channel-string-value preservation is sacred, not bikeshedding.** The brief's example named the constants `'dead_zone'` / `'void'` / `'signature'` / `'grid_saturation'`, but every legacy consumer keys off the **actual** string values `'deadzone'` (no underscore) / `'void_tick'` (with `_tick` suffix) / `'signature'` / `'saturation'` (short form). Changing the string values to "match spec naming" would silently break 6+ call sites. The canonical CH_* names live in this module as the export contract; the string values inside them are legacy-byte-perfect.
+
+**Verification (all gates green):**
+
+- `npm run lint` → 0 errors / 0 warnings (post-`/* eslint-disable no-empty, no-unused-vars */` + 25-readonly + 4-writable globals)
+- `npm run test:unit` → 6/6 pass (~100ms)
+- `npm run test:smoke` → 2/2 pass (~7.6s)
+- `npm run test:visual` → 22/22 pass under 2% (~13.5s)
+- `npm run build` → succeeds. dist/assets/index.js = 0.75KB; dist/assets/index.css = 368.77KB (unchanged — new module tree-shakes out, nothing imports it yet, as expected per Step E of the assignment)
+- Legacy `wc -c` = 21,480,494; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` — byte-identical
+
+**Self-check:**
+- [x] Acceptance: 4 v2.1 P1 damage channels extracted (DEAD_ZONE, VOID, SIGNATURE, GRID_SATURATION) under CH_* canonical exported names with legacy string values preserved (`deadzone`/`void_tick`/`signature`/`saturation`)
+- [x] Acceptance: Mitigation Matrix byte-perfect (MITIGATION_CAP=0.70, MITIGATION_TABLE 5×4, LEVEL_MITIGATION_PER 5 keys)
+- [x] Acceptance: applyChannelDamage central dispatcher byte-perfect (shield-absorption order, mitigation math + min-1 floor, AEGIS PROTOCOL reroute, Tank conversion, FTUE hooks, analytics breadcrumb)
+- [x] Acceptance: per-channel constants byte-perfect (5/0.005/0.75/8/SIGNATURE tier map 12/16/20/24/28)
+- [x] Acceptance: imports `log` from src/services/logger.js (T1.08); no other src/ imports needed (legacy globals supply the rest)
+- [x] Acceptance: no window globals introduced beyond the legacy 39084-39091 mirror block (applyChannelDamage + applyBossSignatureDamage + channelLabel + _getBossSignatureTier + 8 constants)
+- [x] Acceptance: legacy HTML byte-identical (wc -c + SHA-256 verified)
+- [x] Acceptance: all gates green (lint 0/0, unit 6/6, smoke 2/2, visual 22/22, build 372KB)
+- [x] Acceptance: nothing imports the new module — tree-shakes out for T1.10.5 (correct — T1.10.9 final wire-up flips grid.js's `/* global applyChannelDamage */` into an explicit import)
+- [x] Sacred cows: 4-channel system byte-perfect (CLAUDE.md §2.5 v2.1 P1). Mitigation Matrix byte-perfect. Shield-absorption ordering preserved. AEGIS PROTOCOL HP→Pressure reroute preserved.
+- [x] DO NOT TOUCH: legacy HTML — not modified; index.html — not modified; src/main.js — not modified; src/core/{ftue-state,progression,grid,heroes}.js (T1.10.1-T1.10.4) — not modified; src/data/ — not modified; src/feel/ — not modified; src/services/ — not modified; eslint.config.js — not modified; CSS / baselines / tests / CI / husky — not modified
+- [x] DO NOT TOUCH: Mitigation Matrix values — unchanged; channel formulas — byte-perfect; shield-absorption order — byte-perfect; SIGNATURE tier resolution — byte-perfect
+- [x] DO NOT wire grid.js to import damage-channels — grid keeps `/* global applyChannelDamage */` per T1.10.9 spec
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.10.5; did NOT start T1.10.6
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **NO new bare-string storage keys.** Channel damage math is per-battle ephemeral; the dispatcher only mutates writable globals (`hp`, `shieldCount`, `battleDamageTaken`). **The T1.10.9 migration shim allow-list (FTUE + intro-video + 5 chapter-complete keys) does NOT need additions from T1.10.5.**
+
+2. **`getSquadMitigation` + `getHeroMitigationKey` still in legacy.** These two functions (legacy 38691-38790) belong next to `getHeroStats` (already in heroes.js T1.10.4) but weren't pulled when heroes was extracted. For T1.10.5 they remain `/* global */`. **CTO recommendation:** T1.10.9 audit or a future heroes follow-up should move both into `src/core/heroes.js`. Pure relocation — same byte-perfect concerns as T1.10.4.
+
+3. **FTUE channel + mitigation intros (`_maybeTriggerChannelIntro`, `_maybeTriggerMitigationIntro`) still in legacy.** They're called from the end of `applyChannelDamage` and gate on `seenDialogs` + `currentChapter` + `isFtueActive`. Conceptually they belong with the v2.1 P2 FTUE-intro family (`_maybeTriggerPressureIntro`, `_maybeTriggerStaggerIntro`, `_maybeTriggerRecoveryIntro`, `_maybeTriggerOverflowIntro` at legacy 39146-39212), which is T1.10.6 stagger-loop territory. **CTO recommendation:** consolidate all 6 intro helpers into a single follow-up sub-task after T1.10.6 lands.
+
+4. **Channel string values are sacred — NOT the spec's underscore-canonical names.** The 4-channel spec calls them DEAD_ZONE / VOID / SIGNATURE / GRID_SATURATION, but legacy actually uses `'deadzone'` / `'void_tick'` / `'signature'` / `'saturation'`. The exported CH_* constants hold the legacy string values to preserve byte-perfect consumer wiring (showChannelFX styles, FTUE dialog ID map at legacy 39103-39108, HUD bar at 70067/70148, Sentry breadcrumbs). If a future v3 refactor wants to standardize the strings, it must update ALL consumers in lockstep — not a T1.10.5 concern.
+
+5. **DEAD_ZONE pocket→damage compute stays in legacy battle territory (line 63988).** The brief asked for per-channel handlers, but DEAD_ZONE doesn't have a separate handler in legacy — the dead-zone scanner inline-computes `rawDmg = newDead * CHANNEL_DEADZONE_DMG` and fires `applyChannelDamage('deadzone', rawDmg, ...)` directly. Flagged for T1.10.9: when the dead-zone scanner moves to battle.js, the call site will import `CHANNEL_DEADZONE_DMG` + `applyChannelDamage` from this module.
+
+6. **MAX_HP referenced in module comment but not consumed by any function here.** The 0.5%/cell formula in the comment cross-references `MAX_HP`; the actual computation `floor(voidCount * MAX_HP * CHANNEL_VOID_TICK_PCT)` lives in `grid.applyVoidTickIfAny` (T1.10.3). MAX_HP added to `/* global */` for the comment context only. Drop after data-consolidation pass moves MAX_HP into src/data/.
+
+7. **`renderHP` ambient — UI concern.** Dispatcher calls `renderHP()` after HP mutation (legacy 38978). Stays in legacy until T1.11 (ui) moves DOM-side render functions; consumed here via `/* global */`.
+
+**Time:** ~2 hours (457 LoC byte-perfect copy + 30-readonly + 4-writable globals declared + lint cycle for `addPressure` discovery + commit/docs cycle)
+
+---
+
 ## GAME DESIGNER
 
 (no active tasks — Designer activated в Phase 2)
@@ -684,4 +785,4 @@ File-level `/* eslint-disable no-empty, no-unused-vars */` (legacy uses `try { .
 ---
 
 **Maintained by:** CTO agent
-**Last update:** 2026-05-11 — T1.10.4 → REVIEW (heroes module extracted, 3,972 LoC / 25 HERO_ROSTER + 25 fire + 25 ultTwist + 20 tier deltas + Aegis Conductor + Squad Conductor, sacred HERO_ULT_COST_BY_NEWROLE + HERO_TIER_ABILITIES + Aegis Protocol + Captain Mark byte-perfect, 0 new bare-string keys)
+**Last update:** 2026-05-11 — T1.10.5 → REVIEW (damage-channels module extracted, 457 LoC / 16 exports = 4 CH_* canonical names + 5 channel constants + 3 mitigation tables + 4 functions; SACRED 4-channel system + Mitigation Matrix + shield-absorption order + AEGIS PROTOCOL HP→Pressure reroute byte-perfect; 0 new bare-string keys)
