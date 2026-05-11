@@ -118,36 +118,33 @@
 // abundantly inside the dispatcher — preserving byte-perfect requires
 // accepting them.
 /* eslint-disable no-empty, no-unused-vars */
-// Squad mitigation sum (heroes territory until follow-up; legacy line 38768):
-/* global getSquadMitigation */
-// Tank ULT helpers (Aegis Conductor — heroes.js T1.10.4 exposes these):
-/* global _t2BonusInDeck, _getT2TankMitigationBoost,
-   _getIronscaleIronHideMitBonus, _computeTankPressureConversion,
-   _maybeFireT2TankReactive,
+
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import {
+  _getT2TankMitigationBoost,
+  _computeTankPressureConversion, _maybeFireT2TankReactive,
+  showAegisProtocolFXImpl as showAegisProtocolFX,
+  showTankConversionFXImpl as showTankConversionFX,
+} from './heroes.js';
+import { addPressure } from './stagger-loop.js';
+import { STIHIYA_COLORS } from '../data/elements.js';
+import { speakNarrator } from '../feel/narrator.js';
+import { logEvent } from '../services/analytics.js';
+import { log } from '../services/logger.js';
+
+// Residual legacy-owned tokens:
+/* global getSquadMitigation, _t2BonusInDeck,
+   _getIronscaleIronHideMitBonus,
    aegisActive, aegisProtocolTurnsActive,
    maelenShieldNoDecay,
-   showAegisProtocolFX, showTankConversionFX,
    _firePhase3Hook, _maybeTriggerTankConversionIntro */
-// Stagger-loop pressure writer (T1.10.6 territory) — Tank conversion + AEGIS
-// PROTOCOL route HP-equivalent into Pressure via addPressure.
-/* global addPressure */
-// AEGIS aegisUsed counter (writable from inside the dispatcher):
 /* global aegisUsed:writable */
-// Battle-state writable globals — flipped by the dispatcher on HP loss:
 /* global hp:writable, shieldCount:writable, battleDamageTaken:writable */
-// FTUE intro hooks (still in legacy; called from end of dispatcher):
 /* global _maybeTriggerChannelIntro, _maybeTriggerMitigationIntro */
-// Boss + battle context (T1.10.7 territory) — read by signature dispatch:
 /* global currentBoss, currentChapter, currentBossIdx, _isTowerBattle */
-// Stihiya color palette (for MAELEN frozen ward banner — T1.07 data):
-/* global STIHIYA_COLORS */
-// Sacred MAX_HP constant (legacy line 19956; data-consolidation target):
 /* global MAX_HP */
-// Feel / UI / analytics (T1.09 + T1.11):
-/* global flashText, flashStateBanner, vibrate, speakNarrator, renderHP,
-   logEvent */
-
-import { log } from '../services/logger.js';
+/* global flashText, flashStateBanner, vibrate, renderHP */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 // ─── v2.1 P1 4-channel name constants ─────────────────────────────────────
 // SACRED PER CLAUDE.md §2.5. Exported under v2.1-spec canonical names; the

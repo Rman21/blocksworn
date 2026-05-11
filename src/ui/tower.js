@@ -30,9 +30,12 @@
 //
 // 2026-05-11 — Roman: pure-relocation discipline.
 
-/* eslint-disable no-empty, no-unused-vars, no-redeclare */
+/* eslint-disable no-empty, no-unused-vars */
 
-/* global document, showToast, showScreen, currentFloorId, _isTowerBattle,
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import { showScreen } from './router.js';
+
+/* global showToast, currentFloorId, _isTowerBattle,
    towerState, HERO_ROSTER, getActiveTitle, getActiveBuff,
    getTowerWeeklyTheme, TOWER_ACHIEVEMENTS, TOWER_WEEKLY_FLOORS,
    TOWER_SEASONAL_FLOORS, TOWER_DAILY_FLOORS, TOWER_MAX_ATTEMPTS_PER_DAY,
@@ -42,6 +45,7 @@
    getNextTowerRetryCost, startTowerRun, continueTowerRun,
    abandonTowerRun, showTowerLeaderboardModal, openAchievementsModal,
    rollDailyCurses, saveTowerState, maybeShowTowerEducation */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 import { log } from '../services/logger.js';
 

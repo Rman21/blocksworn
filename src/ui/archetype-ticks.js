@@ -86,9 +86,11 @@
 
 /* eslint-disable no-empty, no-unused-vars, no-redeclare */
 
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import { _stormBlizzardFreezes, _stormEarthquakeLocks } from '../core/bosses.js';
+
 /* global currentBoss, currentChapter, bossHP, bossMaxHP, bossAttackDmgMult,
    bossArchetype, grid, SIZE, hp, shieldCount, battleDamageTaken, gameEnded,
-   document, setTimeout,
    flashText, flashStateBanner, showThreatBanner, hideThreatBanner, vibrate,
    renderHP, renderBossHP, render, showDefeatModal,
    HERO_DECK, heroCharges, getUltCost,
@@ -96,7 +98,6 @@
    bossRevivedOnce, bossDualSuggestActive, bossChargeRateMult,
    engineerElectrifiedRows, frenzyMaxStacks,
    _batterySunfireCascade, _batterySolarConvergence, _renderBatteryChargeMeter,
-   _stormBlizzardFreezes, _stormEarthquakeLocks,
    HYPNOTIST_SUGGEST_INT_P1, HYPNOTIST_SUGGEST_INT_P2, HYPNOTIST_SUGGEST_INT_P3,
    HYPNOTIST_PETAL_INT, HYPNOTIST_TENDRIL_INT, HYPNOTIST_BLOOM_INT,
    HYPNOTIST_OBEY_BONUS_P1, HYPNOTIST_OBEY_BONUS_P2, HYPNOTIST_OBEY_BONUS_P3,

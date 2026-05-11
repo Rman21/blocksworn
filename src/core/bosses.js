@@ -131,27 +131,10 @@
 // Comments above this line replicate legacy intent.
 
 /* eslint-disable no-empty, no-unused-vars */
-// Sibling-module identifiers consumed via /* global */ (T1.10.9 wires
-// these up as explicit imports). All accessed defensively (typeof checks
-// or try/catch) per legacy semantics.
 
-// Feel layer (T1.09):
-/* global flashText, flashStateBanner, vibrate, showThreatBanner, render,
-   renderHP, renderBossHP */
-// Boss-voice dialog renderer (T1.10.9 / T1.11 — dialog module pending):
-/* global playDialogScript */
-// CHAPTERS unlock flags (legacy progression — T1.10.2 future audit):
-/* global chapter2Unlocked, chapter3Unlocked, chapter4Unlocked,
-   isContentUnlocked, hasCompletedChapter, _isChapterContentUnlocked,
-   closeFloorSelector */
-// Asset registry (T1.06):
-/* global ASSETS */
-// Grid + battle ephemeral state (T1.10.3 / T1.10.9):
-/* global grid, SIZE, shieldCount:writable, hp:writable,
-   battleDamageTaken:writable, gameEnded, showDefeatModal */
-// Logging (T1.11):
-/* global logEvent */
-
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import { hasCompletedChapter, _isChapterContentUnlocked } from './progression.js';
+import { logEvent } from '../services/analytics.js';
 import { CHAPTERS } from '../data/chapters.js';
 import {
   BOSS_TTK_TARGETS,
@@ -160,6 +143,18 @@ import {
   TOWER_BOSS_TTK_TARGETS,
 } from '../data/bosses.js';
 import { log } from '../services/logger.js';
+
+// Residual legacy-owned tokens:
+/* global flashText, flashStateBanner, vibrate, showThreatBanner, render,
+   renderHP, renderBossHP */
+/* global playDialogScript */
+/* global chapter2Unlocked, chapter3Unlocked, chapter4Unlocked,
+   isContentUnlocked,
+   closeFloorSelector */
+/* global ASSETS */
+/* global grid, SIZE, shieldCount:writable, hp:writable,
+   battleDamageTaken:writable, gameEnded, showDefeatModal */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // BOSS ARCHETYPES (legacy lines 20141-20198)

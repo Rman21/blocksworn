@@ -112,37 +112,67 @@
 /* eslint-disable no-empty, no-unused-vars, no-undef */
 // no-undef disabled because battle.js sits at the top of the import graph;
 // dozens of cross-module identifiers are referenced as legacy globals
-// during the wire-up phase. T1.11 / T1.12 replace these with imports.
+// during the wire-up phase. T1.13.1 flipped many to ES imports (below);
+// remaining /* global */ entries are legacy-only.
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// /* global */ surface — legacy-owned identifiers referenced below.
-// Grouped by system slice; each group will be rewired in T1.11 / T1.12.
+// T1.13.1 (2026-05-11): /* global */ → ES imports for resolved src/ exports.
+// Remaining /* global */ blocks below document identifiers that still live in
+// legacy and are referenced as runtime globals until a later cleanup pass.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+import {
+  ftueIs, isFtueActive, isFtueComplete, advanceFtue, saveFtueToStorage,
+  FTUE_PYREDRAKE_HP, FTUE_PYREDRAKE_ATTACK_INTERVAL,
+} from './ftue-state.js';
+import {
+  setChapter, hasCompletedChapter, hasCompletedChapter1,
+  getHeroAscensionMult, getHeroLevel, isHeroMythic, saveProgress,
+} from './progression.js';
+import { gridFillRatio, newPieces } from './grid.js';
+import { STIHIYA_COLORS } from '../data/elements.js';
+import { CHAPTERS } from '../data/chapters.js';
+import {
+  BOSS_ARCHETYPES, ARMORED_SHIELD_COUNT, applyBossEmblems,
+  resetBossVoiceFlags, maybeFireBossVoiceIntro, maybeFireBossVoiceMidfight,
+  maybeFireBossVoiceDeath, FTUE_GRUNT_VOID_SPAWN, EMBER_GRUNT, CHRONICLE,
+} from './bosses.js';
+import {
+  applyOverflowConversion, addPressure, resetStaggerState,
+  BOSS_STATE_ACTIVE, _getPhaseGateHP, getFireMultCap, extendStaggerState,
+} from './stagger-loop.js';
+import {
+  _resetReactivityState, maybePhaseTransition, BOSS_PHASES,
+  clearVoidfangTints, shroudTick, showBossIntelOverlay,
+} from './reactivity-events.js';
+import { applyChannelDamage, applyBossSignatureDamage, _getBossSignatureTier } from './damage-channels.js';
+import { speakNarrator } from '../feel/narrator.js';
+import { vHaptic } from '../feel/haptics.js';
+import { vPlayLineClearBurst, vPlayBossDieFx, vCleanupBossDeathFx } from '../feel/animations.js';
+import { logEvent, EVT } from '../services/analytics.js';
 
 // Feel layer (T1.09 — already extracted, currently re-exposed as globals):
-/* global flashText, vibrate, vHaptic, speakNarrator, flashAttack,
+/* global flashText, vibrate, flashAttack,
    floatDamage, hitBoss, showThreatBanner, hideThreatBanner,
    hideStateBanner, flashStateBanner, flashRacePassiveOnce, render,
    renderHP, renderBossHP, renderChainStackUI, renderHypnotistVisuals */
 
-// FTUE (T1.10.1 — extracted; legacy still owns chronograph + dialog):
-/* global ftueBeat:writable, ftueIs, isFtueActive, isFtueComplete,
-   advanceFtue, saveFtueToStorage, resetChronoForFtueAttempt,
+// FTUE (residual legacy-owned):
+/* global ftueBeat:writable, resetChronoForFtueAttempt,
    maybeChronoBeat, _chronoActive, _hideChronoBeat,
-   FTUE_PYREDRAKE_HP, FTUE_PYREDRAKE_ATTACK_INTERVAL, FTUE_GRUNT_VOID_SPAWN,
    ensureRevealedForComplete, revealHero, ftueSafetyRailUsed:writable,
    POST_FTUE_GIFT_HERO_ID, grantPostFtueHeroInstantly,
-   showLeaderChoiceModal, FTUE_SCRIPTS, EMBER_GRUNT, CHRONICLE */
+   showLeaderChoiceModal, FTUE_SCRIPTS */
 
-// Progression (T1.10.2 — extracted):
-/* global setChapter, currentChapter:writable, chapter2Unlocked,
-   chapter3Unlocked, chapter4Unlocked, BOSSES, CHAPTERS,
+// Progression (residual legacy-owned):
+/* global currentChapter:writable, chapter2Unlocked,
+   chapter3Unlocked, chapter4Unlocked, BOSSES,
    activeModifiers, MODIFIERS */
 
-// Grid (T1.10.3 — extracted):
-/* global grid:writable, SIZE, gridFillRatio, newPieces, knownDeadZones:writable,
+// Grid (residual legacy-owned):
+/* global grid:writable, SIZE, knownDeadZones:writable,
    chargedCells, bloomTokens, radiantCells, radiantAge,
-   groveAbsorbedByCell, STIHIYA_COLORS */
+   groveAbsorbedByCell */
 
 // Heroes (T1.10.4 — extracted):
 /* global HERO_DECK, HERO_ULT_COST_DEFAULT, getUltCost, computeSynergies,
@@ -183,27 +213,22 @@
    bloomTriggeredCount:writable, guaranteedRadiantRemaining:writable,
    umbraClearCounter:writable, umbraCarriedBonus:writable */
 
-// Damage channels (T1.10.5 — extracted):
-/* global applyOverflowConversion */
+// Stagger loop (residual legacy-owned):
+/* global bossState,
+   _phase5StartingPressureBonus:writable */
 
-// Stagger loop (T1.10.6 — extracted):
-/* global bossState, BOSS_STATE_ACTIVE, addPressure, resetStaggerState,
-   _phase5StartingPressureBonus:writable, _getPhaseGateHP */
-
-// Bosses (T1.10.7 — extracted):
+// Bosses (residual legacy-owned):
 /* global currentBoss:writable, currentBossIdx:writable, selectedBossIdx:writable,
-   bossHP:writable, bossMaxHP:writable, BOSS_ARCHETYPES, ARMORED_SHIELD_COUNT,
-   ASSETS, applyBossEmblems, resetBossVoiceFlags, maybeFireBossVoiceIntro,
-   maybeFireBossVoiceMidfight, maybeFireBossVoiceDeath,
+   bossHP:writable, bossMaxHP:writable,
+   ASSETS,
    _resetPyredrakeState, _resetAbyssalTyrantState,
    _resetGrovewardenState, _resetSolarPhoenixState,
    _resetCryptLichState, initChapter2Archetype, initChapter3Boss,
    _ch3HasDebuff, _ch3HasSeal, _ch3TwilightMult, ESSENCE_EMOJI */
 
-// Reactivity (T1.10.8 — extracted):
-/* global _resetReactivityState, _resetPhase6ArchetypeState,
-   maybePhaseTransition, applyBossSignatureDamage, BOSS_PHASES,
-   battlePhasesTriggered:writable, clearVoidfangTints */
+// Reactivity (residual legacy-owned):
+/* global _resetPhase6ArchetypeState,
+   battlePhasesTriggered:writable */
 
 // Battle state writable globals OWNED here in spirit (canonical post-T1.12):
 /* global hp:writable, shieldCount:writable, gameEnded:writable,
@@ -247,9 +272,9 @@
 /* global trackProfileBattlePlayed, trackProfileDamage, awardPostBattleXP,
    logBattleEvent, battleEventLog:writable */
 
-// UI rendering (T1.11) — `showScreen` and `goToMenu` already provided as
-// readonly globals via eslint.config.js (legacy single-HTML surface):
-/* global showBossIntelOverlay, showDeathFlashback,
+// UI rendering (residual legacy-owned) — `showScreen` and `goToMenu` already
+// provided as readonly globals via eslint.config.js (legacy single-HTML surface):
+/* global showDeathFlashback,
    maybeShowBattleRetry, _showDefeatModalBody, injectMenuButton,
    vDecorateVictoryModal, _incrementConsecutiveBattleLosses,
    maybeShowConsecutiveLossPinch, returnToMenuFromBattle,

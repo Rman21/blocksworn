@@ -87,31 +87,32 @@
 // 2026-05-11 — Roman: pure-relocation discipline. No "improvements". Nothing
 // new. Comments above this line replicate legacy intent.
 
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import {
+  CHANNEL_VOID_TICK_PCT, CHANNEL_GRID_SATURATION_THRESHOLD,
+  CHANNEL_GRID_SATURATION_DMG, applyChannelDamage,
+} from './damage-channels.js';
+import { addPressure, PRESSURE_GAIN } from './stagger-loop.js';
+import { _stormBlizzardFreezes, _stormEarthquakeLocks } from './bosses.js';
+import { _grovewardenRootBindCells } from '../ui/archetype-ticks.js';
+import { shroudTick } from './reactivity-events.js';
+import { vHaptic } from '../feel/haptics.js';
+import { vPlayLineClearBurst } from '../feel/animations.js';
 import { log } from '../services/logger.js';
 
-// Constants + RNG-tray helper (T1.10.5 / data-consolidation territory):
+// Residual legacy-owned tokens:
 /* global SIZE, MAX_HP, SHAPES, weightedStihiya, sleep */
-// v2.1 P1 channel damage interop (T1.10.5):
-/* global CHANNEL_VOID_TICK_PCT, CHANNEL_GRID_SATURATION_THRESHOLD,
-   CHANNEL_GRID_SATURATION_DMG, applyChannelDamage */
-// Stagger-loop interop (T1.10.6):
-/* global addPressure, PRESSURE_GAIN */
-// Boss blocker state (T1.10.8 reactivity-events):
-/* global _grovewardenRootBindCells, _stormBlizzardFreezes,
-   _stormEarthquakeLocks, permanentFrozenCells, engineerLockedCells,
+/* global permanentFrozenCells, engineerLockedCells,
    engineerElectrifiedRow, engineerElectrifiedRows,
    engineerElectrifiedTurns, _ch3BossId, _ch3State, _ch3HasDebuff,
    _ch3HasSeal */
-// Battle state read/write (T1.10.7 bosses + T1.10.9 battle):
-/* global HERO_DECK, currentBoss, shroudTick, vPlayLineClearBurst,
+/* global HERO_DECK, currentBoss,
    playCellPlacement, maybeMarkRadiant, bloomTokens, consumeBloomEarly,
    trackMissionEvent, showDefeatModal, render, flashStateBanner, flashText,
-   vibrate, vHaptic */
-// Cross-module writable state — legacy declared these at module scope
-// (line 40012 + 55525). Battle code reads/writes them; T1.10.9 wire-up will
-// flip canonical ownership into this module.
+   vibrate */
 /* global hp:writable, shieldCount:writable, battleDamageTaken:writable,
    gameEnded:writable, skipPlayerTurnsCount:writable */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 // ─── Module-private grid state ────────────────────────────────────────────
 // Legacy declared at file scope (line 40012):

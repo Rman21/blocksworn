@@ -23,19 +23,26 @@
 
 /* eslint-disable no-empty, no-unused-vars, no-redeclare */
 
+// T1.13.1 (2026-05-11): /* global */ → ES imports for resolved src/ exports.
+// Resolved → imports below. Unresolved (legacy-only) tokens documented in the
+// remaining /* global */ block — those modules still live in legacy until a
+// later cleanup pass.
+import { isFtueActive } from '../core/ftue-state.js';
+import { showScreen, goToSelect } from './router.js';
+import { startBossBattle } from '../core/battle.js';
+import { log } from '../services/logger.js';
+
 /* global vRenderTopbar, vRenderChapter, vRenderBossCard, vRenderSquadDock,
    vRenderWhatsNew, vRenderCosmicMemorial,
    renderBossProgression, renderChapterToggle, renderEssenceStrip,
    renderResourceBarHpMit,
-   gold, gems, document,
-   activeSquad, SQUAD_MAX, isFtueActive, seenDialogs,
-   playDialog, goToSelect, flashText, rebuildHeroDeck,
+   gold, gems,
+   activeSquad, SQUAD_MAX, seenDialogs,
+   playDialog, flashText, rebuildHeroDeck,
    bossesDefeated, chapterProgress, currentChapter,
-   BOSSES, selectedBossIdx, currentBossIdx,
-   startBossBattle, showScreen */
+   BOSSES, selectedBossIdx, currentBossIdx */
 /* global currentBossIdx:writable, bossesDefeated:writable, chapterProgress:writable */
-
-import { log } from '../services/logger.js';
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 // ─── renderResourceBar — gold + gem strip (legacy 24024-24032) ──────────────
 export function renderResourceBar() {

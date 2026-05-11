@@ -148,10 +148,21 @@
 // renaming would violate byte-perfect). The `:writable` annotations match
 // every mutation site flagged by lint.
 /* eslint-disable no-empty, no-unused-vars */
+
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import {
+  PRESSURE_MAX, PRESSURE_GAIN, BOSS_STATE_STAGGER,
+  addPressure, extendStaggerState,
+} from './stagger-loop.js';
+import { isHeroMythic } from './progression.js';
+import { STIHIYA_COLORS } from '../data/elements.js';
+import { speakNarrator } from '../feel/narrator.js';
+import { vHaptic } from '../feel/haptics.js';
+import { logEvent } from '../services/analytics.js';
+
 /* global
   HERO_DECK,
-  PRESSURE_MAX, PRESSURE_GAIN, addPressure, extendStaggerState, bossState,
-  BOSS_STATE_STAGGER, _firePhase3Hook, _registerPhase3Hook, isHeroMythic,
+  bossState, _firePhase3Hook, _registerPhase3Hook,
   hypnotistTendrilHeroId, hypnotistTendrilTurnsLeft,
   abyssalCrushSpireHeroId, abyssalCrushSpireTurnsLeft,
   frenzyDevouredHeroId, frenzyDevouredTurnsLeft,
@@ -160,7 +171,7 @@
   _ch3HasSeal, _ch3HasDebuff, _ch3BossId, _ch3State,
   ULT_THRESHOLD, currentUltThreshold,
   SIZE, MAX_HP, MAX_SHIELD, maxShieldBonus,
-  STIHIYA_COLORS, MOTIFS_ENABLED, EMBER_CHARGED_CAP,
+  MOTIFS_ENABLED, EMBER_CHARGED_CAP,
   EMBER_ULT_CHARGED_BONUS, EMBERHAND_BLOOM_TURNS,
   CRYOMIND_WEAVE_TURNS, FROST_CHAIN_CAP, GROVE_REVENGE_THRESHOLD,
   KEYCRYPT_DEEP_BEAT_TURNS, LUMENWIND_HALO_TURNS,
@@ -182,13 +193,14 @@
   flashRacePassiveOnce,
   groveRevengeFired, groveTotalAbsorbed,
   rhythmSectionActive,
-  dealDamage, sleep, vibrate, vHaptic, render, renderChargedVisuals,
+  dealDamage, sleep, vibrate, render, renderChargedVisuals,
   renderHeroCards, renderHP, flashText,
   flashStateBanner, flashHero, markFired, playULTReady, playSFX,
-  maybeChronoBeat, logBattleEvent, logEvent, trackMissionEvent,
-  speakNarrator, getHeroStats, _t2Bonus, _t2BonusInDeck,
+  maybeChronoBeat, logBattleEvent, trackMissionEvent,
+  getHeroStats, _t2Bonus, _t2BonusInDeck,
   showDefeatModal
 */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 /* global
   grid:writable, hp:writable, currentMaxHP:writable, shieldCount:writable,
   attackCountdown:writable, gameEnded:writable, bossHP:writable,
@@ -274,7 +286,7 @@ import {
   HERO_TIER_ABILITIES,
 } from '../data/heroes.js';
 import { BALANCE } from '../data/balance.js';
-import { storage } from '../services/storage.js';
+import * as storage from '../services/storage.js';
 import { log } from '../services/logger.js';
 
 // HERO_TIER_ABILITIES is sacred per CLAUDE.md §2.1 — re-exported here for

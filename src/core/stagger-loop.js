@@ -156,45 +156,40 @@
 // no-empty must be relaxed because legacy uses `} catch (e) {}` patterns
 // abundantly — preserving byte-perfect requires accepting them.
 /* eslint-disable no-empty, no-unused-vars */
-// Captain Mark / Mythic Captain Stagger trigger threshold (heroes.js T1.10.4):
-/* global getStaggerTriggerThreshold */
-// Boss signature damage helper + tier table (damage-channels.js T1.10.5):
-/* global _getBossSignatureTier, CHANNEL_SIGNATURE_DMG, applyChannelDamage */
-// AEGIS PROTOCOL EOT tick (heroes.js T1.10.4 — T3 Tank ULT window):
-/* global tickAegisProtocol */
-// Reactivity Events (v2.1 P4 — T1.10.8 territory) read by addPressure +
-// tickStaggerState (boss debuff multipliers + duration counters):
+
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import { getStaggerTriggerThreshold, HERO_ROSTER, tickAegisProtocol } from './heroes.js';
+import { _getBossSignatureTier, CHANNEL_SIGNATURE_DMG, applyChannelDamage } from './damage-channels.js';
+import { getHeroLevel, saveProgress } from './progression.js';
+import { STIHIYAS } from '../data/elements.js';
+import { isFtueActive } from './ftue-state.js';
+import { speakNarrator } from '../feel/narrator.js';
+import { logEvent } from '../services/analytics.js';
+import { log } from '../services/logger.js';
+
+// Reactivity Events (residual legacy-owned):
 /* global pressureGainMult, bossStaggerImmuneTurns:writable,
    bossStealthTurns:writable, bossBackstabChainTurns:writable,
    bossFireAuraActive, bossFireAuraDmg, squadSilencedTurns:writable */
-// Boss + battle context (T1.10.7 / T1.10.9 territory):
+// Boss + battle context (residual legacy-owned):
 /* global currentBoss, currentChapter, currentBossIdx, _isTowerBattle,
    bossHP, bossMaxHP, placementCount */
-// Battle-state writable globals — overflow conversion grants shields,
-// Recovery-exit revenge damage flows through applyChannelDamage which
-// touches hp / shieldCount internally; here we only mutate shieldCount:
 /* global shieldCount:writable */
-// Heroes / progression / tower references (T1.10.4 / T1.10.2 territory):
-/* global HERO_DECK, HERO_ROSTER, activeSquad, heroUpgrades, getHeroLevel,
+// Heroes / tower references (residual legacy-owned):
+/* global HERO_DECK, activeSquad, heroUpgrades,
    ultCharges, currentUltThreshold, ULT_THRESHOLD, essences, towerState,
-   addTowerPoints, saveTowerState, saveProgress, getSquadMitigation */
-// Sacred constants (T1.07 data — referenced by overflow + estimators):
-/* global STIHIYAS, MAX_SHIELD */
-// FTUE intro gate refs (legacy 24061+; T1.10.1 owns isFtueActive — the
-// dialog map + seenDialogs Set lives in legacy until a future FTUE
-// follow-up sub-task):
-/* global isFtueActive, seenDialogs, playDialog */
-// Tower-battle-mode overflow ratio override (legacy line 29226 — set by
-// v2.1 P5 PR #5.C; reactivity-events / tower territory):
+   addTowerPoints, saveTowerState, getSquadMitigation */
+// Sacred constants (residual legacy-owned):
+/* global MAX_SHIELD */
+// FTUE dialog (residual legacy-owned):
+/* global seenDialogs, playDialog */
+// Tower overflow ratio override (residual legacy-owned):
 /* global OVERFLOW_TO_TOWER_BATTLE_TOWER */
-// Phase 3 hook bus (heroes.js T1.10.4 — onStaggerEnter / onStaggerExit
-// fire from state transitions):
+// Phase 3 hook bus (residual legacy-owned):
 /* global _firePhase3Hook */
-// Feel / UI / analytics (T1.09 + T1.11):
-/* global flashText, flashStateBanner, vibrate, speakNarrator, renderHP,
-   renderULTBar, logEvent */
-
-import { log } from '../services/logger.js';
+// Feel / UI (residual legacy-owned):
+/* global flashText, flashStateBanner, vibrate, renderHP, renderULTBar */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // COMBAT v2.1 PHASE 2 — STAGGER LOOP CORE CONSTANTS

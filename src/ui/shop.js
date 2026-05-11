@@ -38,10 +38,16 @@
 //
 // 2026-05-11 — Roman: pure-relocation discipline.
 
-/* eslint-disable no-empty, no-unused-vars, no-redeclare */
+/* eslint-disable no-empty, no-unused-vars */
 
-/* global document, gold, gems, isFtueActive, flashText, showScreen,
-   logEvent, EVT, _hoursSinceFirstLaunch, _daysSinceFirstLaunch,
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import { isFtueActive } from '../core/ftue-state.js';
+import { showScreen } from './router.js';
+import { logEvent, EVT } from '../services/analytics.js';
+import { MONETIZATION, GEM_PACKS } from '../data/monetization-config.js';
+
+/* global gold, gems, flashText,
+   _hoursSinceFirstLaunch, _daysSinceFirstLaunch,
    _isShopLocked, _shopLockReason, SHOP_UNLOCK_MIN_HOURS,
    _isFirstShopVisit, _grantWelcomeGiftIfNeeded, _showShopWelcomeModal,
    _renderWelcomeGiftBannerIfPending,
@@ -50,7 +56,7 @@
    PACK_PREMIUM_GOLD_BONUS, PACK_PREMIUM_ESSENCE_BONUS,
    PACK_ULTIMATE_GEMS_COST, PACK_ULTIMATE_GOLD_BONUS,
    PACK_ULTIMATE_ESSENCE_BONUS, PACK_PITY_THRESHOLD,
-   GOLD_TO_GEMS_COST, GOLD_TO_GEMS_AMOUNT, MONETIZATION,
+   GOLD_TO_GEMS_COST, GOLD_TO_GEMS_AMOUNT,
    SQUAD_POWER_T2, SQUAD_POWER_CARDS, SQUAD_POWER_ESSENCE_PER,
    SQUAD_POWER_GOLD, SQUAD_POWER_USD, SQUAD_POWER_GEMS,
    RAPID_ASCENSION_T2, RAPID_ASCENSION_T3, RAPID_ASCENSION_CARDS,
@@ -64,7 +70,7 @@
    STARTER_PACK_T2_STONES, STARTER_PACK_GOLD,
    SEASON_PASS_SUB_PRICE_USD, SEASON_PASS_SUB_GEMS_BONUS,
    TOWER_CLIMBER_PACK_CONTENTS, TOWER_CLIMBER_PACK_USD,
-   GEM_PACKS, COSMETICS_CATALOG,
+   COSMETICS_CATALOG,
    _PACK_RACE_LABELS, _PACK_RACE_COLORS,
    _isFirstPurchaseDone, _isTowerClimberPackVisible,
    _towerClimberPackHoursRemaining, _isMinimalShopMode,
@@ -81,6 +87,7 @@
    _getPurchasedRaceBundles, getEndgameKitEligibility,
    _isStarterPackEligible, _isRaceF2PUnlocked,
    _goldToGemsAvailable, _goldToGemsCooldownText */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 import { log } from '../services/logger.js';
 

@@ -23,14 +23,16 @@
 // are preserved verbatim — they reference legacy globals (claimMissionReward /
 // claimWeeklyMissionReward) which T1.12 will surface via setupListeners().
 
-/* eslint-disable no-redeclare */
 
-/* global document, loginStreakState, dailyMissionsState, weeklyMissionsState,
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import { isFtueActive } from '../core/ftue-state.js';
+import { showScreen } from './router.js';
+
+/* global loginStreakState, dailyMissionsState, weeklyMissionsState,
    LOGIN_STREAK_REWARDS, showToast,
    claimLoginStreakReward, checkAndRefreshDailyMissions,
-   checkAndRefreshWeeklyMissions, checkLoginStreak, showScreen */
-
-import { isFtueActive } from '../core/ftue-state.js';
+   checkAndRefreshWeeklyMissions, checkLoginStreak */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 // ─── goToDailies — nav entry (legacy 26609-26623) ───────────────────────────
 export function goToDailies() {

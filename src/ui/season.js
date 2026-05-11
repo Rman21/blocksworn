@@ -25,18 +25,21 @@
 //
 // 2026-05-11 — Roman: pure-relocation discipline.
 
-/* eslint-disable no-empty, no-unused-vars, no-redeclare */
+/* eslint-disable no-empty, no-unused-vars */
 
-/* global document, showToast, showScreen,
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import { isFtueActive } from '../core/ftue-state.js';
+import { showScreen } from './router.js';
+import { log } from '../services/logger.js';
+
+/* global showToast,
    checkSeasonRotation, seasonState, seasonPassSub,
    getCurrentSeasonTier, getSeasonTierProgress, getTotalXPForTier,
    SEASON_TIER_COUNT, SEASON_LENGTH_DAYS, SEASON_PREMIUM_COST,
    SEASON_PASS_SUB_PRICE_USD, SEASON_PASS_SUB_GEMS_BONUS,
    SEASON_REWARDS, _isSeasonPassActive, _seasonPassDaysRemaining,
    _seasonPassRenewalDateText */
-
-import { isFtueActive } from '../core/ftue-state.js';
-import { log } from '../services/logger.js';
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 // ─── goToSeason — nav entry (legacy 37948-37962) ────────────────────────────
 export function goToSeason() {

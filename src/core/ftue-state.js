@@ -57,19 +57,23 @@
 // 2026-05-11 — Roman: pure-relocation discipline. No "improvements". Nothing
 // new. Comments above this line replicate legacy intent.
 
-/* global ASSETS, playDialogScript, showLeaderChoiceModal,
-   revealHero, flashText, vibrate, resetBossVoiceFlags,
-   _dialogDeferredQueue, _chronoActive, _hideChronoBeat, location */
-/* global _pendingDialogRequest:writable, dialogActive:writable, dialogClickLock:writable */
-
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
 import {
   FTUE_BEATS,
   FTUE_TRANSITIONS,
   FTUE_TRANSITIONS_FORCE,
   FTUE_SCRIPTS,
 } from '../data/ftue-scripts.js';
+import { resetBossVoiceFlags } from './bosses.js';
 import * as storage from '../services/storage.js';
 import { log } from '../services/logger.js';
+
+// Residual legacy-owned tokens:
+/* global ASSETS, playDialogScript, showLeaderChoiceModal,
+   revealHero, flashText, vibrate,
+   _dialogDeferredQueue, _chronoActive, _hideChronoBeat, location */
+/* global _pendingDialogRequest:writable, dialogActive:writable, dialogClickLock:writable */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 // ─── Module-private state ──────────────────────────────────────────────────
 // Legacy declared `let ftueBeat = 'not_started'` at file scope (line 24061).
@@ -311,6 +315,11 @@ export function resetFtue() { ftueBeat = 'not_started'; saveFtueToStorage(); loc
 //                startChronicleFtueBattle / finalizeFtue currently live in
 //                legacy. The dispatcher above calls them as ambient globals;
 //                lint declares them below.
+// T1.13.1: FTUE battle launchers + finalizer live in src/core/battle.js.
+// Circular import (battle.js imports isFtueActive/ftueIs from this module)
+// is safe because both references resolve inside function bodies, not at
+// module init.
+// (kept as /* global */ to avoid eager imports during ftue-state module load)
 /* global startPyredrakeFtueBattle, startGruntFtueBattle,
    startChronicleFtueBattle, finalizeFtue */
 

@@ -160,36 +160,42 @@
 // these up as explicit imports). All accessed defensively (typeof checks
 // or try/catch) per legacy semantics.
 
-// Feel layer (T1.09):
-/* global flashText, flashStateBanner, vibrate, hitBoss, vHaptic,
-   render, renderBossHP, updateBossHpUI */
-// DOM browser globals (Node-tests load this module without jsdom — guard above):
-/* global getComputedStyle */
-// Boss state (T1.10.7):
-/* global currentBoss, bossHP:writable, bossMaxHP, currentChapter, BOSSES,
-   BOSS_ARCHETYPES, ARCHETYPE_MATCHUP, BOSS_TTK_TARGETS, getCurrentBossPhase */
-// Grid (T1.10.3):
-/* global grid, SIZE, chargedCells, engineerLockedCells */
-// Engineer hero state (T1.10.4):
-/* global engineerElectrifiedRow:writable, engineerElectrifiedTurns:writable */
-// Damage channels (T1.10.5):
-/* global applyChannelDamage */
-// Stagger-loop & battle (T1.10.6 / T1.10.9):
-/* global bossAttack, bossAttackDmgMult:writable, attackCountdown:writable,
-   currentFloorId, _isTowerBattle, _phase5IsReactivitySuppressed,
-   isFtueActive, seenDialogs, playDialog, DIALOGS, placementCount */
-// Heroes (T1.10.4):
-/* global HERO_DECK, TIER_DAMAGE_MULT, heroUpgrades, isHeroMythic */
-// Analytics + logging (T1.11):
-/* global logEvent, logBattleEvent */
-
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
 import {
   PHASE_GATE_P1_TO_P2,
   PHASE_GATE_P2_TO_P3,
   REACTIVITY_TELEGRAPH_MS,
   REACTIVITY_BANNER_DURATION_MS,
+  BOSS_ARCHETYPES, ARCHETYPE_MATCHUP, BOSS_TTK_TARGETS, getCurrentBossPhase,
 } from './bosses.js';
+import { applyChannelDamage } from './damage-channels.js';
+import { bossAttack } from './battle.js';
+import { isFtueActive } from './ftue-state.js';
+import { isHeroMythic } from './progression.js';
+import { vHaptic } from '../feel/haptics.js';
+import { logEvent } from '../services/analytics.js';
 import { log } from '../services/logger.js';
+
+// Feel layer (residual legacy-owned):
+/* global flashText, flashStateBanner, vibrate, hitBoss,
+   render, renderBossHP, updateBossHpUI */
+// DOM browser globals:
+/* global getComputedStyle */
+// Boss state (residual legacy-owned):
+/* global currentBoss, bossHP:writable, bossMaxHP, currentChapter, BOSSES */
+// Grid (residual legacy-owned):
+/* global grid, SIZE, chargedCells, engineerLockedCells */
+// Engineer hero state (residual legacy-owned):
+/* global engineerElectrifiedRow:writable, engineerElectrifiedTurns:writable */
+// Stagger-loop & battle (residual legacy-owned):
+/* global bossAttackDmgMult:writable, attackCountdown:writable,
+   currentFloorId, _isTowerBattle, _phase5IsReactivitySuppressed,
+   seenDialogs, playDialog, DIALOGS, placementCount */
+// Heroes (residual legacy-owned):
+/* global HERO_DECK, TIER_DAMAGE_MULT, heroUpgrades */
+// Analytics (residual legacy-owned):
+/* global logBattleEvent */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 // Re-export the sacred phase-gate + telegraph constants so legacy bare
 // identifier reads `REACTIVITY_TELEGRAPH_MS` etc continue to resolve via

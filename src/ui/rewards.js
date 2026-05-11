@@ -53,24 +53,38 @@
 
 /* eslint-disable no-empty, no-unused-vars, no-redeclare */
 
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import { isFtueActive, advanceFtue, FTUE_PYREDRAKE_ARTIFACT, FTUE_GRUNT_ARTIFACT } from '../core/ftue-state.js';
+import {
+  hasCompletedChapter1, hasCompletedChapter, computeBattleStars,
+  isBossFirstCleared, markBossFirstCleared, recordBossStars,
+  markChapterComplete, recordFloorCleared, saveProgress,
+} from '../core/progression.js';
+import { clearVoidfangTints, VOIDFANG_DEFEATED_KEY } from '../core/reactivity-events.js';
+import { getEffectiveBossStats, showVictoryModal, showDefeatModal } from '../core/battle.js';
+import { renderResourceBar } from './menu.js';
+import { STIHIYAS, STIHIYA_COLORS } from '../data/elements.js';
+import { BALANCE } from '../data/balance.js';
+import { vPlayBossDieFx, vCleanupBossDeathFx } from '../feel/animations.js';
+import { logEvent, EVT } from '../services/analytics.js';
+import { log } from '../services/logger.js';
+
 /* global currentBoss, currentBossIdx, currentChapter, currentFloorId,
    bossesDefeated, bossHP, bossMaxHP, bossArchetype, revivesRemaining,
-   chapterProgress, BOSSES, BOSS_REWARD, STIHIYAS, STIHIYA_COLORS,
-   GOLD_PER_WIN, MAX_HP, BALANCE, DUNGEON_FLOORS, FLOOR_REWARDS,
+   chapterProgress, BOSSES, BOSS_REWARD,
+   GOLD_PER_WIN, MAX_HP, DUNGEON_FLOORS, FLOOR_REWARDS,
    RACE_PURE_CHALLENGES, POST_FTUE_BOSS_REWARDS,
-   FTUE_PYREDRAKE_ARTIFACT, FTUE_GRUNT_ARTIFACT,
    HERO_ROSTER, activeSquad, essences, gold,
    ftueBeat, _isTowerBattle, _currentRacePureRace,
    plunderActive, plunderEmberCounter, racePureCleared,
-   seenDialogs, DIALOG_LINES, VOIDFANG_DEFEATED_KEY, voidfangDefeated,
-   battleDamageTaken, hasCompletedChapter1, hasCompletedChapter,
+   seenDialogs, DIALOG_LINES, voidfangDefeated,
+   battleDamageTaken,
    getRewardMultiplier, getBossHeroReward, getBossDialogPrefix,
-   computeBattleStars, isBossFirstCleared, markBossFirstCleared,
-   recordBossStars, markChapterComplete, showChapterCompleteCelebration,
-   recordFloorCleared, applyReward, applyBossDefeatProgression,
+   showChapterCompleteCelebration,
+   applyReward, applyBossDefeatProgression,
    addArtifact, addGold, awardWinGold, addHeroFragments, addGems,
    canCraftHero, craftHero, revealHero, dropRandomHeroCards,
-   maybePhoenixRevive, getEffectiveBossStats, grantPostFtueHeroInstantly,
+   maybePhoenixRevive, grantPostFtueHeroInstantly,
    markRacePureCleared, rollBossArtifactDrop, rollBossArtifactDropForFloor,
    maybeFireOfferTrigger, retractStihiyaFocusOnVictory,
    awardPostBattleXP, trackProfileBattleWon, _pwaIncrementBattleCount,
@@ -79,20 +93,17 @@
    _phase6GrantBossDefeatHeroCard, _phase7HandleBossDefeatDrops,
    _phase10HandleFlameItselfDefeat,
    onTowerFloorClear, updateTowerNavButton,
-   vPlayBossDieFx, vCleanupBossDeathFx, playVictory, duckMusic,
+   playVictory, duckMusic,
    playHeroUnlock, playContextMusic,
-   flashText, vibrate, renderBossHP, renderResourceBar, renderHP,
-   showVictoryModal, showDefeatModal, document,
-   sleep, setTimeout,
-   logEvent, EVT, trackMissionEvent, playDialog, advanceFtue, saveProgress,
-   addSeasonXP, addGold as _addGoldUnused, saveGoldToStorage,
-   localStorage, isFtueActive, clearVoidfangTints */
+   flashText, vibrate, renderBossHP, renderHP,
+   sleep,
+   trackMissionEvent, playDialog,
+   addSeasonXP, saveGoldToStorage */
 /* global bossHP:writable, gameEnded:writable, revivesRemaining:writable,
    bossesDefeated:writable, chapterProgress:writable,
    essences:writable, gold:writable,
    _currentRacePureRace:writable, voidfangDefeated:writable */
-
-import { log } from '../services/logger.js';
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 
 // ─── _lastReward — victory-modal scratch struct (legacy 57942-57948) ────────
 // Populated by onBossDefeated, read by showVictoryModal. Exported so legacy

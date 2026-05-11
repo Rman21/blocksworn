@@ -83,11 +83,12 @@ import {
   _tickPyredrake, _tickAbyssalTyrant, _tickGrovewarden, _tickSolarPhoenix,
   _tickCryptLich,
 } from './archetype-ticks.js';
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+import { _stormBlizzardFreezes, _stormEarthquakeLocks } from '../core/bosses.js';
 
 /* global currentBoss, currentChapter, bossHP, bossMaxHP, bossAttackDmgMult,
    bossArchetype,
    grid, SIZE, hp, shieldCount, battleDamageTaken, gameEnded,
-   _stormBlizzardFreezes, _stormEarthquakeLocks,
    _p6SoulDrinkerState, _p6SoulDrinkerLastPhase,
    _p6StormcallerLastPhase, _p6ConfessionReaderLastPhase,
    _p6WitherLastPhase, _p6SealerLastPhase,

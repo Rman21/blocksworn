@@ -107,15 +107,17 @@
 // 2026-05-11 — Roman: pure-relocation discipline. No "improvements". Nothing
 // new. Comments above this line replicate legacy intent.
 
-/* global HERO_ROSTER, STARTER_HEROES, SQUAD_MAX,
+// T1.13.1: /* global */ → ES imports for resolved src/ exports.
+/* global SQUAD_MAX,
    heroFragments, getHeroFragments, saveHeroFragmentsToStorage,
-   saveGoldToStorage, renderResourceBar,
+   saveGoldToStorage,
    towerState, saveTowerState,
-   flashText, vibrate, renderSelect, closeFloorSelector,
-   currentScreen, applyBossEmblems,
-   logEvent, EVT, addSeasonXP, trackMissionEvent,
+   flashText, vibrate, closeFloorSelector,
+   currentScreen,
+   addSeasonXP, trackMissionEvent,
    isContentUnlocked,
    _maybeShowEndgameKitEligibilityCelebration */
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
 // The writable globals below are assigned by setChapter / loadProgress;
 // consumers live in legacy until T1.10.7 (BOSSES, applyBossEmblems) + T1.10.9
 // (artifact compat stubs) wire-up. ESLint v9 flags declare-but-unread writable
@@ -132,6 +134,11 @@
 
 import { BALANCE, TIER_COSTS } from '../data/balance.js';
 import { CHAPTERS } from '../data/chapters.js';
+import { HERO_ROSTER, STARTER_HEROES } from './heroes.js';
+import { applyBossEmblems } from './bosses.js';
+import { renderResourceBar } from '../ui/menu.js';
+import { renderSelect } from '../ui/select.js';
+import { logEvent, EVT } from '../services/analytics.js';
 import * as storage from '../services/storage.js';
 import { log } from '../services/logger.js';
 

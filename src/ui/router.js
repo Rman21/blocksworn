@@ -26,14 +26,28 @@
 // 2026-05-11 — Roman: pure-relocation discipline. No "improvements".
 // Comments above this line replicate legacy intent verbatim.
 
-/* eslint-disable no-empty, no-unused-vars, no-redeclare */
+/* eslint-disable no-empty, no-unused-vars */
+
+// T1.13.1 (2026-05-11): /* global */ → ES imports for resolved src/ exports.
+// router.js sits at the screen-dispatch core: imports renderMenu / renderSelect
+// / renderProfile (the named per-screen renderers, T1.11 modules) and the
+// shared FTUE / battle / clearVoidfangTints helpers. Circular imports with
+// menu.js (menu uses goToSelect/showScreen from this module) are intentional
+// and safe — all cross-references resolve through function bodies, not module
+// init.
+import { isFtueActive, ftueBlockNavIfActive } from '../core/ftue-state.js';
+import { renderMenu, renderResourceBar } from './menu.js';
+import { renderSelect } from './select.js';
+import { renderProfile } from './profile.js';
+import { clearVoidfangTints } from '../core/reactivity-events.js';
+import { log } from '../services/logger.js';
 
 /* global vRenderTopbar, vRenderChapter, vRenderBossCard, vRenderSquadDock,
-   vRenderWhatsNew, vRenderCosmicMemorial, renderResourceBar,
+   vRenderWhatsNew, vRenderCosmicMemorial,
    renderBossProgression, renderChapterToggle, renderEssenceStrip,
-   renderMenu, renderSelect, renderProfile, activateNavFor,
-   playContextMusic, document,
-   restorePreFloorModifiers, clearVoidfangTints,
+   activateNavFor,
+   playContextMusic,
+   restorePreFloorModifiers,
    checkAndRefreshDailyMissions, checkAndRefreshWeeklyMissions,
    checkLoginStreak, updateDailyButtonBadge,
    _maybeShowSeasonEndWarning, _maybeShowSeasonTransitionCinematic,
@@ -44,12 +58,10 @@
    _applyShopLockState, _maybeShowChapterCompletePopup,
    _maybeShowDailyPopup, maybeShowSquadMgmtEducation,
    maybeShowHeroUpgradeReadyEducation, flashText,
-   bossHP,
-   setTimeout, confirm */
+   bossHP, confirm */
 /* global currentScreen:writable, gameEnded:writable, _currentRacePureRace:writable */
-
-import { isFtueActive, ftueBlockNavIfActive } from '../core/ftue-state.js';
-import { log } from '../services/logger.js';
+// LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup
+// (except `confirm`, a browser builtin not configured in eslint env).
 
 // ─── showScreen — top-level screen dispatcher (legacy 66426-66471) ─────────
 export function showScreen(name) {
