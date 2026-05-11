@@ -9,7 +9,7 @@
 
 ### TASK-008 (T1.07) — Extract data constants into `src/data/`
 
-**Status:** TODO (READY — TASK-007 DONE; assignment ready for Game Dev Agent)
+**Status:** REVIEW (Game Dev Agent — 2026-05-11)
 **Priority:** HIGH
 **Phase:** 1 (Week 2-3, second code migration task)
 **Estimated complexity:** L (large by surface area — many constants; low risk per constant since pure relocation)
@@ -95,6 +95,36 @@ If you see any other constant that LOOKS like a sacred cow (combat formula coeff
 **Rollback plan:** `git revert <commit-sha>` — fully reversible; legacy untouched.
 
 **Time-box:** 60-90 min (inventory 15-20, relocate 30-45, verify 15-20).
+
+**Self-check (2026-05-11, Game Dev Agent):**
+- [x] 35 constants relocated (2 BALANCE/TIER_COSTS, 4 races, 2 elements, 1 CHAPTERS, 4 boss-scaling, 2 hero-data, 6 FTUE, 5 tower, 7 monetization, 1 V_HAPTICS + 1 vHaptic, 1 NARRATOR_LINES) — see commit body for per-file split
+- [x] Named exports + `Object.freeze()` on every top-level literal (legacy had Object.freeze in ~60% of cases; new files add it uniformly per spec)
+- [x] `TIER_COSTS_V18` consolidated → `TIER_COSTS = {1:1, 2:2, 3:3, 4:5}` in src/data/balance.js (legacy 3-tier `TIER_COSTS` had zero read callsites — dead since V18; commit body documents)
+- [x] **V_HAPTICS byte-identical** to legacy lines 66373-66383 (verified by side-by-side diff: tap:10, place:15, clear:25, hit:30, crit:[30,20,30], levelup:[20,30,40], rareDrop:[40,40,40], victory:[100,50,100,50,200], defeat:[200])
+- [x] **NARRATOR_LINES byte-identical** to legacy lines 66393-66403 (9 keys × 1 line each; punctuation, capitalisation, em-dash–free voice all preserved)
+- [x] **HERO_ULT_COST_BY_NEWROLE byte-identical**: warrior:80, mage:100, hunter:120, tank:80, captain:100 (lines 40024-40030)
+- [x] **GEM_PACKS price ladder byte-identical**: $0.99 / $4.99 / $9.99 (+10%) / $19.99 (+15%) / $49.99 (+20% MEGA) / $99.99 (+30% WHALE) (lines 22894-22901)
+- [x] **BOSS_TTK_TARGETS byte-identical**: tutorial:240, gatekeeper:360, mid_act:420, act_boss:480, chapter_finale:540 (lines 20251-20257)
+- [x] **EXPECTED_DPS_BY_CHAPTER byte-identical**: 1:30, 2:75, 3:165, 4:320, 5:460 (sacred per CLAUDE.md §2.1 TTK formula)
+- [x] No data const duplicated across modules
+- [x] `npm run test:smoke` → 2/2 pass
+- [x] `npm run test:visual` → 22/22 pass under 2%
+- [x] `npm run build` → 372 KB dist (368 KB CSS + 0.75 KB JS), 165 ms — identical to T1.06 (new modules tree-shaken; nothing imports them yet)
+- [x] `npm run lint` → 0 errors
+- [x] Legacy HTML byte-identical: `wc -c` = 21,480,494 ✅; SHA-256 = `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` ✅
+- [x] Commit landed: `[T1.07] Extract data constants to src/data/`
+
+**Замечено рядом (deferred to T1.10 / T1.18 / T1.20):**
+1. **HERO_ROSTER** (legacy line 21010, 25 entries) — each hero binds runtime function references (fire/ult/ultSignature/fireTierDelta/ultTierDelta). Per T1.07 Step E this is "intertwined with logic"; deferred to T1.10 / T1.11 when the fire/ult helpers themselves migrate.
+2. **BOSS_ARCHETYPES** (line 20142) and **ARCHETYPE_MATCHUP** (line 20159) — both declared as pure-literal `const` but then mutated by two later `Object.assign(...)` calls (lines 20179 + 20199) to fold in Ch3/4/5 Cosmic Ascension archetypes. Pure relocation would lose those merges. Deferred to T1.10 (will rewrite as flat frozen export).
+3. **STIHIYA_DESC** (line 60026) and **ROLE_DESC** (line 60033) — declared inside the info-modal builder function body, not top-level. Will migrate alongside the info modal logic in T1.10.
+4. **EFFECT_HANDLERS** (line 27404), **REACTIVITY_HANDLERS** (line 27676), **BOSS_PHASES** (line 27361), **IAP_PROVIDERS** (line 37820), **BACKEND_PROVIDERS** (line 35906), **COSMETICS** (line 44263 — IIFE-built), **HERO_MYTHIC_RUNTIME** (state object), and **HERO_BIOS** (line 68224) — all contain function references / live state. T1.10 territory.
+5. **Scalar shadows of MONETIZATION.\*** (`PACK_BIG_GEMS_COST`, `STARTER_PACK_USD`, `MEGA_BUFF_USD`, `TOWER_CLIMBER_PACK_*`, `RAPID_ASCENSION_*`, etc., lines 34276-34555 + 35545-35547) — these are one-line `const X = MONETIZATION.foo.bar;` reads; they have no value of their own and would just duplicate config. **T1.18** is the consolidation task; flagged there.
+6. **P7 segment configs** (WHALE_OFFERINGS, DOLPHIN_OFFERINGS, MINNOW_OFFERINGS, PRICING_TIERS, REGIONAL_PRICING, REAL_TO_INGAME_RATIOS, INGAME_CONVERSION, LOOT_BOX_RATES, FAIRNESS_STATEMENT, CONVERSION_PRESSURE_POINTS, TELEMETRY_EVENTS, PACING_DENSITY_SCHEDULE, CONCEPT_PHASE_REGISTRY, lines 45635-46916) — pure-literal blocks but tightly coupled to T1.20 P7 player-segment logic. Flagged for **T1.20**, not T1.07.
+7. **Season system** (SEASON_FREE_TRACK, SEASON_PREMIUM_TRACK, SEASON_XP, SEASON_CONFIG, SEASON_REWARDS, TOWER_UROBOROS_SEASONAL, LIMITED_TIME_TOWER_EVENTS, TOWER_SEASON_CONFIG, lines 45466+, 49853+) — large pure-literal blocks. Deferred to T1.10 to keep them with the season-state machine they pair with; can land as a standalone `src/data/season.js` then. Battle Pass tier formula (CLAUDE.md §2.4 `xp = 500 + tier × 150`) lives at lines 33330-33331 (`SEASON_TIER_XP_BASE = 500; SEASON_TIER_XP_STEP = 150`) — pure scalars, easy follow-up if CTO prefers a standalone `src/data/season.js` ahead of T1.10.
+8. **`TIER_COSTS` legacy dead code** (line 38279, `{1:1, 2:2, 3:3}`) — has zero read callsites; only the declaration remains. T1.10 will delete it alongside the legacy const block.
+
+**Files:** see commit `<sha>` for the new tree (`src/data/{balance,bosses,chapters,elements,ftue-scripts,heroes,monetization-config,races,tower}.js` + `src/feel/{haptics,narrator-lines}.js`).
 
 ---
 
