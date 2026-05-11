@@ -3,12 +3,13 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (3/9 sub-tasks done: T1.10.1 + T1.10.2 + T1.10.3)
-- **Overall progress:** ~28% (Phase 1 watershed — 33% of T1.10 done)
+- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (4/9 sub-tasks done)
+- **Overall progress:** ~30% (Phase 1 watershed — 44% of T1.10 done)
 - **Next milestone:** T1.10.9 final wire-up — new shell becomes primary
-- **Active sub-task:** T1.10.4 — Extract heroes.js (HERO_ROSTER + tier abilities + ULT + fire())
-- **Critical for T1.10.9:** localStorage migration shim allow-list = 8 keys (unchanged — T1.10.3 grid is ephemeral, no storage)
-- **Last updated:** 2026-05-11 by CTO (after T1.10.3 review)
+- **Active sub-task:** T1.10.5 — Extract damage-channels.js (v2.1 P1 SACRED: DEAD_ZONE / VOID / SIGNATURE / GRID_SATURATION)
+- **Critical for T1.10.9:** localStorage migration shim allow-list = 8 keys (unchanged after T1.10.3 grid + T1.10.4 heroes — both ephemeral / already-JSON storage)
+- **Cumulative core/ LoC:** ftue 475 + progression 1128 + grid 603 + heroes 3972 = **6178 LoC** in src/core/ so far
+- **Last updated:** 2026-05-11 by CTO (after T1.10.4 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)

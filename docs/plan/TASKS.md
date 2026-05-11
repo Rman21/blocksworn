@@ -208,8 +208,8 @@ auto-disappears in T1.10 when the rewiring lands:
 - [x] T1.10.1 — `ftue-state.js` — **DONE 2026-05-11** (commits `e12d27b`, `ec4e409`; 21 exports / 475 LoC; sacred FTUE_BEATS/TRANSITIONS preserved byte-perfect via import from T1.07)
 - [x] T1.10.2 — `progression.js` — **DONE 2026-05-11** (commits `981c136`, `3005c69`; 79 exports / 1128 LoC; TIER_COSTS sacred + one-Mythic + T2/T3/Mythic bonuses byte-perfect; 5 chapter-complete bare-string keys flagged for T1.10.9 shim)
 - [x] T1.10.3 — `grid.js` — **DONE 2026-05-11** (commits `73358d0`, `226fb7d`; 26 exports / 603 LoC; sacred combo-crit dominant-count + GRID_SATURATION + VOID_TICK 0.5%/cell byte-perfect; 0 new bare-string keys — grid is per-battle ephemeral; minor `placePiece` return-value polish flagged for T1.10.9 audit)
-- [x] T1.10.4 — `heroes.js` — **REVIEW 2026-05-11** (Game Dev Agent; commit `7196ec1`; 3,972 LoC / 25 HERO_ROSTER entries + 25 fire<Name> + 25 ultTwist<Name> + 10 fireDelta + 10 ultDelta + 5 tier-init dispatchers + fireHero dispatcher + ultRoleDispatch + 5 role appliers + Aegis Conductor + Squad Conductor — all byte-perfect from legacy; HERO_ULT_COST_BY_NEWROLE + HERO_TIER_ABILITIES imported from src/data/heroes.js T1.07 sacred; AEGIS_PROTOCOL_DURATION + MYTHIC_TANK_STAGGER_MULT + MYTHIC_CAPTAIN_THRESHOLDS unchanged; 0 new bare-string keys — HERO_TIERS_STORAGE_KEY already JSON-shape)
-- [ ] T1.10.5 — `damage-channels.js` (v2.1 P1)
+- [x] T1.10.4 — `heroes.js` — **DONE 2026-05-11** (commits `7196ec1`, `3725199`; **3,972 LoC** biggest sub-task; HERO_ROSTER 25/25 + 25 fire + 25 ultTwist + 10 fireDelta + 10 ultDelta + Aegis Conductor + Squad Conductor + 25/25 Mythic descriptors — all byte-perfect; ~600 LoC legacy dead code deferred to T1.10.9 audit; 0 new bare-string keys)
+- [ ] T1.10.5 — `damage-channels.js` (v2.1 P1) — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
 - [ ] T1.10.6 — `stagger-loop.js` (v2.1 P2)
 - [ ] T1.10.7 — `bosses.js`
 - [ ] T1.10.8 — `reactivity-events.js` (v2.1 P4)
