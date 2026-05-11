@@ -3,13 +3,13 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (4/9 sub-tasks done)
-- **Overall progress:** ~30% (Phase 1 watershed — 44% of T1.10 done)
+- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (5/9 sub-tasks done)
+- **Overall progress:** ~31% (Phase 1 watershed — 56% of T1.10 done)
 - **Next milestone:** T1.10.9 final wire-up — new shell becomes primary
-- **Active sub-task:** T1.10.5 — Extract damage-channels.js (v2.1 P1 SACRED: DEAD_ZONE / VOID / SIGNATURE / GRID_SATURATION)
-- **Critical for T1.10.9:** localStorage migration shim allow-list = 8 keys (unchanged after T1.10.3 grid + T1.10.4 heroes — both ephemeral / already-JSON storage)
-- **Cumulative core/ LoC:** ftue 475 + progression 1128 + grid 603 + heroes 3972 = **6178 LoC** in src/core/ so far
-- **Last updated:** 2026-05-11 by CTO (after T1.10.4 review)
+- **Active sub-task:** T1.10.6 — Extract stagger-loop.js (v2.1 P2 SACRED: Active/Stagger/Recovery state machine + Pressure meter)
+- **Critical for T1.10.9:** localStorage migration shim allow-list = 8 keys (T1.10.5 ephemeral, no change)
+- **Cumulative core/ LoC:** ftue 475 + progression 1128 + grid 603 + heroes 3972 + channels 457 = **6635 LoC** in src/core/ so far
+- **Last updated:** 2026-05-11 by CTO (after T1.10.5 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)

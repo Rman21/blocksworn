@@ -209,8 +209,8 @@ auto-disappears in T1.10 when the rewiring lands:
 - [x] T1.10.2 — `progression.js` — **DONE 2026-05-11** (commits `981c136`, `3005c69`; 79 exports / 1128 LoC; TIER_COSTS sacred + one-Mythic + T2/T3/Mythic bonuses byte-perfect; 5 chapter-complete bare-string keys flagged for T1.10.9 shim)
 - [x] T1.10.3 — `grid.js` — **DONE 2026-05-11** (commits `73358d0`, `226fb7d`; 26 exports / 603 LoC; sacred combo-crit dominant-count + GRID_SATURATION + VOID_TICK 0.5%/cell byte-perfect; 0 new bare-string keys — grid is per-battle ephemeral; minor `placePiece` return-value polish flagged for T1.10.9 audit)
 - [x] T1.10.4 — `heroes.js` — **DONE 2026-05-11** (commits `7196ec1`, `3725199`; **3,972 LoC** biggest sub-task; HERO_ROSTER 25/25 + 25 fire + 25 ultTwist + 10 fireDelta + 10 ultDelta + Aegis Conductor + Squad Conductor + 25/25 Mythic descriptors — all byte-perfect; ~600 LoC legacy dead code deferred to T1.10.9 audit; 0 new bare-string keys)
-- [x] T1.10.5 — `damage-channels.js` (v2.1 P1) — **DONE 2026-05-11** (code commit `31a3786`, DOCS follows; 457 LoC / 16 exports = 4 CH_* canonical names + 5 channel constants + 3 mitigation tables + 4 functions; SACRED Mitigation Matrix + 4-channel formulas + shield-absorption order byte-perfect; 0 new bare-string keys — channel math is per-battle ephemeral)
-- [ ] T1.10.6 — `stagger-loop.js` (v2.1 P2)
+- [x] T1.10.5 — `damage-channels.js` (v2.1 P1) — **DONE 2026-05-11** (commits `31a3786`, `cdf37df`; 457 LoC / 16 exports; SACRED v2.1 P1 Mitigation Matrix + 4 channel formulas + shield-absorption order byte-perfect; cross-boundary `getSquadMitigation`/`getHeroMitigationKey` belong in heroes.js — flagged for T1.10.9 audit)
+- [ ] T1.10.6 — `stagger-loop.js` (v2.1 P2) — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
 - [ ] T1.10.7 — `bosses.js`
 - [ ] T1.10.8 — `reactivity-events.js` (v2.1 P4)
 - [ ] T1.10.9 — `battle.js` + final wire (`index.html` → uses `src/main.js`; legacy demoted to read-only archive)
