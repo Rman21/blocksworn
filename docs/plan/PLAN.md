@@ -3,12 +3,12 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (2/9 sub-tasks done: T1.10.1 + T1.10.2)
-- **Overall progress:** ~27% (Phase 1 watershed task — 22% of T1.10 done)
+- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (3/9 sub-tasks done: T1.10.1 + T1.10.2 + T1.10.3)
+- **Overall progress:** ~28% (Phase 1 watershed — 33% of T1.10 done)
 - **Next milestone:** T1.10.9 final wire-up — new shell becomes primary
-- **Active sub-task:** T1.10.3 — Extract grid.js (board state, line clears, void cells)
-- **Critical for T1.10.9:** localStorage migration shim — 8 bare-string keys flagged so far (FTUE + 5 chapter-complete + intro/onboarding); grows as T1.10.3-T1.10.8 extract more
-- **Last updated:** 2026-05-11 by CTO (after T1.10.2 review)
+- **Active sub-task:** T1.10.4 — Extract heroes.js (HERO_ROSTER + tier abilities + ULT + fire())
+- **Critical for T1.10.9:** localStorage migration shim allow-list = 8 keys (unchanged — T1.10.3 grid is ephemeral, no storage)
+- **Last updated:** 2026-05-11 by CTO (after T1.10.3 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)

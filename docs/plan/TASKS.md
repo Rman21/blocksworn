@@ -207,8 +207,8 @@ auto-disappears in T1.10 when the rewiring lands:
 **Sub-task progress:**
 - [x] T1.10.1 — `ftue-state.js` — **DONE 2026-05-11** (commits `e12d27b`, `ec4e409`; 21 exports / 475 LoC; sacred FTUE_BEATS/TRANSITIONS preserved byte-perfect via import from T1.07)
 - [x] T1.10.2 — `progression.js` — **DONE 2026-05-11** (commits `981c136`, `3005c69`; 79 exports / 1128 LoC; TIER_COSTS sacred + one-Mythic + T2/T3/Mythic bonuses byte-perfect; 5 chapter-complete bare-string keys flagged for T1.10.9 shim)
-- [x] T1.10.3 — `grid.js` — **REVIEW 2026-05-11** (commit `73358d0`; 26 exports / 603 LoC; sacred combo crit dominant-count surfaced via countElementsInCells helper + v2.1 P1 GRID_SATURATION channel byte-perfect; 0 new bare-string keys — grid is per-battle ephemeral)
-- [ ] T1.10.4 — `heroes.js`
+- [x] T1.10.3 — `grid.js` — **DONE 2026-05-11** (commits `73358d0`, `226fb7d`; 26 exports / 603 LoC; sacred combo-crit dominant-count + GRID_SATURATION + VOID_TICK 0.5%/cell byte-perfect; 0 new bare-string keys — grid is per-battle ephemeral; minor `placePiece` return-value polish flagged for T1.10.9 audit)
+- [ ] T1.10.4 — `heroes.js` — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
 - [ ] T1.10.5 — `damage-channels.js` (v2.1 P1)
 - [ ] T1.10.6 — `stagger-loop.js` (v2.1 P2)
 - [ ] T1.10.7 — `bosses.js`
