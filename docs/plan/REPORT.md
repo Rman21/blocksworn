@@ -222,6 +222,55 @@ Not yet. Tester engagement first triggers at T1.05 completion (full CI green) �
 
 ---
 
+## REPORT-04: T1.04 Visual Baseline Review
+
+**Date:** 2026-05-11
+**Author:** CTO
+**Phase:** 1
+**Trigger:** TASK-004 submitted REVIEW with all AC met
+
+### Summary
+
+T1.04 passes cleanly. 22 baselines captured (11 screen/state combinations × chromium + mobile-chrome). 11M total, well under the 50MB cap. Legacy HTML byte-identical at 21,480,494. `npm run test:visual:baseline` produces all 22 reproducibly in ~12s.
+
+### Engineering discoveries worth flagging for future tasks
+
+Game Dev's investigation surfaced two **non-obvious legacy quirks** that will bite future state-seeders:
+
+1. **Save-version-gate IIFE (legacy ~18504):** the legacy HTML has a `_wipeAllBlocksworn` self-executing function that silently wipes ALL `blocksworn_*` localStorage keys at boot if `blocksworn_save_version` is missing or stale. Any future seeder MUST set `blocksworn_save_version='2'` FIRST, before any other key. Currently documented at the top of `setupState()` in `tests/helpers/game-state.js`. **Action:** when T1.10 ships full-gameplay seeders, this needs surfacing in `docs/agents/DEV_INSTRUCTION.md` (or a dedicated `docs/legacy-quirks.md`) so the next Dev doesn't rediscover the hard way.
+
+2. **COMBAT v2.1 P8 First Contact modal (legacy ~48266):** auto-fires 1200ms after menu paint if `blocksworn_p8_player_name` is unset. Caused mobile menu screenshots to capture the name-entry modal instead of the menu. Workaround: seed `blocksworn_p8_player_name='TESTER'`. T1.10 may want to expose this as a deliberate FTUE: P8 first-contact baseline state.
+
+These are valuable because they predict future migration pain. **CTO note:** during T1.06 (CSS migration) and T1.10 (logic extraction), the migrator MUST preserve both behaviors exactly. They are not Sacred Cows per CLAUDE.md §2 but they are functionally identity-bearing — losing them would be a regression.
+
+### Test infrastructure status after T1.04
+
+- ✅ Vite scaffold (T1.01)
+- ✅ CLAUDE.md (T1.02)
+- ✅ Playwright + smoke (T1.03) — chromium + mobile-chrome green locally; full 4-project CI ready via `test:smoke:full`
+- ✅ Visual baseline (T1.04) — 22 PNGs, ready for diff
+- ⏳ CI + visual regression diff (T1.05) — final Week 1 infra
+
+After T1.05 green, Week 1 phase gate met. T1.06 (CSS migration) can start.
+
+### Misc tooling note
+
+Game Dev widened `playwright.config.js` `testDir` from `./tests/smoke` to `./tests` so visual specs are discoverable. CI in T1.05 must keep this; npm scripts pin subpaths anyway.
+
+### Bug Testing Required
+
+Not yet. First Tester engagement deferred until T1.05 (CI green) — pre-T1.06 baseline smoke audit.
+
+### Tech debt items (continuing)
+
+Unchanged from REPORT-03:
+- 2 moderate npm transitive vulnerabilities → defer to T1.05
+- @playwright/test version drift discussion → T1.05
+- Legacy malformed nested comment → resolves naturally in T1.06+
+- `mobile/fresh-chronicle-intro.png` 2.06MB (3% over soft cap) → T1.05 can decide pngquant
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host

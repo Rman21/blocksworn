@@ -7,166 +7,225 @@
 
 ## GAME DEVELOPER
 
-### TASK-004 (T1.04) — Capture visual regression baseline
+### TASK-005 (T1.05) — Setup CI pipeline
 
-**Status:** REVIEW (Game Dev → awaiting CTO)
+**Status:** TODO (ready for assignment — TASK-004 DONE)
 **Priority:** HIGH
 **Phase:** 1
 **Created:** 2026-05-11
-**Started:** 2026-05-11
-**Completed:** 2026-05-11
 **Estimated complexity:** M
-**Depends on:** TASK-003 (DONE — Playwright + smoke infrastructure)
-
-**Implementation summary:**
-22 baseline PNGs captured across chromium (1280×720) + mobile-chrome (Pixel 7),
-covering 11 distinct screen/state combinations. `setupState(page, stateName)`
-added to `tests/helpers/game-state.js` with 6 seed strategies. New npm script
-`test:visual:baseline` runs the spec end-to-end (~12s wall time). `.gitattributes`
-created with `*.png binary`. playwright.config.js testDir widened from
-`./tests/smoke` → `./tests` so the visual spec is discovered (npm scripts pin
-subpaths). `tests/visual/baseline/` total: 11M (well under 50MB cap).
-
-**Files changed:**
-- `tests/visual/capture-baseline.spec.js` (new, 145 lines)
-- `tests/helpers/game-state.js` (extended, +90 lines `setupState()` + seed map)
-- `tests/visual/baseline/*.png` + `tests/visual/baseline/mobile/*.png` (22 files)
-- `.gitattributes` (new — `*.png binary`)
-- `package.json` (added `test:visual:baseline` script; updated stub note)
-- `playwright.config.js` (widened testDir to `./tests` so visual specs discoverable)
-
-**Commits:**
-- T1.04 code+baseline: `2c08bb2` — `[T1.04] Capture visual regression baseline (legacy HTML)`
-- DOCS (this update): `(pending second commit)`
-
-**Smoke tests:** ✅ `npm run test:smoke` 2/2 passing (chromium + mobile-chrome)
-**Visual baseline run:** ✅ 22/22 passing in ~12s
-**Build:** N/A (no src/ changes)
-**Lint:** N/A (stub)
-**Legacy HTML byte count:** ✅ 21,480,494 (sacred file untouched)
-
-**Self-check:**
-- [x] Minimum 10 unique screen/state combinations — **22** captured (11 screens × 2 projects)
-- [x] Screenshots stored in `tests/visual/baseline/<name>.png` (chromium) + `tests/visual/baseline/mobile/<name>.png` (mobile-chrome)
-- [x] Captured at chromium viewport (1280×720)
-- [x] mobile-chrome (Pixel 7) also captured — subfolder layout chosen (`baseline/mobile/<name>.png`), documented in spec header
-- [x] `.gitattributes` has `*.png binary` line
-- [x] `test:visual:baseline` npm script in `package.json`
-- [x] `setupState()` helper documented (one-comment-per-state explaining seed) + IIFE save-version-gate caveat
-- [x] Each baseline PNG within 5KB–2MB range (smallest 60KB ftue-chronicle, largest 2.06MB mobile/fresh-chronicle-intro)
-- [x] Total `tests/visual/baseline/` size 11M < 50MB
-- [x] Commit: `[T1.04] Capture visual regression baseline ...`
-- [x] DO NOT TOUCH: `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` — `wc -c` confirms 21,480,494 (unchanged)
-- [x] DO NOT TOUCH: `serveLegacyHtmlRaw` Vite plugin — unmodified
-- [x] DO NOT TOUCH: `site/` — unmodified
-- [x] No `tests/visual/regression.spec.js` created (T1.05 territory)
-- [x] No pixelmatch wired up (T1.05 territory)
-- [x] No new npm dependencies installed
-
-**Замечено рядом (NOT fixed, reported):**
-- `mobile/fresh-chronicle-intro.png` is 2.06MB (~3% over the 2MB soft cap noted in
-  acceptance criteria). The screen captures correctly; size is driven by the
-  large parchment-style background on a long mobile viewport. Suggested action:
-  T1.05 CI can decide to compress baselines via `pngquant` if total dir size
-  becomes a concern. Not a blocker.
-- `mobile-chrome` initially captured the COMBAT v2.1 P8 "First Contact" name-entry
-  modal instead of the menu on `'authenticated'` state — root cause is a 1200ms
-  deferred fire of `showFirstContactSequence` (legacy ~48266) that triggers
-  when `blocksworn_p8_player_name` is unset. Workaround: seed
-  `blocksworn_p8_player_name='TESTER'` in setupState. Suggested action: T1.10
-  may want to expose this as a deliberate baseline state (FTUE: P8 first-contact)
-  since it's a real player-facing moment.
-- Legacy save-version gate IIFE (`_wipeAllBlocksworn` at ~18504) silently wipes
-  every `blocksworn_*` key if `blocksworn_save_version` is missing/stale. Any
-  future test-state seeder needs to know about this. Documented at top of
-  `setupState()` but worth surfacing in DEV_INSTRUCTION.md or the T1.10 spec
-  when full-gameplay seeders land.
-- `playwright.config.js` testDir was `./tests/smoke` — widened to `./tests` so
-  visual specs are discoverable. T1.05 CI must keep this in mind when adding
-  `tests/visual/regression.spec.js` (no extra config needed).
-- FTUE chronicle/pyredrake baselines capture the *intro dialog overlay*, not
-  the post-dialog battle UI (since the dialog gates the battle start and
-  requires a user tap to advance). The dialog screen IS the player-facing
-  beat at that FTUE step, so it's a legitimate baseline — but if T1.06+ CSS
-  migration wants to verify the battle layout itself, a follow-up spec should
-  auto-advance the dialog and capture mid-fight.
-
-**Time:** ~90 min (15 min investigation, 30 min initial impl, 30 min debugging
-the save-version-gate / FTUE-blockNav issues, 15 min final verification)
+**Depends on:** TASK-003 (DONE), TASK-004 (DONE)
 
 **Files affected:**
-- `tests/visual/capture-baseline.spec.js` (new)
-- `tests/visual/baseline/*.png` (~10-30 new screenshots)
-- `tests/helpers/game-state.js` (extend with `setupState()` helper)
-- `.gitattributes` (new or update — PNG as binary)
-- `package.json` (new script `test:visual:baseline`)
+- `.github/workflows/ci.yml` (new)
+- `tests/visual/regression.spec.js` (new — diff vs baseline using pixelmatch)
+- `.husky/pre-commit` (new — lint + build)
+- `package.json` (replace `test:visual` and `lint` stubs with real scripts; add `lint:staged` config)
+- `eslint.config.js` (new — minimal flat config for ES modules)
+- Possibly `.eslintignore` or via flat config ignores
 
-**Goal:** Сделать screenshots всех major screens из legacy HTML — это становится reference для visual regression detection в T1.06+ (CSS migration), T1.10+ (logic extraction), T1.13 (final verify).
+**Goal:** GitHub Actions workflow that runs lint + build + unit + smoke + visual diff on every PR + push to main. CI must use `test:smoke:full` (4 projects — Linux runs WebKit fine). Pre-commit hook runs `lint` + `build`. CI green is THE phase gate criterion for proceeding to T1.06.
 
-**Context:** Per Execution Plan §11 + §3.1 "Test Infrastructure FIRST". Без baseline нет способа проверить что migration не сломала визуал. Baseline сделан ОДИН РАЗ против legacy HTML, потом intentional changes (T1.17 100-hearts → bar, etc.) обновляют specific screens.
+**Context:** Per Execution Plan §12 + §3.1 "Test Infrastructure FIRST". T1.05 closes Week 1 — after this, T1.06+ (code migration) starts with full safety net: any regression caught by CI before merge.
 
-**Detailed spec:** `docs/plan/00_EXECUTION_PLAN.md` §13 T1.04 (around lines ~1112-1186) + §11.1.
+**Detailed spec:** `docs/plan/00_EXECUTION_PLAN.md` §12 (CI Gates) + §13 T1.05 (around lines ~1189-1248).
 
-**What to do (high-level — full spec in Execution Plan):**
+**What to do:**
 
-1. Создать `tests/visual/capture-baseline.spec.js` per Execution Plan §13 T1.04 template:
-   - Loop через SCREENS array (menu, battle, shop, tower, season, profile, select, dailies, ftue-chronicle, ftue-pyredrake — minimum 10 entries)
-   - Для каждого: setup state → wait selector → wait 500ms (animations settle) → `page.screenshot({ fullPage: true })` → save to `tests/visual/baseline/<name>.png`
-2. Extend `tests/helpers/game-state.js` with `setupState(page, stateName)` helper:
-   - `'fresh'` → goto legacy HTML, default state
-   - `'authenticated'` → seed localStorage with completed FTUE + chapter 1 unlocked
-   - `'in-battle'` → seed authenticated + force load into a battle
-   - `'ch1-complete'` → seed with chapter 1 finished
-   - `'ftue-chronicle'`, `'ftue-pyredrake'` → seed FTUE at specific beat
-   
-   Use legacy HTML's known localStorage keys (grep `_legacy/_archive_v1/blocksworn_index_fixed.html` for `localStorage.setItem`, `localStorage.getItem` to find the actual keys). If a specific state cannot be reliably seeded (legacy code initialization order is fragile), **stub the state by setting just the minimal localStorage subset needed to reach the selector** and document why in the spec file.
-3. Capture for at minimum **chromium** project. Optionally mobile-chrome (Pixel 7 viewport). WebKit skipped per T1.03 host constraint (see CLOSED TASK-003 — webkit will run in CI T1.05).
-4. Create or update `.gitattributes` with `*.png binary` (prevents accidental text-diff confusion in git).
-5. Add npm script: `"test:visual:baseline": "playwright test tests/visual/capture-baseline.spec.js"`.
-6. Run `npm run test:visual:baseline` → generates ~10-30 PNGs in `tests/visual/baseline/`.
-7. Verify screenshots are reasonable (look at 2-3 manually if you can — e.g., `du -sh tests/visual/baseline/` and `ls -la`; if a screenshot is suspiciously tiny like <5KB or huge like >2MB, investigate — that's often a rendering bug, not an asset thing).
-8. Commit: `[T1.04] Capture visual regression baseline (legacy HTML, ~N screenshots, chromium + mobile-chrome)`.
+### A) Visual regression spec (`tests/visual/regression.spec.js`)
+
+Pixelmatch-based diff against `tests/visual/baseline/*.png` (and `mobile/*.png`):
+
+1. For each baseline file in `tests/visual/baseline/`:
+   - Replicate the `setupState()` + capture flow from `capture-baseline.spec.js`
+   - Save current screenshot to `tests/visual/current/<name>.png`
+   - Diff vs baseline using `pixelmatch`
+   - Compute pixel diff %:
+     - ≤2% → PASS
+     - 2-5% → log warning, still pass
+     - \>5% → FAIL, save diff image to `tests/visual/diff/<name>.png`
+2. Use the SAME `setupState` strategies as in `capture-baseline.spec.js` to ensure reproducibility.
+3. Helper: extract the screen list + setup keys to a shared `tests/visual/screens.js` (or inline both specs use the same array — but DRY preferred).
+4. Run for chromium + mobile-chrome locally (matching what was captured); CI will also run WebKit + mobile-safari but those projects have no baseline → either skip those projects in the visual spec via `test.skip(['webkit','mobile-safari'].includes(project))` OR document that visual regression only covers chromium projects (chromium is what we captured baselines for). **Choose:** skip approach is cleaner. Document the choice in the spec file header.
+
+### B) ESLint config (`eslint.config.js`)
+
+Minimal ES module flat config:
+```js
+import js from '@eslint/js';
+
+export default [
+  js.configs.recommended,
+  {
+    files: ['src/**/*.js', 'tests/**/*.js', 'playwright.config.js', 'vite.config.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        // browser globals only where we know src/ targets browser
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        localStorage: 'readonly',
+        console: 'readonly',
+        // node globals for config / tests
+        process: 'readonly',
+      },
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-console': 'off',  // we allow during scaffold phase; T1.10+ src/services/logger.js enforces
+    },
+  },
+  {
+    ignores: ['node_modules/**', 'dist/**', 'docs/_legacy/**', 'tests/visual/**', 'playwright-report/**', 'test-results/**', 'site/**'],
+  },
+];
+```
+
+Note: `eslint` is already in `devDependencies` from T1.01. May need `npm install -D @eslint/js` if `js.configs.recommended` isn't auto-shipped — verify and install if needed.
+
+### C) Husky pre-commit hook
+
+1. `npm install -D husky lint-staged`
+2. `npx husky init` — creates `.husky/` folder
+3. `.husky/pre-commit` content:
+   ```bash
+   #!/bin/sh
+   npm run lint:staged && npm run build
+   ```
+4. Add `lint-staged` config to `package.json`:
+   ```json
+   "lint-staged": {
+     "*.{js,mjs,cjs}": ["eslint --max-warnings=0"]
+   }
+   ```
+5. Add `package.json` script: `"lint:staged": "lint-staged"`
+6. Replace `lint` stub with: `"lint": "eslint ."`
+
+### D) Replace `test:visual` stub
+
+Replace stub `"test:visual": "echo ..." && exit 0` with:
+`"test:visual": "playwright test tests/visual/regression.spec.js --project=chromium --project=mobile-chrome"`
+
+(WebKit + mobile-safari excluded from local because of host constraint, but ALSO excluded from local visual because we only captured chromium baselines.)
+
+Add `test:visual:update`:
+`"test:visual:update": "playwright test --update-snapshots"` — used for intentional baseline updates (T1.17 etc.)
+
+### E) GitHub Actions workflow (`.github/workflows/ci.yml`)
+
+Use Execution Plan §12.1 template, but adjust for our reality:
+
+```yaml
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm ci
+      - run: npm run lint
+
+  build:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - name: Enforce bundle <5MB
+        run: |
+          BUNDLE_KB=$(du -sk dist | cut -f1)
+          echo "Bundle size: ${BUNDLE_KB} KB"
+          if [ "$BUNDLE_KB" -gt 5120 ]; then
+            echo "Bundle exceeds 5MB limit"; exit 1
+          fi
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:smoke:full        # 4 projects (Linux can do WebKit)
+
+  visual:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'npm' }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:visual
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: tests/visual/diff/
+```
+
+**Skip `unit` job for now** (no unit tests yet — T1.08+ adds storage unit tests; CI workflow can have `unit:` job added then via PR).
+
+### F) Verify
+
+1. `npm run lint` → exits 0 on current codebase (may need to fix any warnings in `tests/`, `playwright.config.js`, `vite.config.js`)
+2. `npm run test:visual` → likely fails first run if baseline machine != local machine; **expected** — document this as known visual flake on local; CI is the authority. If diffs >5%, investigate before merging.
+3. Husky hook fires on a test commit (don't actually commit a noise change — just verify the file is executable).
+4. Open a test PR (or use `gh pr create --draft`) → CI runs all 5 jobs → all green.
+
+### G) Commit + status
+
+1. Commit 1: code/config (CI workflow, husky, lint, visual regression spec)
+   ```
+   [T1.05] Setup CI pipeline + visual regression + husky pre-commit
+   ```
+2. Commit 2: TASKS.md update → REVIEW with self-check + Замечено рядом
+   ```
+   [DOCS] TASK-005 → REVIEW with self-check
+   ```
 
 **DO NOT TOUCH:**
-- `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` (read-only sacred boundary)
-- Any code in `src/` — visual baseline runs against legacy, not the new shell
-- The `serveLegacyHtmlRaw` Vite plugin from T1.03 (it's why legacy HTML can render at all)
-- `site/`
+- `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` (sacred)
+- Existing `tests/visual/baseline/*.png` (those are the reference — leave them alone)
+- `site/` folder
+- `serveLegacyHtmlRaw` plugin in `vite.config.js`
 - Sacred cows (CLAUDE.md §2)
-- Don't compute visual *regression* yet — that's part of T1.05 CI (the `tests/visual/regression.spec.js` will exist later)
-- Don't capture screenshots from the new Vite shell (`index.html` is empty placeholder — would be useless baseline)
+- Don't add unit tests (T1.08+ scope)
+- Don't add branch protection rules (Roman manages this on GitHub directly — out of scope for the code agent)
+- Don't write any production game code
 
 **Acceptance criteria:**
-- [ ] Minimum 10 unique screen/state combinations captured as PNG
-- [ ] Screenshots stored in `tests/visual/baseline/<name>.png`
-- [ ] Captured at minimum `chromium` viewport (1280×720 default Playwright)
-- [ ] If `mobile-chrome` (Pixel 7) viewport works without issue — capture those too (suffix `<name>.mobile.png` or use subfolder — pick one and stick with it; document choice)
-- [ ] `.gitattributes` has `*.png binary` line
-- [ ] `test:visual:baseline` npm script in package.json
-- [ ] `setupState()` helper documented (one comment line per state explaining what it seeds)
-- [ ] Each baseline PNG reasonable size (5KB-2MB range; flag anything outside as `Замечено рядом`)
-- [ ] Total `tests/visual/baseline/` size < 50MB (so we don't bloat the repo)
-- [ ] Commit: `[T1.04] Capture visual regression baseline ...`
+- [ ] `.github/workflows/ci.yml` exists, syntactically valid (test with `gh workflow view` or YAML lint)
+- [ ] 4 jobs: lint, build, smoke, visual (unit deferred)
+- [ ] Bundle size check < 5MB in `build` job
+- [ ] `npm run lint` exits 0 locally
+- [ ] `tests/visual/regression.spec.js` exists, diffs vs baseline using pixelmatch
+- [ ] `.husky/pre-commit` exists, executable (`chmod +x`)
+- [ ] `lint-staged` config in `package.json` + `lint:staged` script
+- [ ] `test:visual`, `test:visual:update`, `lint` scripts replace their stubs in `package.json`
+- [ ] Commit messages match format
 
 **Known unknowns:**
-- Some screens may require user interaction (e.g., opening shop drawer, navigating to profile). Use `page.click()` / `page.locator(...).click()` to reach them — but keep setup minimal; don't try to fully script gameplay.
-- Some FTUE states may be hard to seed from cold. If a particular FTUE beat is unreachable from localStorage seeding alone, document the limitation in the spec file and skip that beat (don't block T1.04 on it — note as `Замечено рядом` for T1.10 follow-up).
-- Animations may cause flake. The 500ms settle wait is a starting point — increase per-screen if you see flake; document in comment per screen.
+- pixelmatch needs PNG decoding. May need `pngjs` peer. Investigate during execution.
+- Husky v9+ uses different init syntax than older docs. Use whatever `npx husky init` produces.
+- ESLint flat config (`eslint.config.js`) is the v9 format — older `.eslintrc.*` is deprecated.
 
-**Rollback plan:** `git revert <commit-sha>` + `rm -rf tests/visual/baseline/`. Baselines are not load-bearing for any other task yet.
-
----
-
-### TASK-005 (T1.05) — Setup CI pipeline
-
-**Status:** TODO (blocked by TASK-004)
-**Priority:** HIGH
-**Phase:** 1
-**Depends on:** TASK-004
-
-**Goal:** GitHub Actions workflow — lint + build + unit + smoke + visual regression. CI must run all 4 Playwright projects (Linux runner has no mac13-arm64 limitation — webkit works).
-**Detailed spec:** `docs/plan/00_EXECUTION_PLAN.md` §13 T1.05.
-**Must include:** `npm run test:smoke:full` (4-project run) on CI, NOT the local default `test:smoke` (which filters to chromium).
+**Rollback plan:** `git revert <commit-sha>`. CI workflow + visual regression are additive — reverting just removes them.
 
 ---
 
@@ -178,7 +237,7 @@ the save-version-gate / FTUE-blockNav issues, 15 min final verification)
 
 ## BUG TESTER
 
-(no active tasks — Tester activated after T1.05 CI ready)
+(no active tasks — Tester first triggered after T1.05 — pre-T1.06 smoke audit assignment will follow CI green)
 
 ---
 
@@ -186,59 +245,53 @@ the save-version-gate / FTUE-blockNav issues, 15 min final verification)
 
 ### TASK-001 (T1.01) ✅ DONE 2026-05-11
 **Reviewed by:** CTO
-**Outcome:** All 9 acceptance criteria met
-**Files committed:** 11 files (package.json, vite.config.js, index.html shell, src/main.js, .gitignore update, empty folder skeleton, legacy HTML rename)
-**Commits:**
-- `c9cf50e` — `[T1.01] Setup Vite scaffold + relocate legacy HTML`
-- `6c010ef` — `[DOCS] TASK-001 → REVIEW with self-check`
-**Verification:**
-- `npm run build` → 3 modules transformed, dist/ = 8.0K, 41ms
-- `npm run dev` → Vite v5.4.21 on :5173, shell HTML served, killed cleanly
-- Legacy HTML byte-identical: `wc -c docs/_legacy/_archive_v1/blocksworn_index_fixed.html` → 21,480,494
-**Previously blocked:** ESC-01 (Node missing) — resolved via Node v24.15.0 .pkg installer
+**Outcome:** All 9 AC met
+**Commits:** `c9cf50e`, `6c010ef`
+**Verification:** `npm run build` → dist/ 8.0K, 41ms; `npm run dev` → Vite on :5173; legacy HTML byte-identical (21,480,494)
+**Previously blocked:** ESC-01 (Node missing) — resolved via Node v24.15.0 .pkg
 
 ### TASK-002 (T1.02) ✅ DONE 2026-05-11
-**Reviewed by:** CTO (verification only — no code changes needed)
-**Outcome:** All 3 acceptance criteria met
-**Self-check:**
-- [x] CLAUDE.md exists in repo root (`/CLAUDE.md`, 29 KB, committed in `41da1eb`)
-- [x] Contains required sections (§1-§9 — Sacred Cows, AAA+, Document Protocols, Role Boundaries, etc.)
-- [x] Markdown valid (799 lines)
+**Reviewed by:** CTO (verification only)
+**Outcome:** All 3 AC met — CLAUDE.md (799 lines) committed in Initial Setup `41da1eb`
+**Commits:** none (verification only)
 
 ### TASK-003 (T1.03) ✅ DONE 2026-05-11
 **Reviewed by:** CTO
-**Outcome:** 6 of 7 acceptance criteria met; AC #1 partial (chromium installed, WebKit blocked by host platform — **environment limitation, not a code defect**)
-**Commits:**
-- `8d79a61` — `[T1.03] Setup Playwright + smoke test infrastructure` (Dev work)
-- `8773ca6` — `[DOCS] TASK-003 → REVIEW with self-check` (Dev self-check)
-- (CTO admin patch commit — split `test:smoke` script)
+**Outcome:** 6/7 AC met; WebKit binary unavailable on host (Playwright 1.59 requires macOS 14+ on arm64) — **environment, not code**
+**Commits:** `8d79a61` (Dev), `8773ca6` (DOCS), `ac9cedb` (CTO admin script split)
+**CTO decision:** Option 1 + script split (REPORT-03):
+- `test:smoke` (local) → `--project=chromium --project=mobile-chrome` (exits 0 on Roman's host)
+- `test:smoke:full` (CI) → all 4 projects (Linux has no WebKit constraint)
+- `playwright.config.js` untouched
+**Notable engineering:** legacy HTML has malformed nested `<!--` at line ~18129 → parse5 rejects → `serveLegacyHtmlRaw` Vite plugin serves raw bytes, bypass transform. Legacy file byte-identical.
 
-**What was delivered:**
-- @playwright/test 1.59.1 installed (declared ^1.47, npm bumped to current — semver compatible)
-- Chromium browser binary fetched (531 MB total cache: chromium + chromium_headless_shell + ffmpeg)
-- `playwright.config.js` byte-for-byte per Execution Plan §13 T1.03 (4 projects retained for forward compatibility)
-- `tests/helpers/game-state.js` — 3 named-export stubs (`loadAuthenticatedState`, `loadStateWithCompleteFTUE`, `playOptimalBattle`)
-- `tests/smoke/legacy-loads.spec.js` — passes on chromium + mobile-chrome (2.7s)
-- `vite.config.js` — added `serveLegacyHtmlRaw` plugin (legacy HTML has malformed nested `<!--` comment at line ~18129 that browsers tolerate but parse5/Vite-transformIndexHtml rejects — plugin serves raw bytes for that URL, bypassing transform); also explicit `server.fs.allow: ['.']`
+### TASK-004 (T1.04) ✅ DONE 2026-05-11
+**Reviewed by:** CTO
+**Outcome:** All AC met — 22 baseline PNGs (11 screen/state × chromium + mobile-chrome), 11M total
+**Commits:** `2c08bb2` (T1.04), `04e8456` (DOCS)
+**Verification:**
+- `npm run test:visual:baseline` → 22/22 passing in ~12s
+- `npm run test:smoke` → 2/2 still green
+- `wc -c docs/_legacy/_archive_v1/blocksworn_index_fixed.html` → 21,480,494 (sacred unchanged)
+- `du -sh tests/visual/baseline/` → 11M (well under 50MB cap)
 
-**CTO decision on WebKit:**
-- Question raised by Dev: WebKit binaries refuse install on macOS 13 arm64 (Playwright 1.59 requires macOS 14+ on arm64). chromium + mobile-chrome PASS; webkit + mobile-safari FAIL at browser launch.
-- **CTO chose Option 1** (accept current state) **with admin script split:**
-  - `test:smoke` (local default) → `playwright test tests/smoke --project=chromium --project=mobile-chrome` — exits 0 on Roman's macOS 13 host
-  - `test:smoke:full` (new, for CI) → `playwright test tests/smoke` — runs all 4 projects, Linux runner has no WebKit constraint
-  - `playwright.config.js` left untouched (all 4 projects defined; the script filter is the right layer for the host-specific divergence)
-- **Why:** WebKit constraint is purely environment (host macOS version). Config is correct. Defaulting local `test:smoke` to the passing subset matches the AAA+ principle "smoke must always pass on dev machine"; full coverage runs in CI on Linux.
+**Screens captured (chromium + mobile each):**
+- `menu`, `menu-ch1-complete`, `select`, `shop`, `profile`, `dailies`, `season`, `tower`
+- `fresh-chronicle-intro`, `ftue-chronicle`, `ftue-pyredrake`
 
-**Tech debt items tracked (not fixed in T1.03):**
-- @playwright/test version drift `^1.47 → 1.59.1` — semver-allowed but worth a pin discussion at T1.05 (CI reproducibility)
-- Legacy HTML's malformed nested comment is a v1 authoring bug — out of scope; will resolve naturally when code migrates out of single HTML (T1.06+)
-- 2 moderate npm transitive vulnerabilities (still flagged from T1.01) — defer to T1.05 lint/security pass
-- Browser cache 531 MB on dev machine — gitignored (`node_modules/`) doesn't catch it because it's in `~/Library/Caches/`; that's expected/fine
+**setupState() seed strategies (in `tests/helpers/game-state.js`):**
+- `'fresh'` / `'authenticated'` / `'ch1-complete'` / `'ftue-chronicle'` / `'ftue-pyredrake'` — see source comments
 
-**Verification of CTO admin patch:**
-- `npm run test:smoke` → 2 passed (2.7s), exit 0 ✅
+**Major engineering discoveries (FYI for future tasks):**
+- **Save-version-gate IIFE** (legacy ~18504) wipes all `blocksworn_*` keys on cold load if `blocksworn_save_version` is missing/stale. Any future state-seeder MUST set this first. → `setupState()` documented this; surface in DEV_INSTRUCTION.md if/when full-gameplay seeders land (T1.10+).
+- **COMBAT v2.1 P8 First Contact modal** (legacy ~48266) auto-fires 1200ms after menu paint if `blocksworn_p8_player_name` is unset — captures menu screenshots show modal instead of menu. Workaround: seed `blocksworn_p8_player_name='TESTER'`. T1.10 may want to expose this as a deliberate baseline state.
+- **playwright.config.js testDir** widened from `./tests/smoke` → `./tests` so visual specs discoverable. T1.05 must keep this.
+
+**"Замечено рядом" (tracked):**
+- `mobile/fresh-chronicle-intro.png` is 2.06MB (~3% over 2MB soft cap) — large parchment-style background on long mobile viewport. T1.05 CI may decide to pngquant baselines if dir bloats.
+- FTUE chronicle/pyredrake baselines show the intro dialog overlay (gates battle, requires user tap). Legitimate first-contact baseline; T1.06+ may want a follow-up spec that auto-advances dialog and captures mid-fight.
 
 ---
 
 **Maintained by:** CTO agent
-**Last update:** 2026-05-11 — after T1.03 review + CTO admin script split
+**Last update:** 2026-05-11 — after T1.04 review
