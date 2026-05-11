@@ -3,12 +3,12 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 9 / 20 tasks done (T1.01-T1.09 — **Week 2 complete**)
-- **Overall progress:** ~22% (Phase 1 Week 2 done; entering watershed Week 3)
-- **Next milestone:** T1.10 — Core game logic extraction (THE XL TASK; sub-tasks T1.10.1-T1.10.9; ~50% of Phase 1 effort per Plan)
-- **Active task:** T1.10 — Awaiting Roman GO (CTO recommends Roman push first to validate Week 1-2 on CI before XL task starts)
-- **Pending Roman action:** (1) push branch to verify CI green; (2) GO/HOLD for T1.10 start
-- **Last updated:** 2026-05-11 by CTO (after T1.09 review — Week 2 closed)
+- **Phase progress:** 9 / 20 done; T1.10 IN PROGRESS (1/9 sub-tasks done: T1.10.1)
+- **Overall progress:** ~25% (Phase 1 watershed task started)
+- **Next milestone:** T1.10.9 final wire-up — new shell becomes primary
+- **Active sub-task:** T1.10.2 — Extract progression.js (chapter/hero unlocks/ascension)
+- **Critical for T1.10.9:** localStorage migration shim — see TASKS.md mandatory note (legacy bare-string keys break under T1.08's JSON.parse)
+- **Last updated:** 2026-05-11 by CTO (after T1.10.1 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)

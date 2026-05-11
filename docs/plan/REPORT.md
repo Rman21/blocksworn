@@ -807,6 +807,55 @@ Still pending. 27 commits on branch. The path forward is clear; awaiting Roman G
 
 ---
 
+## REPORT-11: T1.10.1 FTUE Extraction Review
+
+**Date:** 2026-05-11
+**Author:** CTO
+**Phase:** 1 — Week 3 watershed task; first sub-task of T1.10 closed
+**Trigger:** T1.10.1 submitted REVIEW; all gates green
+
+### Summary
+
+T1.10.1 PASS on first submission. **First sub-task of the XL watershed task is clean.** 21 named exports (16 functions + 5 constants) in `src/core/ftue-state.js` (475 LoC). Sacred FTUE constants preserved via import from T1.07. All gates green. Bundle still 372KB (module tree-shakes out — by design per T1.10.9 wire-up plan).
+
+### Critical finding — MUST address in T1.10.9
+
+Game Dev surfaced a **player-data-loss risk** that would have shipped silently:
+
+**Issue:** Legacy stores `FTUE_STORAGE_KEY` (and 4 other localStorage keys) as **bare strings** like `'pyredrake_fight'`. T1.08's `storage.getItem` does `JSON.parse(raw)` which throws on bare strings and falls through to `defaultValue`. When the new shell takes over in T1.10.9, every existing player's FTUE progress would silently reset to `not_started`.
+
+**Specifically affected keys:**
+- `FTUE_STORAGE_KEY` — FTUE beat cursor
+- `seenIntroVideo` (×3 call sites in legacy)
+- `onboardingSeen` (×2 call sites)
+
+**Required mitigation (TASKS.md MANDATORY note):** one-shot migration shim runs on first boot post-wire-up. Reads raw `localStorage.getItem` for each known legacy bare-string key, wraps as JSON if not already, marks `blocksworn_storage_v2_migrated`. Subsequent boots skip migration.
+
+**This is exactly why we do incremental migration with checkpoints.** If T1.10 were attempted as a monolithic refactor, this would have shipped to production and silently wiped player save state.
+
+### Sacred cow status (T1.10.1)
+
+All FTUE_* constants imported byte-perfect from `src/data/ftue-scripts.js` (T1.07 — already verified byte-perfect). No transition logic modified. Chronicler dispatch flow preserved. State machine pure relocation.
+
+### Engineering discipline observations
+
+- 8 TODO markers documenting future rewire targets (`T1.10.4` heroes, `T1.10.9` battle/dialog, `T1.11` DOM refs)
+- 11 readonly + 3 writable globals declared per-file via `/* global */` directives (no shared `eslint.config.js` mutation)
+- 4 ad-hoc legacy localStorage calls flagged for T1.11 with TODO markers (correct: they're DOM-adjacent helpers, not pure FTUE state)
+- Module-private mutable state (`currentBeat`) properly hidden — only accessible via `getCurrentBeat()` getter
+
+### Sequencing forward
+
+Per Execution Plan T1.10 sub-task order:
+- ✅ T1.10.1 — `ftue-state.js`
+- 🔄 T1.10.2 — `progression.js` (next — chapter/hero unlocks/ascension)
+- T1.10.3 — `grid.js`
+- ... → T1.10.9 (final wire-up + migration shim)
+
+T1.10.2 launched in background after this commit.
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host

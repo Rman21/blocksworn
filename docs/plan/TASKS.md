@@ -205,8 +205,8 @@ auto-disappears in T1.10 when the rewiring lands:
 **Status:** IN PROGRESS — Roman GO'd 2026-05-11; sub-task T1.10.1 (FTUE state) launched first
 
 **Sub-task progress:**
-- [x] T1.10.1 — `ftue-state.js` — REVIEW (commits `e12d27b` code; DOCS commit follows); awaiting CTO sign-off before T1.10.2
-- [ ] T1.10.2 — `progression.js`
+- [x] T1.10.1 — `ftue-state.js` — **DONE 2026-05-11** (commits `e12d27b`, `ec4e409`; 21 exports / 475 LoC; sacred FTUE_BEATS/TRANSITIONS preserved byte-perfect via import from T1.07)
+- [ ] T1.10.2 — `progression.js` — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
 - [ ] T1.10.3 — `grid.js`
 - [ ] T1.10.4 — `heroes.js`
 - [ ] T1.10.5 — `damage-channels.js` (v2.1 P1)
@@ -216,6 +216,16 @@ auto-disappears in T1.10 when the rewiring lands:
 - [ ] T1.10.9 — `battle.js` + final wire (`index.html` → uses `src/main.js`; legacy demoted to read-only archive)
 
 **Discipline:** ONE SUB-SYSTEM AT A TIME. After each: smoke + visual must pass. Commit `[T1.10.N]`. STOP on first failure.
+
+**⚠️ MANDATORY for T1.10.9 wire-up** (flagged by T1.10.1 Game Dev — HIGH priority):
+Legacy stored `FTUE_STORAGE_KEY` as **bare string** (e.g., `'pyredrake_fight'`), but T1.08's `storage.getItem` JSON-parses and returns `defaultValue` on bare strings. **Without one-shot migration shim in T1.10.9, existing player saves will silently reset to `not_started`** when new shell takes over. Same caveat for `seenIntroVideo` + `onboardingSeen` (5 ad-hoc legacy localStorage calls left raw with TODO(T1.11) markers).
+
+**Migration shim spec (for T1.10.9 prompt):** for each known legacy bare-string key (`FTUE_STORAGE_KEY`, `seenIntroVideo`, `onboardingSeen`, others discovered during T1.10.2-T1.10.8 extractions), run once on first boot post-wire-up:
+1. `const raw = localStorage.getItem(key)`
+2. If `raw === null` → skip
+3. If `raw.startsWith('"') || raw.startsWith('{') || raw.startsWith('[')` → already JSON, skip
+4. Else `localStorage.setItem(key, JSON.stringify(raw))` (now valid JSON)
+5. Mark `localStorage.setItem('blocksworn_storage_v2_migrated', '"true"')` to skip on subsequent boots
 **Priority:** HIGH
 **Phase:** 1 (Week 4-5 per Plan; faster at current pace)
 **Estimated complexity:** XL (~50% of Phase 1 effort per Execution Plan)
