@@ -210,7 +210,7 @@ auto-disappears in T1.10 when the rewiring lands:
 - [x] T1.10.3 — `grid.js` — **DONE 2026-05-11** (commits `73358d0`, `226fb7d`; 26 exports / 603 LoC; sacred combo-crit dominant-count + GRID_SATURATION + VOID_TICK 0.5%/cell byte-perfect; 0 new bare-string keys — grid is per-battle ephemeral; minor `placePiece` return-value polish flagged for T1.10.9 audit)
 - [x] T1.10.4 — `heroes.js` — **DONE 2026-05-11** (commits `7196ec1`, `3725199`; **3,972 LoC** biggest sub-task; HERO_ROSTER 25/25 + 25 fire + 25 ultTwist + 10 fireDelta + 10 ultDelta + Aegis Conductor + Squad Conductor + 25/25 Mythic descriptors — all byte-perfect; ~600 LoC legacy dead code deferred to T1.10.9 audit; 0 new bare-string keys)
 - [x] T1.10.5 — `damage-channels.js` (v2.1 P1) — **DONE 2026-05-11** (commits `31a3786`, `cdf37df`; 457 LoC / 16 exports; SACRED v2.1 P1 Mitigation Matrix + 4 channel formulas + shield-absorption order byte-perfect; cross-boundary `getSquadMitigation`/`getHeroMitigationKey` belong in heroes.js — flagged for T1.10.9 audit)
-- [ ] T1.10.6 — `stagger-loop.js` (v2.1 P2) — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
+- [x] T1.10.6 — `stagger-loop.js` (v2.1 P2) — **REVIEW 2026-05-11** (commit `83782cf`; 1021 LoC / 48 named exports = 17 constants + 26 functions + 5 getters; SACRED v2.1 P2 ACTIVE/STAGGER/RECOVERY state machine + PRESSURE_MAX=100 + PRESSURE_GAIN table + STAGGER_DURATION=4 + RECOVERY_DURATION=2 + STAGGER_CHAINING_ENABLED + getFireMultCap chapter×state×Tower + Overflow conversion 40/30/500/10 + revenge 1.5× signature byte-perfect; 0 new bare-string keys; cross-module `getStaggerTriggerThreshold` / `_getBossSignatureTier` / `CHANNEL_SIGNATURE_DMG` / `applyChannelDamage` / `tickAegisProtocol` stay as `/* global */` until T1.10.9 wire-up)
 - [ ] T1.10.7 — `bosses.js`
 - [ ] T1.10.8 — `reactivity-events.js` (v2.1 P4)
 - [ ] T1.10.9 — `battle.js` + final wire (`index.html` → uses `src/main.js`; legacy demoted to read-only archive)
@@ -706,6 +706,123 @@ File-level `/* eslint-disable no-empty, no-unused-vars */` (legacy uses `try { .
 
 ---
 
+### T1.10.6 — REVIEW (2026-05-11)
+
+**Code commit:** `83782cf` — `[T1.10.6] Extract Stagger Loop state machine to src/core/stagger-loop.js`
+**DOCS commit:** follows (this entry)
+**File created:** `src/core/stagger-loop.js` (1,021 lines, 48 named exports = 17 constants + 26 functions + 5 read-only getters for module-private state)
+
+**Implementation summary:**
+
+Stagger Loop state machine + Pressure meter extracted byte-perfect from legacy `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` across **5 source regions** (the entire v2.1 P2 combat phase):
+
+- **Core constants block (20004-20061):** `BOSS_STATE_ACTIVE`/`STAGGER`/`RECOVERY` string identifiers, `PRESSURE_MAX=100`, `PRESSURE_GAIN` table (line_single 5, line_double 12, line_triple 25, line_quad 45, inferno_proc 20, detonate_proc 20, hero_ult 15, signature_combo 30, cascade_per_cell 8), `STAGGER_DURATION_TURNS=4`, `RECOVERY_DURATION_TURNS=2`, `STAGGER_CHAINING_ENABLED=true`, `FIRE_MULT_CAP_BASE` per chapter (1:2.0, 2:2.5, 3:3.0, 4:3.5, 5:4.0), `FIRE_MULT_CAP_TOWER=4.0`, state multipliers (`FIRE_MULT_ACTIVE_RATIO=0.7`, `FIRE_MULT_STAGGER_RATIO=1.5`, `FIRE_MULT_RECOVERY_RATIO=0.7`), `OVERFLOW_TO_ULT=0.40`, `OVERFLOW_TO_ESSENCE=0.30`, `OVERFLOW_PER_SHIELD=500`, `OVERFLOW_TO_TOWER=0.10` — all sacred per CLAUDE.md §2.5 (v2.1 P2).
+- **PR #2.A state machine foundation (39214-39420):** module-private state cursors (`bossState`/`bossPressure`/`staggerTurnsRemaining`/`recoveryTurnsRemaining`/`totalStaggersThisFight`/`lastStaggerEnteredAtTurn`/`pendingRevengeAttack`) + `getFireMultCap` (Tower override → chapter base → state-adjusted) + `_stateAdjustedCap` + 4 transition functions (`enterStaggerState`/`extendStaggerState`/`enterRecoveryState`/`enterActiveState`) + `executeRevengeAttack` (1.5× signature damage on Recovery exit, telegraphed) + `tickStaggerState` (EOT countdown — Stagger→Recovery→revenge→Active + AEGIS PROTOCOL tick + 4 reactivity-event counter ticks + Phoenix fire aura) + `resetStaggerState` (battle-init reset).
+- **PR #2.B Pressure central + gain hooks (39422-39524):** `addPressure(amount, reason)` — single entry point with 7-step ordering (normalize → dead-boss gate → Recovery gate → chaining-disabled×Stagger gate → `pressureGainMult` debuff floor → `bossStaggerImmuneTurns` clamp at `trigger-1` → increment+clip at PRESSURE_MAX → Stagger trigger via `getStaggerTriggerThreshold()` defaulting to PRESSURE_MAX → multi-stagger chaining +2 turns + reset to 0 when refilled mid-Stagger). `showPressureGainFX(amount, reason)` per-reason label map + tier coloring.
+- **PR #2.C Overflow conversion (39526-39672):** `_getPhaseGateHP` (70%/35%/0 phase gates) + `applyOverflowConversion(overflowDmg)` (40% → ULT distributed across squad stihiyas via `_distributeOverflowToULT`, 30% → essence via `_distributeOverflowToEssence`, 1 shield per 500 capped at MAX_SHIELD+2, 10% chapter / 20% Tower via `OVERFLOW_TO_TOWER_BATTLE_TOWER` override → Tower points) + `showOverflowRewardFX` (headline + 4 staggered sub-floaters).
+- **PR #2.D UI render functions (39674-39844):** `renderPressureMeter` (#bpFill/#bpValue/#bossPressureContainer + tier-mid/tier-high/anticipating CSS classes + Recovery hide) + `renderBossStateBanner` (#bossStateBanner — "⚡ STAGGER · NT" / "⚠ REVENGE INCOMING NT" + #bossImgWrap boss-staggered/boss-recovering classes) + `showStaggerEntryFX` (420ms gold flash + 800ms slow-mo body class) + `showRecoveryEntryFX` (`speakNarrator('warning')`) + `_estimateHeroPressureContribution` (per-role baseline 4/6/8/10/12 × tier mult × level mult) + `renderPressureContribution` (#detailPressureContrib) + `renderSquadPressureForecast` (#spfValue/#spfAux).
+- **PR #2.E FTUE intro triggers (39137-39212):** `_maybeTriggerPressureIntro` (500ms delay after first ≥5 Pressure gain in Ch1), `_maybeTriggerStaggerIntro` (1500ms delay after first STAGGER), `_maybeTriggerRecoveryIntro` (800ms delay after first RECOVERY), `_maybeTriggerOverflowIntro` (1200ms delay after first OVERFLOW). All gated on `seenDialogs` + `currentChapter===1` + `!isFtueActive()` + `!seenDialogs.has(dialogId)`.
+
+**Sacred cow preservation (CLAUDE.md §2.5 + §9 glossary — v2.1 P2 skill expression system):**
+
+- **3-state boss state machine byte-perfect.** `'active'` / `'stagger'` / `'recovery'` string identifiers — every consumer (banner CSS classes, FX gates, reactivity event keys) keys off these exact values. NOT renamed.
+- **Pressure constants byte-perfect.** `PRESSURE_MAX = 100`. PRESSURE_GAIN table values 5/12/25/45 line clears, 20 inferno/detonate, 15 hero ULT, 30 signature combo, 8 cascade per cell.
+- **State-machine timing byte-perfect.** Stagger duration 4 turns, Recovery duration 2 turns. Chaining enabled → +2 turn extension + meter reset to 0 when refilled mid-Stagger.
+- **getFireMultCap byte-perfect.** Chapter base map {1:2.0, 2:2.5, 3:3.0, 4:3.5, 5:4.0} + Tower override 4.0 + state ratios (Active 0.7, Stagger 1.5, Recovery 0.7). Ch1 Active 1.4× / Ch1 Stagger 3.0× / Ch5 Stagger 6.0× / Tower Stagger 6.0×.
+- **Overflow conversion ratios byte-perfect.** 40% ULT / 30% essence / 1 shield per 500 / 10% Tower (20% Tower-battle override). Phase gates 70%/35%/0. 20% absorbed as variance (the 40+30+10 = 80% intentional).
+- **Revenge attack byte-perfect.** Pre-computed at Recovery entry via `_getBossSignatureTier` + `CHANNEL_SIGNATURE_DMG[tier]` + 1.5× multiplier + telegraphed (`{source:'revenge', telegraphed:true}` meta). Fired through `applyChannelDamage('signature', dmg, meta)` on Recovery exit.
+- **addPressure ordering byte-perfect.** 7-step pipeline preserved exactly — dead-boss + Recovery + chaining-disabled gates → `pressureGainMult` debuff (Voidfang reactivity) → `bossStaggerImmuneTurns` clamp at `trigger-1` (Berserker reactivity) → increment+clip → FX+render+FTUE intro → Stagger trigger / multi-stagger chaining via `getStaggerTriggerThreshold()` (Mythic Captain override → PRESSURE_MAX default).
+- **Phase 3 hook integration byte-perfect.** `_firePhase3Hook('onStaggerEnter', {totalStaggers})` from enterStaggerState. `_firePhase3Hook('onStaggerExit', {reason})` from enterRecoveryState + enterActiveState (only when leaving STAGGER). Mythic Tank squad boost activates/clears here.
+- **Reactivity events tick byte-perfect.** `tickStaggerState` ticks `bossStaggerImmuneTurns` / `bossStealthTurns` / `bossBackstabChainTurns` / `squadSilencedTurns` (Phase 4 v2.1 PR #4.C) + Phoenix fire aura damage via `applyChannelDamage('signature', bossFireAuraDmg, {source:'phoenix_fire_aura'})`. AEGIS PROTOCOL EOT tick (`tickAegisProtocol`) fires last, independent of bossState.
+- **All FX timings / vibrate patterns / flash banner colors byte-perfect.** Stagger entry: 420ms gold flash + 800ms slow-mo + vibrate [100,50,100,50,200] + flashStateBanner('STAGGER!', '#FFD700'). Stagger extend: vibrate [80,40,80,40,80] + flashStateBanner('STAGGER EXTENDED +N', '#FFD700'). Recovery entry: vibrate [200,100,200] + flashStateBanner('REVENGE INCOMING — NT', '#FF4500') + speakNarrator('warning'). Overflow: vibrate [120,60,120,60,200] + flashText('⚡ OVERFLOW · N', '#FFD700') + 4 sub-floaters at 200ms.
+
+**Storage rewires (T1.08 abstraction):**
+
+- **0 new bare-string localStorage keys.** Stagger Loop state (bossState, bossPressure, staggerTurnsRemaining, recoveryTurnsRemaining, totalStaggersThisFight, lastStaggerEnteredAtTurn, pendingRevengeAttack) is per-battle ephemeral — reset at every battle init via `resetStaggerState`. **The T1.10.9 migration shim allow-list (FTUE + intro-video + 5 chapter-complete keys from T1.10.1 + T1.10.2) does NOT need additions from T1.10.6.**
+
+**ESLint globals added** (specific identifiers, why):
+
+- File-level `/* eslint-disable no-empty, no-unused-vars */` — the state machine + Pressure + Overflow + FTUE intros + UI render uses `try { ... } catch (e) {}` patterns abundantly (35+ catches across the legacy bodies); preserving byte-perfect requires accepting them, and legacy uses `catch (e)` not `catch (_e)`.
+- **Readonly (~38 identifiers):** `getStaggerTriggerThreshold` (heroes.js T1.10.4 — Mythic Captain pre-set threshold); `_getBossSignatureTier`, `CHANNEL_SIGNATURE_DMG`, `applyChannelDamage` (damage-channels.js T1.10.5 — Revenge attack + Phoenix fire aura dispatch); `tickAegisProtocol` (heroes.js T1.10.4 — T3 Tank ULT EOT tick); Phase 4 reactivity refs `pressureGainMult`, `bossFireAuraActive`, `bossFireAuraDmg` (T1.10.8 — boss debuff multiplier + fire aura state); boss/battle context `currentBoss`, `currentChapter`, `currentBossIdx`, `_isTowerBattle`, `bossHP`, `bossMaxHP`, `placementCount` (T1.10.7 / T1.10.9 territory); heroes/progression refs `HERO_DECK`, `HERO_ROSTER`, `activeSquad`, `heroUpgrades`, `getHeroLevel`, `ultCharges`, `currentUltThreshold`, `ULT_THRESHOLD`, `essences`, `towerState`, `addTowerPoints`, `saveTowerState`, `saveProgress`, `getSquadMitigation` (T1.10.4 / T1.10.2); data constants `STIHIYAS`, `MAX_SHIELD` (T1.07); FTUE refs `isFtueActive`, `seenDialogs`, `playDialog` (T1.10.1 owns `isFtueActive`; the dialog map + seenDialogs Set lives in legacy until a future FTUE follow-up); v2.1 P5 Tower override `OVERFLOW_TO_TOWER_BATTLE_TOWER`; Phase 3 hook bus `_firePhase3Hook`; feel/UI/analytics `flashText`, `flashStateBanner`, `vibrate`, `speakNarrator`, `renderHP`, `renderULTBar`, `logEvent`.
+- **Writable (5 identifiers):** `shieldCount` (overflow shield grant), `bossStaggerImmuneTurns`, `bossStealthTurns`, `bossBackstabChainTurns`, `squadSilencedTurns` (per-turn reactivity counters decremented inside `tickStaggerState`).
+
+**TODO markers:** 0 explicit `TODO(T1.10.N)` markers in code — the wide `/* global */` directive set is the wire-up surface (matches T1.10.3-T1.10.5 sibling pattern). Each global identifier *is* an implicit TODO marker pointing to its future home:
+- `getStaggerTriggerThreshold` → T1.10.4 heroes (already extracted; import flip in T1.10.9)
+- `_getBossSignatureTier` / `CHANNEL_SIGNATURE_DMG` / `applyChannelDamage` → T1.10.5 damage-channels (already extracted; import flip in T1.10.9)
+- `tickAegisProtocol` → T1.10.4 heroes (already extracted; import flip in T1.10.9)
+- `pressureGainMult` / `bossStaggerImmuneTurns` / `bossStealthTurns` / `bossBackstabChainTurns` / `bossFireAuraActive` / `bossFireAuraDmg` / `squadSilencedTurns` → T1.10.8 reactivity-events
+- `currentBoss` / `currentChapter` / `currentBossIdx` / `_isTowerBattle` / `bossHP` / `bossMaxHP` / `placementCount` → T1.10.7 bosses / T1.10.9 battle
+- `HERO_DECK` / `activeSquad` / `getHeroLevel` / `heroUpgrades` / `ultCharges` / `currentUltThreshold` / `ULT_THRESHOLD` / `essences` / `towerState` / `addTowerPoints` / `saveTowerState` / `saveProgress` / `getSquadMitigation` → T1.10.4 / T1.10.2 (some already extracted; import flip in T1.10.9)
+- `_firePhase3Hook` → T1.10.4 heroes (already extracted; import flip in T1.10.9)
+- `flashText` / `flashStateBanner` / `vibrate` / `speakNarrator` / `renderHP` / `renderULTBar` / `logEvent` → T1.11 ui / T1.09 feel (services already wired)
+
+**Engineering judgment:**
+
+- **Constants live in the module that OWNS them, not data/balance.js.** Matches the T1.10.3 grid.js + T1.10.4 heroes.js + T1.10.5 damage-channels.js pattern: the legacy constants block at 20004-20061 sits IMMEDIATELY adjacent to the state-machine block at 39214-39420 conceptually — they're v2.1 P2 Stagger Loop metadata, not generic game balance. Future data-consolidation pass can flatten if needed; not in T1.10.6 scope.
+- **Module-private state + read-only getters (matches T1.10.1 ftue-state.js pattern).** `bossState` / `bossPressure` / `staggerTurnsRemaining` / `recoveryTurnsRemaining` / `totalStaggersThisFight` declared module-private (no exported `let`). Exposed via `getBossState()` / `getBossPressure()` / `getStaggerTurnsRemaining()` / `getRecoveryTurnsRemaining()` / `getTotalStaggersThisFight()`. Direct mutation reserved for the transition functions (`enter*State`, `extendStaggerState`, `tickStaggerState`) + `addPressure` + `resetStaggerState` — same write-control discipline as legacy.
+- **Window-exposure block mirrors legacy 39411-39419, 39521-39524, 39666-39672, 39836-39844, 39207-39212.** Publishes all 26 module functions + 17 constants + 5 read-only state accessors (via `Object.defineProperty` getters — legacy reads bare identifiers `bossState` / `bossPressure` and propagates writes through the module's transition functions, never assigning to those names externally). This is the same window-bridge pattern T1.10.4 / T1.10.5 use; heroes.js still consults `addPressure` / `bossState` / `BOSS_STATE_STAGGER` via `/* global */` until T1.10.9.
+- **FTUE intros (`_maybeTriggerPressureIntro` / `_maybeTriggerStaggerIntro` / `_maybeTriggerRecoveryIntro` / `_maybeTriggerOverflowIntro`) co-located with state machine, NOT in ftue-state.js T1.10.1.** They're v2.1 P2 PR #2.E and only ever fire from the state transitions / `addPressure` / `applyOverflowConversion` paths owned by this module. ftue-state.js owns the beat machine; these intros are story-specific FTUE hooks for the P2 system, not transition logic. Flagged as candidate for "FTUE intro family consolidation" follow-up after T1.10.6 (T1.10.5 already flagged the `_maybeTriggerChannelIntro` / `_maybeTriggerMitigationIntro` pair in legacy too — a single follow-up could absorb all 6 P2/P1 intros into one ftue-intros module).
+- **UI render functions co-located with state machine, NOT in T1.11 ui (sibling pattern from T1.10.5 `showChannelFX` / `showMitigationFX`).** `renderPressureMeter` / `renderBossStateBanner` / `showStaggerEntryFX` / `showRecoveryEntryFX` / `renderPressureContribution` / `renderSquadPressureForecast` directly read module-private state cursors. Splitting them into T1.11 would require either re-exposing the state via additional getters or breaking encapsulation. Match damage-channels.js precedent: per-system FX/render co-located with the system that drives them; T1.11 ui will own screen-level orchestration, not v2.1 P2 system-specific render.
+- **`getFireMultCap` fallback to literal 3.0 (legacy 39246).** Legacy reads `(typeof FIRE_MULT_CAP === 'number' ? FIRE_MULT_CAP : 3.0)` for chapters not in BASE map. The legacy module-scope const `FIRE_MULT_CAP` lives elsewhere in legacy; we mirror with `|| 3.0` literal since in all actual chapters 1..5 the BASE map hits — the fallback is unreachable in practice. Pure-relocation semantics preserved without dragging in an unrelated legacy const.
+- **`getStaggerTriggerThreshold` consumed defensively with PRESSURE_MAX fallback.** Mythic Captain pre-set threshold (50/75/100) lives in heroes.js T1.10.4. The legacy pattern `(typeof getStaggerTriggerThreshold === 'function') ? getStaggerTriggerThreshold() : PRESSURE_MAX` preserved here exactly — addPressure works correctly with or without a Mythic Captain in play.
+
+**Verification (all gates green):**
+
+- `npm run lint` → 0 errors / 0 warnings (post-`/* eslint-disable no-empty, no-unused-vars */` + 38-readonly + 5-writable globals)
+- `npm run test:unit` → 6/6 pass (~97ms)
+- `npm run test:smoke` → 2/2 pass (~2.6s)
+- `npm run test:visual` → 22/22 pass under 2% (~14.8s)
+- `npm run build` → succeeds. `dist/assets/index-*.js` = 0.75KB; `dist/assets/index-*.css` = 368.77KB (unchanged — new module tree-shakes out, nothing imports it yet, as expected per Step E of the assignment)
+- Legacy `wc -c` = 21,480,494; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` — byte-identical
+
+**Self-check:**
+- [x] Acceptance: 3-state boss state machine extracted (ACTIVE / STAGGER / RECOVERY) — string identifiers + transitions byte-perfect
+- [x] Acceptance: Pressure meter (PRESSURE_MAX=100) + PRESSURE_GAIN table byte-perfect (line clears 5/12/25/45, procs 20/20, hero_ult 15, signature_combo 30, cascade_per_cell 8)
+- [x] Acceptance: State durations byte-perfect (STAGGER 4 turns, RECOVERY 2 turns, chaining enabled with +2 extension on mid-Stagger refill)
+- [x] Acceptance: addPressure 7-step ordering byte-perfect (dead-boss + Recovery + chaining-disabled × Stagger + pressureGainMult + bossStaggerImmuneTurns + Stagger trigger + multi-stagger chaining)
+- [x] Acceptance: getFireMultCap byte-perfect (chapter × state × Tower override)
+- [x] Acceptance: Overflow conversion byte-perfect (40% ULT / 30% essence / 1 shield per 500 / 10% Tower with 20% Tower-battle override; phase gates 70%/35%/0; revenge multiplier 1.5×)
+- [x] Acceptance: All v2.1 P2 FX byte-perfect (Stagger gold flash 420ms + slow-mo 800ms; Recovery red banner + speakNarrator('warning'); Overflow gold burst + 4 staggered sub-floaters)
+- [x] Acceptance: FTUE intros (Pressure / Stagger / Recovery / Overflow) byte-perfect (Ch1 + seenDialogs gates + 500/1500/800/1200ms delays)
+- [x] Acceptance: imports `log` from src/services/logger.js (T1.08); no other src/ imports needed (legacy globals supply the rest)
+- [x] Acceptance: no window globals introduced beyond the legacy 39411-39419 / 39521-39524 / 39666-39672 / 39836-39844 / 39207-39212 mirror blocks
+- [x] Acceptance: legacy HTML byte-identical (wc -c + SHA-256 verified)
+- [x] Acceptance: all gates green (lint 0/0, unit 6/6, smoke 2/2, visual 22/22, build 372KB)
+- [x] Acceptance: nothing imports the new module — tree-shakes out for T1.10.6 (correct — T1.10.9 final wire-up flips heroes.js + damage-channels.js `/* global addPressure */` etc. into explicit imports)
+- [x] Sacred cows: Stagger Loop state machine byte-perfect (CLAUDE.md §2.5 v2.1 P2). Pressure meter byte-perfect. Stagger/Recovery duration byte-perfect. Multi-stagger chaining preserved. Overflow conversion ratios preserved.
+- [x] DO NOT TOUCH: legacy HTML — not modified; index.html — not modified; src/main.js — not modified; src/core/{ftue-state,progression,grid,heroes,damage-channels}.js (T1.10.1-T1.10.5) — not modified; src/data/ — not modified; src/feel/ — not modified; src/services/ — not modified; eslint.config.js — not modified; CSS / baselines / tests / CI / husky — not modified
+- [x] DO NOT TOUCH: Pressure constants — unchanged; state transition flow — byte-perfect; FIRE_MULT cap math — byte-perfect; Overflow conversion math — byte-perfect; revenge multiplier — byte-perfect
+- [x] DO NOT wire heroes.js / damage-channels.js to import stagger-loop — they keep `/* global addPressure / bossState / extendStaggerState / PRESSURE_MAX / PRESSURE_GAIN / BOSS_STATE_STAGGER */` per T1.10.9 spec
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.10.6; did NOT start T1.10.7
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **NO new bare-string storage keys.** Stagger Loop state is per-battle ephemeral (reset at every battle init via `resetStaggerState`). **The T1.10.9 migration shim allow-list (FTUE + intro-video + 5 chapter-complete keys) does NOT need additions from T1.10.6.**
+
+2. **FTUE intro family consolidation candidate.** Legacy has 6 P1/P2 first-encounter FTUE intros: `_maybeTriggerChannelIntro` + `_maybeTriggerMitigationIntro` (T1.10.5 left in legacy — flagged in its "Замечено рядом" #3) + `_maybeTriggerPressureIntro` + `_maybeTriggerStaggerIntro` + `_maybeTriggerRecoveryIntro` + `_maybeTriggerOverflowIntro` (now in this module). They share a common gate pattern (seenDialogs + Ch1 + !isFtueActive + dialogId-not-seen). **CTO recommendation:** a single follow-up sub-task could consolidate all 6 into `src/core/ftue-intros.js` (sibling to ftue-state.js). Out of T1.10.6 scope — pure relocation; this module captures the 4 P2 helpers next to the state-machine entry points they fire from.
+
+3. **`getStaggerTriggerThreshold` still consumed via `/* global */`.** Mythic Captain pre-set threshold lives in heroes.js T1.10.4 (already extracted there). T1.10.9 will replace this directive with `import { getStaggerTriggerThreshold } from './heroes.js'`. Same for `_firePhase3Hook` / `_computeTankPressureConversion` (heroes.js — already extracted but consumed via `/* global */` here for now).
+
+4. **`_getBossSignatureTier` / `CHANNEL_SIGNATURE_DMG` / `applyChannelDamage` still consumed via `/* global */`.** All three live in damage-channels.js T1.10.5 (already extracted there). T1.10.9 will replace with `import { _getBossSignatureTier, CHANNEL_SIGNATURE_DMG, applyChannelDamage } from './damage-channels.js'`. Used here in `enterRecoveryState` (pre-compute revenge dmg via tier table) + `executeRevengeAttack` (fire revenge through dispatcher) + `tickStaggerState` (Phoenix fire aura via dispatcher).
+
+5. **`tickAegisProtocol` still consumed via `/* global */`.** AEGIS PROTOCOL EOT tick lives in heroes.js T1.10.4 (already extracted there). T1.10.9 will replace with `import { tickAegisProtocol } from './heroes.js'`. Called from end of `tickStaggerState`, independent of bossState.
+
+6. **Reactivity Events globals (`pressureGainMult`, `bossStaggerImmuneTurns`, `bossStealthTurns`, `bossBackstabChainTurns`, `squadSilencedTurns`, `bossFireAuraActive`, `bossFireAuraDmg`) still in legacy.** All belong in `src/core/reactivity-events.js` T1.10.8. Consumed here by `addPressure` (pressure debuff + stagger immunity clamp) + `tickStaggerState` (per-turn counter ticks + Phoenix fire aura). 4 writable + 3 readonly — full inventory captured in this module's `/* global */` block for T1.10.8 to inherit.
+
+7. **`OVERFLOW_TO_TOWER_BATTLE_TOWER` global override.** v2.1 P5 PR #5.C §4.1 bumped Tower-battle overflow ratio to 0.20 (vs 0.10 chapter default). Legacy line 29226 defines this as a module-scope const elsewhere; we consume defensively via `typeof === 'number'` with 0.20 fallback. Future Tower sub-task should formalize this in a Tower module (or fold the const into this module if Tower never customizes it further).
+
+8. **`speakNarrator('warning')` in `showRecoveryEntryFX` lacks `typeof` guard.** Legacy line 39759 reads `try { speakNarrator('warning'); } catch (e) {}` — no `typeof === 'function'` check. Preserved byte-perfect even though the typeof-pattern is used everywhere else. The `try/catch` swallows any ReferenceError if `speakNarrator` is undefined; pre-T1.09 wire-up should be safe regardless. Not a concern, but documented for the audit trail.
+
+9. **5 read-only state getters added.** `getBossState` / `getBossPressure` / `getStaggerTurnsRemaining` / `getRecoveryTurnsRemaining` / `getTotalStaggersThisFight` — purely additive accessor surface for T1.10.9 to consume without breaking ES-module no-exported-let discipline. The window-exposure block also defines `Object.defineProperty` getters for the same names so legacy bodies that read bare `bossState` / `bossPressure` keep working until T1.10.9 imports flip. No functional change — same legacy semantics.
+
+10. **`getFireMultCap` chapter-fallback uses literal `3.0` instead of legacy `FIRE_MULT_CAP` const reference.** Legacy line 39246 reads `FIRE_MULT_CAP_BASE[ch] || (typeof FIRE_MULT_CAP === 'number' ? FIRE_MULT_CAP : 3.0)`. The legacy `FIRE_MULT_CAP` const (value 3.0) lives in an unrelated legacy block we did NOT extract here. Substituted `|| 3.0` literal since in all actual chapters 1..5 the BASE map hits — the fallback is unreachable in practice. If a future data-consolidation pass moves `FIRE_MULT_CAP` to src/data/balance.js, this module should import it back to restore the explicit reference.
+
+**Time:** ~2 hours (1,021 LoC byte-perfect copy across 5 source regions + 38-readonly + 5-writable globals declared + module-private state via getter pattern + window-exposure mirror across 5 PRs + commit/docs cycle)
+
+---
+
 ## GAME DESIGNER
 
 (no active tasks — Designer activated в Phase 2)
@@ -785,4 +902,4 @@ File-level `/* eslint-disable no-empty, no-unused-vars */` (legacy uses `try { .
 ---
 
 **Maintained by:** CTO agent
-**Last update:** 2026-05-11 — T1.10.5 → REVIEW (damage-channels module extracted, 457 LoC / 16 exports = 4 CH_* canonical names + 5 channel constants + 3 mitigation tables + 4 functions; SACRED 4-channel system + Mitigation Matrix + shield-absorption order + AEGIS PROTOCOL HP→Pressure reroute byte-perfect; 0 new bare-string keys)
+**Last update:** 2026-05-11 — T1.10.6 → REVIEW (stagger-loop module extracted, 1,021 LoC / 48 exports = 17 constants + 26 functions + 5 state getters; SACRED v2.1 P2 ACTIVE/STAGGER/RECOVERY state machine + Pressure meter + STAGGER_DURATION=4 + RECOVERY_DURATION=2 + multi-stagger chaining + Overflow conversion 40/30/500/10 + revenge 1.5× byte-perfect; 0 new bare-string keys)
