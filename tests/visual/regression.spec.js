@@ -48,6 +48,16 @@ async function freezeAnimations(page) {
       transition-delay: 0s !important;
     }`,
   });
+  // Pause every <video> element at frame 0. Legacy intro video (fresh-chronicle-intro)
+  // autoplays on cold boot and advances frame-by-frame between capture+regression,
+  // producing huge pixel diffs. Pinning currentTime + pause() removes the flake.
+  await page.evaluate(() => {
+    document.querySelectorAll('video').forEach((v) => {
+      try { v.pause(); } catch (_e) { /* ignore */ }
+      try { v.currentTime = 0; } catch (_e) { /* ignore */ }
+      try { v.autoplay = false; } catch (_e) { /* ignore */ }
+    });
+  });
 }
 
 async function waitForFonts(page) {
