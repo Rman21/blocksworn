@@ -9,10 +9,10 @@
 
 ### TASK-005 (T1.05) — Setup CI pipeline
 
-**Status:** TODO → IN PROGRESS → **REVIEW**
+**Status:** TODO → IN PROGRESS → REVIEW → RETURNED 2026-05-11 (CTO) → **REVIEW (T1.05.1 fix landed 2026-05-11)**
 **Started:** 2026-05-11
 **Completed:** 2026-05-11
-**Commit:** `235941e` (code), `[next]` (docs)
+**Commit:** `235941e` (code), `9464311` (docs), `a7084a2` (T1.05.1 fix)
 **Priority:** HIGH
 **Phase:** 1
 **Created:** 2026-05-11
@@ -289,6 +289,16 @@ All 5 deliverables shipped per spec:
 - `git config core.hooksPath` is set to `.husky/_` (husky v9 default) — this is a per-clone config; teammates running `npm install` will get it via the `prepare` script. CI does not need this (it does not commit), but documented for completeness.
 
 **Time:** ~45 min including investigation of fresh-chronicle-intro flake.
+
+**T1.05.1 fix (2026-05-11, commit `a7084a2`):**
+
+- Returned by CTO for the `fresh-chronicle-intro` flake (chromium 8.4% / mobile-chrome 30.8%).
+- Initial hypothesis (rAF particle loops) was wrong — stubbing `window.requestAnimationFrame` made the diff WORSE (20.2% / 75.2%) because it blocked one-shot `classList.add('show')` transitions used by other overlays in the legacy.
+- Root cause identified via diff image: the `#introVideoPlayer` `<video>` element autoplays on cold boot in the `fresh` state and advances frame-by-frame between capture and regression run. The changing region in the diff matched the video overlay rect exactly.
+- Fix: `freezeAnimations()` now also calls `pause()`, `currentTime = 0`, and `autoplay = false` on every `<video>` element. Applied to both `tests/visual/capture-baseline.spec.js` and `tests/visual/regression.spec.js` for parity.
+- 2 baselines re-captured: `tests/visual/baseline/fresh-chronicle-intro.png` (chromium) + `tests/visual/baseline/mobile/fresh-chronicle-intro.png` (mobile-chrome). All other 20 baselines untouched (verified `git status`).
+- All 22 visual regression tests now pass under the 2% PASS threshold. `npm run test:smoke` 2/2, `npm run lint` 0 errors, `npm run build` clean.
+- Legacy HTML byte size unchanged: `21,480,494`.
 
 ---
 
