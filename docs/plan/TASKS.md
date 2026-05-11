@@ -1253,6 +1253,116 @@ The 9-key allow-list is COMPLETE — battle.js itself adds **0 new bare-string k
 
 ---
 
+### TASK-015 (T1.13.1) — REVIEW (2026-05-11)
+
+**Code commit:** `[T1.13.1] Wire-up cleanup — flip /* global */ → ES imports across src/` → `<pending>`
+**DOCS commit:** follows (this entry)
+**Files modified:** 19 — `src/ui/{menu,router,select-via-import-only,profile,shop,tower,season,dailies,rewards,battle-screen,archetype-ticks}.js` (no select.js code change), `src/core/{battle,bosses,heroes,grid,stagger-loop,reactivity-events,damage-channels,ftue-state,progression}.js`.
+
+**Implementation summary:**
+
+T1.12 landed the structural switchover (src/main.js at `/`) but heavy `src/core/*` and `src/ui/*` modules still referenced sibling exports via `/* global */` directives. Since `main.js → router → menu → renderMenu → vRender* / startBossBattle / ...` resolved those refs through legacy globals (nowhere in the new shell), the heavy modules tree-shook out of the bundle — leaving the rendered DOM empty.
+
+T1.13.1 audits the 23 `src/` files with `/* global */` blocks, identifies which token names are already exported from another `src/` module, and flips those entries from `/* global */` to proper `import { ... } from './module.js';` statements. Tokens with no `src/` export remain as `/* global */` and are documented inline as `// LEGACY-ONLY: shims retired in T1.14+ cleanup`.
+
+**Audit numbers:**
+- Files with `/* global */` blocks: **23**
+- Files flipped (≥1 import added): **19**
+- Resolved-to-imports added: **~100 unique identifiers** (across the 19 flipped files)
+- Tokens left as `/* global */` (genuinely legacy-only): **~1100 occurrences** (most are duplicated across multiple files referencing the same legacy module-scope state — `currentBoss`, `BOSSES`, `HERO_DECK`, `ASSETS`, `flashText`, `vibrate`, etc.)
+
+**Bundle size growth:**
+- Before T1.13.1 (T1.12 baseline): 26.28 KB JS + 368.77 KB CSS = **~395 KB total**
+- After T1.13.1: **154.21 KB JS** + 368.77 KB CSS = **~528 KB total** (+128 KB JS, +33%)
+- `dist/assets/index-sTsLi2Wz.js` = 154.21 KB (44.87 KB gzip)
+- Below the 5 MB AAA+ cap (CLAUDE.md §3.2)
+
+Heavy modules now reachable via import edge from main.js:
+- `src/core/heroes.js` (200 KB source → minified into bundle)
+- `src/core/bosses.js` (72 KB)
+- `src/core/battle.js` (104 KB)
+- `src/core/reactivity-events.js` (84 KB)
+- `src/core/stagger-loop.js` (56 KB)
+- `src/core/grid.js`, `damage-channels.js`, `progression.js`, `ftue-state.js`
+- `src/ui/archetype-ticks.js` (92 KB) + `battle-screen.js` (24 KB) + `rewards.js` (44 KB)
+
+Tree-shaking still trims unused per-file surface — the bundle is much smaller than the 900 KB raw source aggregate.
+
+**Spot-check via temporary Playwright probe (NOT committed):**
+
+Probe (since deleted) loaded `/` headless on chromium, waited 3s for boot, dumped:
+- `body` HTML length: 5439 chars (static scaffold + no rendered content)
+- `screen*` containers: all present, all `innerHTML.length === 0`, all `.active === false`
+- `pageerror`: **0**
+- Boot chain console log:
+  - `[boot] storage migration: {migrated: 0, alreadyJSON: 0, missing: 9, total: 9}` (expected on fresh state)
+  - `[boot] initProgression: ReferenceError: essences is not defined` at `loadProgress` (`src/core/progression.js:1062`)
+  - `[boot] initial screen render: ReferenceError: ASSETS is not defined` at `_maybeShowIntroVideo` (`src/core/ftue-state.js:360`)
+  - `[boot] main complete` (outer try/catch contained both)
+
+**Screens rendering after wire-up: NONE — but for a different, narrower reason than pre-T1.13.1.**
+
+Pre-T1.13.1: `renderMenu` was undefined inside `showScreen('menu')` because the entire `src/ui/menu.js` module wasn't reachable from main.js (no import edge). `showScreen` body threw silently inside main.js's try/catch.
+
+Post-T1.13.1: `renderMenu` IS now reachable (router.js imports it from menu.js). `routeByFtue()` runs first because `isFtueActive()` returns true for fresh state. `routeByFtue` calls `_maybeShowIntroVideo` which references `ASSETS` (legacy module-scope) — ReferenceError. Even if FTUE were inactive, `showScreen('menu')` would fail at line 1 (`currentScreen = name`) because `currentScreen` is `/* global ...:writable */` and assignment to an undeclared identifier throws in module strict mode. Same for `loadProgress` writing to `essences = ...` etc.
+
+Both failure modes are flagged in "Замечено рядом" — they're the next layer of cleanup that T1.13 main verify + T1.14+ writable-globals migration will land. The wire-up itself is complete: the import graph now pulls in every heavy `src/core/*` and `src/ui/*` module that was previously tree-shaken.
+
+**Verification (all gates green):**
+- `npm run lint` → **0 errors / 0 warnings**
+- `npm run test:unit` → **11/11 pass** (~106ms)
+- `npm run test:smoke` → **2/2 pass** (~2.0s, legacy URL unchanged)
+- `npm run test:visual` → **22/22 pass** (~12.7s, legacy baselines unchanged)
+- `npm run build` → succeeds, 154.21 KB JS + 368.77 KB CSS
+
+**Legacy untouched:**
+- `wc -c docs/_legacy/_archive_v1/blocksworn_index_fixed.html` = **21,480,494**
+- SHA-256 = `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` (unchanged from T1.12 baseline)
+
+**Self-check:**
+- [x] Acceptance: every flipped file's `/* global */` entries documented (resolved → import, unresolved → `LEGACY-ONLY` comment)
+- [x] Acceptance: bundle grew from 26 KB to 154 KB (heavy modules now in dep graph)
+- [x] Acceptance: `npm run lint` → 0 errors
+- [x] Acceptance: `npm run test:unit` → 11/11 pass
+- [x] Acceptance: `npm run test:smoke` → 2/2 pass (legacy URL, unchanged)
+- [x] Acceptance: `npm run test:visual` → 22/22 pass under 2% (legacy baselines, unchanged)
+- [x] Acceptance: `npm run build` succeeds — total ~523 KB (<5 MB)
+- [x] Acceptance: legacy untouched — `wc -c` = 21,480,494; SHA-256 stable
+- [x] Acceptance: temporary Playwright probe deleted before commit
+- [x] Sacred cows: nothing touched (no combat math / feel / narrative / economy changes)
+- [x] DO NOT TOUCH: legacy HTML / docs/_legacy/* / CSS / smoke specs / visual baselines / regression spec / CI / husky / eslint config — none modified
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.13.1 commit; did NOT start T1.13 main verify
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **Writable globals in `loadProgress` (progression.js) throw ReferenceError in module strict mode.** `essences = ...`, `gold = ...`, `activeSquad = ...`, etc. are declared via `/* global ...:writable */` for lint but those declarations don't create runtime bindings. In legacy single-HTML these were script-scope vars; in the new ES-module shell, assignment to an undeclared identifier throws. **Fix shape (T1.14+):** declare each writable global as `let` at module scope of the canonical owner (probably progression.js for gold/essences/activeSquad, battle.js for hp/bossHP/etc.), expose via setters, and have legacy bridges read through getter accessors. Out of scope for T1.13.1.
+
+2. **`ASSETS is not defined` in `_maybeShowIntroVideo` (ftue-state.js:360).** Asset registry still lives in legacy module scope. Needs extraction to `src/data/assets.js` per the inline comment already in ftue-state.js. Affects routeByFtue cold start. Out of scope for T1.13.1.
+
+3. **Pre-existing bug fixed inline:** `src/core/heroes.js` line 289 was `import { storage } from '../services/storage.js';` but storage.js has no `storage` export (only named `getItem` / `setItem` / etc.). The module was never imported by main.js before T1.13.1, so the bug never surfaced. Once progression.js → heroes.js wire-up landed, the build broke. Fixed minimally as `import * as storage from '...';` (same pattern progression.js already uses). One-line bridge change; not a behavior fix.
+
+4. **Storm helper duplication (`_stormBlizzardFreezes` / `_stormEarthquakeLocks`).** Exported by both `src/core/bosses.js` and referenced through a `./battle-screen.js` shim from `archetype-ticks.js`. Per T1.11 / T1.11.1 design intent these are the same Map instances re-exported. Now that bosses.js is in the bundle, the shim in archetype-ticks could be retired and a single bosses.js import used directly. Cosmetic; functionally identical. Out of scope for T1.13.1.
+
+5. **`_ch3HasDebuff` / `_ch3HasSeal` / `_ch3TwilightMult` / `initChapter3Boss`** duplicated as exports in both `src/core/bosses.js` and `src/ui/archetype-ticks.js`. Pre-existing T1.10.7 vs T1.11.1 ownership ambiguity. Both files declare module-level state for Ch3 dual-state mechanics; which is canonical is a CTO call. Out of scope for T1.13.1.
+
+6. **`writable` tokens in `/* global */` directives create lint phantom shape.** ESLint v9 accepts `/* global currentScreen:writable */` and treats assignment-to-undeclared as OK, but module strict mode at runtime does not. T1.13.1's `/* global */` cleanup did not touch these (they're not import candidates — no `src/` export). A future task should either (a) declare each as `let` in the canonical-owner module, or (b) explicitly route through `window.X` (less clean, but works).
+
+7. **`battle.js` line 282 still has `showBossIntelOverlay` in a remaining `/* global */` block** even though I added it to the import block at line 146. ESLint accepts the duplicate (the import wins at runtime); cosmetic. Same pattern for a handful of other tokens I left listed twice to minimize diff risk. T1.13 main verify can prune.
+
+8. **`shop.js` doesn't need `goToShop` flip — it's the *definer* of goToShop.** Several modules reference `goToShop` as a `/* global */` (it lives in `eslint.config.js` allowlist as a runtime-injected global by legacy). Once `src/ui/shop.js` lands a real `setupShopEventListeners` in T1.14+, `goToShop` will graduate to a named export and other modules can flip.
+
+**Bundle composition:**
+- `dist/index.html` = 5.76 KB
+- `dist/assets/index-BbAQ45LJ.css` = 368.77 KB
+- `dist/assets/index-sTsLi2Wz.js` = **154.21 KB** (44.87 KB gzip)
+- Total `dist/` ≈ 528 KB
+
+**Time:** ~2.5 hours (full audit script + per-file flip pass × 19 + 4× lint / unit / smoke / visual / build verify cycles + temporary Playwright probe + commit cycle).
+
+---
+
 ### TASK-014 (T1.12) — REVIEW (2026-05-11)
 
 **Code commit:** `[T1.12] Wire src/main.js — THE switchover` → `b87a57e`
