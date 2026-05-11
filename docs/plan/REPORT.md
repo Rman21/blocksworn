@@ -119,9 +119,155 @@ None at Phase 0. First test cycle планируется после T1.05 (CI re
 
 ---
 
+## REPORT-02: T1.01 + T1.02 Review (Phase 1 Week 1 — first 2 tasks)
+
+**Date:** 2026-05-11
+**Author:** CTO
+**Phase:** 1
+**Trigger:** TASK-001 submitted REVIEW after ESC-01 unblock; TASK-002 self-verified by CTO
+
+### Summary
+
+Phase 1 Week 1 momentum re-established after ESC-01 (Node install) consumed half the day. T1.01 + T1.02 both DONE, Phase 1 progress 2/20. T1.03 (Playwright) assignment ready in TASKS.md.
+
+### T1.01 outcome
+
+**PASS — all 9 acceptance criteria met.** See `TASKS.md` CLOSED TASKS entry for full breakdown. Highlights:
+- `npm run build` → 8.0K `dist/`, 41ms
+- `npm run dev` → Vite v5.4.21 serves shell HTML on :5173, killed cleanly
+- Legacy HTML byte-identical (21,480,494 bytes) at `docs/_legacy/_archive_v1/`
+- 2 commits clean: `c9cf50e` (T1.01) + `6c010ef` (DOCS self-check)
+
+### T1.02 outcome
+
+**PASS — verification only.** CLAUDE.md was already copied to repo root in Initial Setup commit `41da1eb` (during this same session). Verified content matches required sections per CLAUDE.md §1.4 / Execution Plan §17. 799 lines, markdown valid. No code commits needed for T1.02 — DONE entry recorded in TASKS.md.
+
+### Tech debt items flagged for tracking
+
+From T1.01 self-report ("Замечено рядом"):
+1. **npm 2 moderate vulnerabilities** in transitive deps — investigate during T1.05 (CI setup) or spawn dedicated security-audit task. Severity moderate, not blocker.
+2. **npm minor version** `11.12.1 → 11.14.1` available — cosmetic, defer.
+3. **Empty directories** not tracked by git — acceptable, will populate organically in T1.06+.
+
+These DO NOT block Phase 1 progression.
+
+### Sequencing forward
+
+Next: T1.03 (Playwright + smoke infrastructure). Highest priority — Test Infrastructure FIRST principle (Execution Plan §3.1) means we cannot proceed to code migration (T1.06+) without smoke + visual + CI gates established.
+
+Estimated Week 1 completion: T1.05 (CI green) within 1-2 working days at current pace, assuming no further blockers.
+
+### Bug Testing Required
+
+Not yet. Tester still on standby until T1.05 (CI ready). At that point I will assign Tester a pre-T1.06 smoke-suite audit (baseline test pass against legacy HTML, before migration starts).
+
+---
+
 ## ESCALATIONS
 
-(none open)
+### ESCALATION ESC-01: Node.js / npm not installed on host
+
+**Status:** RESOLVED 2026-05-11
+
+### Resolution
+
+**Roman decision (2026-05-11):** Option 2 (Node.js .pkg installer from nodejs.org).
+
+**Reason:** Option 1 (Homebrew → `brew install node`) was attempted first — Homebrew installed cleanly, but `brew install node` failed during build-from-source. macOS 13 = Tier 3 Homebrew config, `readline` and `lzip` source patches timed out from `ftp.gnu.org` / `download-mirror.savannah.gnu.org` (curl 15-second timeouts × 4 retries). Pivoted to `.pkg` installer — pre-built binary, no compilation, no Homebrew dependency.
+
+**Outcome:**
+- Node.js v24.15.0 + npm 11.12.1 installed on host
+- Verified by Roman in fresh terminal: `node --version && npm --version` → `v24.15.0` / `11.12.1`
+- Homebrew remains installed (5.1.11) but not used for Node
+- T1.01 unblocked, agent re-tasked to complete remaining `npm install` + verify + commit steps
+
+**Lessons for future Phase 1 tasks:**
+- macOS 13 host: prefer `.pkg` / `tar.gz` direct downloads over `brew install` for tooling
+- Playwright (T1.03) may have similar source-build issues if it depends on system libs — watch for it
+- All future Dev tasks can assume `node` / `npm` available in PATH
+
+**Original escalation:**
+**Created:** 2026-05-11
+**Severity:** BLOCKER
+**Origin:** TASK-001 (T1.01 Vite scaffold)
+
+### Context
+
+Game Developer agent attempted T1.01 (Vite scaffold). All file-system steps succeeded (folders created, `blocksworn_index_fixed.html` moved to `docs/_legacy/_archive_v1/`, `package.json` / `vite.config.js` / `index.html` shell / `src/main.js` / `.gitignore` written). Steps requiring `npm` — install dev deps, `npm run dev` verify, `npm run build` verify — could not execute.
+
+CTO verified independently:
+- `command -v node npm brew` → not found
+- No `~/.nvm`, `~/.fnm`, `~/.asdf`, `~/.volta` directories
+- No `/opt/homebrew/`, `/usr/local/bin/node`
+
+The host is a clean macOS dev machine without Node.js toolchain.
+
+This is environment-level, not design-level. The Execution Plan implicitly assumed Node.js would be installed (every Phase 1 task uses `npm` / `vite`). T1.01 is just where the assumption first hits.
+
+### Options considered
+
+1. **Install Node.js via Homebrew (recommended path)**
+   - Roman runs: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` then `brew install node`
+   - Pros: standard macOS approach, future tasks unblocked permanently, version-managed
+   - Cons: ~5-10 min of Roman's time, requires sudo, modifies system PATH
+   - Impact: unblocks everything from T1.01 through T4.12
+
+2. **Install Node.js via official installer**
+   - Roman downloads .pkg from https://nodejs.org/ → run installer
+   - Pros: no Homebrew dependency, GUI-driven
+   - Cons: harder to update later, no version manager
+   - Impact: same — unblocks all Phase 1+
+
+3. **Install Node.js via nvm**
+   - Roman runs nvm install script + `nvm install --lts`
+   - Pros: easy version switching for future projects
+   - Cons: more complex setup, shell init configuration
+   - Impact: same
+
+4. **Authorize unverified commit (NOT recommended)**
+   - Commit scaffold files without running `npm run dev` / `npm run build` to verify
+   - Pros: progress without tooling install
+   - Cons: violates spec (verification non-negotiable), accumulates risk, every downstream task (T1.02-T1.20) still needs Node anyway — only defers the problem by one task
+   - Impact: BLOCKED by T1.02 regardless
+
+5. **Revert and pause Phase 1**
+   - `git restore --staged . && git checkout . && git clean -fd` — discard agent's work
+   - Pros: clean slate
+   - Cons: throws away ~80% of T1.01's file-system work for nothing — same blocker on re-attempt
+   - Impact: pure waste
+
+### CTO recommendation
+
+**Option 1 (Homebrew + node).** Standard, idiomatic macOS setup. Single one-time action unblocks ALL of Phase 1-4. Roman runs two commands locally and notifies CTO when done. CTO then re-tasks the agent to run `npm install`, verify `npm run dev` / `npm run build`, and commit.
+
+Verify after install: `node --version` (need ≥18), `npm --version`.
+
+### Awaiting decision on
+
+Which install path (1, 2, or 3)? Or alternative direction?
+
+### Project impact while waiting
+
+- T1.01 BLOCKED (file work parked uncommitted in working tree — preserved)
+- T1.02-T1.20 BLOCKED transitively
+- Designer / Tester not yet activated → no parallel work possible
+- Estimated unblock time: 5-15 min after Roman runs install commands
+
+### Files parked in working tree (uncommitted)
+
+```
+A  .gitignore               (modified — entries appended)
+A  index.html               (shell, 293 bytes)
+A  package.json             (scripts + devDeps declared, NOT installed)
+A  src/main.js              (placeholder)
+A  vite.config.js
+A  src/{core,ui,feel,data,services,styles/{components,screens}}/   (empty folders)
+A  public/{images,audio,fonts}/                                    (empty folders)
+A  tests/{smoke,visual/{baseline,current},unit}/                   (empty folders)
+R  blocksworn_index_fixed.html → docs/_legacy/_archive_v1/blocksworn_index_fixed.html
+```
+
+These will be committed by Game Dev agent in a re-run once Node is available.
 
 ---
 
