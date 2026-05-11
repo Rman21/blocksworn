@@ -9,7 +9,10 @@
 
 ### TASK-010 (T1.09) — Extract feel layer (animations, particles, narrator function) to `src/feel/`
 
-**Status:** TODO (READY — T1.08 DONE)
+**Status:** REVIEW (Game Dev → CTO)
+**Started:** 2026-05-11
+**Completed:** 2026-05-11
+**Commit (code):** `8ed5679` — `[T1.09] Extract feel layer (animations, particles, narrator function)`
 **Priority:** HIGH
 **Phase:** 1 (Week 2-3 — sub-tasked early per actual pace)
 **Estimated complexity:** M
@@ -90,6 +93,113 @@
 
 ---
 
+**Implementation summary (Game Dev self-check, 2026-05-11):**
+
+Three feel modules extracted as pure relocation from
+`docs/_legacy/_archive_v1/blocksworn_index_fixed.html`:
+
+- **`src/feel/animations.js`** (177 lines) — exports `vPlayLineClearBurst`,
+  `vPlayCritFlash`, `vPlayBossDieFx`, `vCleanupBossDeathFx`,
+  `vPlayLevelPulse` (5 functions). Imports `vHaptic` from `./haptics.js`
+  and `spawnBossDeathParticles` from `./particles.js`. Sourced from legacy
+  lines 67245-67400 (V3.0 PHASE 9 · VFX block).
+- **`src/feel/particles.js`** (68 lines) — exports
+  `spawnBossDeathParticles` + module-private `BOSS_DEATH_ELEM_COLOR`
+  freeze table. Owns the 16-spoke radial burst lifecycle (1600ms
+  container auto-remove). Sourced from legacy lines 67334-67367 (Beat 3
+  of `vPlayBossDieFx`). vPlayLineClearBurst's `.v-spark` spawn loop stays
+  inside animations.js because its trajectory vars are inline with the
+  burst container creation — splitting would require passing 5 params
+  per spark and add no clarity.
+- **`src/feel/narrator.js`** (50 lines) — exports `speakNarrator(trigger)`.
+  Imports `NARRATOR_LINES` from existing `./narrator-lines.js` (T1.07).
+  Sourced from legacy lines 66404-66423.
+
+**Sacred timings preserved (byte-perfect, verified via grep):**
+
+| Function | Legacy ms | Module ms |
+|---|---|---|
+| `vPlayCritFlash` flash class | `180` | `180` ✓ |
+| `vPlayCritFlash` shake class | `440` | `440` ✓ |
+| `vPlayBossDieFx` Beat 0 shake | `440` | `440` ✓ |
+| `vPlayBossDieFx` Beat 1 hit-pause | `300` | `300` ✓ |
+| `vPlayBossDieFx` Beat 2 white flash fire | `260` | `260` ✓ |
+| `vPlayBossDieFx` Beat 2 flash auto-remove | `220` | `220` ✓ |
+| `vPlayBossDieFx` Beat 3 dissolve+particles | `380` | `380` ✓ |
+| `vPlayBossDieFx` Beat 4 slow zoom | `420` | `420` ✓ |
+| `vPlayBossDieFx` Beat 5 music sting | sync | sync ✓ |
+| `vPlayLineClearBurst` burst cleanup | `1000` | `1000` ✓ |
+| `vPlayLineClearBurst` spark duration | `600+rand*240` | `600+rand*240` ✓ |
+| `vPlayLineClearBurst` spark cap | `32` | `32` ✓ |
+| `vPlayLineClearBurst` target fallback y | `-80` | `-80` ✓ |
+| `spawnBossDeathParticles` count | `16` | `16` ✓ |
+| `spawnBossDeathParticles` distance | `70+rand*60` | `70+rand*60` ✓ |
+| `spawnBossDeathParticles` delay | `rand*80` | `rand*80` ✓ |
+| `spawnBossDeathParticles` cleanup | `1600` | `1600` ✓ |
+| `vPlayLevelPulse` pulse hold | `2800` | `2800` ✓ |
+| `speakNarrator` busy hold | `3400` | `3400` ✓ |
+| `speakNarrator` strip visibility | `3000` | `3000` ✓ |
+
+Element-color table (`ember/tide/grove/solar/umbra` → hex) copied
+byte-perfect including default `'#FFD53D'` fallback.
+
+**ESLint approach:** rather than mutate the shared `eslint.config.js`
+globals list (DO NOT TOUCH per task spec — "minimal globals additions"
+only), I used per-file `/* global … */` directives. This keeps the
+legacy-only identifiers local to the feel modules that need them and
+auto-disappears in T1.10 when the rewiring lands:
+
+- `animations.js`: `/* global SIZE, playSFX, vPlaySound */`
+- `particles.js`: `/* global currentBoss */`
+- `narrator.js`: `/* global _isDialogActive, _deferDuringDialog */`
+
+**TODO(T1.10) markers embedded:** 5 total
+1. `animations.js` header — `SIZE`, `currentBoss`, `playSFX`/`vPlaySound`
+   listed for rewiring
+2. `animations.js` inline — `SIZE_LOCAL` fallback line marks the SIZE rewire
+3. `animations.js` inline — Beat 5 try/catch marks the playSFX/vPlaySound rewire
+4. `particles.js` header + inline — `currentBoss` to come from
+   `src/core/state.js`
+5. `narrator.js` header — `_isDialogActive` and `_deferDuringDialog` to
+   move to a `src/core/dialog-defer.js` (or similar) in T1.10
+
+**Files changed:**
+- `src/feel/animations.js` (created, 177 lines)
+- `src/feel/particles.js` (created, 68 lines)
+- `src/feel/narrator.js` (created, 50 lines)
+
+**Gates (all green):**
+- `npm run lint` → 0 errors / 0 warnings
+- `npm run build` → succeeds, dist = 372K (368.77kB CSS + 0.75kB JS;
+  feel modules tree-shake out, no callers yet — matches T1.08 baseline)
+- `npm run test:unit` → 6 / 6 passing
+- `npm run test:smoke` → 2 / 2 passing (chromium + mobile-chrome)
+- `npm run test:visual` → 22 / 22 passing under 2% (legacy untouched)
+- Legacy: `wc -c` = 21,480,494 ✓
+- Legacy: SHA-256 = `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` ✓
+
+**Acceptance criteria — all met:**
+- [x] 3 new files: animations.js, particles.js, narrator.js
+- [x] Each module exports named functions (5 / 1 / 1 respectively)
+- [x] `vPlayCritFlash` timing byte-perfect (180ms / 440ms)
+- [x] `vPlayBossDieFx` 5-beat sequence byte-perfect
+- [x] `vPlayLineClearBurst` pattern byte-perfect
+- [x] `speakNarrator()` imports `NARRATOR_LINES` from `./narrator-lines.js`
+- [x] No new console errors when modules import-resolved (smoke clean)
+- [x] `npm run test:smoke` 2/2
+- [x] `npm run test:visual` 22/22 under 2%
+- [x] `npm run test:unit` 6/6
+- [x] `npm run build` succeeds, bundle 372K
+- [x] `npm run lint` 0 errors
+- [x] Legacy `wc -c` + SHA-256 unchanged
+- [x] Commit landed: `8ed5679`
+
+**Замечено рядом (NOT fixed, reported):**
+- *None this pass.* The feel layer is self-contained; no incidental
+  observations to flag for T1.10.
+
+---
+
 ### TASK-011 (T1.10) — Extract core game logic to `src/core/` (XL — the watershed task)
 
 **Status:** TODO (blocked by TASK-010)
@@ -156,4 +266,4 @@
 ---
 
 **Maintained by:** CTO agent
-**Last update:** 2026-05-11 — after T1.08 review; T1.09 ready
+**Last update:** 2026-05-11 — T1.09 → REVIEW (3 feel modules extracted, sacred timings byte-perfect)
