@@ -48,15 +48,14 @@
 //     Ch2 archetype dispatcher (tickChapter2Archetype), and _tickPhaseShifter /
 //     _tickEternal / _tickCoOp / _tickChoice (because they're self-contained
 //     phase-banner + dmg-mult mutators).
-//   - Marked T1.11.1 follow-up: the larger Ch1 boss-specific tick handlers
-//     (Pyredrake/Abyssal Tyrant/Grovewarden/Solar Phoenix/Crypt Lich) and
-//     the Ch2 archetype-specific ticks (_tickHypnotist/_tickEngineer/
-//     _tickFrenzy/_tickTempo/_tickBattery) plus tickChapter3Boss. These
-//     pull in ~30-80 LoC of helper state + helper functions each and would
-//     bloat this file past the 500-LoC §3.4 guideline. They stay in legacy
-//     until a T1.11.1 follow-up commits each one byte-perfect alongside its
-//     helpers. The legacy bodies are byte-identical to the references
-//     above; no behavior change here.
+//   - Relocated to src/ui/archetype-ticks.js (T1.11.1 follow-up): the larger
+//     Ch1 boss-specific tick handlers (Pyredrake/Abyssal Tyrant/Grovewarden/
+//     Solar Phoenix/Crypt Lich), the Ch2 archetype-specific ticks
+//     (_tickHypnotist/_tickEngineer/_tickFrenzy/_tickTempo/_tickBattery),
+//     and tickChapter3Boss (Ch3 state machine + helpers). Each pulls in
+//     30-80 LoC of helper state + helper functions; the split keeps this
+//     file under the §3.4 500-LoC cap while the sibling module owns
+//     ~1,540 LoC of FX/DOM-coupled tick logic byte-perfect.
 //
 // Does NOT own:
 //   - render() main grid renderer / renderHP / renderBossHP — those are
@@ -71,8 +70,22 @@
 
 /* eslint-disable no-empty, no-unused-vars, no-redeclare */
 
+// 2026-05-11 — T1.11.1: deferred boss-specific tick handlers + Ch3 state
+// machine now resolve via import from the sibling archetype-ticks.js
+// module (~1,540 LoC of byte-perfect FX/DOM-coupled tick logic + per-
+// handler module state). Co-located here would push battle-screen.js
+// past the §3.4 500-LoC cap; the split keeps the dispatcher legible.
+// tickChapter3Boss is exported by archetype-ticks.js but invoked
+// directly from the legacy battle loop (not by tickChapter2Archetype);
+// it's not re-imported here. T1.12 will wire it through src/main.js.
+import {
+  _tickHypnotist, _tickEngineer, _tickFrenzy, _tickTempo, _tickBattery,
+  _tickPyredrake, _tickAbyssalTyrant, _tickGrovewarden, _tickSolarPhoenix,
+  _tickCryptLich,
+} from './archetype-ticks.js';
+
 /* global currentBoss, currentChapter, bossHP, bossMaxHP, bossAttackDmgMult,
-   bossArchetype, _ch3BossId, _ch3State, _ch3LastDualState,
+   bossArchetype,
    grid, SIZE, hp, shieldCount, battleDamageTaken, gameEnded,
    _stormBlizzardFreezes, _stormEarthquakeLocks,
    _p6SoulDrinkerState, _p6SoulDrinkerLastPhase,
@@ -86,10 +99,7 @@
    PROSECUTOR_FACES, FLAME_PHASE_NAMES,
    document, flashStateBanner, flashText, vibrate, showThreatBanner,
    hideThreatBanner, renderHP, render, showDefeatModal,
-   _bossArchetypePhase,
-   _tickHypnotist, _tickEngineer, _tickFrenzy, _tickTempo, _tickBattery,
-   _tickPyredrake, _tickAbyssalTyrant, _tickGrovewarden, _tickSolarPhoenix,
-   _tickCryptLich */
+   _bossArchetypePhase */
 /* global _p6SoulDrinkerState:writable, _p6SoulDrinkerLastPhase:writable,
    _p6StormcallerLastPhase:writable, _p6ConfessionReaderLastPhase:writable,
    _p6WitherLastPhase:writable, _p6SealerLastPhase:writable,
@@ -398,38 +408,12 @@ export function cleanupBattleScreen() {
   // call those from cleanupBattleScreen until T1.12 unifies the reset path.
 }
 
-// ─── T1.11.1 follow-up — Ch1 boss-specific + Ch2 archetype-specific ticks ───
-// Per the inlining policy at the top of this file, the following tick
-// handlers stay in legacy until a T1.11.1 follow-up commits them byte-perfect
-// here alongside their helper functions + per-handler module state. The
-// legacy bodies are byte-identical to the references below; no behavior
-// change is introduced by leaving them in legacy.
+// ─── T1.11.1 landed ─────────────────────────────────────────────────────────
+// The 10 deferred boss-specific tick handlers + tickChapter3Boss Ch3 state
+// machine now live in src/ui/archetype-ticks.js (sibling module).
+// tickChapter2Archetype above imports them by name; no /* global */ stubs
+// remain for the deferred ticks. See archetype-ticks.js header for inventory.
 //
-//   - _tickPyredrake (legacy 41250-41270) + _pyredrakeWarnCells +
-//     _pyredrakeQueueCinderblast + _pyredrakeApplyCinderblast +
-//     _pyredrakeCinderblastInterval + _initPyredrakeState +
-//     _resetPyredrakeState (98 LoC total)
-//   - _tickAbyssalTyrant (legacy 41411-41467) + _abyssalRowWarnCells +
-//     _abyssalMaelstromWarnCells + abyssalCrushSpire* state +
-//     _abyssalRowInterval + _abyssalCrushInterval + _abyssalMaelstromInterval +
-//     _abyssalQueueRowStrike + _abyssalApplyRowStrike +
-//     _abyssalQueueCrushSpire + _abyssalApplyCrushSpire +
-//     _abyssalRenderCrushSpireVisual + _abyssalQueueMaelstrom +
-//     _abyssalApplyMaelstrom + _initAbyssalTyrantState +
-//     _resetAbyssalTyrantState (~271 LoC)
-//   - _tickGrovewarden + _grovewardenApplyRootBind + helpers (~192 LoC)
-//   - _tickSolarPhoenix (~35 LoC)
-//   - _tickCryptLich + _cryptQueueNecropulse + _cryptApplyNecropulse +
-//     helpers (~160 LoC)
-//   - _tickHypnotist (~64 LoC) + tendril coil / bloom corruption helpers
-//   - _tickEngineer (~54 LoC) + electrify helpers
-//   - _tickFrenzy + _frenzyDevour + _renderFrenzyVisuals (~105 LoC)
-//   - _tickTempo (~50 LoC)
-//   - _tickBattery (~44 LoC) + charge meter helpers
-//   - tickChapter3Boss (~246 LoC, large per-boss state machine for
-//     TWILIGHT VESSEL / STORMSHEPHERD / VOIDPRIESTESS / ROOT-OF-NOTHING /
-//     ARCHIVAL ETERNAL)
-//
-// Total deferred to T1.11.1: ~1,300 LoC of FX/DOM-coupled tick handlers.
-// All are referenced from tickChapter2Archetype above via /* global */ until
-// the follow-up lands.
+// tickChapter3Boss is the entry the legacy battle loop expects — it stays
+// exported by archetype-ticks.js so legacy `tickChapter3Boss()` call sites
+// resolve when src/main.js (T1.12) bridges window <-> module.
