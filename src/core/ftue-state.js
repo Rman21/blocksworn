@@ -72,6 +72,12 @@ import {
 import { resetBossVoiceFlags } from './bosses.js';
 import { ASSETS } from '../data/assets.js';
 import { playDialogScript } from '../ui/dialog.js';
+import {
+  startPyredrakeFtueBattle,
+  startGruntFtueBattle,
+  startChronicleFtueBattle,
+  finalizeFtue,
+} from './battle.js';
 import * as storage from '../services/storage.js';
 import { log } from '../services/logger.js';
 
@@ -322,18 +328,13 @@ export function onFtueBeatChanged(next, prev) {
 export function skipFtue()  { advanceFtue('complete'); location.reload(); }
 export function resetFtue() { ftueBeat = 'not_started'; saveFtueToStorage(); location.reload(); }
 
-// ─── Battle launchers preserved as cross-module refs ──────────────────────
-// TODO(T1.10.9): startPyredrakeFtueBattle / startGruntFtueBattle /
-//                startChronicleFtueBattle / finalizeFtue currently live in
-//                legacy. The dispatcher above calls them as ambient globals;
-//                lint declares them below.
-// T1.13.1: FTUE battle launchers + finalizer live in src/core/battle.js.
-// Circular import (battle.js imports isFtueActive/ftueIs from this module)
-// is safe because both references resolve inside function bodies, not at
-// module init.
-// (kept as /* global */ to avoid eager imports during ftue-state module load)
-/* global startPyredrakeFtueBattle, startGruntFtueBattle,
-   startChronicleFtueBattle, finalizeFtue */
+// ─── Battle launchers ─────────────────────────────────────────────────────
+// T1.13.4 patch (CTO): flipped from /* global */ to ES imports at top of
+// file. Circular import (battle.js imports isFtueActive/ftueIs from here)
+// is safe — ES module live bindings resolve at call time, not at module init.
+// The function-body call sites above (`startChronicleFtueBattle`, etc.) get
+// the live binding via the named import. Verified: lint 0, build clean,
+// no module-init order issues.
 
 // ─── Intro video gate (legacy 24351-24407) ────────────────────────────────
 // Plays the cold-launch intro video once per install. Localstorage flag
