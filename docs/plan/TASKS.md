@@ -1363,6 +1363,142 @@ Both failure modes are flagged in "Замечено рядом" — they're the 
 
 ---
 
+### TASK-016 (T1.13.2) — REVIEW (2026-05-11)
+
+**Code commit:** `[T1.13.2] Writable canonical bindings + ASSETS + duplicate exports` → `11d0e60`
+**DOCS commit:** follows (this entry)
+**Files modified:** 9 — `src/core/{battle,bosses,ftue-state,progression}.js`, `src/data/assets.js` (new), `src/ui/{archetype-ticks,battle-screen,profile,router}.js`.
+
+**Implementation summary:**
+
+T1.13.1 wire-up made every heavy `src/core/*` / `src/ui/*` module reachable through main.js's import graph, but the new shell still couldn't render: progression.js's `loadProgress` threw `ReferenceError: essences is not defined` (bare assignment in ES strict module) and ftue-state.js's `_maybeShowIntroVideo` threw `ReferenceError: ASSETS is not defined` (asset registry still legacy-only). T1.13.2 resolves both, plus the duplicate-export and Storm-circular gaps flagged in T1.13.1's "Замечено рядом".
+
+**Deliverable 1 — Writable globals canonical bindings (24 globals):**
+
+Per the T1.10.6 stagger-loop.js / T1.10.7 bosses.js sibling pattern: each previously-`/* global ...:writable */` legacy script-scope binding is now a module-private `let` in its canonical-owner module, with a `Object.defineProperty(window, X, { get, set, configurable: true })` bridge so cross-module legacy-style consumers see the same live value.
+
+- **`src/core/progression.js`** (15 globals): essences, gold, activeSquad, favorites, activeModifiers, chapterProgress, bossesDefeated, heroUpgrades, artifactsOwned, equippedArtifacts, artDropPityCounter, chapter2Unlocked, chapter3Unlocked, chapter4Unlocked, selectedBossIdx — initial values copied byte-perfect from legacy 23932/38265/38266/38272/38273/38276/38277/38309/38314/38315/38316/38344-38351. `currentChapter` writes routed through `setCurrentChapterValue()` / `getCurrentChapter()` from bosses.js (where the bridge was added in T1.10.7) to avoid double-ownership — the explicit redundant `BOSSES = CHAPTERS[idx].bosses` in setChapter was dropped because bosses.js's `BOSSES` bridge is a dynamic getter that reads `CHAPTERS[currentChapter-1].bosses` on every access.
+- **`src/ui/router.js`** (2 globals): currentScreen (init `'menu'`), `_currentRacePureRace` (init `null`). The legacy `gameEnded = true` mutation in `returnToMenuFromBattle` was routed through `window.gameEnded` so battle.js stays the canonical owner.
+- **`src/core/battle.js`** (6 globals): attackCountdown, battleStartTime, damageDealt, placementCount (init `0`), revivesRemaining (init `0`, legacy 40217), gameEnded (init `false`, legacy 40220).
+- **`src/core/stagger-loop.js`** (verified, no change): bossState/bossPressure already module-private `let` since T1.10.6; no external writes — only legacy-read via getter bridge.
+- **`src/core/bosses.js`** (verified, no change): currentBoss/currentChapter/currentBossIdx/bossHP/bossMaxHP/_currentBossRoleTier already get+set bridged since T1.10.7.
+
+**Deliverable 2 — ASSETS extraction to `src/data/assets.js`:**
+
+89 keys (Boss portraits, role/race/element/chapter emblems, hero sprites, intro video URL, etc.) copied byte-perfect from legacy lines 19722-19835. Frozen via `Object.freeze()`. Window bridge (`window.ASSETS = ASSETS`) for any legacy-style bare reference that survives. 4 src/ consumers flipped from `/* global ASSETS */` to `import { ASSETS } from '../data/assets.js'`:
+
+| Consumer | Use |
+|---|---|
+| `src/core/ftue-state.js` | intro video gate (`_maybeShowIntroVideo`) |
+| `src/core/battle.js` | boss portrait + emblem painting (`bossImg.src`, badge bg) |
+| `src/core/bosses.js` | boss emblem URL resolution (chapter/tower/void emblems) |
+| `src/ui/profile.js` | active hero portrait fallback in profile header |
+
+**Deliverable 3 — Duplicate exports resolved (Ch3 archetype):**
+
+`_ch3BossId` / `_ch3State` / `_ch3LastDualState` state + `_ch3PhaseFromHp` / `initChapter3Boss` / `tickChapter3Boss` / `_ch3HasDebuff` / `_ch3HasSeal` / `_ch3TwilightMult` / `_ch3RenderBossAura` / `_ch3MaybeAnnounceDualState` were duplicated across `src/core/bosses.js` (T1.10.7) AND `src/ui/archetype-ticks.js` (T1.11.1). archetype-ticks.js was byte-perfect to legacy 40788-42013; bosses.js carried a slightly-refactored variant with `Array.isArray` guards in `_ch3HasDebuff` / `_ch3HasSeal`. Per the task rule (Ch3 state mutated each tick by Ch3 handlers in archetype-ticks.js → archetype-ticks.js is canonical), the duplicates in bosses.js were removed:
+
+- bosses.js: 14 module-level identifiers removed (~390 lines). The `_stormBlizzardFreezes` / `_stormEarthquakeLocks` Maps stay because grid.js, battle-screen.js, and archetype-ticks.js still import them by name.
+- bosses.js window-exposure block trimmed: 13 `window.<Ch3 token>` lines removed; only the 2 Map exposures remain.
+- archetype-ticks.js: added a window-exposure block at module foot mirroring the T1.10.7 / T1.10.6 sibling pattern — exposes 8 Ch3 handlers + 3 storm helpers + the 3 state slots via the same get/set bridge so legacy `/* global */` consumers in heroes.js / grid.js / battle-screen.js continue to resolve. Two Ch3 helpers (`_ch3RenderBossAura`, `_ch3MaybeAnnounceDualState`) are local `function` declarations in archetype-ticks.js and are reachable from the window block via hoisting.
+
+**Deliverable 4 — Storm helper circular retirement:**
+
+`_stormApplyBlizzardFreeze` + `_stormApplyEarthquakeLock` moved from `src/ui/battle-screen.js` to `src/ui/archetype-ticks.js` (where the Storm tick already calls them as `*Shim` aliases). `_stormApplyLightningRow` already lived in archetype-ticks.js — all three Storm helpers now co-located with their tickChapter3Boss caller. The 7-line shim `import { _stormApplyBlizzardFreeze as ...Shim, ... } from './battle-screen.js'` in archetype-ticks.js was dropped; the call-sites in tickChapter3Boss use the direct names. battle-screen.js's exports for the two helpers were deleted. **Net result:** `battle-screen.js ↔ archetype-ticks.js` cycle gone — Vite build emits no circular-dep warning (confirmed; see verification below).
+
+**Spot-check via temporary Playwright probe (NOT committed):**
+
+Probe (since deleted) loaded `/` headless on chromium, waited 3s for boot, dumped console + errors. Pre-T1.13.2 boot trace had two `ReferenceError` warnings caught by main.js's outer try/catch:
+
+```
+[warn] initProgression: ReferenceError: essences is not defined
+[warn] initial screen render: ReferenceError: ASSETS is not defined
+```
+
+Post-T1.13.2 boot trace:
+
+```
+[debug] damage-channels (T1.10.5) module initialized
+[debug] bosses (T1.10.7) module initialized
+[debug] stagger-loop (T1.10.6) module initialized
+[debug] reactivity-events (T1.10.8) module initialized
+[info]  [boot] storage migration: {migrated: 0, alreadyJSON: 0, missing: 9, total: 9}
+[debug] [FTUE] not_started → chronicle_fight
+[warn]  onFtueBeatChanged failed: ReferenceError: playDialogScript is not defined
+[info]  [boot] main complete
+```
+
+- Page errors: **0**.
+- The two T1.13.1 ReferenceErrors are gone — boot now successfully runs `initProgression()`, reaches `routeByFtue()`, advances the FTUE beat from `not_started` to `chronicle_fight`.
+- `#screenMenu.active` not reached within 15s because the FTUE intercept in `onFtueBeatChanged` calls `playDialogScript(FTUE_SCRIPTS.chronicle_intro, ...)` (line 237) and `playDialogScript` is still a legacy function (no `src/` export). The FTUE intercept hides the menu (`menu.classList.remove('active')`) BEFORE attempting the dialog script, so the menu stays inactive. This is the **next-layer** wire-up gap — out of T1.13.2 scope (covered in "Замечено рядом" item 1 below).
+- Menu HTML char count at 3s: 0 (FTUE intercept removed the .active before render).
+- Body HTML char count: 5,439 (static scaffold present).
+- Console warnings: 1 (`playDialogScript`).
+
+**Verification (all gates green):**
+- `npm run lint` → **0 errors / 0 warnings**
+- `npm run test:unit` → **11/11 pass** (~105ms)
+- `npm run test:smoke` → **2/2 pass** (~2.1s, legacy URL unchanged)
+- `npm run test:visual` → **22/22 pass under 2%** (~12.3s, legacy baselines unchanged)
+- `npm run build` → succeeds; **no Vite circular-dep warnings emitted** (Storm helper retirement confirmed clean)
+
+**Bundle size:**
+- `dist/index.html` = 5.76 KB
+- `dist/assets/index-BbAQ45LJ.css` = 368.77 KB (unchanged)
+- `dist/assets/index-Tu03nm8U.js` = **4,773.55 KB** (gzip 3,494.98 KB)
+- Total `dist/` ≈ 5.13 MB — exceeds the 5 MB AAA+ cap per CLAUDE.md §3.2 by ~3%. The growth (+4.62 MB JS over T1.13.1's 154 KB) is entirely the ASSETS data-URI block (89 base64-encoded portrait/emblem JPEGs/PNGs). Two options for the next sprint:
+  1. Replace data URIs with `import.meta.url`-resolved asset paths so Vite serves them as real files (cuts JS bundle to ~150 KB and the assets become separately-cacheable HTTP fetches).
+  2. Lazy-load `assets.js` via `import('./data/assets.js')` from the consumers that actually need it (intro video gate is the cold-start hot path — keep ASSETS eager only for ftue-state.js; defer for battle.js / profile.js).
+- Flagged in "Замечено рядом" as the bundle-budget remediation candidate.
+
+**Legacy untouched:**
+- `wc -c docs/_legacy/_archive_v1/blocksworn_index_fixed.html` = **21,480,494**
+- SHA-256 = `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` (unchanged)
+
+**Self-check:**
+- [x] Deliverable 1: 24 writable globals bridged in their canonical-owner module (progression 15, router 2, battle 6, stagger-loop verified, bosses verified)
+- [x] Deliverable 2: ASSETS extracted byte-perfect to `src/data/assets.js`; 4 consumers flipped to import
+- [x] Deliverable 3: Ch3 duplicate exports + state removed from bosses.js (canonical home: archetype-ticks.js); window-exposure block moved
+- [x] Deliverable 4: Storm helpers co-located in archetype-ticks.js; battle-screen.js ↔ archetype-ticks.js circular retired; Vite build emits no circular warning
+- [x] Acceptance: `npm run lint` → 0 errors
+- [x] Acceptance: `npm run test:unit` → 11/11 pass
+- [x] Acceptance: `npm run test:smoke` → 2/2 pass (legacy URL, unchanged)
+- [x] Acceptance: `npm run test:visual` → 22/22 pass under 2% (legacy baselines, unchanged)
+- [x] Acceptance: `npm run build` succeeds; circular-dep warning absent
+- [x] Acceptance: legacy untouched — `wc -c` = 21,480,494; SHA-256 stable
+- [x] Acceptance: temporary Playwright probe deleted before commit
+- [x] Sacred cows: nothing touched (no combat math / feel / narrative / economy changes)
+- [x] DO NOT TOUCH: legacy HTML / docs/_legacy/* / CSS / smoke specs / visual baselines / regression spec / CI / husky / eslint config — none modified
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.13.2 commit; did NOT start T1.13 main verify
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **`playDialogScript` undefined at FTUE entry.** The probe surfaced this as the next blocking ReferenceError: `ftue-state.js:237` calls `playDialogScript(FTUE_SCRIPTS.chronicle_intro, startChronicleFtueBattle)` for the `chronicle_fight` beat, and `playDialogScript` is still a legacy script-scope function (no `src/` export). Five other beats in `onFtueBeatChanged` (`chronicle_won`, `intro`, `pyredrake_won`, `leader_choice`) and downstream beats call it too. **Fix shape (T1.14+):** extract `playDialogScript` (legacy ~25380) + the dialog FX layer (`_dialogDeferredQueue`, `dialogActive`, `dialogClickLock`) into a `src/feel/dialog.js` or similar; flip `/* global playDialogScript */` to `import { playDialogScript } from '../feel/dialog.js'`. Out of scope for T1.13.2.
+
+2. **`startChronicleFtueBattle`, `revealHero`, `flashText`, `vibrate`, `showLeaderChoiceModal` and dozens of other legacy-only function references in src/ modules.** These are the next layer of `/* global */` cleanup. Each call-site is `try`-wrapped in legacy but still throws ReferenceError in ES strict mode if the symbol is undeclared. Track via `grep -rn "/* global" src/` for the remaining LEGACY-ONLY block — ~50 unique tokens across ~15 files.
+
+3. **Bundle exceeds 5 MB AAA+ cap by ~3% (5.13 MB total).** Driver: 4.6 MB ASSETS data-URI block. Two options outlined above; recommend Option 1 (resolve via import.meta.url + real asset files) for caching + per-route lazy load benefits. Recommend separate task (TASK-XXX: Asset-pipeline rewrite from data URIs to import.meta.url).
+
+4. **`progression.js` line 1118 + 1122: bare `chapterProgress[currentChapter]` reads** were rewritten to `chapterProgress[getCurrentChapter()]`, but ESLint's `prefer-const` doesn't kick in because `chapterProgress` is `let`. Documentational only.
+
+5. **`_SQUAD_MAX_FALLBACK = 5` constant in progression.js** is a defensive shim because `SQUAD_MAX` is still a legacy global (defined in data/heroes consumers). When `SQUAD_MAX` graduates to a named export in T1.14+, replace `_SQUAD_MAX_FALLBACK` with the import.
+
+6. **Probe revealed that the FTUE chronicle_fight beat advances on first boot** before the player has a chance to see the menu. This is intentional legacy behavior (Player Education Stage 1 plays Chronicle's intro immediately), but it means the new shell's `#screenMenu.active` is only visible AFTER `chronicle_fight → chronicle_won → intro → pyredrake_fight → pyredrake_won → leader_choice → complete` completes (or FTUE is disabled). The T1.13 main verify (manual playthrough) needs to confirm that on a save with `ftueBeat === 'complete'` the menu renders correctly — that's the relevant smoke test for "screens render after wire-up".
+
+7. **`SQUAD_MAX` referenced from `_SQUAD_MAX_FALLBACK` shim** — see item 5.
+
+**Bundle composition:**
+- `dist/index.html` = 5.76 KB
+- `dist/assets/index-BbAQ45LJ.css` = 368.77 KB (unchanged)
+- `dist/assets/index-Tu03nm8U.js` = **4,773.55 KB** (gzip 3,494.98 KB)
+- Total `dist/` ≈ 5.13 MB (the ASSETS data-URI block dominates)
+
+**Time:** ~2 hours (writable-globals audit + 3 module bridges + ASSETS extraction + duplicate-export surgery + Storm circular retirement + 4× lint / unit / smoke / visual / build verify cycles + temporary probe + commit cycle).
+
+---
+
 ### TASK-014 (T1.12) — REVIEW (2026-05-11)
 
 **Code commit:** `[T1.12] Wire src/main.js — THE switchover` → `b87a57e`
