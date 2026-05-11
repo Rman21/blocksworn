@@ -9,7 +9,7 @@
 
 ### TASK-009 (T1.08) — Extract services into `src/services/`
 
-**Status:** TODO (READY — T1.07 DONE; assignment ready for Game Dev Agent)
+**Status:** REVIEW (awaiting CTO sign-off; submitted 2026-05-11 by Game Dev Agent)
 **Priority:** HIGH
 **Phase:** 1 (Week 2-3, third code migration task)
 **Estimated complexity:** M
@@ -151,6 +151,66 @@
 **Rollback plan:** `git revert <commit-sha>` — fully reversible; legacy untouched.
 
 **Time-box:** 60-90 min (inventory 15, modules 30-45, unit tests 10, CI yml update 5, verify 15-20).
+
+---
+
+**Self-check (Game Dev → CTO, 2026-05-11):**
+
+Implementation summary — six service modules created with named-export public API, first unit tests added (Vitest), first new CI job (`unit`) wired in between `lint` and `build`. Pure abstraction layer: zero legacy callers rewired (T1.10 territory), zero changes to legacy HTML / CSS / data / feel.
+
+**Files changed / created:**
+- `src/services/firebase.js` (new, 107 lines / 4.0KB) — `initFirebase()`, `getApp/getAuth/getDb/getAnalytics`, `onReady(cb)`. Thin wrapper over `window.fb` (which legacy module script exposes). `FIREBASE_CONFIG` byte-identical to legacy lines 18285-18293.
+- `src/services/revenuecat.js` (new, 102 lines / 3.6KB) — `initRevenueCat(apiKey, appUserID)`, `isReady`, `getOfferings`, `purchasePackage`, `restorePurchases`. Placeholder-key guard preserves legacy mock-fallback behavior.
+- `src/services/sentry.js` (new, 78 lines / 3.2KB) — `initSentry(dsn?)`, `captureException`, `captureMessage`, `addBreadcrumb`. DSN placeholder byte-identical to legacy line 18442. Init early-returns on placeholder so dev / Vitest never phone home.
+- `src/services/analytics.js` (new, 155 lines / 5.6KB) — `EVT` taxonomy (51 keys, byte-mirror of legacy 18809-18873), `logEvent(name, props)`, `setUserProperty`, `setUserId`. logEvent forks to Firebase Analytics modular SDK + legacy compat + Sentry breadcrumb, each sink try/catch'd so analytics never breaks gameplay.
+- `src/services/logger.js` (new, 55 lines / 2.4KB) — `log.{debug,info,warn,error}` + flat named exports. `log.debug` is no-op when `import.meta.env.PROD === true` (Vite-provided); `log.error` routes to Sentry via `captureException`, wrapped in try/catch so cold-start (Sentry not yet initialized) never throws.
+- `src/services/storage.js` (new, 123 lines / 4.6KB) — `getItem/setItem/removeItem/clear`, `setMockMode/isMockMode`, `migrate` placeholder, `STORAGE_VERSION = 1`. JSON-stringifies on set, JSON-parses on get; mock mode swaps to in-memory `Object.create(null)` backing.
+- `tests/unit/storage.test.js` (new, 54 lines / 1.8KB) — 6 tests covering mock-mode flag, getItem default fallback, set/get roundtrip with object, removeItem, clear, STORAGE_VERSION + migrate sanity.
+- `vitest.config.js` (new, 16 lines / 0.6KB) — scopes test discovery to `tests/unit/**/*.test.js` so Vitest does not pick up Playwright `.spec.js` files.
+- `src/main.js` — added comment documenting legacy service init order (Firebase → RevenueCat → Sentry) as T1.12 wire-up target per Known Unknowns note.
+- `package.json` — added `"test:unit": "vitest run"` + `"test:unit:watch": "vitest"`; `vitest` ^4.1.5 added as devDep.
+- `package-lock.json` — Vitest dep tree (+37 packages, all transitive Vitest deps).
+- `.github/workflows/ci.yml` — new `unit` job between `lint` and `build`; `build` now `needs: unit`. Smoke + visual remain `needs: build` (so unit-test regression blocks them transitively).
+
+**Verification:**
+- `npm run lint` → 0 errors ✅
+- `npm run test:unit` → 6/6 pass in ~125ms (Vitest 4.1.5) ✅
+- `npm run build` → succeeded; bundle = 372 KB (CSS 368.77 KB + JS 0.75 KB), identical to T1.07 — services tree-shake out as expected ✅
+- `npm run test:smoke` → 2/2 pass on chromium + mobile-chrome ✅
+- `npm run test:visual` → 22/22 pass under 2% threshold ✅
+- Legacy HTML: `wc -c` = 21,480,494 ✅; SHA-256 = `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` ✅
+
+**Self-check checklist:**
+- [x] 6 service modules with named exports + clean public API
+- [x] `storage.js` mock mode (`setMockMode(true)` → in-memory backing)
+- [x] `analytics.logEvent()` wraps Firebase Analytics + Sentry breadcrumbs
+- [x] `logger.error()` calls `sentry.captureException`, wrapped in try/catch for cold-start safety
+- [x] Sentry DSN placeholder unchanged (byte-identical to legacy)
+- [x] `tests/unit/storage.test.js` covers get/set/remove/clear (6 tests, 4 minimum)
+- [x] `vitest` added; `npm run test:unit` exits 0
+- [x] CI workflow: `unit` job added, slotted between `lint` and `build`
+- [x] All test gates green (lint, unit, smoke, visual)
+- [x] Build succeeds, bundle 372 KB (well under 5 MB)
+- [x] Legacy HTML byte-identical
+- [x] No new console.log in production code (debug-only path; `log.debug` is no-op in PROD)
+- [x] No game logic migrated (pure service abstractions)
+- [x] Sacred cows untouched
+- [x] DO NOT TOUCH list respected (legacy HTML, vite plugin, CSS, data, feel, baselines, eslint config, husky, site/)
+
+**Замечено рядом (NOT fixed, reported):**
+- `src/main.js` still uses `console.log('Blocksworn loading...');` — intentional per ESLint config comment (`no-console` is OFF until T1.10+ rewires call sites through the new `src/services/logger.js`). Flagging here for tracking but not in scope to fix.
+- Legacy has ~413 raw `localStorage.{getItem,setItem,removeItem,clear}` call sites (grep count) — full inventory deferred to T1.10. Key risk: many legacy callers read raw strings (no JSON.parse), so when T1.10 rewires those to `storage.getItem()`, the value coming back will be JSON-parsed (string → string still works because `JSON.parse('"foo"') === 'foo'`, but legacy uses both formats — needs per-callsite verification).
+- Legacy has 4 distinct boot ordering hooks that T1.12 must preserve: `firebaseReady` CustomEvent (line 18339), `revenueCatReady` (line 18411), `_saveVersionGate` IIFE that runs before any const/let reads localStorage (line 18504), and DOMContentLoaded for Sentry (line 18467). Captured in `src/main.js` header comment.
+- Vitest 4.1.5 install reports "2 moderate severity vulnerabilities" via npm audit (transitive — not in our top-level deps). Not actionable in T1.08; flag for next dependency audit pass.
+- `vitest.config.js` was required (not anticipated by TASKS.md spec): default Vitest discovery picks up Playwright `.spec.js` files in `tests/smoke/` + `tests/visual/`, which crash because `test()` is registered on Playwright runner not Vitest. Minimal config (16 lines) scopes Vitest to `tests/unit/**/*.test.js`. Surfacing as a "Known unknowns" resolution rather than a deviation — the spec said "may need a minimal vitest.config.js"; this is that.
+
+**Time:** ~75 min (inventory 10, modules 35, unit tests 5, vitest config 3, CI yml 5, lint-fix cycle 5, verification + self-check 12).
+
+**Commits:**
+- `[T1.08] Extract services to src/services/ + first unit tests` — `f6b67a4`
+- `[DOCS] TASK-009 → REVIEW with self-check` — (this update)
+
+**One open question for CTO:** none — task executed cleanly to spec.
 
 ---
 
