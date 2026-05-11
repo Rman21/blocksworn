@@ -555,6 +555,57 @@ BUG-001 is the only ambiguous item I won't decide unilaterally. The AUDIT-01 spe
 
 ---
 
+## REPORT-07: T1.06 CSS Extraction Review
+
+**Date:** 2026-05-11
+**Author:** CTO
+**Phase:** 1 — Week 2 first code migration task
+**Trigger:** TASK-007 submitted REVIEW, all AC met
+
+### Summary
+
+T1.06 PASS on first submission. **First code migration task in Phase 1 closed cleanly.** 542KB of inline `<style>` from the 21MB legacy HTML extracted to 19 modular files in `src/styles/`. Bundle output 368KB raw / 66KB gzipped (target <500KB). Sacred legacy HTML byte-identical and SHA-256 unchanged. All smoke + visual + lint + build remain green.
+
+### Engineering highlights
+
+- **Byte-identity check across split:** Game Dev verified that every non-whitespace character of the original 450,362-char CSS is present across the buckets. Zero content loss across the 19-file split. This is the migration discipline we need for all subsequent extraction tasks.
+
+- **`@keyframes` count:** 179, not 187 as the Execution Plan estimated. The Plan figure was an approximation; actual count is recorded in TASKS.md TASK-007 closeout. Useful precision for T1.10 (logic extraction may reference some by name).
+
+- **Pre-existing CSS asset path issue surfaced (not introduced):** Vite warns on `url('assets/icons/coin.png')` and `url('assets/icons/cristal.png')` — pre-existing legacy CSS references using bare relative paths. Files exist at `assets/icons/`; will resolve at runtime once Vite serves them. Game Dev correctly flagged in "Замечено рядом" and did NOT band-aid (pure-relocation discipline). Will be addressed naturally during T1.11 (UI screens migration) or T1.13 (verify pass).
+
+- **Pragmatic file dropping:** Game Dev opted NOT to ship empty component stubs (card/badge/tooltip/progress-bar) when source CSS had no matching content. This is correct discipline — empty placeholder files would be cruft. `typography.css` was kept as 277-byte placeholder since the Execution Plan §5.1 names it explicitly; reasonable.
+
+### Validation against AAA+ §3.2 Performance budget
+
+| Target | Actual | Status |
+|---|---|---|
+| Bundle < 5MB | 372KB total `dist/` | ✅ comfortably under |
+| Bundle CSS < 500KB | 368KB raw / 66KB gzip | ✅ under |
+| First load < 3s | Not yet measured (no game code in src/) | deferred to T1.13 |
+| FPS / memory leak | Not yet measured | deferred to T1.13 |
+
+### Tech debt items observed (continuing tracking)
+
+- 2 moderate npm transitive vulnerabilities (still untouched since REPORT-01) — bring up after Week 2 if Tester audit confirms not runtime-affecting
+- Pre-existing `assets/icons/*.png` bare paths in legacy CSS — will resolve in T1.11 or T1.13
+- `mobile/fresh-chronicle-intro.png` 2.06MB (3% over soft cap) — still tracked
+- @playwright/test version drift `^1.47 → 1.59.1` — Phase 1 exact-pin discussion deferred
+
+None of these block Phase 1 progression.
+
+### Sequencing forward
+
+T1.07 (Data constants) → T1.08 (Services) → T1.09 (Feel layer — sacred cow handling) → T1.10 (Core logic — the XL task).
+
+Estimated Week 2 ETA based on T1.06 throughput (~13min agent wallclock with overhead): T1.07-T1.09 within next 2-3 sessions; T1.10 itself a session.
+
+### Roman push status
+
+Still pending. Local infrastructure all green; CI runs on push will validate Linux/WebKit. Non-blocking for T1.07+.
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host

@@ -3,12 +3,12 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 5 / 20 tasks done (T1.01-T1.05); AUDIT-01 verdict = GO; BUG-001 CLOSED
-- **Overall progress:** ~10% (Phase 1 Week 1 ✅ complete; entering Week 2 code migration)
-- **Next milestone:** T1.06 — CSS extraction (first code migration task) — IN PROGRESS
-- **Active task:** T1.06 — Extract CSS to `src/styles/` (Game Dev Agent assigned)
-- **Pending Roman action:** push branch to verify CI green on actual GitHub Actions runner (non-blocking — local infra all green)
-- **Last updated:** 2026-05-11 by CTO (after AUDIT-01 GO + BUG-001 closeout)
+- **Phase progress:** 6 / 20 tasks done (T1.01-T1.05 + T1.06 CSS); AUDIT-01 GO; BUG-001 CLOSED
+- **Overall progress:** ~13% (Phase 1 Week 2 in progress)
+- **Next milestone:** T1.07 — Data constants extraction (T1.06 done means CSS no longer drags T1.07)
+- **Active task:** T1.07 — Extract data constants to `src/data/` (assignment ready)
+- **Pending Roman action:** push branch to verify CI green on GitHub Actions runner (non-blocking)
+- **Last updated:** 2026-05-11 by CTO (after T1.06 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -46,8 +46,8 @@
   - All 22 visual tests PASS under 2% threshold
 
 **Week 2-3: Data + Services + CSS extraction**
-- [ ] T1.06 — Extract CSS into modular structure — TODO
-- [ ] T1.07 — Extract data constants into `src/data/` — TODO
+- [x] T1.06 — Extract CSS into modular structure — **DONE 2026-05-11** (commits `2e097f4`, `f2c662f`; 19 CSS files, 368KB bundle, 179 @keyframes, all visual green)
+- [ ] T1.07 — Extract data constants into `src/data/` — TODO (Game Dev — assignment ready)
 - [ ] T1.08 — Extract services into `src/services/` — TODO
 
 **Week 4-5: Logic + UI extraction**
