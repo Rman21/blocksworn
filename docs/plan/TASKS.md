@@ -206,7 +206,7 @@ auto-disappears in T1.10 when the rewiring lands:
 
 **Sub-task progress:**
 - [x] T1.10.1 — `ftue-state.js` — **DONE 2026-05-11** (commits `e12d27b`, `ec4e409`; 21 exports / 475 LoC; sacred FTUE_BEATS/TRANSITIONS preserved byte-perfect via import from T1.07)
-- [ ] T1.10.2 — `progression.js` — IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
+- [x] T1.10.2 — `progression.js` — **REVIEW** (commit `981c136`; 79 exports / 1128 LoC; sacred TIER_COSTS imported from T1.07; one-Mythic-per-save constraint preserved byte-perfect)
 - [ ] T1.10.3 — `grid.js`
 - [ ] T1.10.4 — `heroes.js`
 - [ ] T1.10.5 — `damage-channels.js` (v2.1 P1)
@@ -307,6 +307,91 @@ FTUE state machine extracted byte-perfect from legacy `docs/_legacy/_archive_v1/
 3. **Storage-format inconsistency note:** `services/storage.js` docstring (lines 16-24) already calls out this exact migration concern. The 1.08 module foresaw it. T1.10.9 is the natural place to land the shim — flag this in the T1.10.9 brief.
 
 **Time:** ~2.5 hours
+
+---
+
+### T1.10.2 — REVIEW (2026-05-11)
+
+**Code commit:** `981c136` — `[T1.10.2] Extract progression to src/core/progression.js`
+**DOCS commit:** follows (this entry)
+**File created:** `src/core/progression.js` (1128 lines, 79 named exports = 51 functions + 17 constants + 6 storage keys + 5 ascension cost/bonus consts)
+
+**Implementation summary:**
+
+Progression system extracted byte-perfect from legacy `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` across nine source regions (first-clear/star storage 19485-19585, chapter binding 20445-20500, ascension consts+flows 20507-20769, hero unlock 21220+21274-21388, dungeon progress 25224-25284, hero level state 25680-25966, chapter-complete primitives 31510-31545, save/load aggregator 38260-38525, tier-essence upgrade 39988-40002). Module owns: progression state cursors (current chapter, bossesDefeated, chapter-progress map, per-chapter unlock flags), hero unlock-list management (load/save + lock/unlock + squad reconciliation), hero level table (gold-spend levelUp + tier-aware effective caps + migration), dungeon/floor progress (per-chapter/boss max-floor-cleared), first-clear timestamps + boss star records + computeBattleStars, hero ascension predicates + flows (T2 / T3 / Mythic with full cost validation), tier-upgrade essence-spend path, save/load aggregators.
+
+**Sacred cow preservation:**
+- `TIER_COSTS` ({1:1, 2:2, 3:3, 4:5}) imported from `src/data/balance.js` (T1.07 canonical V18 variant). `upgradeHero` consumes via `TIER_COSTS[toTier]` byte-perfect. NOT modified.
+- One-Mythic-per-save constraint preserved byte-perfect: `getMythicMissing` returns `{type: 'mythic_taken', byHero: otherMythic}` when another hero already holds the slot (legacy line 20720-20722). Module-level comment + commit message flag this as sacred per CLAUDE.md §2.5 / §9 glossary "Mythic".
+- TIER2/TIER3/MYTHIC cost + damage-bonus constants (`TIER2_DAMAGE_BONUS=1.20`, `TIER3_DAMAGE_BONUS=1.20`, `MYTHIC_DAMAGE_BONUS=BALANCE.ascend.mythic.damageBonus=1.30`) preserved verbatim; multiplicative stack `1.20 × 1.20 × 1.30 = 1.872×` (+87%) folded via `getHeroAscensionMult`.
+- BALANCE.heroLevel.{min,maxT1,maxT2,maxT3,maxMyth,costBase,costStep,costCap,dmgPer,ultPer} all read from T1.07 import — no local redefinition.
+- Save-load schema `_v: 17` preserved byte-perfect; chapterProgress migration from V15 saves (line 1037-1043) preserved.
+
+**Storage rewires (T1.08 abstraction):**
+- 6 JSON-shape keys rewired: `blocksworn_first_clears`, `blocksworn_boss_stars`, `blocksworn_dungeon_progress`, `blocksworn_heroes_unlocked`, `blocksworn_hero_levels`, `blocksworn_progress`. All exported as named constants (`FIRST_CLEAR_KEY`, `BOSS_STARS_KEY`, `DUNGEON_PROGRESS_KEY`, `HEROES_UNLOCKED_STORAGE_KEY`, `HERO_LEVELS_KEY`, `PROGRESS_STORAGE_KEY`).
+- 1 bare-string key family preserved as raw `localStorage.{get,set}Item`: `blocksworn_chapter_${n}_complete` (legacy stores the literal string `'true'` and reads with `=== 'true'`). Routing through T1.08 storage would JSON.parse('true') → boolean true, then `true === 'true'` returns false — silent regression. Flagged in "Замечено рядом" below with TODO(T1.10.9) markers in the source.
+
+**ESLint globals added** (specific identifiers, why):
+- Readonly: `HERO_ROSTER`, `STARTER_HEROES`, `SQUAD_MAX` (T1.10.4 heroes module); `heroFragments`, `getHeroFragments`, `saveHeroFragmentsToStorage` (currency/heroes); `saveGoldToStorage`, `renderResourceBar` (currency + UI); `towerState`, `saveTowerState` (Tower module); `flashText`, `vibrate`, `renderSelect`, `closeFloorSelector`, `currentScreen`, `applyBossEmblems` (T1.11 ui); `logEvent`, `EVT`, `addSeasonXP`, `trackMissionEvent` (analytics layer); `isContentUnlocked` (content-drop schedule engine); `_maybeShowEndgameKitEligibilityCelebration` (T1.11 ui).
+- Writable: `gold`, `essences`, `activeSquad`, `activeModifiers`, `BOSSES`, `favorites`, `chapterProgress`, `bossesDefeated`, `currentChapter`, `chapter2Unlocked`, `chapter3Unlocked`, `chapter4Unlocked`, `selectedBossIdx`, `heroUpgrades`, `artifactsOwned`, `equippedArtifacts`, `artDropPityCounter`. These are the legacy module-scope `let` declarations that `saveProgress`/`loadProgress`/`setChapter` mutate. T1.10.9 wire-up will migrate canonical ownership into this module and re-export getters/setters.
+- File-level `/* eslint-disable no-unused-vars */` around the writable-global directive only (re-enabled immediately after) — needed because ESLint v9 flags declare-but-unread writable globals (`BOSSES`, `artifactsOwned`, `equippedArtifacts`, `artDropPityCounter` are only written, never read inside this module; their readers live in legacy until T1.10.7 + T1.10.9 wire-up). All other no-unused-vars enforcement preserved for module-local bindings.
+
+**TODO markers:** 8 total
+- `TODO(T1.10.4)` × 1 — HERO_ROSTER / STARTER_HEROES / .unlocked / .locked flags = heroes module territory.
+- `TODO(T1.10.7)` × 1 — BOSSES rebind + applyBossEmblems = bosses module territory.
+- `TODO(T1.10.9)` × 2 — bare-string chapter-complete migration shim; legacy global state ownership migration.
+- `TODO(T1.11)` × 4 — DOM/UI rewires for flashText/vibrate (×2 in ascendHeroT3 + ascendHeroMythic) and renderSelect (×2 in unlockHero + lockHero).
+
+**Logger migration:**
+- 12 `console.warn(...)` / `console.log(...)` calls in extracted regions → `log.warn(...)` / `log.debug(...)` (load/save failure handlers, migration logs, dev-only branch logs). Per T1.08 logger contract.
+
+**Engineering judgment:**
+- **Hero level/tier/ascension placed in progression** per task brief ("Extract progression system: chapter unlocks, hero unlocks, hero level/tier/Mythic ascension, completion tracking"). T1.10.4 (heroes) owns HERO_ROSTER identity/race/element data; progression owns the per-save level + ascension state that orthogonally layers on top.
+- **Hero unlock save/load lives here** even though the .unlocked flag rides on HERO_ROSTER entries — the persistence layer is a progression concern; the roster itself is data (T1.10.4). The `for (const h of HERO_ROSTER) { h.unlocked = ... }` mutation pattern preserves legacy byte-perfect; T1.10.4 may flip ownership to a separate `unlockedHeroes: Set` on follow-up.
+- **State ownership stays in legacy for the global state vars** (`chapterProgress`, `bossesDefeated`, `currentChapter`, `chapter{2,3,4}Unlocked`, `selectedBossIdx`, `essences`, `heroUpgrades`). T1.10.2 cannot redeclare these here without breaking the legacy save/load contract — `loadProgress()` reads from / writes to the legacy globals, and the rest of legacy still reads them as ambient module-scope `let`. The functions mutate via `/* global ... :writable */`. T1.10.9 will flip canonical ownership into this module.
+- **Floor selector / launchFloor stays in legacy** (launchFloor calls startBattleFromMenu + manages floor-scope modifier stash). Pure progression bookkeeping (`recordFloorCleared`, `getFloorCleared`, `isFloorUnlocked`) extracted; control flow stays.
+- **Tier-2/T3/Mythic education modal stays in legacy** (`maybeShowTierEducation` line 20778+). It's a UI concern (T1.11) — though triggered by ascension success, the modal rendering / shared `.edu-modal` styling are out of scope.
+- **`computeBattleStars` extracted** — it consumes only `BALANCE.rewards.stars` and is a pure math helper. Belongs with the boss-stars persistence it feeds.
+- **`getProgressSnapshot()` added** as a read-only debug/analytics surface aggregating locally-owned state + legacy-owned chapter cursors. Helpful for T1.10.9 wire-up tests + future profile-screen consumers. Pure read — no I/O.
+
+**Verification (all gates green):**
+- `npm run lint` → 0 errors / 0 warnings
+- `npm run test:unit` → 6/6 pass (~101ms)
+- `npm run test:smoke` → 2/2 pass (~2.6s)
+- `npm run test:visual` → 22/22 pass under 2% (~13s)
+- `npm run build` → succeeds. dist/assets/index.js = 0.75KB; dist/assets/index.css = 368.77KB (unchanged — new module tree-shakes out, nothing imports it yet, as expected per Step E of the assignment)
+- Legacy `wc -c` = 21,480,494; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` — byte-identical
+
+**Self-check:**
+- [x] Acceptance: progression state extracted — first-clears + stars, dungeon-floor progress, hero levels, hero unlock list, chapter completion flags, save/load aggregator
+- [x] Acceptance: ascension extracted — T2 + T3 + Mythic cost validation, atomic deduction, persistence, multiplicative damage stack
+- [x] Acceptance: tier-essence path extracted — `upgradeHero` consumes `TIER_COSTS[toTier]` byte-perfect
+- [x] Acceptance: imports from src/data/{balance,chapters}.js (T1.07) + src/services/{storage,logger}.js (T1.08)
+- [x] Acceptance: no window globals introduced (only `/* global */` directives for legacy refs that move later)
+- [x] Acceptance: legacy HTML byte-identical (wc -c + SHA-256 verified)
+- [x] Acceptance: all gates green (lint 0/0, unit 6/6, smoke 2/2, visual 22/22, build)
+- [x] Acceptance: nothing imports the new module — tree-shakes out for T1.10.2 (correct — T1.10.9 final wire-up flips legacy → src/)
+- [x] Sacred cows: TIER_COSTS values unchanged (imported, not redefined). One-Mythic-per-save constraint byte-perfect. TIER2/T3/MYTHIC damage bonuses unchanged. Stack multiplier 1.872× preserved.
+- [x] DO NOT TOUCH: legacy HTML — not modified; index.html — not modified; src/main.js — not modified; src/core/ftue-state.js (T1.10.1) — not modified; other src/ modules (data/feel/services) — not modified; CSS / baselines / tests / CI / husky — not modified
+- [x] DO NOT TOUCH: TIER_COSTS values — unchanged (sole source = src/data/balance.js T1.07); Mythic ascension logic — byte-perfect
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.10.2; did NOT start T1.10.3
+
+**Замечено рядом (NOT fixed, reported):**
+1. **Bare-string chapter-complete keys (HIGH for T1.10.9 migration shim):** legacy stores `blocksworn_chapter_${n}_complete` as the literal string `'true'` via `localStorage.setItem(key, 'true')` and reads via `localStorage.getItem(key) === 'true'`. Routing through T1.08 `storage.{set,get}Item` would JSON-encode on write (becomes `'"true"'`) and JSON.parse on read (becomes boolean `true`, then `true === 'true'` returns false — silent regression that resets chapter-complete state for every legacy save). I preserved these as raw `localStorage` access in the extracted code with TODO(T1.10.9) markers, but the T1.10.9 migration shim spec (already in TASKS.md line 223-228) must also cover `blocksworn_chapter_1_complete`, `blocksworn_chapter_2_complete`, `blocksworn_chapter_3_complete`, `blocksworn_chapter_4_complete`, `blocksworn_chapter_5_complete` (and the historical Ch1 path, kept compatible by cryptLichAftermath + Tower gating). **CTO recommendation:** add these five chapter-complete keys to the migration shim allow-list in the T1.10.9 brief alongside FTUE/intro-video keys from T1.10.1.
+
+2. **Read-only `console.log` migration log on line `[BAL.1 MIGRATION]`:** legacy line 25761 emits `console.log` with the migrated heroes list. Routed through `log.debug` per logger contract — which is a no-op in production. This loses visibility of the clamp event for support / patch notes; partially compensated by the existing `logEvent(EVT.hero_leveled, {kind: 'migration_clamp', count})` analytics. **Not a bug, just a sensitivity loss.** If CTO wants the migration log restored to a visible channel, the call site could be promoted to `log.info` (visible in dev console; logged in production per logger contract) — out of scope here.
+
+3. **`maybeShowTierEducation` + `TIER_EDUCATION_KEY` left in legacy** (line 20776+): triggered on first ascension success, but the modal rendering uses `.edu-modal` shared styling + direct DOM injection. Clear T1.11 (ui) territory. Mentioning so it doesn't get lost in the cracks during T1.10.9 wire-up.
+
+4. **Static `let BOSSES = CHAPTERS[0].bosses` initial binding** lives in legacy line 20445. My `setChapter` extraction here rebinds BOSSES on every chapter change (line 257 of progression.js). The initial binding cannot be safely duplicated in progression.js without breaking the legacy module-scope `let BOSSES` declaration. T1.10.7 (bosses module) is the natural place to take canonical ownership.
+
+5. **`HERO_ROSTER`-mutating hero unlock pattern** — the `loadUnlockedHeroesFromStorage` / `unlockHero` / `lockHero` functions mutate the `unlocked` field on HERO_ROSTER entries directly. This works because HERO_ROSTER is a mutable array of mutable objects, but couples progression state to roster identity. **CTO consideration:** T1.10.4 may want to either (a) keep `unlocked` as a HERO_ROSTER field with progression writing through this surface, or (b) flip to a separate `unlockedHeroSet: Set<id>` owned by progression with HERO_ROSTER pure-immutable. Both are equivalent at runtime; option (b) is the cleaner separation but breaks all the legacy `HERO_ROSTER.find(h => h.unlocked)` filter call sites until T1.10.9.
+
+6. **Storage-format inconsistency note (recap from T1.10.1):** `services/storage.js` docstring (lines 16-24) already calls out the bare-string / JSON.stringify migration concern. T1.10.9 is the single source of truth for the migration shim. T1.10.2 confirmed two additional key families that need the same shim: chapter-complete (5 keys) and the `STARTER_GRANT` first-time-player essence seed (handled inside loadProgress when the aggregated `blocksworn_progress` key is null — no separate key, just defensive).
+
+**Time:** ~3 hours
 
 ---
 
