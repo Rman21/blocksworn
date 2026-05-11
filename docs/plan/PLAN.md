@@ -3,11 +3,13 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 4 / 20 tasks done (T1.01, T1.02, T1.03, T1.04)
-- **Overall progress:** ~7% (Phase 1 week 1 — closing on Week 1 gate)
-- **Next milestone:** T1.05 — CI pipeline green (last Week 1 task)
-- **Active task:** T1.05 — Setup CI pipeline (assignment ready)
-- **Last updated:** 2026-05-11 by CTO (after T1.04 review)
+- **Phase progress:** 5 / 20 tasks done (T1.01-T1.05 — **Week 1 infrastructure track complete**)
+- **Overall progress:** ~10% (Phase 1 transitioning Week 1 → Week 2 code migration)
+- **Next milestone:** T1.06 — CSS extraction (first code migration task)
+- **Pre-T1.06 audit:** Bug Tester engagement — smoke + visual + lint + build verification BEFORE migration starts
+- **Active task:** Bug Tester audit (assignment ready)
+- **Pending Roman action:** push branch to verify CI green on actual GitHub Actions runner
+- **Last updated:** 2026-05-11 by CTO (after T1.05 + T1.05.1 fix review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -40,7 +42,9 @@
 - [x] T1.02 — Create CLAUDE.md repository file — **DONE 2026-05-11** (verification only — copied in Initial Setup `41da1eb`)
 - [x] T1.03 — Setup Playwright + smoke test infrastructure — **DONE 2026-05-11** (commits `8d79a61`, `8773ca6`, `ac9cedb`; chromium green; WebKit deferred to CI)
 - [x] T1.04 — Capture visual regression baseline — **DONE 2026-05-11** (commits `2c08bb2`, `04e8456`; 22 baselines, 11M)
-- [ ] T1.05 — Setup CI pipeline — TODO (Game Dev — assignment ready, last Week 1 task)
+- [x] T1.05 — Setup CI pipeline — **DONE 2026-05-11** (commits `235941e`, `9464311`, `a7084a2` T1.05.1 fix, `527fa74`)
+  - Visual flake fix: `freezeAnimations()` now pauses `<video>` elements (was: only CSS; real culprit was `#introVideoPlayer` autoplay, not rAF as initially hypothesized)
+  - All 22 visual tests PASS under 2% threshold
 
 **Week 2-3: Data + Services + CSS extraction**
 - [ ] T1.06 — Extract CSS into modular structure — TODO

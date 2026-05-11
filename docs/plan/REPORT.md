@@ -271,6 +271,88 @@ Unchanged from REPORT-03:
 
 ---
 
+## REPORT-05: T1.05 Review (Week 1 Infrastructure Complete)
+
+**Date:** 2026-05-11
+**Author:** CTO
+**Phase:** 1 — Week 1 → Week 2 transition
+**Trigger:** TASK-005 + T1.05.1 fix passed all acceptance criteria
+
+### Summary
+
+**Phase 1 Week 1 infrastructure track is complete.** 5/20 tasks done — Vite scaffold, CLAUDE.md, Playwright smoke, visual baseline (22 PNGs), CI workflow + visual regression diff + husky + ESLint. Local verification all green. CI workflow ready for first push to GitHub Actions runner.
+
+### T1.05 outcome
+
+**PASS after one RETURN cycle.**
+
+Initial T1.05 delivered all 5 deliverables but visual regression flaked on `fresh-chronicle-intro` (8.4% chromium, 30.8% mobile). CTO RETURNED with rAF hypothesis.
+
+T1.05.1 fix: Dev correctly identified CTO's rAF hypothesis as wrong (rAF stub made diff worse: 20% chromium, 75% mobile). Real cause: `#introVideoPlayer <video>` element autoplay on cold-start. Real fix: pause `<video>` elements (currentTime=0, autoplay=false), parity in both capture and regression specs.
+
+**Lesson for CTO:** when RETURNING a task with a fix hypothesis, mark it as *hypothesis*, not as the answer. Trust the Dev's diagnostics over my pattern-matching from a distance. Dev agents have the failing diff image; CTO does not. The agent's "RETURN with specific fixes" template should include a step like "verify CTO's diagnosis; if it's wrong, investigate root cause yourself" — added implicitly in the future via better RETURN framing.
+
+### Week 1 infrastructure scorecard
+
+| Component | Status | Notes |
+|---|---|---|
+| Vite scaffold + ES modules | ✅ | `npm run dev` / `build` clean; bundle <50KB shell |
+| Legacy HTML preserved | ✅ | `wc -c` = 21,480,494; byte-identical, hash recorded in AUDIT-01 |
+| Playwright smoke | ✅ | 2/2 pass locally (chromium + mobile-chrome) in ~2.7s |
+| Visual baseline | ✅ | 22 PNGs, 11M total |
+| Visual regression diff | ✅ | 22/22 pass under 2% after T1.05.1 fix |
+| ESLint flat config v9 | ✅ | 0 errors / 0 warnings |
+| Husky pre-commit | ✅ | `.husky/pre-commit` executable, wired to lint:staged + build |
+| GitHub Actions CI workflow | ✅ (locally) | Awaiting first push to verify on Linux runner |
+| AAA+ §3.2 Bundle <5MB | ✅ | Currently 8 KB; T1.06+ migration grows this naturally |
+| AAA+ §3.4 Code quality | partial | Lint enforces; magic numbers / 500-line file rule not yet checked (no game code in src/ yet) |
+
+### Infrastructure tech debt items remaining
+
+Tracked from REPORT-01 through 04:
+- 2 moderate npm transitive vulnerabilities → bring up to Roman after AUDIT-01 if Tester confirms it doesn't block runtime
+- @playwright/test ^1.47 → 1.59.1 version drift → consider exact-pin once Phase 1 settles
+- npm minor 11.12.1 → 11.14.1 (cosmetic)
+- Legacy HTML malformed nested comment + autoplay video — handled via workarounds, root fix happens organically during T1.06+ migration
+- `mobile/fresh-chronicle-intro.png` 2.06MB — accept; T1.05 didn't pngquant; total dir still 11M
+
+### Decision: Bug Tester engagement BEFORE T1.06
+
+Per CTO_INSTRUCTION §8.1 "MANDATORY after any major refactor" — Phase 1 Week 1 IS the major refactor of project infrastructure. Before code migration (T1.06+) begins, Tester must:
+
+1. Verify local toolchain works end-to-end (smoke + visual + lint + build)
+2. **Prove visual regression detects a forced change** (inject a temporary red banner, confirm test fails, revert) — this is the most important step
+3. Verify legacy HTML byte-identity (SHA-256 hash recorded as immutable reference)
+4. Verify CI workflow YAML is syntactically valid
+5. Verdict: GO / CONDITIONAL / NO-GO
+
+Assignment created: TASKS.md AUDIT-01.
+
+### Decision: Roman action — push to verify CI on real GitHub Actions runner
+
+CI workflow has not been tested on actual Linux runner yet. Worktree branch `claude/dreamy-bouman-f8e247` has 11 commits ahead of `origin/main`. Roman should push so first CI run validates:
+- WebKit installs on Ubuntu (it should — host-specific limitation was macOS 13 arm64 only)
+- All 4 Playwright projects run in `smoke` job
+- `visual` job passes (only chromium project — visual baseline doesn't cover WebKit)
+- Bundle-size guard fires correctly
+
+If CI hits issues — those become T1.05.2 fix work. If clean — Week 1 phase gate fully validated.
+
+CTO is **not** pushing autonomously per discipline (push affects shared state; Roman owns when to engage GitHub Actions minutes).
+
+### Phase 1 Week 1 → Week 2 transition
+
+After AUDIT-01 GO + Roman push CI green:
+- T1.06 — CSS extraction (Week 2-3 first major code task)
+- T1.07 — Data constants extraction
+- T1.08 — Services extraction
+- T1.09 — Feel layer extraction (sacred cow handling)
+- T1.10 — Core game logic extraction (largest task in Phase 1; ~50% of Week 4-5)
+
+Total Week 2 ETA: 2 working sessions (Week 2-3 in plan; agent throughput compressed it).
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host
