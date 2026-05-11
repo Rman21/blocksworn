@@ -1255,7 +1255,7 @@ The 9-key allow-list is COMPLETE — battle.js itself adds **0 new bare-string k
 
 ### TASK-015 (T1.13.1) — REVIEW (2026-05-11)
 
-**Code commit:** `[T1.13.1] Wire-up cleanup — flip /* global */ → ES imports across src/` → `<pending>`
+**Code commit:** `[T1.13.1] Wire-up cleanup — flip /* global */ → ES imports across src/` → `721c011`
 **DOCS commit:** follows (this entry)
 **Files modified:** 19 — `src/ui/{menu,router,select-via-import-only,profile,shop,tower,season,dailies,rewards,battle-screen,archetype-ticks}.js` (no select.js code change), `src/core/{battle,bosses,heroes,grid,stagger-loop,reactivity-events,damage-channels,ftue-state,progression}.js`.
 
