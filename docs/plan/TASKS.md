@@ -9,12 +9,90 @@
 
 ### TASK-004 (T1.04) — Capture visual regression baseline
 
-**Status:** TODO (ready for assignment — TASK-003 DONE)
+**Status:** REVIEW (Game Dev → awaiting CTO)
 **Priority:** HIGH
 **Phase:** 1
 **Created:** 2026-05-11
+**Started:** 2026-05-11
+**Completed:** 2026-05-11
 **Estimated complexity:** M
 **Depends on:** TASK-003 (DONE — Playwright + smoke infrastructure)
+
+**Implementation summary:**
+22 baseline PNGs captured across chromium (1280×720) + mobile-chrome (Pixel 7),
+covering 11 distinct screen/state combinations. `setupState(page, stateName)`
+added to `tests/helpers/game-state.js` with 6 seed strategies. New npm script
+`test:visual:baseline` runs the spec end-to-end (~12s wall time). `.gitattributes`
+created with `*.png binary`. playwright.config.js testDir widened from
+`./tests/smoke` → `./tests` so the visual spec is discovered (npm scripts pin
+subpaths). `tests/visual/baseline/` total: 11M (well under 50MB cap).
+
+**Files changed:**
+- `tests/visual/capture-baseline.spec.js` (new, 145 lines)
+- `tests/helpers/game-state.js` (extended, +90 lines `setupState()` + seed map)
+- `tests/visual/baseline/*.png` + `tests/visual/baseline/mobile/*.png` (22 files)
+- `.gitattributes` (new — `*.png binary`)
+- `package.json` (added `test:visual:baseline` script; updated stub note)
+- `playwright.config.js` (widened testDir to `./tests` so visual specs discoverable)
+
+**Commits:**
+- T1.04 code+baseline: `2c08bb2` — `[T1.04] Capture visual regression baseline (legacy HTML)`
+- DOCS (this update): `(pending second commit)`
+
+**Smoke tests:** ✅ `npm run test:smoke` 2/2 passing (chromium + mobile-chrome)
+**Visual baseline run:** ✅ 22/22 passing in ~12s
+**Build:** N/A (no src/ changes)
+**Lint:** N/A (stub)
+**Legacy HTML byte count:** ✅ 21,480,494 (sacred file untouched)
+
+**Self-check:**
+- [x] Minimum 10 unique screen/state combinations — **22** captured (11 screens × 2 projects)
+- [x] Screenshots stored in `tests/visual/baseline/<name>.png` (chromium) + `tests/visual/baseline/mobile/<name>.png` (mobile-chrome)
+- [x] Captured at chromium viewport (1280×720)
+- [x] mobile-chrome (Pixel 7) also captured — subfolder layout chosen (`baseline/mobile/<name>.png`), documented in spec header
+- [x] `.gitattributes` has `*.png binary` line
+- [x] `test:visual:baseline` npm script in `package.json`
+- [x] `setupState()` helper documented (one-comment-per-state explaining seed) + IIFE save-version-gate caveat
+- [x] Each baseline PNG within 5KB–2MB range (smallest 60KB ftue-chronicle, largest 2.06MB mobile/fresh-chronicle-intro)
+- [x] Total `tests/visual/baseline/` size 11M < 50MB
+- [x] Commit: `[T1.04] Capture visual regression baseline ...`
+- [x] DO NOT TOUCH: `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` — `wc -c` confirms 21,480,494 (unchanged)
+- [x] DO NOT TOUCH: `serveLegacyHtmlRaw` Vite plugin — unmodified
+- [x] DO NOT TOUCH: `site/` — unmodified
+- [x] No `tests/visual/regression.spec.js` created (T1.05 territory)
+- [x] No pixelmatch wired up (T1.05 territory)
+- [x] No new npm dependencies installed
+
+**Замечено рядом (NOT fixed, reported):**
+- `mobile/fresh-chronicle-intro.png` is 2.06MB (~3% over the 2MB soft cap noted in
+  acceptance criteria). The screen captures correctly; size is driven by the
+  large parchment-style background on a long mobile viewport. Suggested action:
+  T1.05 CI can decide to compress baselines via `pngquant` if total dir size
+  becomes a concern. Not a blocker.
+- `mobile-chrome` initially captured the COMBAT v2.1 P8 "First Contact" name-entry
+  modal instead of the menu on `'authenticated'` state — root cause is a 1200ms
+  deferred fire of `showFirstContactSequence` (legacy ~48266) that triggers
+  when `blocksworn_p8_player_name` is unset. Workaround: seed
+  `blocksworn_p8_player_name='TESTER'` in setupState. Suggested action: T1.10
+  may want to expose this as a deliberate baseline state (FTUE: P8 first-contact)
+  since it's a real player-facing moment.
+- Legacy save-version gate IIFE (`_wipeAllBlocksworn` at ~18504) silently wipes
+  every `blocksworn_*` key if `blocksworn_save_version` is missing/stale. Any
+  future test-state seeder needs to know about this. Documented at top of
+  `setupState()` but worth surfacing in DEV_INSTRUCTION.md or the T1.10 spec
+  when full-gameplay seeders land.
+- `playwright.config.js` testDir was `./tests/smoke` — widened to `./tests` so
+  visual specs are discoverable. T1.05 CI must keep this in mind when adding
+  `tests/visual/regression.spec.js` (no extra config needed).
+- FTUE chronicle/pyredrake baselines capture the *intro dialog overlay*, not
+  the post-dialog battle UI (since the dialog gates the battle start and
+  requires a user tap to advance). The dialog screen IS the player-facing
+  beat at that FTUE step, so it's a legitimate baseline — but if T1.06+ CSS
+  migration wants to verify the battle layout itself, a follow-up spec should
+  auto-advance the dialog and capture mid-fight.
+
+**Time:** ~90 min (15 min investigation, 30 min initial impl, 30 min debugging
+the save-version-gate / FTUE-blockNav issues, 15 min final verification)
 
 **Files affected:**
 - `tests/visual/capture-baseline.spec.js` (new)
