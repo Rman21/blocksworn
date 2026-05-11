@@ -3,15 +3,14 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 10 / 20 done ✅ **HALFWAY THROUGH PHASE 1** — T1.10 COMPLETE (9/9 sub-tasks)
-- **Overall progress:** ~50% (Phase 1 — watershed task closed)
-- **Next milestone:** T1.11 — Extract UI screens to `src/ui/` (Menu, Battle screen, Shop, Tower, Season, Profile, Select, Dailies)
-- **Migration shim:** ✅ implemented (9 keys, idempotent, 5 tests passing); active on first boot post-T1.12 switchover
-- **Cumulative src/core/ LoC:** **12,164 LoC across 9 modules** (battle 1759 + heroes 3972 + reactivity 1440 + bosses 1309 + progression 1128 + stagger 1021 + grid 603 + ftue 475 + channels 457)
-- **v2.1 P4 status:** CONFIRMED implemented (resolves Plan §23 "VERIFY")
-- **Memory:** Ch4-5 data/gating distinction clarified
-- **Deferred to T1.11 / T1.13:** per-archetype tick handlers (~1,500 LoC), onBossDefeated (535 LoC), placePiece return polish, ~600 LoC dead hero code, getSquadMitigation ownership
-- **Last updated:** 2026-05-11 by CTO (after T1.10.9 review — T1.10 closed)
+- **Phase progress:** 11 / 20 done ✅ **T1.11 COMPLETE** (UI surface landed)
+- **Overall progress:** ~55% (Phase 1 — UI extracted, ready for switchover)
+- **Next milestone:** T1.11.1 (deferred ticks) → T1.12 wire-up switchover → T1.13 verify
+- **Migration shim:** ✅ implemented (9 keys, idempotent, 5 tests passing)
+- **Cumulative LoC:** src/core/ **12,164** (9 modules) + src/ui/ **3,021** (10 modules) = **15,185 LoC** of game code extracted
+- **Active sub-task:** T1.11.1 — Land deferred archetype tick handlers + Ch3 state machine (~1,300 LoC) — BLOCKS T1.12 clean switchover
+- **Deferred to T1.13:** placePiece polish, ~600 LoC dead hero code, getSquadMitigation ownership, 7 "Замечено рядом" items from T1.11
+- **Last updated:** 2026-05-11 by CTO (after T1.11 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -56,7 +55,8 @@
 **Week 4-5: Logic + UI extraction**
 - [x] T1.09 — Extract feel layer (haptics, animations, particles, narrator) — **DONE 2026-05-11** (commits `8ed5679`, `39bc613`; 3 new modules + 7 functions; sacred timings 180/440/300/260/220/380/420ms all byte-perfect)
 - [x] T1.10 — Extract core game logic to `src/core/` — ✅ **DONE 2026-05-11** (9/9 sub-tasks; **12,164 LoC across 9 modules**; sacred v2.1 P1+P2+P4 all preserved byte-perfect; migration shim landed for 9 bare-string keys)
-- [ ] T1.11 — Extract UI screens to `src/ui/` — TODO (Menu, Battle, Shop, Tower, Season, Profile, Select, Dailies; pulls in deferred per-archetype tick handlers + onBossDefeated)
+- [x] T1.11 — Extract UI screens to `src/ui/` — **DONE 2026-05-11** (commits `e0fbb2c`, `f3ad6ef`; 10 modules / 3,021 LoC; onBossDefeated 545 LoC + 16 small ticks landed inline; 10 large ticks + Ch3 SM deferred to T1.11.1)
+- [ ] T1.11.1 — Land deferred archetype tick handlers + Ch3 state machine — IN PROGRESS (~1,300 LoC; BLOCKS T1.12 clean switchover)
 - [ ] T1.12 — Wire `src/main.js` entry point — TODO (**THE switchover**: index.html → src/main.js as primary render path; legacy demoted to read-only archive)
 - [ ] T1.13 — Verify game runs identically + visual regression pass — TODO (manual playthrough + Lighthouse ≥90 + bundle <5MB + 22/22 visual ≤2%)
 

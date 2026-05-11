@@ -1253,6 +1253,59 @@ The 9-key allow-list is COMPLETE — battle.js itself adds **0 new bare-string k
 
 ---
 
+### TASK-013 (T1.11.1) — Land deferred archetype tick handlers + Ch3 state machine
+
+**Status:** IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
+**Priority:** HIGH (BLOCKS T1.12 — clean switchover requires all runtime deps in src/)
+**Phase:** 1 (Week 4-5 — T1.11 follow-up)
+**Estimated complexity:** M (~1,300 LoC pure relocation, no new architecture)
+**Depends on:** ✅ T1.11 (UI surface landed)
+
+**Goal:** Extract the remaining ~1,300 LoC of FX/DOM-coupled archetype tick handlers + Ch3 state machine (`tickChapter3Boss`) into `src/ui/battle-screen.js` (or a sibling `src/ui/archetype-ticks.js` if it exceeds 500 LoC).
+
+**Context:** T1.11 agent correctly split deferred ticks pragmatically — 16 small ones landed inline in `battle-screen.js` (under 500 LoC §3.4 cap), 10 larger ones + Ch3 SM left as `/* global */` stubs in the dispatcher. Without T1.11.1, T1.12 switchover would leave runtime references unresolved (legacy gets demoted to archive).
+
+**Detailed spec:**
+
+1. Inventory the 10 deferred boss-specific tick handlers + `tickChapter3Boss`:
+   ```bash
+   # Find functions deferred per T1.11 agent's split
+   grep -n "function _phoenixTick\|function _lichTick\|function _berserkerTick\|function tickChapter3Boss\|function _grovewardenTick\|function _stormTick\|function _hypnotistTick\|function _abyssalTick\|function _engineerTick\|function _frenzyTick\|function _machinistTick" docs/_legacy/_archive_v1/blocksworn_index_fixed.html | head -20
+   ```
+2. Decide location:
+   - If total ≤ 500 LoC after relocation → land in `src/ui/battle-screen.js` (current 435 LoC has headroom)
+   - If total > 500 LoC → create `src/ui/archetype-ticks.js` and import from `battle-screen.js`
+3. Pure relocation. Same discipline as T1.10:
+   - BYTE-PERFECT preservation
+   - Imports from `src/core/bosses.js`, `src/core/reactivity-events.js`, `src/feel/animations.js`
+   - DOM refs preserved (TODO(T1.12) markers ONLY if absolutely needed — most should resolve via existing src/styles/)
+   - `/* global */` directives for any remaining cross-system refs
+4. Update dispatcher in `src/ui/battle-screen.js`: remove `/* global tickChapter3Boss tickPhoenix ... */` stubs; replace with actual function references (now in same file or imported from sibling).
+5. **Self-contained verification:** the new tick handlers should not crash if invoked standalone (in production they'll be invoked by battle.js orchestrator, but a dev-mode call should not throw).
+
+**Acceptance criteria:**
+- [ ] All 10 deferred boss-specific tick handlers extracted
+- [ ] `tickChapter3Boss` Ch3 state machine extracted
+- [ ] `battle-screen.js` dispatcher no longer references them via `/* global */`
+- [ ] `npm run lint` → 0 errors
+- [ ] `npm run test:unit` → 11/11 pass
+- [ ] `npm run test:smoke` → 2/2 pass
+- [ ] `npm run test:visual` → 22/22 pass under 2%
+- [ ] `npm run build` → ~372KB (modules tree-shake out — no callers yet; T1.12 wires)
+- [ ] Legacy untouched: SHA-256 stable
+- [ ] Commit: `[T1.11.1] Land deferred archetype tick handlers + Ch3 state machine`
+
+**DO NOT:**
+- Modify legacy HTML, src/core/*, src/main.js, index.html, data/feel/services modules
+- Modify visual baselines or tests
+- "Improve" tick handlers — pure relocation
+- Push to remote
+- Start T1.12
+
+**One-question rule.** If ambiguous, ONE question.
+
+---
+
 ### TASK-012 (T1.11) — REVIEW (2026-05-11)
 
 **Code commit:** `[T1.11] Extract UI screens to src/ui/ + T1.10 deferrals landed`
