@@ -41,7 +41,7 @@ export async function loadStateWithCompleteFTUE(page) {
   await loadAuthenticatedState(page);
 }
 
-export async function playOptimalBattle(page, opts = {}) {
+export async function playOptimalBattle(page, _opts = {}) {
   // T1.10+ will implement a boss-aware optimal-play heuristic.
   throw new Error('playOptimalBattle stub — implement in T1.10');
 }
@@ -74,7 +74,7 @@ export async function setupState(page, stateName) {
       // Clear FIRST, then write — guarantees clean slate per setup call.
       localStorage.clear();
       for (const [k, v] of payload) localStorage.setItem(k, v);
-    } catch (e) { /* private mode / quota — caller will see selector timeout */ }
+    } catch (_e) { /* private mode / quota — caller will see selector timeout */ }
   }, seed);
   await page.goto(LEGACY_PATH);
 }

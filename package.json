@@ -8,16 +8,28 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "eslint .",
+    "lint:staged": "lint-staged",
+    "prepare": "husky",
     "test:smoke": "playwright test tests/smoke --project=chromium --project=mobile-chrome",
     "test:smoke:full": "playwright test tests/smoke",
     "test:visual:baseline": "playwright test tests/visual/capture-baseline.spec.js --project=chromium --project=mobile-chrome",
-    "test:visual": "echo \"visual regression wired up in T1.05\" && exit 0",
-    "lint": "echo \"lint wired up in T1.05\" && exit 0"
+    "test:visual": "playwright test tests/visual/regression.spec.js --project=chromium --project=mobile-chrome",
+    "test:visual:update": "npm run test:visual:baseline"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs}": [
+      "eslint --max-warnings=0"
+    ]
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.59.1",
     "eslint": "^9.10.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.4",
     "pixelmatch": "^6.0.0",
+    "pngjs": "^7.0.0",
     "vite": "^5.4.0"
   }
 }
