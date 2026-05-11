@@ -1253,6 +1253,122 @@ The 9-key allow-list is COMPLETE — battle.js itself adds **0 new bare-string k
 
 ---
 
+### TASK-014 (T1.12) — REVIEW (2026-05-11)
+
+**Code commit:** `[T1.12] Wire src/main.js — THE switchover` → `b87a57e`
+**DOCS commit:** follows (this entry)
+**Files modified:** `index.html` (12 → 113 LoC, +101) and `src/main.js` (27 → 94 LoC, +67).
+
+**Implementation summary:**
+
+THE switchover. The new modular shell is now the primary render path at `/`. The legacy 21MB single HTML remains servable at `/docs/_legacy/_archive_v1/blocksworn_index_fixed.html` via the `serveLegacyHtmlRaw` plugin (T1.03) — smoke tests + 22 visual baselines load it via that URL and continue to pass unchanged.
+
+**`src/main.js` bootstrap (94 LoC):**
+
+Per docs/plan/00_EXECUTION_PLAN.md §13 T1.12 template, adjusted to the actual landed module surface:
+
+```
+1. initSentry()              — first, so subsequent errors route to Sentry
+2. migrateBareStringKeys()   — one-shot localStorage shim (T1.10.9), idempotent sentinel
+3. initFirebase()            — sync; binds window.* from legacy CDN dispatch
+4. await initRevenueCat()    — async; uses placeholder key (no-op until prod key wired)
+5. initProgression()         — first-clears + boss-stars + dungeon + hero-levels +
+                               unlocked-heroes + top-level progress (calls loadProgress
+                               inside, so no separate loadProgress import needed)
+6. initFtueState()           — loads FTUE beat cursor from storage
+7. setupRouting()            — wires nav listeners (no-op in T1.12 shell; T1.13+
+                               will land the actual bottom-nav click delegation)
+8. FTUE-aware initial screen:
+   - isFtueActive()  → routeByFtue()
+   - else            → showScreen('menu')
+```
+
+Each step wrapped in try/catch with `log.warn` so the bootstrap chain completes cleanly even when legacy `/* global */` render helpers (vRenderTopbar, vRenderChapter, etc.) are absent in the new shell. Outer try/catch in `main()` routes fatal errors to `captureException` (Sentry).
+
+**Module surface verification (each named import matches an actual export):**
+- `initSentry`, `captureException` from `src/services/sentry.js` ✅
+- `initFirebase` from `src/services/firebase.js` ✅
+- `initRevenueCat` from `src/services/revenuecat.js` ✅
+- `migrateBareStringKeys` from `src/services/migrate.js` ✅
+- `log` from `src/services/logger.js` ✅
+- `initProgression` from `src/core/progression.js` ✅ (NB: the Execution Plan template named `loadGameState` — actual export is `initProgression`, which calls `loadProgress` internally alongside 4 other `load*FromStorage` helpers — single call covers the spec'd "load saved state" step)
+- `initFtueState`, `isFtueActive`, `routeByFtue` from `src/core/ftue-state.js` ✅ (NB: the Execution Plan template named `initFTUE` — actual export is `initFtueState`)
+- `setupRouting`, `showScreen` from `src/ui/router.js` ✅
+
+**`index.html` scaffold (113 LoC):**
+
+Minimal static DOM scaffold extracted from legacy `<body>` (lines 16650-71012) — id-anchored mount points only, no content. Render functions fill containers.
+
+| Category | IDs | Source line(s) |
+|------|------|------|
+| Screen containers (8) | `screenMenu`, `screenProfile`, `screenSelect`, `screenBattle`, `screenShop`, `screenDailies`, `screenTower`, `screenSeason` | 16653 / 16877 / 16964 / 17058 / 17300 / 17331 / 17368 / 17524 |
+| Persistent overlays (3) | `narrator`, `introVideoOverlay` (+ `introVideoPlayer`, `introVideoSkip`), `dialogOverlay` (+ `dialogSkipBtn`, `dialogPortrait`, `dialogSpeaker`, `dialogText`, `dialogCtaBtn`, `dialogTapHint`) | 17286 / 18074 / 18091 |
+| Victory/defeat modal | `modal` (+ `modalBox`, `modalBossEmblem`, `modalTitle`, `modalLabel`, `modalStats`, `modalNextBoss`, `modalBtn`) | 17999-18007 |
+| Persistent modals (12) | `infoModal`, `lockedHeroModal`, `heroDetailModal`, `leaderChoiceModal`, `towerAchModal`, `towerHeartModal`, `towerBuffModal`, `towerPactModal`, `towerFloorClearModal`, `avatarPickerModal`, `usernameEditorModal`, `audioSettingsModal`, `comingSoonModal`, `buffModal`, `bossDetailsModal` | various 16931-18154 |
+| Router-close targets (3) | `artPickerModal`, `artInventoryModal`, `synergyInfoModal` | router.showScreen close-on-nav loop |
+| Core-referenced (3) | `captainMarkModal`, `mythicThresholdModal`, `tankUltModeModal` | src/core/* getElementById refs |
+
+All IDs + class names preserved verbatim so existing `src/styles/` CSS targets correctly and visual baselines remain compatible when T1.13+ re-captures them against the new shell.
+
+**Sacred cow preservation:**
+- No combat math touched. No feel-layer values touched. No NARRATOR_LINES touched.
+- Legacy HTML byte-identical: `wc -c` = **21,480,494**; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f`.
+
+**Verification (all gates green):**
+- `npm run lint` → **0 errors / 0 warnings**
+- `npm run test:unit` → **11/11 pass** (~107ms)
+- `npm run test:smoke` → **2/2 pass** (~2.2s) — legacy URL via serveLegacyHtmlRaw plugin
+- `npm run test:visual` → **22/22 pass** under 2% (~12.4s) — legacy baselines unchanged
+- `npm run build` → succeeds. **16 modules transformed**. Output:
+  - `dist/assets/index-vDtYacuh.js` = **26.28 KB** (gzip 8.45 KB) — boot chain landed (was 0.75 KB placeholder)
+  - `dist/assets/index-BbAQ45LJ.css` = **368.77 KB** (gzip 66.36 KB) — T1.06, unchanged
+  - `dist/index.html` = **5.76 KB** (gzip 2.06 KB) — scaffold + script tag
+  - **dist total: 400 KB** (well under 5MB AAA+ target per CLAUDE.md §3.2)
+- Dev server: `npm run dev` starts cleanly on :5173. `curl -I /` → 200, text/html. `curl /` → scaffold + `/src/main.js` script tag (verified `id="screenMenu"` + `id="screenBattle"` + `/src/main.js` all present). `curl -I /src/main.js` → 200, text/javascript. Legacy URL `curl -I /docs/_legacy/_archive_v1/blocksworn_index_fixed.html` → 200 (serveLegacyHtmlRaw plugin intact).
+
+**Bundle scope observation (NOT a defect):**
+
+The Execution Plan §13 T1.12 estimated 300-800 KB JS once main.js imports the full src/ tree. Actual: 26.28 KB. Reason: heavy `src/ui/*` modules (battle-screen, archetype-ticks, tower, season, shop, profile, dailies, select, rewards) and heavy `src/core/*` modules (battle, bosses, grid, heroes, damage-channels, stagger-loop, reactivity-events) are reached only through `goToMenu` / `goToSelect` / `startBossBattle` paths that still resolve their downstream calls via `/* global */` (their pre-T1.12 wiring). Until T1.13+ inverts those globals into named imports, tree-shaking discards them from the boot chain. The chain works — boot loads, scaffold mounts, router toggles screen `.active` classes correctly — so this is expected per the relocation discipline. Final wire-in of heavy modules will happen as part of T1.13 verify + downstream cleanup tasks (the `TODO(T1.12)` markers in landed modules signal where the global→import flips need to happen).
+
+**Migration shim behavior:**
+- First boot (fresh localStorage): returns `{ migrated: 0, alreadyJSON: 0, missing: 9, total: 9 }`. Stamps sentinel.
+- Subsequent boots: returns `{ migrated: 0, alreadyJSON: 0, missing: 0, total: 9, skipped: 'sentinel' }`. Fast-path.
+- Existing legacy save (worst case, all 9 keys present as bare strings): returns `{ migrated: 9, alreadyJSON: 0, missing: 0, total: 9 }` once.
+
+Logged via `log.info('[boot] storage migration:', result)` on every boot.
+
+**Self-check:**
+- [x] Acceptance: `main.js` < 100 lines (94 LoC)
+- [x] Acceptance: async init order correct (Sentry → migration → Firebase → RC → Storage/Progression → FTUE → router → initial screen)
+- [x] Acceptance: bootloader handles errors via `captureException` (outer catch in main())
+- [x] Acceptance: no module-resolution errors on cold start (build succeeds; dev server serves all imports with HTTP 200)
+- [x] Acceptance: `npm run lint` → 0 errors
+- [x] Acceptance: `npm run test:unit` → 11/11 pass
+- [x] Acceptance: `npm run test:smoke` → 2/2 pass (legacy URL, unchanged)
+- [x] Acceptance: `npm run test:visual` → 22/22 pass under 2% (legacy baselines, unchanged)
+- [x] Acceptance: `npm run build` succeeds — dist 400 KB total (<5MB)
+- [x] Acceptance: legacy untouched — `wc -c` = 21,480,494; SHA-256 stable
+- [x] Acceptance: commit message follows `[T1.12] Wire src/main.js — THE switchover`
+- [x] Sacred cows: nothing touched (no combat math / feel / narrative / economy changes)
+- [x] DO NOT TOUCH: legacy HTML / src/core/* / src/ui/* / src/data/* / src/feel/* / src/services/* / CSS / smoke tests / visual baselines / regression spec / CI / husky / eslint config — none modified
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.12 commit; did NOT start T1.13
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **`renderMenu` not yet a named import inside `router.showScreen`.** `src/ui/router.js` line 81 calls `renderMenu()` as a `/* global */` reference (legacy resolution path). In the new shell `renderMenu` is exported from `src/ui/menu.js` but not imported into router.js. Currently a `ReferenceError` thrown inside `showScreen('menu')` — caught by the try/catch wrapping the initial-screen step in main.js, so it doesn't block the boot chain. **T1.13 verify** should flip router.js to `import { renderMenu, renderSelect, renderProfile } from '../ui/...';` so the home screen actually renders content on first boot. Same applies to `vRender*` family (chapter, boss card, squad dock) called from `renderMenu()` itself — those live in legacy still and will resolve as `/* global */` undefined; their try/catch wrappers in menu.js prevent a hard fail but the rendered screen will be empty.
+
+2. **`activateNavFor` / `playContextMusic` / `goToMenu` post-victory chain unreferenced in T1.12 shell.** All inside try/catch with `typeof === 'function'` guards, so they silently no-op. T1.13+ will land or stub these.
+
+3. **Bundle is 95% smaller than the Execution Plan estimate (26 KB vs 300-800 KB)** because the heavy modules' import edges are still global-based. Not a defect today — but signals that "T1.12 wire-up complete" doesn't mean "T1.12 has pulled in everything"; the global→import flips happen incrementally as the deferred modules wire through. T1.13 verify will measure the real Lighthouse / FCP / TTI numbers against the actual rendered content.
+
+4. **No `<style>`/`<script>` from legacy `<head>`** — the new shell relies entirely on `src/styles/index.css` (T1.06) for styling. If T1.13 manual playthrough finds styling gaps (e.g., theme variables, font-faces) that legacy's inline `<style>` provided, the fix is to land them in `src/styles/` not to inline in index.html.
+
+**Time:** ~1.5 hours (read execution plan + module exports + legacy DOM inventory + scaffold draft + bootstrap chain + 4× lint/unit/smoke/visual/build gates + dev-server smoke + commit/docs cycle).
+
+---
+
 ### TASK-013 (T1.11.1) — REVIEW (2026-05-11)
 
 **Code commit:** `[T1.11.1] Land deferred archetype tick handlers + Ch3 state machine` → `ca6d351`
