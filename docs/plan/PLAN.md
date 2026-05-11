@@ -3,16 +3,16 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 12 / 20 done + T1.12 structural + T1.13.1 wire-up + T1.13.2 canonical bindings
-- **Overall progress:** ~65% (Phase 1 — boot advances through FTUE routing; next layer gap = playDialogScript)
-- **Bundle:** ⚠️ **5.13 MB** (4,773KB JS + 368KB CSS) — **EXCEEDS AAA+ 5MB cap by 3%** due to ASSETS data URIs bundled as strings (legacy had same MB inline but in HTML). **Needs asset-pipeline refactor** (data URIs → Vite `?url` imports).
-- **Next milestone:** **T1.13 main verify** — comprehensive audit of remaining wire-up gaps + bundle audit + manual playthrough attempt → produces punch list for T1.14+ cleanup
+- **Phase progress:** 12 / 20 done + T1.12 structural + T1.13.1/.2/.3 wire-up + asset pipeline
+- **Overall progress:** ~68% (Phase 1 — bundle compliant; FTUE-layer wire-up gap remaining)
+- **Bundle:** ✅ **4.5 MB total** (160KB JS + 368KB CSS + 3.4MB public/images files served separately) — UNDER AAA+ 5MB cap
+- **Next milestone:** **T1.13.4** — extract remaining FTUE-layer dependencies (playDialogScript + dialog system, SQUAD_MAX) → then T1.13 main verify (Lighthouse + manual playthrough)
 - **⚠️ Outstanding for T1.13:**
-  - `playDialogScript` not defined → next missing extraction (FTUE → dialog system)
-  - Bundle bloat refactor (4.6MB ASSETS data URIs → proper Vite asset imports)
-  - `SQUAD_MAX` shim (legacy-only constant, needs named export)
+  - `playDialogScript` not defined → dialog system extraction needed
+  - `SQUAD_MAX` legacy-only constant — needs named export
   - Cross-boundary deferrals (placePiece return, ~600 LoC dead hero code, getSquadMitigation ownership)
-- **Last updated:** 2026-05-11 by CTO (after T1.13.2 review)
+  - Future quality upgrade: re-import parent-dir PNG originals + re-capture baselines (currently using legacy JPEG-compressed `sips -Z 1024 q85`)
+- **Last updated:** 2026-05-11 by CTO (after T1.13.3 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
