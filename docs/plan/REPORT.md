@@ -1007,6 +1007,78 @@ Not blocking T1.11 start, but recommended.
 
 ---
 
+## REPORT-14: T1.12 + T1.13.1 + T1.13.2 — Switchover + Wire-up Pattern
+
+**Date:** 2026-05-11
+**Phase:** 1 — Switchover + cascading wire-up cleanup
+**Trigger:** T1.12 structural switchover landed; T1.13.1 + T1.13.2 unblocked successive layers
+
+### Summary
+
+The switchover (T1.12) revealed that pure-relocation discipline through T1.10/T1.11 had accumulated multiple layers of cross-system dependencies hidden by `/* global */` scaffolds. Each fix layer exposes the next:
+
+1. **T1.12 structural** — index.html scaffold + main.js boot chain. Bundle 26KB JS (modules tree-shaken out). Screens rendered empty: no import edges reached heavy modules.
+2. **T1.13.1 wire-up cleanup** — flipped ~100 `/* global */` directives to ES imports across 19 files. Bundle 26KB → 154KB JS (×5.9). Modules now in graph. New failure: `essences`/`ASSETS` not defined (writable globals + ASSETS registry still legacy-only).
+3. **T1.13.2 canonical bindings** — 24 writable globals got module-private state + Object.defineProperty(window, ...) bridge. ASSETS extracted to src/data/assets.js. Duplicate Ch3 exports + Storm circular resolved. Bundle 154KB → 4,773KB JS (the ASSETS data URIs landed as strings — see below). New failure: `playDialogScript` not defined (dialog system still legacy-only).
+
+### Bundle bloat — REAL AAA+ violation
+
+**Current dist: ~5.13 MB** (4,773KB JS + 368KB CSS), exceeding AAA+ §3.2 5MB cap by ~3%.
+
+**Root cause:** legacy HTML's ASSETS registry contained base64-encoded data URIs for sprites/backgrounds (~4.6MB inline in HTML). When T1.13.2 extracted ASSETS to `src/data/assets.js`, Vite bundled those data URIs as JS string literals into the JS chunk. The legacy distribution was 21MB HTML; the new distribution would be ~5.1MB JS+CSS. Net we're smaller, but the JS bundle violates the cap.
+
+**Proper fix:** convert data URIs to real binary files in `public/images/` + reference via Vite asset imports (`new URL('./sprite.png', import.meta.url)` or `?url` queries). This eliminates the JS-bundle string bloat — assets load on-demand as their own HTTP requests.
+
+**Scope:** ASSETS refactor is M-complexity (auditing ~30-100 data URIs, extracting to PNG/SVG files, updating consumers). Could be:
+- (a) Done within T1.13 main verify (combined audit + fix)
+- (b) Separate T1.13.3 sub-task
+- (c) Deferred to T1.17 (already a UI replace task — natural fit)
+
+**CTO recommendation:** option (a) — fold into T1.13 main verify alongside other audits. Single comprehensive pass.
+
+### Layer-by-layer pattern observation
+
+Each fix reveals next. After T1.13.2:
+- `essences not defined` ✅ fixed (writable bindings)
+- `ASSETS not defined` ✅ fixed (extraction)
+- `playDialogScript not defined` ⏳ next layer — dialog system
+
+The pattern: legacy had monolithic scope where everything called everything. Pure relocation (T1.10/T1.11) extracted code but kept legacy as backstop. Switchover (T1.12) removed the backstop. Each cleanup layer (T1.13.N) closes one gap.
+
+**Termination:** continue layer-by-layer until manual playthrough succeeds AND bundle is under cap. Conservative estimate: 1-3 more T1.13.N sub-tasks.
+
+### Engineering pattern in use
+
+Object.defineProperty(window, X, {get, set}) bridge (T1.10.6/7 origin, used heavily in T1.13.2):
+- Module-private `let _x`
+- Exported `getX()` / `setX(v)`
+- `window.X` accessor for legacy-style bare reads/writes
+
+This allows ES strict-mode modules to coexist with legacy-style bare-identifier code. Retirement of the bridge happens when no more legacy-style call sites exist.
+
+### Sequencing — proposal
+
+Per layer-by-layer logic + bundle priority:
+
+| Sub-task | Scope |
+|---|---|
+| T1.13 main verify | Comprehensive audit: remaining wire-up gaps (playDialogScript, etc.) + bundle audit + Lighthouse + manual playthrough attempt + cross-boundary deferrals + ASSETS data URI refactor. PRODUCES PUNCH LIST. |
+| T1.13.3+ | Each gap closed in turn until playthrough green |
+| T1.14-T1.18 | Originally-planned cleanup (artifacts delete, Cosmic Memorial purge, 100-hearts UI, shop pack consolidation) |
+| T1.19, T1.20 | Mythic verify, Player Segments |
+
+This may slip Phase 1 timeline — original Plan estimated 6-8 weeks Phase 1, we're in Day 1 of execution and at 65% but with significant cleanup ahead. Pace remains good.
+
+### Tech debt status
+
+- Bundle bloat from ASSETS data URIs (T1.13 main verify or T1.13.3 will refactor)
+- `playDialogScript` not in src/ — needs extraction (T1.13.3 or main verify)
+- `SQUAD_MAX` legacy-only constant (small)
+- 2 moderate npm transitive vulns (continuing)
+- pre-existing url() warnings on coin.png/cristal.png (resolves naturally in asset-pipeline refactor)
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host

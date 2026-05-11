@@ -3,16 +3,16 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 12 / 20 done + T1.12 STRUCTURAL + T1.13.1 wire-up
-- **Overall progress:** ~62% (Phase 1 — boot chain runs; writable-globals + ASSETS extraction needed for screens to render)
-- **Bundle:** 528KB total (154KB JS + 368KB CSS) — under 5MB AAA+
-- **Next milestone:** **T1.13.2** — declare canonical writable bindings + ASSETS extraction + duplicate export resolution → then **T1.13 main verify** (manual playthrough)
-- **⚠️ Outstanding (T1.13.2 scope):**
-  - Writable globals (`essences`, `gold`, `activeSquad`, `currentScreen`, `bossHP`, etc.) throw on bare assignment in ES strict modules — need canonical owners
-  - `ASSETS` registry still legacy-only — extract to `src/data/assets.js`
-  - Duplicate exports `_ch3HasDebuff/_ch3HasSeal/_ch3TwilightMult/initChapter3Boss` in bosses.js + archetype-ticks.js — pick owner
-  - Storm helper shim retirement (battle-screen ↔ archetype-ticks circular)
-- **Last updated:** 2026-05-11 by CTO (after T1.13.1 review)
+- **Phase progress:** 12 / 20 done + T1.12 structural + T1.13.1 wire-up + T1.13.2 canonical bindings
+- **Overall progress:** ~65% (Phase 1 — boot advances through FTUE routing; next layer gap = playDialogScript)
+- **Bundle:** ⚠️ **5.13 MB** (4,773KB JS + 368KB CSS) — **EXCEEDS AAA+ 5MB cap by 3%** due to ASSETS data URIs bundled as strings (legacy had same MB inline but in HTML). **Needs asset-pipeline refactor** (data URIs → Vite `?url` imports).
+- **Next milestone:** **T1.13 main verify** — comprehensive audit of remaining wire-up gaps + bundle audit + manual playthrough attempt → produces punch list for T1.14+ cleanup
+- **⚠️ Outstanding for T1.13:**
+  - `playDialogScript` not defined → next missing extraction (FTUE → dialog system)
+  - Bundle bloat refactor (4.6MB ASSETS data URIs → proper Vite asset imports)
+  - `SQUAD_MAX` shim (legacy-only constant, needs named export)
+  - Cross-boundary deferrals (placePiece return, ~600 LoC dead hero code, getSquadMitigation ownership)
+- **Last updated:** 2026-05-11 by CTO (after T1.13.2 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
