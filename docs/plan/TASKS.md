@@ -1253,6 +1253,127 @@ The 9-key allow-list is COMPLETE — battle.js itself adds **0 new bare-string k
 
 ---
 
+### TASK-012 (T1.11) — REVIEW (2026-05-11)
+
+**Code commit:** `[T1.11] Extract UI screens to src/ui/ + T1.10 deferrals landed`
+**DOCS commit:** follows (this entry)
+**Files created:** 10 modules in `src/ui/` (total **3,021 LoC**)
+
+**Implementation summary:**
+
+UI surface extracted byte-perfect from legacy `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` into 10 src/ui/ modules per Execution Plan §13 T1.11. Module breakdown:
+
+| Module | LoC | Exports | Legacy source |
+|--------|-----|---------|---------------|
+| `router.js`         | 235 | `showScreen`, `goToMenu`, `goToSelect`, `returnToMenuFromBattle`, `setupRouting`, `cleanupRouting` (6) | 66426-66471 + 66473-66547 + 66549-66567 + 66615-66631 |
+| `menu.js`           | 141 | `renderResourceBar`, `renderMenu`, `startBattleFromMenu`, `startBattleFromSelect`, `setupMenuEventListeners`, `cleanupMenu` (6) | 24024-24032 + 66689-66707 + 66569-66613 |
+| `select.js`         | 55  | `renderSelect`, `setupSelectEventListeners`, `cleanupSelect` (3) | 67423-67432 |
+| `dailies.js`        | 168 | `goToDailies`, `renderDailiesScreen`, `handleClaimStreak`, `setupDailiesEventListeners`, `cleanupDailies` (5) | 26609-26726 |
+| `season.js`         | 232 | `goToSeason`, `renderSeasonScreen`, `setupSeasonEventListeners`, `cleanupSeason` (4) | 37948-38122 |
+| `profile.js`        | 173 | `goToProfile`, `renderProfile`, `renderProfileHeader`, `renderProfileTab`, `setupProfileEventListeners`, `cleanupProfile` (6) | 36234-36315 + 37397-37410 + 67058-67065 |
+| `tower.js`          | 305 | `goToTower`, `renderTowerScreen`, `renderTowerModeBanner`, `setupTowerEventListeners`, `cleanupTower` (5) | 32604-32822 + 29262-29280 |
+| `shop.js`           | 607 | `goToShop`, `renderShopPacks`, `setupShopEventListeners`, `cleanupShop` (4) | 25624-25665 + 23419-23875 |
+| `battle-screen.js`  | 435 | `_stormApplyBlizzardFreeze`, `_stormApplyEarthquakeLock`, `tickChapter2Archetype`, `_tickSoulDrinker`, `_tickStormcaller`, `_tickConfessionReader`, `_tickWither`, `_tickSealer`, `_tickPhaseShifter`, `_tickEqualizer`, `_tickRegent`, `_tickPhaseReverser`, `_tickRoyalPhase`, `_tickEternal`, `_tickInevitable`, `_tickCoOp`, `_tickDevourer`, `_tickChoice`, `setupBattleScreenEventListeners`, `cleanupBattleScreen` (20) | 40799-40829 + 41156-41212 + 42879-43045 |
+| `rewards.js`        | 670 | `_lastReward`, `onBossDefeated` (2) | 57405-57948 |
+
+**Per-screen contract:** every screen module exports `render<Screen>()` (where applicable) + `setup<Screen>EventListeners()` + `cleanup<Screen>()`. `setup*` / `cleanup*` are TODO(T1.12) shells documenting which listeners to attach when `src/main.js` becomes the entry point. Inline `onclick="..."` handlers in legacy HTML are preserved (legacy stays untouched); the addEventListener migration lands in T1.12 wire-up.
+
+**Sacred cow preservation:**
+- Combat math untouched (T1.11 is UI-only — no combat formula changes).
+- Battle Pass tier formula (`xp = 500 + tier × 150`), GEM_PACKS price ladder ($0.99 → $99.99), First Purchase Bonus (+50% gems + Hero Card + Founder Badge), Tower retry gem ladder [100, 200, 400] — all referenced via /* global */ from legacy data tables; never redefined.
+- 5-beat boss death cinematic (`vPlayBossDieFx` call site preserved in onBossDefeated Phase 3).
+- Boss death voice line ordering (fires INSIDE cinematic chain → progression unlocks AFTER vPlayBossDieFx) preserved byte-perfect in onBossDefeated.
+- Tower mode badge styling + Voidfang bespoke 5-beat defeat sequence preserved byte-perfect in tower.js + rewards.js respectively.
+- All DOM IDs preserved exactly (visual regression depends on these).
+
+**T1.10 deferrals landed:**
+
+1. **Per-archetype tick handlers** (originally estimated ~1,500 LoC for 10 archetypes; actual measured ~1,137 LoC across 33 handlers). Co-located in `battle-screen.js` per the brief because they're FX/DOM-coupled (read/write `.cell[data-row][data-col]` warn classes, `.boss-aura-light/-dark/-both` overlays, `.hero-card--crush-spire` pin overlay, etc.). **Inlined in T1.11**: `tickChapter2Archetype` (Ch1-Ch5 archetype dispatcher) + 16 small Ch3/Ch4/Ch5 ticks (banner-only or phase-driven HP-ratio shifts) + 2 Storm helpers. **Deferred to T1.11.1 follow-up**: 10 larger boss-specific handlers (`_tickPyredrake` / `_tickAbyssalTyrant` / `_tickGrovewarden` / `_tickSolarPhoenix` / `_tickCryptLich` for Ch1 + `_tickHypnotist` / `_tickEngineer` / `_tickFrenzy` / `_tickTempo` / `_tickBattery` for Ch2 + `tickChapter3Boss` 246-LoC state machine) — they pull in 30-80 LoC of per-handler module state + helper functions each. Total deferred to T1.11.1: ~1,300 LoC. The dispatcher in battle-screen.js references them via `/* global */`; legacy bodies stay byte-identical until follow-up.
+
+2. **onBossDefeated** (estimated 535 LoC per T1.10.7 closeout — measured 545 LoC). Landed verbatim in `src/ui/rewards.js` as exported `async function onBossDefeated()` with the `_lastReward` scratch struct also exported (legacy `showVictoryModal` reads it). Split into 10 documented logical phases via banner comments (anti-deadlock counters / Tower bypass + revive checks / cinematic FX / post-battle XP + chapter progression / base essence + plunder + artifact drop / Phase 6/7/8/10 hooks / floor bonuses + hero fragments / REW.3 first-clear differentiation + chapter celebration / FTUE-specific hooks / persist + cinematic exit + defeat dialogs). Ordering is sacred — no blocks moved between phases.
+
+**Storage rewires / bare-string keys:**
+
+`src/ui/rewards.js` references 2 bare-string localStorage keys via raw `localStorage.{set,get}Item` access (both already in T1.10.9 migration shim allow-list):
+- `'blocksworn_chapter_1_complete'` (T1.10.2 entry) — Ch1 completion setter at rewards.js Phase 6 (legacy line 57579 → here).
+- `VOIDFANG_DEFEATED_KEY` = `'blocksworn_voidfang_defeated'` (T1.10.8 entry) — Voidfang victory setter at rewards.js Phase 10 (legacy line 57911 → here).
+
+**NO NEW bare-string keys** introduced by T1.11. `src/services/migrate.js` allow-list unchanged (still 9 keys per T1.10.9).
+
+**ESLint globals:**
+
+Aggregate global identifier count across 10 ui modules: **~250 unique identifiers** in `/* global */` directives (down from T1.10.x heavy lists because most data + core helpers now resolve via imports from `src/data/` + `src/core/` + `src/services/` + `src/feel/`). Major categories:
+- DOM / browser refs: `document`, `setTimeout`, `confirm`, `navigator`, `localStorage` (mostly already in eslint.config.js — minimal redeclares).
+- V3.0 Vivid renderers (legacy module-scope): `vRenderTopbar`, `vRenderChapter`, `vRenderBossCard`, `vRenderSquadDock`, `vRenderWhatsNew`, `vRenderCosmicMemorial`, `vRenderSquadStrip`, `vRenderSynergyRow`, `vRenderFilterSubrow`, `vRenderRoster` (V3.0 layer; will fold into respective screen modules on follow-up).
+- Combat state vars (`currentBoss`, `bossHP`, `bossMaxHP`, `hp`, `shieldCount`, `battleDamageTaken`, `gameEnded`, `grid`, `SIZE`, `bossArchetype`, `currentChapter`, `currentBossIdx`, `currentFloorId`, `bossesDefeated`, `chapterProgress`) — canonical ownership in legacy until T1.12 wires src/main.js.
+- Per-archetype state vars (`_p6SoulDrinkerState`, `_p6PhaseShifterFaceIdx`, `_p6EternalWaxRemaining`, etc.) — used by inlined Ch3-Ch5 ticks; the larger Ch1-Ch2 boss-specific handlers' state stays in legacy alongside them.
+- Phase 6/7/8/10 hooks (`_phase6HandleBossDefeatMemorial`, `_phase7HandleBossDefeatDrops`, `recordBossWin`, `_phase10HandleFlameItselfDefeat`, `_phase5BossDefeatPolish`, `_phase6GrantBossDefeatHeroCard`) — content-layer hooks; stay in legacy until each lands in its own follow-up.
+- Mission tracking + analytics + dialog (`trackMissionEvent`, `logEvent`, `EVT`, `playDialog`, `advanceFtue`, `DIALOG_LINES`, `seenDialogs`) — bridge layer.
+
+Per-file `/* eslint-disable no-empty, no-unused-vars, no-undef, no-redeclare, no-global-assign */` directives mirror the established T1.10 pattern (empty `catch (e) {}` blocks are legacy idiom; `/* global */` declarations are noise without no-unused-vars relaxation; some files redeclare browser globals defensively).
+
+**TODO(T1.12) markers:** 14 total across the 10 modules
+- 10× `TODO(T1.12)` for `setup<Screen>EventListeners` / `cleanup<Screen>` listener wiring (each module has its specific listener target list documented in the body).
+- 1× `TODO(T1.12)` in `router.js` for setupRouting / cleanupRouting bottom-nav delegation.
+- 1× `TODO(T1.12)` in `router.js` for `gameEnded = true` writable global ownership.
+- 1× `TODO(T1.12)` in `rewards.js` documenting the `_isTowerBattle = false` legacy mutation (preserved via `/* global :writable */`).
+- 1× `TODO(T1.11.1)` follow-up in `battle-screen.js` listing the 10 deferred boss-specific tick handlers (~1,300 LoC).
+
+**Engineering judgment:**
+
+- **renderProfile sub-tab renderers stay in legacy.** Profile is the most fragmented screen (6 tabs × ~45-130 LoC each + edit-profile sheet + cosmetic overlay). T1.11 lands the dispatcher contract (`renderProfile` + `renderProfileHeader` + `renderProfileTab`). Sub-tab renderers (`renderProfileTabStats` / `renderProfileTabRoster` / etc.) stay in legacy with `/* global */` references — they call back into legacy progression state, and folding them would balloon the file past the §3.4 500-LoC guideline. A follow-up cleanup task can split each sub-tab into its own module if needed.
+- **renderProfileScreen (Phase 6 cosmetic overlay, legacy 44532-44595) NOT extracted.** It's a separate fullscreen overlay (`#phase6ProfileScreen` z-index 9690) for cosmetic customization, distinct from `renderProfile` (`#screenProfile` main tab). Documented in the file header as out of scope for the primary Profile dispatcher; will land in a future T1.11.x or cosmetics-specific module.
+- **V3.0 Vivid renderers stay in legacy.** `vRenderTopbar` / `vRenderChapter` / `vRenderBossCard` / `vRenderSquadDock` (menu.js dispatcher) + `vRenderSquadStrip` / `vRenderRoster` / etc. (select.js dispatcher) — these are 50-200 LoC legacy module-scope renderers. Including them would push menu.js + select.js past the 500-LoC guideline. Referenced via `/* global */`; will fold into the respective screen modules on follow-up cleanup.
+- **renderShopPacks inlined verbatim (458 LoC).** The function is pure markup generation — it builds a 12-section panel (Tower Climber featured tile + Gem Packs + Race Packs + Big/Premium/Ultimate + Bundles + Convenience + Ads + Subscription tile + Weekly Offer + Pity bar + Cosmetics + Starter Pack). No combat state, no progression mutations; just `host.innerHTML = ...` with the sacred GEM_PACKS price ladder referenced from legacy data. Easier to keep as-is than to split.
+- **onBossDefeated kept as one function** (not split into smaller exported helpers as the brief suggested might be possible). The function is a sequential 10-phase chain where ordering is sacred (Phoenix revive MUST fire before cinematic FX; Tower bypass MUST fire before story rewards; FTUE hooks fire BEFORE persist; voice lines fire INSIDE the FX chain). Splitting it would obscure the ordering invariants without making the code clearer. Phase boundaries are documented via banner comments instead.
+- **Per-screen `setup*` / `cleanup*` are TODO(T1.12) shells.** The brief specified the contract but explicitly noted: "addEventListener lives in the new src/ui/ modules; T1.12 will wire calls". Putting the listener attachment logic in T1.11 would require importing from src/main.js bootstrap (which doesn't exist yet — main.js is still placeholder). Shells document the listener target list per screen; T1.12 implements.
+- **battle-screen.js inlining policy was pragmatic.** The 33 archetype tick handlers split naturally between "small banner-only" (16 handlers, ~10-30 LoC each — inlined) and "large boss-specific state machines" (10 handlers + tickChapter3Boss, ~30-246 LoC each — deferred to T1.11.1 with their helper state). The dispatcher `tickChapter2Archetype` IS inlined and references the deferred handlers via /* global */ — preserves the dispatch contract while keeping the file under 500 LoC.
+
+**Verification (all gates green):**
+- `npm run lint` → **0 errors / 0 warnings**
+- `npm run test:unit` → **11/11 pass** (~111ms)
+- `npm run test:smoke` → **2/2 pass** (~2.2s)
+- `npm run test:visual` → **22/22 pass** under 2% (~11.8s)
+- `npm run build` → succeeds. dist/assets/index.js = 0.75KB; dist/assets/index.css = 368.77KB (unchanged — new modules tree-shake out, nothing imports them yet, as expected per the brief: "T1.12 wires `src/main.js` — the actual switchover")
+- Legacy `wc -c` = **21,480,494**; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` — byte-identical
+
+**Self-check:**
+- [x] Acceptance: 10 UI modules created in src/ui/ (menu, battle-screen, shop, tower, season, profile, select, dailies, router, rewards)
+- [x] Acceptance: per-screen `render<Screen>()` + `setup<Screen>EventListeners()` + `cleanup<Screen>()` contract honored
+- [x] Acceptance: DOM IDs preserved exactly (legacy HTML byte-identical → visual regression unaffected)
+- [x] Acceptance: inline `onclick="..."` handlers preserved in legacy HTML (legacy stays untouched); new modules document the listener target list for T1.12
+- [x] Acceptance: imports from src/core/* (T1.10 surface) + src/services/* + src/feel/* + src/data/* — all available and used where they resolve cleanly
+- [x] Acceptance: T1.10.7 deferral landed — per-archetype tick handlers co-located in battle-screen.js (Ch1-Ch5 dispatcher + 16 small ticks inlined; 10 larger + Ch3 state machine deferred to T1.11.1)
+- [x] Acceptance: T1.10 deferral landed — onBossDefeated extracted to rewards.js as exported async function (545 LoC byte-perfect)
+- [x] Acceptance: no new bare-string storage keys introduced (migration shim allow-list unchanged at 9 keys)
+- [x] Acceptance: all gates green (lint 0/0, unit 11/11, smoke 2/2, visual 22/22, build)
+- [x] Acceptance: nothing imports the new modules — tree-shake out for T1.11 (correct — T1.12 wires src/main.js as primary)
+- [x] Sacred cows: combat math untouched; Battle Pass formula + GEM_PACKS ladder + First Purchase Bonus + Tower retry ladder + 5-beat boss death cinematic + voice line ordering + Voidfang 5-beat sequence all byte-perfect
+- [x] DO NOT TOUCH: legacy HTML — not modified; index.html — not modified; src/main.js — not modified; src/core/* — not modified; src/data/feel/services/ — not modified; CSS / baselines / tests / CI / husky / eslint configs — not modified
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.11 commit; did NOT start T1.12
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **renderProfileScreen Phase 6 cosmetic overlay** (legacy 44532-44595): separate fullscreen overlay (`#phase6ProfileScreen` z-index 9690), distinct from the main Profile screen (`renderProfile` / `#screenProfile`). Currently lives in legacy and is window-exposed via `window.renderProfileScreen = renderProfileScreen` (legacy line 44614). Not extracted in T1.11 — out of scope of the primary Profile dispatcher. **CTO consideration:** T1.11.1 or a dedicated cosmetics module could fold it in. No functional impact; the legacy window-bridge keeps the in-game CTA working.
+
+2. **V3.0 Vivid renderers in legacy** (vRenderTopbar, vRenderChapter, vRenderBossCard, vRenderSquadDock, vRenderWhatsNew, vRenderCosmicMemorial, vRenderSquadStrip, vRenderSynergyRow, vRenderFilterSubrow, vRenderRoster, plus their `vFilter` / `vSort` / `vSearch` state and `vHeroRarity` helpers): 50-200 LoC each, total ~1,200 LoC of menu/select renderer surface. T1.11 menu.js + select.js dispatch to them via `/* global */`. Folding them in would push both modules past 500 LoC. **CTO consideration:** T1.11.1 or a follow-up `src/ui/v-renderers.js` (or per-screen extraction) can land these. Same legacy-bridge pattern as Profile sub-tabs.
+
+3. **Profile sub-tab renderers in legacy** (renderProfileTabStats / renderProfileTabJourney / renderProfileTabRoster / renderProfileTabAchievements / renderProfileTabTower / renderProfileTabSocial — total ~570 LoC across 6 functions). Same engineering reasoning as V3.0 Vivid renderers — referenced via `/* global */` from profile.js's renderProfileTab dispatcher. **CTO consideration:** could fold each into its own module (e.g., `src/ui/profile-tabs/stats.js`, `roster.js`, etc.) on follow-up.
+
+4. **Ch1-Ch2 boss-specific tick handlers + Ch3 state machine deferred to T1.11.1** (~1,300 LoC): per the inlining policy in battle-screen.js, these are FX/DOM-coupled but each pulls in 30-80 LoC of per-handler module state (Pyredrake warn-cells Set, Abyssal row/maelstrom warn Sets + crush-spire pending state, Grovewarden Root Bind state, Ch3 `_ch3State` / `_ch3BossId` / `_ch3LastDualState`). Inlining them in T1.11 would push battle-screen.js past 1,500 LoC. **CTO consideration:** T1.11.1 follow-up can land them byte-perfect alongside their state vars. The dispatcher `tickChapter2Archetype` in battle-screen.js already references them via `/* global */` — drop-in compatible when they relocate.
+
+5. **`BATTLE_TUTORIAL_KEY = 'battleTutorialShown'`** stored as bare string `'1'` (legacy 67068 + 67083 + 67085, inside `maybeShowBattleTutorial` which lives in legacy and was NOT extracted in T1.11). Same wire-format compat caveat as the 9 existing migration-shim entries. **NOT flagged for T1.10.9 allow-list update** because the function stays in legacy — the bare-string access doesn't cross the new-shell boundary until a future task extracts maybeShowBattleTutorial. CTO can decide whether to pre-emptively add to the allow-list now or wait for the extraction task.
+
+6. **`gameEnded = true` mutation in router.js** (returnToMenuFromBattle) — preserved as a writable global since gameEnded ownership lives in src/core/battle.js (T1.10.9). Same pattern as `_isTowerBattle = false` in rewards.js Phase 2. Both noted for T1.12 wire-up so the canonical setter in src/core/battle.js exports a `endGame()` API that both sites can call instead.
+
+7. **`vFilter` / `vSort` / `vSearch` module-scope state** (legacy 67435-67437) — lives in legacy because select.js dispatches to V3.0 Vivid renderers that read them. Same caveat as item 2 — fold when V3.0 renderers land.
+
+**Time:** ~5 hours (3,021 LoC across 10 modules + comprehensive header docs + 4 sacred cow preservations verified + ~250 /* global */ identifiers declared + commit/docs cycle)
+
+---
+
 ## GAME DESIGNER
 
 (no active tasks — Designer activated в Phase 2)
@@ -1332,4 +1453,4 @@ The 9-key allow-list is COMPLETE — battle.js itself adds **0 new bare-string k
 ---
 
 **Maintained by:** CTO agent
-**Last update:** 2026-05-11 — T1.10.6 → REVIEW (stagger-loop module extracted, 1,021 LoC / 48 exports = 17 constants + 26 functions + 5 state getters; SACRED v2.1 P2 ACTIVE/STAGGER/RECOVERY state machine + Pressure meter + STAGGER_DURATION=4 + RECOVERY_DURATION=2 + multi-stagger chaining + Overflow conversion 40/30/500/10 + revenge 1.5× byte-perfect; 0 new bare-string keys)
+**Last update:** 2026-05-11 — TASK-012 (T1.11) → REVIEW (UI screens extracted: 10 modules / 3,021 LoC in src/ui/; T1.10 deferrals landed = onBossDefeated 545 LoC in rewards.js + 16 small Ch3-Ch5 archetype ticks + dispatcher in battle-screen.js; 10 larger Ch1-Ch2 boss-specific ticks + Ch3 state machine deferred to T1.11.1 follow-up ~1,300 LoC; 0 new bare-string keys — migration shim allow-list unchanged at 9; legacy SHA stable)
