@@ -1253,56 +1253,102 @@ The 9-key allow-list is COMPLETE — battle.js itself adds **0 new bare-string k
 
 ---
 
-### TASK-013 (T1.11.1) — Land deferred archetype tick handlers + Ch3 state machine
+### TASK-013 (T1.11.1) — REVIEW (2026-05-11)
 
-**Status:** IN PROGRESS (Game Dev Agent — assigned 2026-05-11)
-**Priority:** HIGH (BLOCKS T1.12 — clean switchover requires all runtime deps in src/)
-**Phase:** 1 (Week 4-5 — T1.11 follow-up)
-**Estimated complexity:** M (~1,300 LoC pure relocation, no new architecture)
-**Depends on:** ✅ T1.11 (UI surface landed)
+**Code commit:** `[T1.11.1] Land deferred archetype tick handlers + Ch3 state machine` → `ca6d351`
+**DOCS commit:** follows (this entry)
+**Files created:** `src/ui/archetype-ticks.js` (**2,007 lines** — ~1,506 LoC code + ~501 LoC byte-perfect headers/section comments)
+**Files modified:** `src/ui/battle-screen.js` (435 → 419 LoC; net −16)
 
-**Goal:** Extract the remaining ~1,300 LoC of FX/DOM-coupled archetype tick handlers + Ch3 state machine (`tickChapter3Boss`) into `src/ui/battle-screen.js` (or a sibling `src/ui/archetype-ticks.js` if it exceeds 500 LoC).
+**Implementation summary:**
 
-**Context:** T1.11 agent correctly split deferred ticks pragmatically — 16 small ones landed inline in `battle-screen.js` (under 500 LoC §3.4 cap), 10 larger ones + Ch3 SM left as `/* global */` stubs in the dispatcher. Without T1.11.1, T1.12 switchover would leave runtime references unresolved (legacy gets demoted to archive).
+The 10 deferred boss-specific tick handlers + `tickChapter3Boss` Ch3 state machine (left as `/* global */` stubs in T1.11) were extracted byte-perfect from legacy `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` into the new sibling module `src/ui/archetype-ticks.js`. The dispatcher in `battle-screen.js` (`tickChapter2Archetype`) now resolves them via named ES imports; no `/* global */` stubs remain for the deferred ticks.
 
-**Detailed spec:**
+| Owner relocated | Helpers + state vars also relocated | Legacy range | Notes |
+|------|------|------|------|
+| `tickChapter3Boss` (Ch3 SM, 246 LoC) | `_ch3BossId`, `_ch3State`, `_ch3LastDualState`, `_ch3PhaseFromHp`, `_ch3RenderBossAura`, `_ch3MaybeAnnounceDualState`, `_ch3HasDebuff`, `_ch3HasSeal`, `_ch3TwilightMult`, `initChapter3Boss`, `_stormApplyLightningRow` | 40788-42013 | TWILIGHT VESSEL / STORMSHEPHERD / VOIDPRIESTESS / ROOT-OF-NOTHING / ARCHIVAL ETERNAL state machine + dual-state aura + storm lightning helper |
+| `_tickPyredrake` | `_pyredrakeState`, `_pyredrakeWarnCells`, `_initPyredrakeState`, `_resetPyredrakeState`, `_pyredrakeCinderblastInterval`, `_pyredrakeQueueCinderblast`, `_pyredrakeApplyCinderblast` + PYREDRAKE_* consts | 41214-41347 | Ch1 Cinderblast 2T telegraph |
+| `_tickAbyssalTyrant` | `_abyssalTyrantState`, `_abyssalRowWarnCells`, `_abyssalMaelstromWarnCells`, `abyssalCrushSpire*` (3 vars), `_initAbyssalTyrantState`, `_resetAbyssalTyrantState`, 7 interval/queue/apply helpers + ABYSSAL_* consts | 41349-41584 | Ch1 Row Strike / Crush Spire / Maelstrom |
+| `_tickGrovewarden` | `_grovewardenState`, `_grovewardenBloomWarnCells`, `_grovewardenWrathWarnCells`, `_grovewardenRootBindCells`, `_initGrovewardenState`, `_resetGrovewardenState`, 6 helpers + GROVE_* consts | 41586-41793 + 42232-42264 | Ch1 Bloom Strike / Root Bind / Forest Wrath |
+| `_tickSolarPhoenix` | `_solarPhoenixState`, `_solarLineWarnCells`, `_solarStormWarnCells`, `_initSolarPhoenixState`, `_resetSolarPhoenixState`, 5 helpers + SOLAR_* consts | 41795-41973 | Ch1 Solar Line / Solar Storm |
+| `_tickCryptLich` | `_cryptLichState`, `_cryptLichGeometryWarnCells`, `_cryptLichSoulDrainAnnounced`, `_cryptLichNecropulsePending`, `_initCryptLichState`, `_resetCryptLichState`, 6 helpers + CRYPT_* consts | 42015-42230 | Ch1 Dark Geometry / Soul Drain / Necropulse |
+| `_tickHypnotist` | `_hypnotistPetalFall`, `_hypnotistTendrilCoil`, `renderHypnotistVisuals` | 42266-42390 | Ch2 Suggestion / Petal / Tendril / Bloom |
+| `_tickEngineer` | `_engineerWeldCells`, `_engineerExtractEarthCells`, `_renderEngineerVisuals` | 42392-42525 | Ch2 Weld / Extract / Critical Mass |
+| `_tickFrenzy` | `_frenzyDevour`, `_renderFrenzyVisuals` | 42527-42620 | Ch2 Stacks / Maul / Devour |
+| `_tickTempo` | (no helpers) | 42622-42680 | Ch2 Slow Time / Reverse Tempo / Tidal Lock |
+| `_tickBattery` | (no helpers — `_batterySunfireCascade` / `_batterySolarConvergence` / `_renderBatteryChargeMeter` remain in legacy, reached via the existing legacy `typeof === 'function'` idiom inside try/catch; future cleanup can land them) | 42682-42722 | Ch2 Charge → Convergence (P2) / Cascade (P3) |
 
-1. Inventory the 10 deferred boss-specific tick handlers + `tickChapter3Boss`:
-   ```bash
-   # Find functions deferred per T1.11 agent's split
-   grep -n "function _phoenixTick\|function _lichTick\|function _berserkerTick\|function tickChapter3Boss\|function _grovewardenTick\|function _stormTick\|function _hypnotistTick\|function _abyssalTick\|function _engineerTick\|function _frenzyTick\|function _machinistTick" docs/_legacy/_archive_v1/blocksworn_index_fixed.html | head -20
-   ```
-2. Decide location:
-   - If total ≤ 500 LoC after relocation → land in `src/ui/battle-screen.js` (current 435 LoC has headroom)
-   - If total > 500 LoC → create `src/ui/archetype-ticks.js` and import from `battle-screen.js`
-3. Pure relocation. Same discipline as T1.10:
-   - BYTE-PERFECT preservation
-   - Imports from `src/core/bosses.js`, `src/core/reactivity-events.js`, `src/feel/animations.js`
-   - DOM refs preserved (TODO(T1.12) markers ONLY if absolutely needed — most should resolve via existing src/styles/)
-   - `/* global */` directives for any remaining cross-system refs
-4. Update dispatcher in `src/ui/battle-screen.js`: remove `/* global tickChapter3Boss tickPhoenix ... */` stubs; replace with actual function references (now in same file or imported from sibling).
-5. **Self-contained verification:** the new tick handlers should not crash if invoked standalone (in production they'll be invoked by battle.js orchestrator, but a dev-mode call should not throw).
+**Sacred cow preservation:**
+- All animation durations (setTimeout 600ms/700ms strobes + 250ms petal-fall delay + 1100ms tempo-tint) preserved byte-perfect.
+- All haptic patterns (`vibrate([200,80,200,80,400])`, `[260,100,260,100,460]`, `[40,30,40]`, etc.) preserved byte-perfect.
+- All DOM class names preserved exactly (`.cinderblast-warn/-hit`, `.row-strike-warn/-hit`, `.bloom-strike-hit`, `.forest-wrath-hit`, `.solar-line-warn/-hit`, `.solar-storm-hit`, `.dark-geometry-warn/-hit`, `.hero-card--crush-spire-warn/-locked`, `.hero-card--hypno-suggested/-coiled`, `.hero-card--frenzy-devoured`, `.cell--engineer-welded/-electrified`, `.tempo-slow-tint`, `.boss-aura-light/-dark/-both`, `.lightning-row-hit`).
+- All threat-banner copy + persistence flags preserved byte-perfect.
+- All interval constants (PYREDRAKE_*, ABYSSAL_*, GROVE_*, SOLAR_*, CRYPT_*) preserved with identical values.
 
-**Acceptance criteria:**
-- [ ] All 10 deferred boss-specific tick handlers extracted
-- [ ] `tickChapter3Boss` Ch3 state machine extracted
-- [ ] `battle-screen.js` dispatcher no longer references them via `/* global */`
-- [ ] `npm run lint` → 0 errors
-- [ ] `npm run test:unit` → 11/11 pass
-- [ ] `npm run test:smoke` → 2/2 pass
-- [ ] `npm run test:visual` → 22/22 pass under 2%
-- [ ] `npm run build` → ~372KB (modules tree-shake out — no callers yet; T1.12 wires)
-- [ ] Legacy untouched: SHA-256 stable
-- [ ] Commit: `[T1.11.1] Land deferred archetype tick handlers + Ch3 state machine`
+**battle-screen.js dispatcher changes:**
 
-**DO NOT:**
-- Modify legacy HTML, src/core/*, src/main.js, index.html, data/feel/services modules
-- Modify visual baselines or tests
-- "Improve" tick handlers — pure relocation
-- Push to remote
-- Start T1.12
+The `tickChapter2Archetype` body is unchanged — only the resolution path is now imports instead of `/* global */`. Removed entries from the `/* global */` directive:
+- `_ch3BossId, _ch3State, _ch3LastDualState` (3 Ch3 state vars — now owned by archetype-ticks.js exports)
+- `_tickHypnotist, _tickEngineer, _tickFrenzy, _tickTempo, _tickBattery` (5 Ch2 ticks)
+- `_tickPyredrake, _tickAbyssalTyrant, _tickGrovewarden, _tickSolarPhoenix, _tickCryptLich` (5 Ch1 ticks)
 
-**One-question rule.** If ambiguous, ONE question.
+Total: **13 `/* global */` entries removed**. Replaced with a single `import { ... } from './archetype-ticks.js'` block (10 names — the 5 Ch1 + 5 Ch2 tick functions; `tickChapter3Boss` is exported by archetype-ticks.js but called from the legacy battle loop directly, so it's not re-imported here).
+
+Also removed the 36-line `T1.11.1 follow-up` footer block from battle-screen.js (the inventory list of what was being deferred is now obsolete) — replaced with an 8-line landed-pointer comment.
+
+**ES module circular import:**
+
+`archetype-ticks.js` imports `_stormApplyBlizzardFreeze` and `_stormApplyEarthquakeLock` from `./battle-screen.js` (where T1.11 inlined them — they paint cell-level Storm overlays). `battle-screen.js` imports the deferred ticks back from `archetype-ticks.js`. JS handles this fine: by the time the storm-intensify branch in `tickChapter3Boss` actually fires (during a Stormshepherd battle tick), both modules have fully initialised their exports. T1.12 wire-up can consolidate Storm helper ownership later.
+
+**TODO markers:**
+- 0× new `TODO(T1.12)` in archetype-ticks.js (the file scope is self-contained — all cross-system refs resolve through existing `/* global */` until T1.12 inverts the ownership of combat state + legacy FX helpers, same as the other src/ui/ modules).
+- 1× existing `TODO(T1.12)` in battle-screen.js (Storm helper import comment) noting that the cross-file shim arrangement can be flattened on T1.12 wire-up.
+- 0× new `TODO(T1.13)` (no cross-boundary cleanup needed).
+
+**ESLint globals:**
+
+archetype-ticks.js declares ~85 unique identifiers in `/* global */` directives across two blocks (read-only + writable). Major categories:
+- Combat state (`currentBoss`, `bossHP`, `bossMaxHP`, `bossAttackDmgMult`, `bossArchetype`, `grid`, `SIZE`, `hp`, `shieldCount`, `battleDamageTaken`, `gameEnded`, `currentChapter`).
+- Legacy FX helpers (`flashText`, `flashStateBanner`, `showThreatBanner`, `hideThreatBanner`, `vibrate`, `renderHP`, `renderBossHP`, `render`, `showDefeatModal`).
+- Ch2 archetype constants + state (HYPNOTIST_*, ENGINEER_*, FRENZY_*, TEMPO_*, BATTERY_*, hypnotist*, engineer*, frenzy*, tempo*, battery* — live in legacy module scope at 40632-40760 etc.; T1.10 archetype-data extraction declared them as exports but archetype-ticks.js reads via `/* global */` until T1.12 inverts).
+- Shared data (`HERO_DECK`, `heroCharges`, `getUltCost`, `groveAbsorbedByCell`, `groveTotalAbsorbed`, `bossRevivedOnce`, `bossDualSuggestActive`, `bossChargeRateMult`, `engineerElectrifiedRows`, `frenzyMaxStacks`).
+- Battery follow-up FX (`_batterySunfireCascade`, `_batterySolarConvergence`, `_renderBatteryChargeMeter`) — stay in legacy.
+- Storm Maps (`_stormBlizzardFreezes`, `_stormEarthquakeLocks`) — read by `tickChapter3Boss` Storm branch; canonical ownership in legacy.
+
+Per-file `/* eslint-disable no-empty, no-unused-vars, no-redeclare */` directive mirrors the established T1.10 / T1.11 pattern.
+
+**Verification (all gates green):**
+- `npm run lint` → **0 errors / 0 warnings**
+- `npm run test:unit` → **11/11 pass** (~100ms)
+- `npm run test:smoke` → **2/2 pass** (~2.9s)
+- `npm run test:visual` → **22/22 pass** under 2% (~12.2s)
+- `npm run build` → succeeds. dist/assets/index.js = 0.75KB; dist/assets/index.css = 368.77KB (unchanged — new module tree-shakes out, nothing imports it yet; T1.12 wires `src/main.js` as primary entry).
+- Legacy `wc -c` = **21,480,494**; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` — byte-identical to baseline.
+
+**Self-check:**
+- [x] Acceptance: all 10 deferred boss-specific tick handlers extracted (_tickPyredrake, _tickAbyssalTyrant, _tickGrovewarden, _tickSolarPhoenix, _tickCryptLich + _tickHypnotist, _tickEngineer, _tickFrenzy, _tickTempo, _tickBattery)
+- [x] Acceptance: `tickChapter3Boss` Ch3 state machine extracted alongside its `_ch3*` state + helper functions
+- [x] Acceptance: `battle-screen.js` dispatcher no longer references the 13 deferred globals — replaced with a single named ES import from `./archetype-ticks.js`
+- [x] Acceptance: `npm run lint` → 0 errors
+- [x] Acceptance: `npm run test:unit` → 11/11 pass
+- [x] Acceptance: `npm run test:smoke` → 2/2 pass
+- [x] Acceptance: `npm run test:visual` → 22/22 pass under 2%
+- [x] Acceptance: `npm run build` → ~372KB (368.77KB CSS + 0.75KB JS; new module tree-shakes out — no callers in src/main.js yet, as expected per T1.12 wire-up plan)
+- [x] Acceptance: legacy untouched — wc -c stable + SHA-256 unchanged
+- [x] Acceptance: commit message follows format `[T1.11.1] Land deferred archetype tick handlers + Ch3 state machine`
+- [x] Sacred cows: animation durations + haptic patterns + DOM class names + threat-banner copy all byte-perfect
+- [x] DO NOT TOUCH: legacy HTML — not modified; src/core/* — not modified; src/main.js — not modified; index.html — not modified; data/feel/services modules — not modified; visual baselines — not modified; tests / CI / husky / eslint configs — not modified
+- [x] No new npm packages
+- [x] Not pushed to remote (CTO will instruct)
+- [x] STOPPED after T1.11.1 commit; did NOT start T1.12
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **`_batterySunfireCascade` / `_batterySolarConvergence` / `_renderBatteryChargeMeter` stay in legacy** (Battery follow-up FX, legacy 42723+ — beyond the deferred range). They're Battery-only FX with no cross-archetype interaction; `_tickBattery` reaches them via the existing `typeof === 'function'` legacy idiom inside try/catch (no behavior change). A future cleanup task (e.g., T1.11.x or T1.13) can land them alongside their helpers — they don't block T1.12 because the runtime resolution is already safe inside try/catch.
+
+2. **Ch2 archetype constants + state vars (HYPNOTIST_*, ENGINEER_*, FRENZY_*, TEMPO_*, BATTERY_* + hypnotist* / engineer* / frenzy* / tempo* / battery* mutables) live in legacy module scope** at 40632-40760. archetype-ticks.js reads/writes them via `/* global */ ... :writable` directives — same pattern as T1.10 / T1.11 modules accessing combat state. T1.12 wire-up can invert ownership (have these flow from src/data/ archetype constants + a Ch2 state module). Not a blocker; documented for the T1.12 follow-up planning.
+
+3. **ES module circular import battle-screen.js ↔ archetype-ticks.js.** archetype-ticks.js imports `_stormApplyBlizzardFreeze` + `_stormApplyEarthquakeLock` from battle-screen.js (where T1.11 inlined them — they paint cell-level Storm overlays); battle-screen.js imports the deferred ticks back. JS handles this fine, but it's a code smell. **CTO consideration:** T1.12 wire-up could consolidate Storm helper ownership by moving the two Storm helpers from battle-screen.js into archetype-ticks.js (both modules are consumed via src/main.js wire-up, so the Storm helpers don't need to be exported from battle-screen.js once direct legacy callers are gone). Trivial cleanup; flagged here so the T1.12 plan can include it.
 
 ---
 
@@ -1506,4 +1552,4 @@ Per-file `/* eslint-disable no-empty, no-unused-vars, no-undef, no-redeclare, no
 ---
 
 **Maintained by:** CTO agent
-**Last update:** 2026-05-11 — TASK-012 (T1.11) → REVIEW (UI screens extracted: 10 modules / 3,021 LoC in src/ui/; T1.10 deferrals landed = onBossDefeated 545 LoC in rewards.js + 16 small Ch3-Ch5 archetype ticks + dispatcher in battle-screen.js; 10 larger Ch1-Ch2 boss-specific ticks + Ch3 state machine deferred to T1.11.1 follow-up ~1,300 LoC; 0 new bare-string keys — migration shim allow-list unchanged at 9; legacy SHA stable)
+**Last update:** 2026-05-11 — TASK-013 (T1.11.1) → REVIEW (deferred archetype ticks landed: 11 owners + helpers + state vars relocated byte-perfect to src/ui/archetype-ticks.js, ~1,506 LoC code + ~501 LoC byte-perfect comments; battle-screen.js dispatcher 435 → 419 LoC, 13 /* global */ stubs replaced by ES imports; T1.12 switchover unblocked; legacy SHA stable; all gates green)
