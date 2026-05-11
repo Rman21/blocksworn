@@ -4,3 +4,12 @@ node_modules/
 .env
 .env.local
 .claude/
+
+# Vite build output
+dist/
+
+# Test artifacts (T1.03+)
+tests/visual/current/
+tests/visual/diff/
+playwright-report/
+test-results/

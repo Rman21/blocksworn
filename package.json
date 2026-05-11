@@ -1,0 +1,21 @@
+{
+  "name": "blocksworn",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Blocksworn — block puzzle RPG (Vite + ES Modules scaffold)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:smoke": "echo \"smoke tests wired up in T1.03\" && exit 0",
+    "test:visual": "echo \"visual regression wired up in T1.05\" && exit 0",
+    "lint": "echo \"lint wired up in T1.05\" && exit 0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0",
+    "eslint": "^9.10.0",
+    "pixelmatch": "^6.0.0",
+    "vite": "^5.4.0"
+  }
+}
