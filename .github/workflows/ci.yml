@@ -1,8 +1,10 @@
 # 2026-05-11 — TASK-005 (T1.05): CI pipeline for Blocksworn Phase 1.
-# Spec: docs/plan/00_EXECUTION_PLAN.md §12 + §13 T1.05 § E.
+# 2026-05-11 — TASK-009 (T1.08): + unit job (Vitest) between lint and build.
+# Spec: docs/plan/00_EXECUTION_PLAN.md §12 + §13 T1.05 § E + T1.08.
 #
 # Jobs (sequential gate chain):
 #   lint    — ESLint flat config on src/, tests/, root configs
+#   unit    — Vitest unit tests (T1.08+; currently storage abstraction)
 #   build   — Vite build + enforce dist/ < 5MB (CLAUDE.md §3.2)
 #   smoke   — Playwright smoke on all 4 projects (Linux runners have no WebKit
 #             host constraint — uses test:smoke:full)
@@ -10,7 +12,9 @@
 #             (T1.04 only captured baselines for those two projects).
 #             On failure: tests/visual/diff/ uploaded as artifact.
 #
-# unit job intentionally absent — no unit tests yet. T1.08+ adds storage tests.
+# Gate order: build (and therefore smoke + visual) `needs: unit` so a
+# unit-test regression in service abstractions fails fast before the
+# heavier Playwright runs spin up — saves runner minutes.
 name: CI
 
 on:
@@ -30,9 +34,21 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
-  build:
+  unit:
     runs-on: ubuntu-latest
     needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:unit
+
+  build:
+    runs-on: ubuntu-latest
+    needs: unit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
