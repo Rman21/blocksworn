@@ -202,7 +202,7 @@ auto-disappears in T1.10 when the rewiring lands:
 
 ### TASK-011 (T1.10) — Extract core game logic to `src/core/` (XL — the watershed task)
 
-**Status:** TODO (blocked by TASK-010)
+**Status:** TODO (AWAITING ROMAN GO — Week 2 just closed; CTO recommends push-and-CI-verify first)
 **Priority:** HIGH
 **Phase:** 1 (Week 4-5 per Plan; faster at current pace)
 **Estimated complexity:** XL (~50% of Phase 1 effort per Execution Plan)
@@ -240,6 +240,34 @@ auto-disappears in T1.10 when the rewiring lands:
 ### TASK-006 (AUDIT-01) ✅ DONE 2026-05-11 — `d942eff`, `fc08d51` — Tester GO; legacy SHA-256 canonical
 ### TASK-007 (T1.06) ✅ DONE 2026-05-11 — `2e097f4`, `f2c662f` — 19 CSS files, 368KB bundle, 179 @keyframes
 ### TASK-008 (T1.07) ✅ DONE 2026-05-11 — `c357124`, `a93435a` — 35 constants, sacred cows byte-perfect
+
+### TASK-010 (T1.09) ✅ DONE 2026-05-11
+**Commits:** `8ed5679` (T1.09 — 3 feel modules), `39bc613` (DOCS)
+**Outcome:** 7 functions extracted across 3 modules:
+- `animations.js` (177 LoC, 5 fns): `vPlayLineClearBurst`, `vPlayCritFlash`, `vPlayBossDieFx`, `vCleanupBossDeathFx`, `vPlayLevelPulse`
+- `particles.js` (68 LoC, 1 fn): `spawnBossDeathParticles` + `BOSS_DEATH_ELEM_COLOR` frozen table
+- `narrator.js` (50 LoC, 1 fn): `speakNarrator(trigger)` → imports `NARRATOR_LINES` from `./narrator-lines.js`
+
+**Sacred cow timings (all byte-perfect):**
+- `vPlayCritFlash`: 180ms flash + 440ms shake ✅
+- `vPlayBossDieFx`: 5 beats (440 / 300 / 260+220 / 380 / 420 / sync) ✅
+- `vPlayLineClearBurst`: cap=32, dur=600+rand*240, cleanup=1000 ✅
+- `spawnBossDeathParticles`: count=16, dist=70+rand*60, delay=rand*80, cleanup=1600 ✅
+- `vPlayLevelPulse`: 2800ms ✅
+- `speakNarrator`: busy=3400, visible=3000 ✅
+
+**Engineering judgment:**
+- `.v-spark` loop stayed in `animations.js` (tightly coupled to burst container; splitting would add no clarity) — pragmatic boundary call respecting pure-relocation rule.
+- Per-file `/* global */` directives instead of mutating `eslint.config.js` (respected DO NOT TOUCH).
+- 5 `TODO(T1.10)` markers document future rewire targets: `SIZE`, `playSFX`, `vPlaySound`, `currentBoss`, `_isDialogActive`, `_deferDuringDialog`.
+
+**Verification:**
+- `npm run lint` → 0 errors / 0 warnings
+- `npm run test:unit` → 6/6 pass
+- `npm run test:smoke` → 2/2 pass
+- `npm run test:visual` → 22/22 pass under 2%
+- `npm run build` → 372KB (unchanged — modules tree-shake out, expected)
+- Legacy: `wc -c` = 21,480,494; SHA-256 stable
 
 ### TASK-009 (T1.08) ✅ DONE 2026-05-11
 **Commits:** `f6b67a4` (T1.08), `694b5aa` (DOCS)

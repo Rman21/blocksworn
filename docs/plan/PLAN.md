@@ -3,12 +3,12 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 8 / 20 tasks done (T1.01-T1.08); AUDIT-01 GO; BUG-001 CLOSED
-- **Overall progress:** ~17% (Phase 1 Week 2 nearly complete; feel layer next)
-- **Next milestone:** T1.10 — Core game logic extraction (the XL task)
-- **Active task:** T1.09 — Extract feel layer animations/particles/narrator function (assignment ready)
-- **Pending Roman action:** push branch to verify CI green on GitHub Actions runner (non-blocking)
-- **Last updated:** 2026-05-11 by CTO (after T1.08 review)
+- **Phase progress:** 9 / 20 tasks done (T1.01-T1.09 — **Week 2 complete**)
+- **Overall progress:** ~22% (Phase 1 Week 2 done; entering watershed Week 3)
+- **Next milestone:** T1.10 — Core game logic extraction (THE XL TASK; sub-tasks T1.10.1-T1.10.9; ~50% of Phase 1 effort per Plan)
+- **Active task:** T1.10 — Awaiting Roman GO (CTO recommends Roman push first to validate Week 1-2 on CI before XL task starts)
+- **Pending Roman action:** (1) push branch to verify CI green; (2) GO/HOLD for T1.10 start
+- **Last updated:** 2026-05-11 by CTO (after T1.09 review — Week 2 closed)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -49,6 +49,10 @@
 - [x] T1.06 — Extract CSS into modular structure — **DONE 2026-05-11** (commits `2e097f4`, `f2c662f`; 19 CSS files, 368KB bundle, 179 @keyframes, all visual green)
 - [x] T1.07 — Extract data constants into `src/data/` — **DONE 2026-05-11** (commits `c357124`, `a93435a`; 35 constants, sacred cows byte-perfect)
 - [x] T1.08 — Extract services into `src/services/` — **DONE 2026-05-11** (commits `f6b67a4`, `694b5aa`; 6 modules + first unit tests + CI `unit` job)
+
+**Week 4-5: Logic + UI extraction**
+- [x] T1.09 — Extract feel layer (haptics, animations, particles, narrator) — **DONE 2026-05-11** (commits `8ed5679`, `39bc613`; 3 new modules + 7 functions; sacred timings 180/440/300/260/220/380/420ms all byte-perfect)
+- [ ] T1.10 — Extract core game logic to `src/core/` — TODO (XL — sub-tasked T1.10.1-T1.10.9)
 
 **Week 4-5: Logic + UI extraction**
 - [ ] T1.09 — Extract feel layer (haptics, animations, particles, narrator) — TODO
