@@ -7,22 +7,27 @@
 
 ## BUG TESTER
 
-### BUGS (open)
+### BUGS (closed)
 
-#### BUG-001 🟡 MAJOR — Visual regression WARN band (2-5%) silently passes CI
+#### BUG-001 🟡 MAJOR ✅ CLOSED 2026-05-11 — Visual regression WARN band silently passed CI
 
-**Severity:** 🟡 MAJOR
+**Severity:** 🟡 MAJOR → resolved (no longer applicable)
 **Area:** Visual regression gate / CI quality contract
-**Reproducibility:** Always (10/10)
-**Discovered:** 2026-05-11 during AUDIT-01 Scenario 5 Phase A
-**Status:** OPEN — awaiting CTO triage (3 options listed in REPORT-AUDIT-01)
-**Full details:** see REPORT-AUDIT-01 → "Bugs found" → BUG-001 in `docs/plan/REPORT.md`
+**Discovered:** 2026-05-11 during AUDIT-01 Scenario 5 (Bug Tester)
+**Resolution:** CTO config patch — Phase 1 strict mode
 
-**One-liner:** A 30px red banner injected on every screen produced 3.18-4.08% diff; all 22 tests still PASSED because the implementation treats 2-5% as "WARN + pass" while CLAUDE.md §3.5/§7.6 wording and AUDIT-01 spec scenario 5 expected ≥2% to FAIL. Gate fires correctly at >5% (verified with 80px banner — 22/22 FAIL). Not a BLOCKER (>5% gate works), but decision needed on contract wording vs implementation before this gap bites T1.06+ migrations.
+**Original issue:** 30px red banner injected on every screen produced 3.18-4.08% diff; all 22 tests PASSED because implementation treated 2-5% as "WARN + pass" (per CLAUDE.md §3.7 three-band canon). Tester correctly identified the gap: CTO's AUDIT-01 spec said "EXPECT FAIL at ≥2%" but implementation gates at >5%. Spec wording was wrong; implementation matched CLAUDE.md canon.
 
----
+**CTO triage:** Tester's Option (a) — tighten `WARN_THRESHOLD` to `PASS_THRESHOLD` (both 0.02) for Phase 1 strict mode. Rationale: during code migration (T1.06-T1.20), any diff >2% should be human-reviewed at PR time, not accumulate silently. WARN band will be re-relaxed to 0.05 in Phase 2 when intentional Identity-FX visual changes land.
 
-### TASK-006 (AUDIT-01) — moved to CLOSED TASKS below
+**Fix applied:** `tests/visual/regression.spec.js` line ~37-42:
+- `WARN_THRESHOLD` lowered from `0.05` to `0.02`
+- Header comment + inline comment document Phase 1 strict mode + planned Phase 2 relax
+
+**Verification:** `npm run test:visual` → 22/22 still pass under 2% (no false-positive flakes from tightening); regression-catch behavior now: ANY diff >2% fails CI (caught by Tester's 30px banner case).
+
+**Commit:** see CTO closeout commit (post-AUDIT-01).
+**CLAUDE.md §3.7 / §7.6:** left unchanged — the three-band wording IS the long-term contract; we're temporarily strict during Phase 1 only, documented in spec file.
 
 ---
 
@@ -30,15 +35,89 @@
 
 ### TASK-007 (T1.06) — Extract CSS into modular structure
 
-**Status:** TODO (READY — AUDIT-01 verdict = GO delivered 2026-05-11)
+**Status:** IN PROGRESS (Game Dev Agent assigned 2026-05-11)
 **Priority:** HIGH
-**Phase:** 1 (Week 2-3, code migration begins)
-**Depends on:** ✅ AUDIT-01 (DONE, verdict GO)
+**Phase:** 1 (Week 2-3, **first code migration task**)
+**Depends on:** ✅ AUDIT-01 (DONE, verdict GO); ✅ BUG-001 (CLOSED, Phase 1 strict threshold landed)
+**Estimated complexity:** L (largest non-extraction-XL task in Phase 1; ~500KB inline CSS to migrate)
 
-**Goal:** Все inline `<style>` блоки из `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` → modular `src/styles/`. CSS — самая независимая часть кода. Migration here не имеет execution-time риска на game logic.
-**Detailed spec:** `docs/plan/00_EXECUTION_PLAN.md` §13 T1.06 (around lines ~1252-1325).
+**Files affected:**
+- `src/styles/tokens.css` (new)
+- `src/styles/reset.css` (new)
+- `src/styles/typography.css` (new)
+- `src/styles/animations.css` (new — all 187 @keyframes)
+- `src/styles/components/*.css` (new — button, card, modal, progress-bar, etc.)
+- `src/styles/screens/*.css` (new — menu, battle, shop, tower, season, profile, select, dailies)
+- `src/styles/index.css` (new — top-level `@import` chain)
+- `src/main.js` (add `import './styles/index.css';`)
+- `index.html` (no inline `<style>` — confirm shell stays minimal)
+- `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` — **DO NOT TOUCH** (sacred, byte-identical)
 
-**Note from Tester (AUDIT-01):** Visual regression gate fires reliably at >5% diff (proven 22/22 FAIL with 80px red banner). At 2-5% diff the gate currently warns silently — see BUG-001 in this file. CTO may want to triage BUG-001 before/in parallel with T1.06 start so CSS extraction's first PR runs against the intended gate sensitivity.
+**Goal:** Extract all inline `<style>` blocks from the legacy 21MB HTML into modular `src/styles/` files. The new Vite project root index.html stays minimal (just imports `src/main.js` which imports `src/styles/index.css`). The legacy HTML continues to render correctly via the `serveLegacyHtmlRaw` Vite plugin (it has its own inline CSS — leave that alone).
+
+**Context:** Per Execution Plan §6.3 Week 2-3 + §13 T1.06. CSS is the **most independent** layer of the legacy code — extracting it has zero execution-time risk on game logic. Migration here builds confidence and surfaces patterns for subsequent harder tasks (T1.07 data, T1.08 services, T1.09 feel, T1.10 core logic).
+
+**Detailed spec:** `docs/plan/00_EXECUTION_PLAN.md` §13 T1.06 (around lines ~1252-1325) — read carefully.
+
+**Approach:**
+1. Read legacy HTML, identify all `<style>` blocks (likely 1 large + several smaller)
+2. Categorize CSS by purpose:
+   - CSS custom properties (`:root` variables) → `tokens.css`
+   - Reset / typography → `reset.css`, `typography.css`
+   - All `@keyframes` (~187 of them) → `animations.css`
+   - Generic patterns (button, card, modal, etc.) → `components/<name>.css`
+   - Per-screen styles (anything `.menu-*`, `.battle-*`, `.shop-*`, etc.) → `screens/<name>.css`
+3. Create `src/styles/index.css` with `@import` statements in **correct cascade order**:
+   ```css
+   @import './tokens.css';
+   @import './reset.css';
+   @import './typography.css';
+   @import './animations.css';
+   @import './components/button.css';
+   /* ... other components ... */
+   @import './screens/menu.css';
+   /* ... other screens ... */
+   ```
+4. In `src/main.js`, add: `import './styles/index.css';`
+5. **DELETE all `--v-*` legacy tokens** during extraction — they're marked deprecated. After this task, grep `--v-` across `src/` must return 0 results.
+6. **DO NOT change any CSS value during migration.** Pure relocation. If you see something that looks wrong → flag in "Замечено рядом", don't fix.
+7. Run smoke + visual regression after each significant chunk. Visual must remain ≤2% diff per screen (now strict per BUG-001 fix).
+8. The legacy HTML continues to serve via Vite plugin — its inline CSS is irrelevant to the new `src/styles/`. The two render paths are independent.
+
+**Acceptance criteria:**
+- [ ] All inline `<style>` content from legacy migrated to `src/styles/`
+- [ ] `src/styles/index.css` `@imports` everything in correct cascade order
+- [ ] `src/main.js` imports `./styles/index.css`
+- [ ] CSS modular structure matches Execution Plan §5.1
+- [ ] **Zero `--v-*` references in `src/styles/`** (grep verifies)
+- [ ] **All 187 `@keyframes` preserved** (count in animations.css matches legacy)
+- [ ] `npm run test:smoke` → 2/2 pass
+- [ ] `npm run test:visual` → 22/22 pass under 2% (legacy HTML render path unchanged; new src/styles doesn't affect it)
+- [ ] `npm run build` → succeeds, dist/ size still < 5MB
+- [ ] `npm run lint` → 0 errors
+- [ ] Bundle CSS size < 500KB (Vite minified)
+- [ ] Commit: `[T1.06] Extract CSS into modular structure`
+
+**DO NOT TOUCH:**
+- `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` (sacred — `wc -c` must remain `21480494`; SHA-256 `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f`)
+- `serveLegacyHtmlRaw` Vite plugin (T1.03)
+- Visual baselines (T1.04 — they're the reference)
+- CI workflow, husky, eslint config (T1.05 — they're done)
+- Sacred cows (CLAUDE.md §2)
+- Any JavaScript — pure CSS extraction
+- `site/` folder
+- New CSS frameworks (no Tailwind, no styled-components, no SASS)
+- CSS values during migration — pure relocation only
+
+**Known unknowns:**
+- Exact count of inline `<style>` blocks (could be 1 huge or many smaller — depends on legacy authoring)
+- Whether `--v-*` tokens are in :root or scattered — grep first
+- Cascade order matters; if visual diff appears, FIRST check cascade order before changing CSS
+
+**Rollback plan:** `git revert <commit-sha>` — pure CSS extraction is fully reversible; legacy HTML wasn't touched.
+
+**Time-box / pacing:**
+This is a Large (L) task. Plan for: 15 min read/categorize, 60-90 min relocate, 30 min verify (smoke + visual + build + lint). If you hit a visual regression you can't explain in 5 min, STOP and report — don't chase silently.
 
 ---
 

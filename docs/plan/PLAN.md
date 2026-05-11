@@ -3,13 +3,12 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 5 / 20 tasks done (T1.01-T1.05 — **Week 1 infrastructure track complete**)
-- **Overall progress:** ~10% (Phase 1 transitioning Week 1 → Week 2 code migration)
-- **Next milestone:** T1.06 — CSS extraction (first code migration task)
-- **Pre-T1.06 audit:** Bug Tester engagement — smoke + visual + lint + build verification BEFORE migration starts
-- **Active task:** Bug Tester audit (assignment ready)
-- **Pending Roman action:** push branch to verify CI green on actual GitHub Actions runner
-- **Last updated:** 2026-05-11 by CTO (after T1.05 + T1.05.1 fix review)
+- **Phase progress:** 5 / 20 tasks done (T1.01-T1.05); AUDIT-01 verdict = GO; BUG-001 CLOSED
+- **Overall progress:** ~10% (Phase 1 Week 1 ✅ complete; entering Week 2 code migration)
+- **Next milestone:** T1.06 — CSS extraction (first code migration task) — IN PROGRESS
+- **Active task:** T1.06 — Extract CSS to `src/styles/` (Game Dev Agent assigned)
+- **Pending Roman action:** push branch to verify CI green on actual GitHub Actions runner (non-blocking — local infra all green)
+- **Last updated:** 2026-05-11 by CTO (after AUDIT-01 GO + BUG-001 closeout)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
