@@ -308,6 +308,75 @@ export function spawnSparkRayParticle({ el, startX, startY, targetX, targetY, de
   return el;
 }
 
+// 2026-05-12 — TASK-035 (T2.08): Identity Layer Lich Cursed Tiles skull overlay
+// factory.
+//
+// Pure factory — given pre-allocated DOM element + cursed-cell grid coords
+// converted to screen coords, configures the element for a single translucent
+// purple skull overlay that sits on top of the cursed cell for the duration
+// of its 3-turn curse. Used exclusively by the Lich Cursed Tiles boss-reactive
+// identity FX (spec §3.2). Pool allocation lives in `src/feel/identity-fx.js`
+// per the object-pool requirement of spec §5 (no `document.createElement`
+// per fire).
+//
+// The element is expected to carry the `.identity-lich-cursed-tile` class
+// (translucent purple overlay with stylized skull glyph) and to support the
+// `.identity-lich-cursed-tile-pulse` (entry) and `.identity-lich-cursed-tile-fade`
+// (exit) keyframe sets defined in `src/styles/screens/battle.css`. Caller is
+// responsible for returning the element to the pool when the curse auto-clears
+// (turn N+3) AND for swapping pulse → fade class at that moment.
+//
+// Parameters:
+//   el      — pre-allocated <div> from the pool (Identity Layer owns the pool)
+//   x, y    — cursed cell center in viewport coords
+//   color   — optional skull color override (defaults to '#7e3fb8' translucent
+//             purple — same palette as Rock echo ghost T2.04 per ESC-02 O4
+//             RE-USE-FIRST ruling; no new palette archetype added)
+//   decayMs — pulse-in animation lifetime (CURSED_TILES_SKULL_DECAY_MS = 300ms)
+//
+// Returns: the same `el` (caller-tracked for cleanup / pool release).
+//
+// Re-uses the existing CSS-transform-only animation pattern from
+// `spawnCoinParticle` / `spawnSharkBiteParticle` / `spawnRockEchoGhost` /
+// `spawnCrocFragmentParticle` / `spawnSparkRayParticle` above — no
+// requestAnimationFrame loop, no per-frame DOM writes, single transform via
+// CSS keyframes. Pure addition; touches no sacred element of the existing
+// particle factories.
+//
+// Visual reference (spec §3.2 field 4 + field 6): "translucent purple skull
+// overlay" / "3 cells smoking with purple skull glyphs". The recolor-only
+// contract is satisfied by the `.identity-lich-cursed-tile` background
+// gradient (#7e3fb8 violet-purple) — the underlying transform pattern is
+// identical to the cyan Shark bite, just recolored per ESC-02 O4 RE-USE-FIRST
+// ruling (no new SFX/particle archetype added).
+//
+// SACRED-COW SAFETY: This factory ONLY configures the overlay element and
+// its position. It does NOT mutate grid cells. The "cursed cell" predicate
+// is owned by the JS module (`src/feel/identity-fx.js#isCellCursed`); the
+// overlay is a PURE VISUAL marker, not a grid-state mutation. T2.B legacy
+// bridge wires the predicate into legacy's `pieceCanBePlaced` /
+// `clearLines` so cursed cells become un-clearable for 3 turns.
+export function spawnSkullOverlay({ el, x, y, color, decayMs }) {
+  if (!el) return null;
+  // Position at cursed cell center, expose decay duration as CSS variable
+  // so the .identity-lich-cursed-tile-pulse keyframe can read it.
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  el.style.setProperty('--curse-decay-ms', (decayMs || 300) + 'ms');
+  if (color) {
+    el.style.setProperty('--curse-color', color);
+  }
+  // Restart the entry animation deterministically (re-trigger CSS keyframes
+  // on re-used pool elements). Toggle class off then on by forcing a layout
+  // read. Also clear any prior fade-out state.
+  el.classList.remove('identity-lich-cursed-tile-pulse');
+  el.classList.remove('identity-lich-cursed-tile-fade');
+  // Force a synchronous reflow so the keyframe restarts cleanly.
+  void el.offsetWidth;
+  el.classList.add('identity-lich-cursed-tile-pulse');
+  return el;
+}
+
 // Spawns the 16-particle radial burst at the boss portrait centerpoint.
 // Returns nothing; the container auto-removes itself after 1600ms.
 // `wrap` is the #bossImgWrap element (caller passes its getBoundingClientRect

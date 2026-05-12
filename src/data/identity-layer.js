@@ -41,7 +41,9 @@ export const IDENTITY_FX_KEYS = Object.freeze({
 // the codex / dispatcher / tooling can branch by namespace.
 export const IDENTITY_BOSS_FX_KEYS = Object.freeze({
   PHOENIX_ASHEN_REIGN:   'phoenix_ashen_reign',
-  // Stubs for T2.08–T2.11 — added in subsequent tasks per spec §7.1 schedule.
+  // T2.08 — Lich Cursed Tiles (Assassin archetype, Shark-counter mechanism).
+  LICH_CURSED_TILES:     'lich_cursed_tiles',
+  // Stubs for T2.09–T2.11 — added in subsequent tasks per spec §7.1 schedule.
 });
 
 // ─── Per-effect performance budgets (spec §5) ───────────────────────────
@@ -75,6 +77,20 @@ export const IDENTITY_BOSS_FX_BUDGETS = Object.freeze({
     steadyStateMs: 2,
     decayMs:       200,
     duration:      5000,
+  }),
+  // Lich Cursed Tiles (spec §3.2 field 7):
+  //   - Initial trigger ≤16ms (3 skull overlay activations + telegraph banner)
+  //     = telegraph ≤8ms + 3 overlays @ ≤2ms each (≤6ms) = ≤14ms wall-time, 16ms ceiling
+  //   - Per-turn tick ≤3ms (3 cursed cells × 1 HP damage application, clamp at 0)
+  //   - Decay: 300ms fade-out when a curse auto-clears at expiration turn
+  //   - Duration: 3 turns (player-paced — NOT a wall-clock window). Distinct
+  //     from Phoenix's 5000ms wall-clock duration; documented as the literal
+  //     string '3 turns' so codex / tooling can branch by namespace.
+  [IDENTITY_BOSS_FX_KEYS.LICH_CURSED_TILES]: Object.freeze({
+    initialMs:     16,
+    steadyStateMs: 3,
+    decayMs:       300,
+    duration:      '3 turns',
   }),
 });
 
@@ -373,3 +389,95 @@ export const ASHEN_REIGN_HUD_COUNTDOWN_TEXT        = 'EMBER ONLY — 5s';
 // when a single number is needed inline.
 export const ASHEN_REIGN_INITIAL_BUDGET_MS         = 16;
 export const ASHEN_REIGN_STEADY_STATE_BUDGET_MS    = 2;
+
+// ─── Lich Cursed Tiles constants (spec §3.2) ────────────────────────────
+// SECOND boss-reactive identity mechanic — T2.08. Explicit Shark counter
+// referenced in spec §2.2 — boss responds to ≥2-shark squads by cursing
+// 3 random non-empty cells with a 1 HP/turn drip that auto-clears after
+// 3 turns AND grants +20 ULT compensation on auto-clear (net-neutral if
+// player waits it out, painful if player must clear pressure with sharks).
+//
+// Mechanical contract (spec §3.2 fields 3-4):
+//   - Trigger: `clearLines` fires where the player's active squad has
+//     ≥CURSED_TILES_TRIGGER_SHARK_THRESHOLD (2) sharks. Boss responds NEXT
+//     turn (telegraph on player's end-of-turn, handler resolves at start
+//     of player's next turn).
+//   - For CURSED_TILES_COUNT (3) random non-empty cells on the board:
+//     * Translucent purple skull overlay placed on each cell.
+//     * Cells CANNOT be cleared for CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR
+//       (3) turns (act like soft-void cells; visually distinct purple).
+//     * Inflict CURSED_TILES_HP_DAMAGE_PER_TURN (1) HP per cell per turn
+//       they remain.
+//   - Auto-clear after 3 turns AND grant CURSED_TILES_ULT_COMPENSATION
+//     (+20) player ULT charge per expiring cell to compensate (net-neutral
+//     over time if player waits it out).
+//   - Telegraph: CURSED_TILES_TELEGRAPH_MS (3000ms) wind-up banner —
+//     RE-USES the sacred `REACTIVITY_TELEGRAPH_MS` constant value
+//     (CLAUDE.md §2.5, `src/core/bosses.js:265`). Both are 3000.
+//   - Decay (skull fade): CURSED_TILES_SKULL_DECAY_MS (300ms) fade-out
+//     animation when a curse auto-clears at its expiration turn.
+//
+// Sacred-cow safety (CLAUDE.md §2.5 + spec §3.2 field 8):
+//   - All 22 v2.1 P4 reactivity handlers UNTOUCHED — Cursed Tiles adds a
+//     NEW handler in `src/core/reactivity-events.js` under namespace
+//     `identity_assassin_shark_counter`, separate from the sacred 22 and
+//     from the sacred `assassin_p1_p2` / `assassin_p2_p3` entries.
+//   - REACTIVITY_TELEGRAPH_MS = 3000 UNTOUCHED — Cursed Tiles RE-USES the
+//     constant by importing it from `src/core/bosses.js`. The invariant
+//     `CURSED_TILES_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS === 3000` is
+//     unit-tested.
+//   - HERO_ULT_COST_BY_NEWROLE thresholds (mage:100, warrior:80, hunter:120,
+//     tank:80, captain:100) UNTOUCHED — the +20 ULT compensation is a
+//     CHARGE addition, NOT a threshold modification. We add to the ULT
+//     meter and clamp via Math.min(threshold, current + delta) (T2.04
+//     `clampEncoreEchoCharge` pattern). The ULT-fire pipeline (player-
+//     initiated trigger at threshold-ready state) is left alone.
+//   - Phoenix Ashen Reign invariants from T2.07 (PHOENIX_REVIVE_HP_PCT,
+//     PHOENIX_IMMUNE_TURNS, ASHEN_REIGN_DURATION_MS, etc.) UNTOUCHED —
+//     Cursed Tiles adds alongside, never modifies.
+//
+// Performance budget (spec §3.2 field 7 / §5):
+//   - Telegraph banner ≤CURSED_TILES_TELEGRAPH_BUDGET_MS (8ms) — re-use of
+//     existing telegraph component, no new allocation.
+//   - 3 cursed-cell overlay placements @ ≤2ms each = ≤6ms total
+//     (CURSED_TILES_PER_OVERLAY_BUDGET_MS).
+//   - Per-turn tick ≤CURSED_TILES_PER_TURN_TICK_BUDGET_MS (3ms) — 3 cells
+//     × 1ms each for damage application + threshold-clamped ULT charge
+//     write at expiration.
+//   - Total per fire ≤CURSED_TILES_INITIAL_BUDGET_MS (16ms peak).
+//   - Steady-state per turn ≤3ms (pure integer math + 3 DOM class swaps
+//     when expiration fires; pure CSS animation otherwise).
+//
+// Player counterplay (spec §3.2 field 5): stop running 2+ sharks vs Lich;
+// non-shark line clear adjacent to cursed cells; Crocodile Bedrock Bastion
+// shields absorb the 1 HP/turn drip; wait out the 3 turns to claim the
+// +20 ULT compensation.
+//
+// Architectural pattern (spec §1 hard rule 1): Identity Layer EXTENDS,
+// never MODIFIES, v2.1 P4. The sacred `assassin_p1_p2` / `assassin_p2_p3`
+// handlers (legacy stealth + backstab chain) stay byte-perfect; the new
+// `identity_assassin_shark_counter` handler runs IN PARALLEL via the T2.07-
+// established `IDENTITY_BOSS_HANDLERS` registry + `triggerIdentityBossEvent`
+// dispatcher. NO modification to the sacred 22 REACTIVITY_HANDLERS entries.
+export const CURSED_TILES_COUNT                       = 3;     // HARD spec value (spec §3.2 field 4)
+export const CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR      = 3;     // HARD spec value (spec §3.2 field 4)
+export const CURSED_TILES_HP_DAMAGE_PER_TURN          = 1;     // 1 HP per cell per turn (spec §3.2 field 4)
+export const CURSED_TILES_ULT_COMPENSATION            = 20;    // +20 ULT charge per expiring cursed cell (spec §3.2 field 4)
+export const CURSED_TILES_TRIGGER_SHARK_THRESHOLD     = 2;     // ≥2 sharks in squad to trigger (spec §3.2 field 3)
+// Telegraph duration. Spec §3.2 field 7 + spec §3 "Convention": RE-USES
+// the sacred REACTIVITY_TELEGRAPH_MS = 3000 value. The unit-tested invariant
+// `CURSED_TILES_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS` ensures both stay
+// in lock-step. Documented as 3000 here (single source of truth in this
+// module per CLAUDE.md §7.8) AND imported separately in tests for the
+// equality assertion (sacred re-use audit).
+export const CURSED_TILES_TELEGRAPH_MS                = 3000;
+export const CURSED_TILES_SKULL_DECAY_MS              = 300;   // fade-out when a curse auto-clears
+export const CURSED_TILES_SKULL_COLOR                 = '#7e3fb8'; // translucent purple — same palette as Rock echo ghost (T2.04 RE-USE-FIRST per ESC-02 O4)
+// Performance ceilings (spec §3.2 field 7) — mirrored from IDENTITY_BOSS_FX_BUDGETS
+// for direct named import in fx + tests. The budget object remains the
+// single-source-of-truth aggregate; these named exports avoid the indirection
+// when a single number is needed inline.
+export const CURSED_TILES_INITIAL_BUDGET_MS           = 16;
+export const CURSED_TILES_TELEGRAPH_BUDGET_MS         = 8;
+export const CURSED_TILES_PER_OVERLAY_BUDGET_MS       = 2;
+export const CURSED_TILES_PER_TURN_TICK_BUDGET_MS     = 3;

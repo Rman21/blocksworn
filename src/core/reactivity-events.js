@@ -178,11 +178,14 @@ import { vHaptic } from '../feel/haptics.js';
 import { logEvent } from '../services/analytics.js';
 import { log } from '../services/logger.js';
 // T2.07 — Identity Layer · Phoenix Ashen Reign (boss-reactive fx + reset).
+// T2.08 — Identity Layer · Lich Cursed Tiles (boss-reactive fx + reset).
 // Sacred 22 REACTIVITY_HANDLERS UNTOUCHED — these run in PARALLEL via the
 // new `IDENTITY_BOSS_HANDLERS` registry + `triggerIdentityBossEvent` dispatcher.
 import {
   fxPhoenixAshenReign as _fxPhoenixAshenReignImpl,
   resetAshenReign      as _resetAshenReignImpl,
+  fxLichCursedTiles    as _fxLichCursedTilesImpl,
+  resetCursedTiles     as _resetCursedTilesImpl,
 } from '../feel/identity-fx.js';
 
 // Feel layer (residual legacy-owned):
@@ -1409,6 +1412,25 @@ export const IDENTITY_BOSS_HANDLERS = {
     }
     try { if (typeof showReactivityFX === 'function') showReactivityFX('phoenix', 'ashen_reign'); } catch (e) {}
   },
+  // ── LICH CURSED TILES (spec §3.2) ────────────────────────────────────
+  // Layered ALONGSIDE the sacred assassin handlers (`assassin_p1_p2` stealth +
+  // 1.5× next-attack, `assassin_p2_p3` backstab chain — UNTOUCHED). Cursed
+  // Tiles is the explicit Shark counter referenced in spec §2.2: when the
+  // player's squad has ≥2 sharks at end-of-turn, the Lich responds by
+  // cursing 3 random non-empty cells. The cells become un-clearable for 3
+  // turns (T2.B bridge wires the `isCellCursed` predicate into legacy
+  // `pieceCanBePlaced` / `clearLines`), inflict 1 HP/turn drip, and grant
+  // +20 player ULT charge per cell at auto-clear (clamped to sacred
+  // HERO_ULT_COST_BY_NEWROLE thresholds). Banner color matches the assassin
+  // palette (#9B59D6) consistent with the sacred `assassin_p1_p2` entry.
+  identity_assassin_shark_counter: function() {
+    try { flashStateBanner('CURSED TILES · 3 SKULLS · 3 TURNS', '#9B59D6'); } catch (e) {}
+    try { vibrate([40, 30, 40, 30, 40]); } catch (e) {}
+    try { _fxLichCursedTilesImpl(null, null); } catch (e) {
+      log.error('[T2.08] Lich Cursed Tiles fx threw:', e);
+    }
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('assassin', 'cursed_tiles'); } catch (e) {}
+  },
 };
 
 // Dispatch entry point — mirrors `triggerReactivityEvent` shape so the
@@ -1456,6 +1478,9 @@ export function triggerIdentityBossEvent(eventId) {
 export function resetIdentityBossState() {
   try { _resetAshenReignImpl(); } catch (e) {
     log.warn('[T2.07] resetAshenReign threw:', e);
+  }
+  try { _resetCursedTilesImpl(); } catch (e) {
+    log.warn('[T2.08] resetCursedTiles threw:', e);
   }
 }
 

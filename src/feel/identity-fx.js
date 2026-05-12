@@ -40,7 +40,7 @@
 // (silently — cap is hard per spec §2.1 field 9 + §5).
 
 /* global addGold, HERO_DECK, ultCharges, ULT_THRESHOLD, currentUltThreshold,
-          MAX_SHIELD, maxShieldBonus, grid */
+          MAX_SHIELD, maxShieldBonus, grid, HERO_ULT_COST_BY_NEWROLE */
 
 import {
   IDENTITY_FX_KEYS,
@@ -76,6 +76,16 @@ import {
   ASHEN_REIGN_REQUIRED_ELEMENT,
   ASHEN_REIGN_HUD_COUNTDOWN_TEXT,
   ASHEN_REIGN_INITIAL_BUDGET_MS,
+  // T2.08 — Lich Cursed Tiles constants.
+  CURSED_TILES_COUNT,
+  CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR,
+  CURSED_TILES_HP_DAMAGE_PER_TURN,
+  CURSED_TILES_ULT_COMPENSATION,
+  CURSED_TILES_TRIGGER_SHARK_THRESHOLD,
+  CURSED_TILES_SKULL_DECAY_MS,
+  CURSED_TILES_SKULL_COLOR,
+  CURSED_TILES_INITIAL_BUDGET_MS,
+  CURSED_TILES_PER_TURN_TICK_BUDGET_MS,
 } from '../data/identity-layer.js';
 import { RACE_SYNERGY } from '../data/races.js';
 import {
@@ -84,6 +94,7 @@ import {
   spawnRockEchoGhost,
   spawnCrocFragmentParticle,
   spawnSparkRayParticle,
+  spawnSkullOverlay,
 } from './particles.js';
 import { vHaptic } from './haptics.js';
 import { log } from '../services/logger.js';
@@ -2277,6 +2288,568 @@ export function dispatchIdentityFx(rows, cols, squad, _currentBoss, ctx = null) 
   } catch (e) { log.warn('Spark FX threw:', e); }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-035 (T2.08): Lich Cursed Tiles (SECOND boss-reactive
+// identity mechanic — explicit Shark counter per spec §2.2 + §3.2).
+//
+// Spec: docs/design/mechanics/identity-layer.md §3.2.
+// Architecture (spec §1 hard rule 1): Identity Layer EXTENDS, never MODIFIES,
+// v2.1 P4 reactivity. Sacred assassin handlers (`assassin_p1_p2` stealth + 1.5×
+// next-attack, `assassin_p2_p3` backstab chain) and the 22 reactivity handlers
+// are BYTE-PERFECT. Cursed Tiles is a NEW handler under namespace
+// `identity_assassin_shark_counter` in `src/core/reactivity-events.js`, fired
+// ALONGSIDE the sacred assassin path via the T2.07-established
+// `IDENTITY_BOSS_HANDLERS` parallel registry.
+//
+// Mechanical contract (spec §3.2):
+//   - Trigger: A `clearLines` fires where the player's active squad has
+//     ≥CURSED_TILES_TRIGGER_SHARK_THRESHOLD (2) sharks. Boss responds NEXT
+//     turn — telegraph fires on player's end-of-turn (3000ms wind-up via
+//     sacred REACTIVITY_TELEGRAPH_MS re-use), handler resolves at start of
+//     player's next turn.
+//   - `fxLichCursedTiles(bossState, ctx)`: pick CURSED_TILES_COUNT (3) random
+//     non-empty cells on the board, place a translucent purple skull overlay
+//     on each via the pool of 3 pre-allocated DOM elements.
+//   - Cursed cells cannot be cleared for CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR
+//     (3) turns. The `isCellCursed(row, col)` predicate is exposed for T2.B
+//     legacy bridge to wire into `pieceCanBePlaced` / `clearLines`.
+//   - Per-turn tick (`fxLichCursedTilesTick`): applies
+//     CURSED_TILES_HP_DAMAGE_PER_TURN (1) HP damage per cursed cell to the
+//     squad. At expiration turn (placedTurn + 3), grants
+//     CURSED_TILES_ULT_COMPENSATION (+20) player ULT charge per expiring cell
+//     (clamped to sacred HERO_ULT_COST_BY_NEWROLE thresholds via T2.04
+//     `clampUltCharge` pattern), fades skull overlay over
+//     CURSED_TILES_SKULL_DECAY_MS (300ms), removes curse from active array.
+//
+// Sacred-cow safety (CLAUDE.md §2.1 + §2.5):
+//   - Reads PHOENIX_REVIVE_HP_PCT / PHOENIX_IMMUNE_TURNS / REACTIVITY_TELEGRAPH_MS
+//     / HERO_ULT_COST_BY_NEWROLE — never writes. The sacred assassin handlers
+//     stay byte-perfect; Cursed Tiles attaches via the parallel registry.
+//   - +20 ULT charge writes go through `clampUltCharge` (T2.04 pattern) so
+//     the ULT meter NEVER exceeds the sacred per-role threshold (mage:100,
+//     warrior:80, hunter:120, tank:80, captain:100). Defensive clamp also
+//     handles the impossible-but-defensive "current already > threshold"
+//     case.
+//   - Per-turn work during the 3-turn window: pure integer math (HP
+//     subtraction + ULT charge addition with clamp). DOM activation cost
+//     is one-time at fxLichCursedTiles (3 class swaps); auto-clear cost is
+//     one class swap per expiring cell + 300ms CSS-driven fade.
+//   - Module state: `_cursedTiles` array (max 3 entries, the hard spec cap).
+//     Reset on battle start/end via `resetCursedTiles()`.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Pre-allocated DOM elements (object pool: 3 skull overlays). Sized at the
+// hard spec cap CURSED_TILES_COUNT (3) — never exceeded. Created lazily on
+// first fxLichCursedTiles invocation.
+const _cursedTilesPool          = [];
+const _cursedTilesPoolAvailable = [];   // stack of element indices not currently in use
+let   _cursedTilesPoolContainer = null;
+let   _cursedTilesPoolInitDone  = false;
+
+// Module state — array of active curses. Each entry shape:
+//   { row, col, placedTurn, expiresTurn, el } where `el` is the skull-overlay
+// DOM element backing the visual (null in unit-test envs without a DOM).
+// Max length = CURSED_TILES_COUNT (3) by construction — fxLichCursedTiles
+// caps the placement at the spec value.
+let _cursedTiles = [];
+
+// Ensures the 3-element DOM pool exists. Idempotent — calling again is a
+// no-op. In Node-only unit-test environments (no `document`), the pool stays
+// empty and helpers work on the array-only state path.
+function _ensureCursedTilesPool() {
+  if (_cursedTilesPoolInitDone) return;
+  if (typeof document === 'undefined') return;          // unit-test guard
+  _cursedTilesPoolContainer = document.createElement('div');
+  _cursedTilesPoolContainer.className = 'identity-lich-cursed-tile-container';
+  _cursedTilesPoolContainer.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(_cursedTilesPoolContainer);
+  for (let i = 0; i < CURSED_TILES_COUNT; i++) {
+    const el = document.createElement('div');
+    el.className = 'identity-lich-cursed-tile';
+    el.style.display = 'none';
+    _cursedTilesPoolContainer.appendChild(el);
+    _cursedTilesPool.push(el);
+    _cursedTilesPoolAvailable.push(i);
+  }
+  _cursedTilesPoolInitDone = true;
+}
+
+// ─── Pure helpers (unit-testable, no DOM) ──────────────────────────────
+//
+// Returns array of {row, col} for up to `count` random non-empty cells on
+// the board. Pure function — given a stable `gridState`, the result depends
+// only on the random selection. Cells already cursed (in `_cursedTiles`)
+// are EXCLUDED from re-selection so a single fire never double-curses a
+// cell.
+//
+// `gridState` may be:
+//   - 2D array [row][col] with truthy values for non-empty cells (legacy
+//     `grid` shape — strings like 'ember' / 'tide' / null)
+//   - { getElementAt(r, c): string|null } module-style API
+//   - null/undefined → returns [] (defensive)
+//
+// `count` defaults to CURSED_TILES_COUNT (3). The returned array length is
+// `min(count, available non-empty cells, CURSED_TILES_COUNT)`.
+//
+// Selection algorithm: collect candidate non-empty cells (excluding already-
+// cursed ones), Fisher-Yates shuffle a slice of the first N indices via
+// Math.random, return first N. This is O(non-empty cells) — well under
+// 2ms wall-time even on an 8×8 board (max 64 candidates).
+export function pickRandomNonEmptyCells(gridState, count, gridCols = BOARD_COLS, gridRows = BOARD_ROWS) {
+  const n = (typeof count === 'number' && count > 0) ? Math.floor(count) : CURSED_TILES_COUNT;
+  if (!gridState) return [];
+
+  // Helper: read cell at (r, c) from whatever shape gridState carries.
+  const readCell = (r, c) => {
+    if (typeof gridState.getElementAt === 'function') {
+      return gridState.getElementAt(r, c);
+    }
+    if (Array.isArray(gridState) && Array.isArray(gridState[r])) {
+      return gridState[r][c];
+    }
+    return null;
+  };
+
+  // Collect candidate non-empty cells, excluding already-cursed ones.
+  const cursedKey = new Set(_cursedTiles.map(t => t.row + '_' + t.col));
+  const candidates = [];
+  for (let r = 0; r < gridRows; r++) {
+    for (let c = 0; c < gridCols; c++) {
+      const v = readCell(r, c);
+      if (!v) continue;                                  // null / undefined / 0 / '' = empty
+      const key = r + '_' + c;
+      if (cursedKey.has(key)) continue;                  // exclude already-cursed cells
+      candidates.push({ row: r, col: c });
+    }
+  }
+  if (candidates.length === 0) return [];
+
+  // Fisher-Yates partial shuffle — only shuffle the first `min(n, len)`
+  // positions, since we don't need the full random ordering.
+  const take = Math.min(n, candidates.length);
+  for (let i = 0; i < take; i++) {
+    const j = i + Math.floor(Math.random() * (candidates.length - i));
+    if (j !== i) {
+      const tmp = candidates[i];
+      candidates[i] = candidates[j];
+      candidates[j] = tmp;
+    }
+  }
+  return candidates.slice(0, take);
+}
+
+// Pure helper: apply cursed-cell HP damage to the squad's current HP.
+// Spec §3.2 field 4: "Inflict 1 HP of damage to the squad each turn they
+// remain." Returns new HP, clamped to ≥0 (squad can't go below 0 via the
+// drip; the lethal-blow check is owned by the existing combat pipeline,
+// which reads `squadHp` after our write).
+//
+// `squadHp` is the current squad HP (single shared pool per legacy
+// hp-pool convention). `cursedCellCount` is the number of active cursed
+// cells contributing damage this turn (typically `_cursedTiles.length`
+// before any expiration removes one).
+//
+// Returns: integer new HP, clamped to ≥0.
+export function applyCurseCellDamage(squadHp, cursedCellCount) {
+  const _hp    = Number(squadHp);
+  const _cells = Math.max(0, Math.floor(Number(cursedCellCount) || 0));
+  if (!Number.isFinite(_hp)) return 0;
+  const damage = _cells * CURSED_TILES_HP_DAMAGE_PER_TURN;
+  return Math.max(0, _hp - damage);
+}
+
+// Pure helper: per-turn tick result for a single cursed tile entry.
+// Returns:
+//   - `active: false` → curse has expired (currentTurn >= curse.expiresTurn)
+//     and should be removed; `shouldGrantUltCharge: true` with
+//     `ultChargeToGrant: CURSED_TILES_ULT_COMPENSATION` (+20).
+//   - `active: true` → curse is still ticking; no ULT charge granted.
+//
+// This is a pure function over (curse, currentTurn). The caller
+// (`fxLichCursedTilesTick`) drives the active-array mutation and the
+// threshold-clamped ULT meter write.
+//
+// `curse` must have `{ placedTurn, expiresTurn }`. `currentTurn` is the
+// game's current turn counter at the moment of the tick.
+export function computeCurseTickResult(curse, currentTurn) {
+  const _t = Number(currentTurn);
+  if (!curse || typeof curse !== 'object') {
+    return { active: false, shouldGrantUltCharge: false, ultChargeToGrant: 0 };
+  }
+  const _expires = Number(curse.expiresTurn);
+  if (!Number.isFinite(_t) || !Number.isFinite(_expires)) {
+    return { active: true, shouldGrantUltCharge: false, ultChargeToGrant: 0 };
+  }
+  if (_t >= _expires) {
+    return {
+      active: false,
+      shouldGrantUltCharge: true,
+      ultChargeToGrant: CURSED_TILES_ULT_COMPENSATION,
+    };
+  }
+  return { active: true, shouldGrantUltCharge: false, ultChargeToGrant: 0 };
+}
+
+// Pure helper (re-uses T2.04 `clampEncoreEchoCharge` pattern): clamp a
+// proposed ULT charge addition to the sacred per-role threshold from
+// HERO_ULT_COST_BY_NEWROLE. The +20 ULT compensation NEVER overshoots the
+// threshold — sacred values (mage:100, warrior:80, hunter:120, tank:80,
+// captain:100) are READ-ONLY for the clamp.
+//
+// Parameters:
+//   currentCharge       — current ULT meter value (integer ≥0)
+//   delta               — proposed addition (integer ≥0, typically
+//                          CURSED_TILES_ULT_COMPENSATION = 20)
+//   sacredThreshold     — sacred HERO_ULT_COST_BY_NEWROLE.<role> value
+//                          (e.g., 100 for mage). MUST be a positive number.
+//
+// Returns: integer ≥0, ≤sacredThreshold.
+//
+// Defensive: if currentCharge > sacredThreshold (impossible in normal play
+// but defensive against pre-existing-bug states), the function clamps DOWN
+// to sacredThreshold — Cursed Tiles never makes a bad state worse.
+export function clampUltCharge(currentCharge, delta, sacredThreshold) {
+  const _current   = Math.max(0, Math.floor(Number(currentCharge) || 0));
+  const _delta     = Math.max(0, Math.floor(Number(delta) || 0));
+  const _threshold = Number(sacredThreshold);
+  if (!Number.isFinite(_threshold) || _threshold <= 0) {
+    // No valid sacred threshold — fall through to current + delta (defensive
+    // for early-boot / mis-wired states). Caller is expected to pass a
+    // valid threshold from HERO_ULT_COST_BY_NEWROLE.
+    return _current + _delta;
+  }
+  return Math.min(_threshold, _current + _delta);
+}
+
+// Read-only predicate: is the cell at (row, col) currently cursed? Exposed
+// for the T2.B legacy bridge to wire into `pieceCanBePlaced` / `clearLines`
+// so cursed cells cannot be cleared for 3 turns. Pure read of the
+// `_cursedTiles` array — no allocation.
+export function isCellCursed(row, col) {
+  const _r = Number(row);
+  const _c = Number(col);
+  if (!Number.isFinite(_r) || !Number.isFinite(_c)) return false;
+  for (const t of _cursedTiles) {
+    if (t.row === _r && t.col === _c) return true;
+  }
+  return false;
+}
+
+// Read-only accessor: how many cursed cells are currently active? Used by
+// the per-turn tick + tests to confirm placement / expiration accounting.
+export function getCursedTilesCount() {
+  return _cursedTiles.length;
+}
+
+// Read-only snapshot of active curses (defensive copy). Used by tests and
+// by the T2.B legacy bridge for grid rendering integration. Production
+// callers should prefer `isCellCursed` / `getCursedTilesCount` to avoid
+// the allocation.
+export function getCursedTilesSnapshot() {
+  return _cursedTiles.map(t => ({
+    row: t.row,
+    col: t.col,
+    placedTurn: t.placedTurn,
+    expiresTurn: t.expiresTurn,
+  }));
+}
+
+// Reset hook for battle pipeline (battle start / battle end). Clears all
+// state + hides DOM. Mirrors `resetCrocFragmentBank` (T2.05) and
+// `resetAshenReign` (T2.07) precedents. Idempotent — safe to call when
+// no curses are active.
+export function resetCursedTiles() {
+  // Hide all skull overlays + return them to the available pool.
+  for (const t of _cursedTiles) {
+    if (t.el) {
+      try {
+        t.el.classList.remove('identity-lich-cursed-tile-pulse');
+        t.el.classList.remove('identity-lich-cursed-tile-fade');
+        t.el.style.display = 'none';
+      } catch (_e) { /* swallow */ }
+    }
+  }
+  _cursedTiles.length = 0;
+  // Restore all pool indices to available.
+  _cursedTilesPoolAvailable.length = 0;
+  for (let i = 0; i < _cursedTilesPool.length; i++) {
+    _cursedTilesPoolAvailable.push(i);
+  }
+}
+
+// ─── Activate / tick (module state mutations) ──────────────────────────
+//
+// `fxLichCursedTiles(bossState, ctx)` — place CURSED_TILES_COUNT (3) curses
+// on random non-empty cells. Spec §3.2 field 4. Called by the new boss-
+// reactive handler (`identity_assassin_shark_counter` in
+// `src/core/reactivity-events.js`) AFTER the REACTIVITY_TELEGRAPH_MS (3000ms)
+// wind-up banner completes (sacred re-use).
+//
+// Initial-trigger wall-time budget: ≤CURSED_TILES_INITIAL_BUDGET_MS (16ms).
+//   - pickRandomNonEmptyCells: O(64) over 8×8 board → ≤1ms
+//   - 3 × _cursedTilesPool element activation (class swap + position): ≤6ms
+//   - module state array push × 3: ≤1ms
+//   Total: ≤8ms typical, 16ms ceiling with CI headroom.
+//
+// `ctx` is the dispatch context (may carry `gridState` and `currentTurn`):
+//   - `ctx.gridState`: the 2D grid array used to pick non-empty cells
+//   - `ctx.currentTurn`: the game's current turn counter (placedTurn)
+// Defaults to module-level `grid` global (legacy) and 0 if not provided.
+//
+// `bossState` parameter is reserved for forward compat (codex / matchup
+// matrix may need archetype-specific tinting); currently unused.
+export function fxLichCursedTiles(_bossState, ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  try {
+    // Resolve grid + current turn from ctx (preferred) or legacy globals.
+    const _gridState = (ctx && ctx.gridState !== undefined)
+      ? ctx.gridState
+      : (typeof grid !== 'undefined' ? grid : null);
+    const _currentTurn = (ctx && typeof ctx.currentTurn === 'number')
+      ? ctx.currentTurn
+      : 0;
+
+    // Pick up to CURSED_TILES_COUNT random non-empty cells (already-cursed
+    // excluded by pickRandomNonEmptyCells). If the board has fewer non-empty
+    // cells than CURSED_TILES_COUNT, place whatever is available — silent
+    // partial-fire is OK per spec §3.2 ("up to 3 random non-empty cells").
+    const picks = pickRandomNonEmptyCells(_gridState, CURSED_TILES_COUNT);
+    if (picks.length === 0) return;
+
+    // Lazy pool init for DOM environments.
+    _ensureCursedTilesPool();
+
+    // Resolve screen coords for each picked cell. In Node-only test envs
+    // (no DOM), `cells` is empty and we skip the DOM activation step.
+    const cells = (typeof document !== 'undefined')
+      ? document.querySelectorAll('.grid .cell')
+      : null;
+
+    for (const pick of picks) {
+      // Pop a pool index. Cap is CURSED_TILES_COUNT — if exhausted (e.g.,
+      // re-fire before resetCursedTiles), silently skip the DOM allocation
+      // for this curse (state still tracked in _cursedTiles array).
+      let el = null;
+      if (_cursedTilesPoolAvailable.length > 0) {
+        const idx = _cursedTilesPoolAvailable.pop();
+        el = _cursedTilesPool[idx];
+      }
+      // Configure overlay via spawnSkullOverlay factory (CSS animation-driven).
+      if (el && cells && cells.length) {
+        const cellIdx = pick.row * BOARD_COLS + pick.col;
+        const cellEl  = cells[cellIdx];
+        if (cellEl && typeof cellEl.getBoundingClientRect === 'function') {
+          const r = cellEl.getBoundingClientRect();
+          const cx = r.left + r.width / 2;
+          const cy = r.top  + r.height / 2;
+          try {
+            el.style.display = 'block';
+            spawnSkullOverlay({
+              el,
+              x: cx,
+              y: cy,
+              color: CURSED_TILES_SKULL_COLOR,
+              decayMs: CURSED_TILES_SKULL_DECAY_MS,
+            });
+          } catch (e) { log.warn('Lich cursed tile overlay spawn failed:', e); }
+        }
+      }
+      // Add to active-curses array. Even in headless test envs (no DOM),
+      // this is the source of truth for isCellCursed / per-turn tick.
+      _cursedTiles.push({
+        row: pick.row,
+        col: pick.col,
+        placedTurn:  _currentTurn,
+        expiresTurn: _currentTurn + CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR,
+        el,
+      });
+    }
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      if (dt > CURSED_TILES_INITIAL_BUDGET_MS) {
+        log.warn('Lich Cursed Tiles initial trigger over budget:',
+                 dt.toFixed(2), 'ms (limit', CURSED_TILES_INITIAL_BUDGET_MS, 'ms)');
+      }
+    }
+  }
+}
+
+// `fxLichCursedTilesTick(ctx)` — per-turn tick. Spec §3.2 field 4 bullet 2-3.
+// Called by the battle pipeline at the START of each player turn (T2.B
+// bridge wires this). For each active cursed cell:
+//   - Apply CURSED_TILES_HP_DAMAGE_PER_TURN (1) HP damage to the squad.
+//   - If the curse has expired (currentTurn ≥ expiresTurn): grant +20 ULT
+//     charge per expiring cell (clamped to sacred HERO_ULT_COST_BY_NEWROLE
+//     threshold), fade the skull overlay over 300ms, remove from active
+//     array.
+//
+// Per-turn wall-time budget: ≤CURSED_TILES_PER_TURN_TICK_BUDGET_MS (3ms).
+// 3 cells × 1ms each = 3ms ceiling. Pure integer math + at most 3 DOM
+// class swaps when expirations fire.
+//
+// `ctx` carries the per-turn snapshot:
+//   - `ctx.currentTurn`: integer turn counter (REQUIRED — falls back to
+//     last-placedTurn + 1 defensively).
+//   - `ctx.squadHpApi`: optional { get(), set(n) } API for squad HP. If
+//     present, fxLichCursedTilesTick mutates HP via the API; else returns
+//     the proposed HP delta in the result for the caller to apply.
+//   - `ctx.ultMeterApi`: optional { get(meter): n, set(meter, n), threshold(meter): n }
+//     API for ULT charges. Pure pass-through; defaults fall back to the
+//     existing legacy globals `ultCharges` / `HERO_ULT_COST_BY_NEWROLE`.
+//   - `ctx.ultMeter`: string key for which ULT meter to add to ('ember' |
+//     'tide' | 'grove' | 'solar' | 'umbra'). Defaults to 'umbra' (Lich's
+//     stihiya — same convention as RACE_SYNERGY ULT charge writes).
+//   - `ctx.role`: string key for which role's sacred threshold to clamp
+//     against ('mage' | 'warrior' | 'hunter' | 'tank' | 'captain'). Defaults
+//     to 'mage' (highest sacred threshold = 100, safest default).
+//
+// Returns: result object `{ hpDamage, ultChargeGranted, expiredCount,
+// activeCount }` for caller telemetry + unit-test assertion.
+export function fxLichCursedTilesTick(ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  const result = { hpDamage: 0, ultChargeGranted: 0, expiredCount: 0, activeCount: 0 };
+  try {
+    if (_cursedTiles.length === 0) return result;
+
+    const _currentTurn = (ctx && typeof ctx.currentTurn === 'number')
+      ? ctx.currentTurn
+      : (_cursedTiles[0] ? (_cursedTiles[0].placedTurn + 1) : 0);
+
+    // Step 1: apply HP damage = (active cell count BEFORE expiration) × 1.
+    // Spec §3.2 field 4 bullet 2: "Inflict 1 HP of damage to the squad each
+    // turn they remain." We count cells that are active THIS turn (before
+    // we expire any), so a curse placed on turn N AND ticking on turns
+    // N+1, N+2, N+3 contributes damage on all three turns, then expires
+    // and grants +20 ULT compensation at the end of N+3.
+    const activeCellsThisTurn = _cursedTiles.length;
+    result.hpDamage = activeCellsThisTurn * CURSED_TILES_HP_DAMAGE_PER_TURN;
+    if (ctx && ctx.squadHpApi
+        && typeof ctx.squadHpApi.get === 'function'
+        && typeof ctx.squadHpApi.set === 'function') {
+      const currentHp = Number(ctx.squadHpApi.get()) || 0;
+      const newHp = applyCurseCellDamage(currentHp, activeCellsThisTurn);
+      ctx.squadHpApi.set(newHp);
+    }
+
+    // Step 2: iterate active curses, expire those whose expiresTurn ≤ current.
+    // Iterate backwards so splice doesn't shift indices.
+    let totalUltGranted = 0;
+    for (let i = _cursedTiles.length - 1; i >= 0; i--) {
+      const curse = _cursedTiles[i];
+      const tick  = computeCurseTickResult(curse, _currentTurn);
+      if (!tick.active) {
+        // Expired — grant ULT compensation (clamped) + fade overlay + remove.
+        if (tick.shouldGrantUltCharge && tick.ultChargeToGrant > 0) {
+          // Resolve threshold via ctx.ultMeterApi if provided; else fall
+          // back to legacy globals (`HERO_ULT_COST_BY_NEWROLE[role]` →
+          // 100 for mage default). Sacred values are READ-ONLY for the
+          // clamp.
+          const meter = (ctx && typeof ctx.ultMeter === 'string') ? ctx.ultMeter : 'umbra';
+          const role  = (ctx && typeof ctx.role === 'string')     ? ctx.role     : 'mage';
+          let threshold = null;
+          let currentCharge = 0;
+          if (ctx && ctx.ultMeterApi) {
+            if (typeof ctx.ultMeterApi.threshold === 'function') {
+              threshold = ctx.ultMeterApi.threshold(role);
+            }
+            if (typeof ctx.ultMeterApi.get === 'function') {
+              currentCharge = Number(ctx.ultMeterApi.get(meter)) || 0;
+            }
+          }
+          if (threshold === null) {
+            // Legacy-globals fallback. ULT_THRESHOLD / currentUltThreshold are
+            // ULT-meter thresholds (different sacred scale, ~12). The +20
+            // compensation is intended to fill the per-role HERO_ULT_COST_BY_NEWROLE
+            // (80-120 scale); we resolve via the legacy `HERO_ULT_COST_BY_NEWROLE`
+            // global if defined, else default to 100 (mage — highest sacred
+            // value, safest default).
+            try {
+              if (typeof HERO_ULT_COST_BY_NEWROLE !== 'undefined'
+                  && HERO_ULT_COST_BY_NEWROLE
+                  && typeof HERO_ULT_COST_BY_NEWROLE[role] === 'number') {
+                threshold = HERO_ULT_COST_BY_NEWROLE[role];
+              }
+            } catch (_e) { /* swallow */ }
+            if (threshold === null) threshold = 100;
+          }
+          if (ctx && ctx.ultMeterApi && typeof ctx.ultMeterApi.get === 'function') {
+            // currentCharge already loaded above.
+          } else {
+            try {
+              if (typeof ultCharges !== 'undefined' && ultCharges
+                  && typeof ultCharges[meter] === 'number') {
+                currentCharge = ultCharges[meter];
+              }
+            } catch (_e) { /* swallow */ }
+          }
+          const clamped = clampUltCharge(currentCharge, tick.ultChargeToGrant, threshold);
+          totalUltGranted += (clamped - currentCharge);
+          if (ctx && ctx.ultMeterApi && typeof ctx.ultMeterApi.set === 'function') {
+            ctx.ultMeterApi.set(meter, clamped);
+          } else {
+            try {
+              if (typeof ultCharges !== 'undefined' && ultCharges) {
+                ultCharges[meter] = clamped;
+              }
+            } catch (_e) { /* swallow */ }
+          }
+        }
+        // Fade overlay over CURSED_TILES_SKULL_DECAY_MS (300ms) — CSS-driven.
+        if (curse.el) {
+          try {
+            curse.el.classList.remove('identity-lich-cursed-tile-pulse');
+            curse.el.classList.add('identity-lich-cursed-tile-fade');
+            // Hide after the fade window — single setTimeout per expiring
+            // cell. Worst case: 3 timeouts at expiration, all firing the
+            // same hide path. Net cost: ≤1ms scheduling overhead.
+            const _el = curse.el;
+            setTimeout(() => {
+              try {
+                _el.style.display = 'none';
+                _el.classList.remove('identity-lich-cursed-tile-fade');
+              } catch (_e) { /* swallow */ }
+            }, CURSED_TILES_SKULL_DECAY_MS);
+          } catch (_e) { /* swallow */ }
+          // Return pool index to available stack (find by reference).
+          for (let pi = 0; pi < _cursedTilesPool.length; pi++) {
+            if (_cursedTilesPool[pi] === curse.el) {
+              _cursedTilesPoolAvailable.push(pi);
+              break;
+            }
+          }
+        }
+        _cursedTiles.splice(i, 1);
+        result.expiredCount += 1;
+      }
+    }
+    result.ultChargeGranted = totalUltGranted;
+    result.activeCount = _cursedTiles.length;
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      if (dt > CURSED_TILES_PER_TURN_TICK_BUDGET_MS) {
+        log.warn('Lich Cursed Tiles tick over budget:',
+                 dt.toFixed(2), 'ms (limit', CURSED_TILES_PER_TURN_TICK_BUDGET_MS, 'ms)');
+      }
+    }
+  }
+  return result;
+}
+
+// Trigger gate (spec §3.2 field 3): "A clearLines fires where the player's
+// active squad has ≥2 sharks". Pure predicate — pass-through wrapper over
+// `countAliveSharks(squad) >= CURSED_TILES_TRIGGER_SHARK_THRESHOLD` so the
+// T2.B bridge has a single import surface and tests have an explicit named
+// helper.
+//
+// Returns: boolean. True → fire `triggerIdentityBossEvent('identity_assassin_shark_counter')`;
+// false → silent no-op.
+export function cursedTilesGatePasses(squad) {
+  const sharkCount = countAliveSharks(squad);
+  return sharkCount >= CURSED_TILES_TRIGGER_SHARK_THRESHOLD;
+}
+
 // ─── Test-only escape hatches (NOT used in production) ─────────────────
 // Exposed under a `__identityFxTestables` named export so unit tests can
 // assert internal state without reaching into module privates via hacks.
@@ -2375,6 +2948,24 @@ export const __identityFxTestables = Object.freeze({
     _ashenReignFlameBorderEl = null;
     _ashenReignHudEl = null;
     _ashenReignPoolInitDone = false;
+  },
+  // T2.08 — Lich Cursed Tiles testables. Module-state observers + pool
+  // resetter so tests can assert state transitions without reaching into
+  // module privates.
+  getCursedTilesPoolSize: () => _cursedTilesPool.length,
+  getCursedTilesPoolAvailable: () => _cursedTilesPoolAvailable.length,
+  isCursedTilesPoolInitDone: () => _cursedTilesPoolInitDone,
+  resetCursedTilesPool: () => {
+    // First: drop all state via the public reset path.
+    resetCursedTiles();
+    // Then: tear down DOM so the next test re-creates the pool fresh.
+    if (_cursedTilesPoolContainer && _cursedTilesPoolContainer.parentNode) {
+      _cursedTilesPoolContainer.parentNode.removeChild(_cursedTilesPoolContainer);
+    }
+    while (_cursedTilesPool.length) _cursedTilesPool.pop();
+    while (_cursedTilesPoolAvailable.length) _cursedTilesPoolAvailable.pop();
+    _cursedTilesPoolContainer = null;
+    _cursedTilesPoolInitDone = false;
   },
   IDENTITY_FX_KEYS,
   IDENTITY_BOSS_FX_KEYS,

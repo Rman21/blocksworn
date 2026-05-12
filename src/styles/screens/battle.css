@@ -6465,3 +6465,136 @@ button, .menu-btn, .btn, .hero-card, .piece, .cell, .roster-card, .tier-btn, .ba
   0%   { opacity: 0; }
   100% { opacity: 1; }
 }
+
+/* ───────────────────────────────────────────────────────────────────────
+ * 2026-05-12 — TASK-035 (T2.08): Lich Cursed Tiles overlay (boss-reactive
+ * identity layer — spec §3.2).
+ *
+ * Pure CSS animations for the 3 skull overlays placed on cursed cells.
+ * Steady-state per-turn tick is JS-allowed at ≤3ms (HP damage application
+ * + threshold-clamped ULT charge write at expiration), but the *visual*
+ * pulse-in (300ms entry) and fade-out (300ms exit at auto-clear) are
+ * CSS-only — zero JS per frame during the 3-turn curse window.
+ *
+ * Z-index ordering (Identity Layer particles): coin (9999) > shark (9998) >
+ * rock (9997) > croc-fragment (9996) > spark (9995) > phoenix-ashen-reign
+ * border (9994) > phoenix-ashen-reign HUD (9993) > **lich-cursed-tile
+ * (9992)**. The skull overlay sits BELOW the Phoenix flame border but
+ * ABOVE the grid cells (it's a grid-cell-level state indicator).
+ *
+ * Sacred safety:
+ *   - No existing CSS class modified. Pure addition.
+ *   - All 22 v2.1 P4 reactivity handlers untouched (this is a parallel-
+ *     namespace mechanic, see CLAUDE.md §2.5 + spec §1 hard rule 1).
+ *   - REACTIVITY_TELEGRAPH_MS = 3000 RE-USED (telegraph banner is handled
+ *     by existing showReactivityTelegraph + `.reactivity-telegraph-banner`
+ *     CSS, untouched here).
+ *   - Color palette re-use: #7e3fb8 violet-purple is the SAME color used
+ *     by the Rock Echo ghost flash (T2.04). Per ESC-02 O4 RE-USE-FIRST
+ *     ruling — no new palette archetype.
+ * ─────────────────────────────────────────────────────────────────────── */
+.identity-lich-cursed-tile-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9992;
+}
+.identity-lich-cursed-tile {
+  position: absolute;
+  /* Centered on the cell center via JS-set left/top (spawnSkullOverlay). */
+  width:  40px;
+  height: 40px;
+  margin-left: -20px;
+  margin-top:  -20px;
+  pointer-events: none;
+  z-index: 9992;
+  /* Translucent purple radial glow with stylized skull glyph. The skull is
+   * a pure CSS ::after pseudo-element (SVG-style box-shadow shaping) so no
+   * external SVG asset is needed. */
+  background: radial-gradient(
+    circle at center,
+    rgba(126, 63, 184, 0.65) 0%,
+    rgba(126, 63, 184, 0.45) 35%,
+    rgba(126, 63, 184, 0.18) 70%,
+    rgba(126, 63, 184, 0)    100%
+  );
+  border-radius: 50%;
+  opacity: 0;
+  will-change: opacity, transform;
+  filter: blur(0.5px);
+}
+/* Stylized skull glyph — pure CSS, no SVG dependency. Uses Unicode skull
+ * character (U+2620) rendered in the cursed color palette. */
+.identity-lich-cursed-tile::after {
+  content: '\2620';   /* ☠ skull and crossbones */
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--curse-color, #7e3fb8);
+  text-shadow:
+    0 0 8px rgba(126, 63, 184, 0.85),
+    0 0 16px rgba(126, 63, 184, 0.55),
+    0 1px 0 rgba(0, 0, 0, 0.8);
+  /* Faint translucent purple smoke wisp above the skull (per spec §3.2
+   * field 6: "3 cells smoking with purple skull glyphs"). */
+  filter: drop-shadow(0 -2px 4px rgba(126, 63, 184, 0.5));
+}
+/* Entry pulse — fires once when the curse is placed. 300ms ease-out.
+ * `--curse-decay-ms` is set by spawnSkullOverlay (defaults to 300ms). */
+.identity-lich-cursed-tile.identity-lich-cursed-tile-pulse {
+  animation: identityLichCursedPulse var(--curse-decay-ms, 300ms) ease-out forwards;
+}
+/* Exit fade — fires once when the curse auto-clears at expiration turn.
+ * 300ms ease-in. Same `--curse-decay-ms` re-used. */
+.identity-lich-cursed-tile.identity-lich-cursed-tile-fade {
+  animation: identityLichCursedFade var(--curse-decay-ms, 300ms) ease-in forwards;
+}
+@keyframes identityLichCursedPulse {
+  0%   {
+    opacity: 0;
+    transform: scale(0.5) rotate(-15deg);
+  }
+  60%  {
+    opacity: 1;
+    transform: scale(1.15) rotate(5deg);
+  }
+  100% {
+    opacity: 0.9;
+    transform: scale(1) rotate(0deg);
+  }
+}
+@keyframes identityLichCursedFade {
+  0%   {
+    opacity: 0.9;
+    transform: scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4) rotate(15deg);
+  }
+}
+
+/* Reduced-motion: respect prefers-reduced-motion. Static purple overlay
+ * (no pulse / fade animation), but the mechanical effect (cursed-cell
+ * predicate + 1 HP/turn drip + +20 ULT compensation) is preserved. The
+ * skull glyph still renders — only the kinetic energy is dialed back. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-lich-cursed-tile.identity-lich-cursed-tile-pulse {
+    animation: identityLichCursedPulseStatic var(--curse-decay-ms, 300ms) linear forwards;
+  }
+  .identity-lich-cursed-tile.identity-lich-cursed-tile-fade {
+    animation: identityLichCursedFadeStatic var(--curse-decay-ms, 300ms) linear forwards;
+  }
+}
+@keyframes identityLichCursedPulseStatic {
+  0%   { opacity: 0; }
+  100% { opacity: 0.9; }
+}
+@keyframes identityLichCursedFadeStatic {
+  0%   { opacity: 0.9; }
+  100% { opacity: 0; }
+}

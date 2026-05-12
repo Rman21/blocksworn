@@ -56,6 +56,18 @@ import {
   fxPhoenixAshenReign,
   fxPhoenixAshenReignRelease,
   resetAshenReign,
+  // T2.08 — Lich Cursed Tiles helpers.
+  pickRandomNonEmptyCells,
+  applyCurseCellDamage,
+  computeCurseTickResult,
+  clampUltCharge,
+  cursedTilesGatePasses,
+  isCellCursed,
+  getCursedTilesCount,
+  getCursedTilesSnapshot,
+  fxLichCursedTiles,
+  fxLichCursedTilesTick,
+  resetCursedTiles,
   __identityFxTestables,
 } from '../../src/feel/identity-fx.js';
 import {
@@ -97,7 +109,19 @@ import {
   ASHEN_REIGN_HUD_COUNTDOWN_TEXT,
   ASHEN_REIGN_INITIAL_BUDGET_MS,
   ASHEN_REIGN_STEADY_STATE_BUDGET_MS,
+  // T2.08 — Lich Cursed Tiles constants.
+  CURSED_TILES_COUNT,
+  CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR,
+  CURSED_TILES_HP_DAMAGE_PER_TURN,
+  CURSED_TILES_ULT_COMPENSATION,
+  CURSED_TILES_TRIGGER_SHARK_THRESHOLD,
+  CURSED_TILES_TELEGRAPH_MS,
+  CURSED_TILES_SKULL_DECAY_MS,
+  CURSED_TILES_SKULL_COLOR,
+  CURSED_TILES_INITIAL_BUDGET_MS,
+  CURSED_TILES_PER_TURN_TICK_BUDGET_MS,
 } from '../../src/data/identity-layer.js';
+import { HERO_ULT_COST_BY_NEWROLE } from '../../src/data/heroes.js';
 import { RACE_SYNERGY, RACE_IDENTITY_FX } from '../../src/data/races.js';
 import {
   PHOENIX_REVIVE_HP_PCT,
@@ -2089,5 +2113,494 @@ describe('identity-layer · Phoenix Ashen Reign · cross-race regression (T2.02-
     // Race identity sibling export untouched.
     expect(RACE_IDENTITY_FX.pirate).toBe('pirate_plunder');
     expect(RACE_IDENTITY_FX.spark).toBe('spark_cascade');
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-035 (T2.08): Lich Cursed Tiles unit tests.
+// Spec: docs/design/mechanics/identity-layer.md §3.2.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('identity-layer · Lich Cursed Tiles · pickRandomNonEmptyCells', () => {
+  it('null gridState → [] (defensive)', () => {
+    resetCursedTiles();
+    expect(pickRandomNonEmptyCells(null, 3)).toEqual([]);
+  });
+  it('empty grid (all null cells) → [] (no candidates)', () => {
+    resetCursedTiles();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    expect(pickRandomNonEmptyCells(grid, 3)).toEqual([]);
+  });
+  it('1 non-empty cell + count=3 → 1 cell only (cap at candidate count)', () => {
+    resetCursedTiles();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[2][3] = 'ember';
+    const picks = pickRandomNonEmptyCells(grid, 3);
+    expect(picks.length).toBe(1);
+    expect(picks[0]).toEqual({ row: 2, col: 3 });
+  });
+  it('10 non-empty cells + count=3 → 3 unique cells', () => {
+    resetCursedTiles();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    const seeded = [
+      [0, 0], [0, 1], [0, 2], [1, 0], [1, 1],
+      [2, 0], [2, 1], [3, 0], [3, 1], [4, 0],
+    ];
+    for (const [r, c] of seeded) grid[r][c] = 'tide';
+    const picks = pickRandomNonEmptyCells(grid, 3);
+    expect(picks.length).toBe(3);
+    // Verify uniqueness.
+    const keys = new Set(picks.map(p => p.row + '_' + p.col));
+    expect(keys.size).toBe(3);
+    // Verify each pick was one of the seeded cells.
+    for (const p of picks) {
+      const found = seeded.some(([r, c]) => r === p.row && c === p.col);
+      expect(found).toBe(true);
+    }
+  });
+  it('default count uses CURSED_TILES_COUNT (3)', () => {
+    resetCursedTiles();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) grid[0][c] = 'umbra';
+    const picks = pickRandomNonEmptyCells(grid);
+    expect(picks.length).toBe(CURSED_TILES_COUNT);
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · applyCurseCellDamage', () => {
+  it('100 HP - 3 cells = 97', () => {
+    expect(applyCurseCellDamage(100, 3)).toBe(97);
+  });
+  it('1 HP - 3 cells = 0 (clamp at 0, never negative)', () => {
+    expect(applyCurseCellDamage(1, 3)).toBe(0);
+  });
+  it('0 HP - 3 cells = 0 (clamp at 0)', () => {
+    expect(applyCurseCellDamage(0, 3)).toBe(0);
+  });
+  it('100 HP - 0 cells = 100 (no damage when no curses)', () => {
+    expect(applyCurseCellDamage(100, 0)).toBe(100);
+  });
+  it('100 HP - 1 cell = 99 (single-curse drip)', () => {
+    expect(applyCurseCellDamage(100, 1)).toBe(99);
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · computeCurseTickResult', () => {
+  it('curse placed turn 5, ticking turn 5 → active (placedTurn = currentTurn, no damage applied yet, no expire)', () => {
+    const curse = { row: 0, col: 0, placedTurn: 5, expiresTurn: 8 };
+    const r = computeCurseTickResult(curse, 5);
+    expect(r.active).toBe(true);
+    expect(r.shouldGrantUltCharge).toBe(false);
+    expect(r.ultChargeToGrant).toBe(0);
+  });
+  it('curse placed turn 5, ticking turn 7 → active (still within 3-turn window)', () => {
+    const curse = { row: 0, col: 0, placedTurn: 5, expiresTurn: 8 };
+    const r = computeCurseTickResult(curse, 7);
+    expect(r.active).toBe(true);
+    expect(r.shouldGrantUltCharge).toBe(false);
+  });
+  it('curse placed turn 5, ticking turn 8 → EXPIRED + grants +20 ULT charge', () => {
+    const curse = { row: 0, col: 0, placedTurn: 5, expiresTurn: 8 };
+    const r = computeCurseTickResult(curse, 8);
+    expect(r.active).toBe(false);
+    expect(r.shouldGrantUltCharge).toBe(true);
+    expect(r.ultChargeToGrant).toBe(CURSED_TILES_ULT_COMPENSATION);
+    expect(r.ultChargeToGrant).toBe(20);
+  });
+  it('curse placed turn 5, ticking turn 9 → still expired (past expiresTurn)', () => {
+    const curse = { row: 0, col: 0, placedTurn: 5, expiresTurn: 8 };
+    const r = computeCurseTickResult(curse, 9);
+    expect(r.active).toBe(false);
+    expect(r.shouldGrantUltCharge).toBe(true);
+  });
+  it('null curse → inactive, no charge (defensive)', () => {
+    const r = computeCurseTickResult(null, 5);
+    expect(r.active).toBe(false);
+    expect(r.shouldGrantUltCharge).toBe(false);
+    expect(r.ultChargeToGrant).toBe(0);
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · clampUltCharge (sacred threshold safety)', () => {
+  // Spec §3.2 + CLAUDE.md §2.1: +20 ULT compensation MUST clamp to sacred
+  // HERO_ULT_COST_BY_NEWROLE thresholds (mage:100, warrior:80, hunter:120,
+  // tank:80, captain:100). Per-role thresholds are READ-ONLY.
+  it('current=80 + 20 + threshold=100 → 100 (exact-fill, no clamp needed)', () => {
+    expect(clampUltCharge(80, 20, 100)).toBe(100);
+  });
+  it('current=99 + 20 + threshold=100 → 100 (clamp)', () => {
+    expect(clampUltCharge(99, 20, 100)).toBe(100);
+  });
+  it('current=50 + 20 + threshold=100 → 70 (no clamp needed, within threshold)', () => {
+    expect(clampUltCharge(50, 20, 100)).toBe(70);
+  });
+  it('current=100 + 20 + threshold=100 → 100 (already at cap)', () => {
+    expect(clampUltCharge(100, 20, 100)).toBe(100);
+  });
+  it('current=120 + 20 + threshold=100 → 100 (defensive clamp DOWN)', () => {
+    expect(clampUltCharge(120, 20, 100)).toBe(100);
+  });
+  it('current=60 + 20 + threshold=80 (warrior/tank) → 80 (clamp)', () => {
+    expect(clampUltCharge(60, 20, 80)).toBe(80);
+  });
+  it('current=110 + 20 + threshold=120 (hunter) → 120 (clamp)', () => {
+    expect(clampUltCharge(110, 20, 120)).toBe(120);
+  });
+  it('threshold null/undefined → returns current + delta (defensive pass-through)', () => {
+    expect(clampUltCharge(50, 20, null)).toBe(70);
+    expect(clampUltCharge(50, 20, undefined)).toBe(70);
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · cursedTilesGatePasses (trigger gate)', () => {
+  // Spec §3.2 field 3: "A clearLines fires where the player's active squad
+  // has ≥2 sharks". Boundary tests at 0/1/2/5.
+  it('0 sharks → no fire', () => {
+    expect(cursedTilesGatePasses([])).toBe(false);
+    expect(cursedTilesGatePasses([{ race: 'pirate' }, { race: 'rock' }])).toBe(false);
+  });
+  it('1 shark → no fire (gate at ≥2 only)', () => {
+    expect(cursedTilesGatePasses([{ race: 'shark' }, { race: 'rock' }])).toBe(false);
+  });
+  it('2 sharks → fire (threshold met)', () => {
+    expect(cursedTilesGatePasses([{ race: 'shark' }, { race: 'shark' }])).toBe(true);
+  });
+  it('5 sharks → fire (well above threshold)', () => {
+    expect(cursedTilesGatePasses([
+      { race: 'shark' }, { race: 'shark' }, { race: 'shark' },
+      { race: 'shark' }, { race: 'shark' },
+    ])).toBe(true);
+  });
+  it('non-array squad → false (defensive)', () => {
+    expect(cursedTilesGatePasses(null)).toBe(false);
+    expect(cursedTilesGatePasses(undefined)).toBe(false);
+  });
+  it('2 sharks but 1 dead → 1 alive shark → no fire (hp <= 0 excluded)', () => {
+    expect(cursedTilesGatePasses([
+      { race: 'shark', hp: 0 },
+      { race: 'shark', hp: 100 },
+    ])).toBe(false);
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · isCellCursed predicate + getCursedTilesCount', () => {
+  // Spec §3.2 field 4: cursed cells cannot be cleared for 3 turns. The
+  // predicate is wired into legacy `pieceCanBePlaced` / `clearLines` via
+  // the T2.B bridge.
+  it('Before any curse: isCellCursed → false for all cells', () => {
+    resetCursedTiles();
+    expect(isCellCursed(0, 0)).toBe(false);
+    expect(isCellCursed(7, 7)).toBe(false);
+    expect(getCursedTilesCount()).toBe(0);
+  });
+  it('After fxLichCursedTiles: isCellCursed → true for placed curses, false elsewhere', () => {
+    resetCursedTiles();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    // Seed only 1 non-empty cell so the pick is deterministic.
+    grid[3][4] = 'umbra';
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 5 });
+    expect(isCellCursed(3, 4)).toBe(true);
+    expect(isCellCursed(0, 0)).toBe(false);
+    expect(getCursedTilesCount()).toBe(1);
+    resetCursedTiles();
+  });
+  it('After resetCursedTiles: isCellCursed → false again, count → 0', () => {
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[1][1] = 'ember';
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    expect(getCursedTilesCount()).toBe(1);
+    resetCursedTiles();
+    expect(getCursedTilesCount()).toBe(0);
+    expect(isCellCursed(1, 1)).toBe(false);
+  });
+  it('Non-finite row/col → false (defensive)', () => {
+    expect(isCellCursed(NaN, 0)).toBe(false);
+    expect(isCellCursed(0, undefined)).toBe(false);
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · 3-turn expiration + ULT compensation lifecycle', () => {
+  // Spec §3.2 field 4: placed at turn N, ticks on turns N, N+1, N+2 (active),
+  // expires at turn N+3 (grants +20 ULT charge, fades overlay, removes from
+  // array). NOTE: contract is "expiresTurn = placedTurn + 3" → ≥ comparison
+  // means the tick at turn N+3 returns expired=true.
+  it('placed turn 5, expiresTurn = 8 (= 5 + 3)', () => {
+    resetCursedTiles();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[0][0] = 'umbra';
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 5 });
+    const snap = getCursedTilesSnapshot();
+    expect(snap.length).toBe(1);
+    expect(snap[0].placedTurn).toBe(5);
+    expect(snap[0].expiresTurn).toBe(8);
+    expect(snap[0].expiresTurn - snap[0].placedTurn).toBe(CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR);
+    resetCursedTiles();
+  });
+  it('full lifecycle: turn 5 place → turn 6 active → turn 7 active → turn 8 expire+ULT', () => {
+    resetCursedTiles();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[0][0] = 'umbra';
+    grid[0][1] = 'umbra';
+    grid[0][2] = 'umbra';
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 5 });
+    expect(getCursedTilesCount()).toBe(3);
+
+    // Capture ULT meter snapshot via API stub.
+    let umbraCharge = 80;
+    const ultApi = {
+      get:       (_meter) => umbraCharge,
+      set:       (_meter, n) => { umbraCharge = n; },
+      threshold: (_role) => 100,
+    };
+
+    // Turn 6 — all 3 still active, 3 HP damage, no ULT granted yet.
+    let hp = 100;
+    const hpApi = { get: () => hp, set: (n) => { hp = n; } };
+    const t6 = fxLichCursedTilesTick({ currentTurn: 6, squadHpApi: hpApi, ultMeterApi: ultApi, ultMeter: 'umbra', role: 'mage' });
+    expect(t6.activeCount).toBe(3);
+    expect(t6.hpDamage).toBe(3);
+    expect(t6.ultChargeGranted).toBe(0);
+    expect(hp).toBe(97);
+    expect(umbraCharge).toBe(80);
+
+    // Turn 7 — still all 3 active, another 3 HP, still no ULT.
+    const t7 = fxLichCursedTilesTick({ currentTurn: 7, squadHpApi: hpApi, ultMeterApi: ultApi, ultMeter: 'umbra', role: 'mage' });
+    expect(t7.activeCount).toBe(3);
+    expect(t7.hpDamage).toBe(3);
+    expect(t7.ultChargeGranted).toBe(0);
+    expect(hp).toBe(94);
+
+    // Turn 8 — expiration tick. HP damage applied for 3 active cells (97 → 91)
+    // AND +20 ULT × 3 cells = +60 clamped at threshold 100 (currentCharge=80 → +20 capped).
+    const t8 = fxLichCursedTilesTick({ currentTurn: 8, squadHpApi: hpApi, ultMeterApi: ultApi, ultMeter: 'umbra', role: 'mage' });
+    expect(t8.activeCount).toBe(0);
+    expect(t8.expiredCount).toBe(3);
+    expect(t8.hpDamage).toBe(3);    // 3 cells × 1 HP = 3 damage on the turn they expire
+    expect(hp).toBe(91);
+    // ULT clamped: each expiring cell tries to add 20; starts at 80, clamps to 100 at first cell.
+    // Subsequent expirations add 0 (already at threshold). Total granted = 100 - 80 = 20.
+    expect(t8.ultChargeGranted).toBe(20);
+    expect(umbraCharge).toBe(100);
+    resetCursedTiles();
+  });
+  it('total HP damage over 3 active turns = 9 HP (3 cells × 1 HP × 3 turns)', () => {
+    resetCursedTiles();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[0][0] = 'umbra';
+    grid[0][1] = 'umbra';
+    grid[0][2] = 'umbra';
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    let hp = 100;
+    const hpApi = { get: () => hp, set: (n) => { hp = n; } };
+    let umbraCharge = 0;
+    const ultApi = {
+      get: () => umbraCharge,
+      set: (_m, n) => { umbraCharge = n; },
+      threshold: () => 100,
+    };
+    fxLichCursedTilesTick({ currentTurn: 1, squadHpApi: hpApi, ultMeterApi: ultApi });
+    fxLichCursedTilesTick({ currentTurn: 2, squadHpApi: hpApi, ultMeterApi: ultApi });
+    fxLichCursedTilesTick({ currentTurn: 3, squadHpApi: hpApi, ultMeterApi: ultApi });
+    // Total damage: 3 turns × 3 cells × 1 HP = 9 HP. At turn 3, expirations
+    // fire, but the active-count-this-turn damage uses BEFORE-expiration
+    // count (3 cells), so the 3rd turn still deals 3 HP.
+    expect(hp).toBe(91);
+    // ULT at turn 3: 3 cells expire, each +20 → 60 raw, clamped to 100 max.
+    expect(umbraCharge).toBe(60);
+    resetCursedTiles();
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · resetCursedTiles', () => {
+  it('resetCursedTiles() drops all active curses', () => {
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[0][0] = 'tide';
+    grid[0][1] = 'tide';
+    grid[0][2] = 'tide';
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    expect(getCursedTilesCount()).toBeGreaterThan(0);
+    resetCursedTiles();
+    expect(getCursedTilesCount()).toBe(0);
+    expect(getCursedTilesSnapshot()).toEqual([]);
+  });
+  it('resetCursedTiles() idempotent — safe to call when empty', () => {
+    resetCursedTiles();
+    expect(() => resetCursedTiles()).not.toThrow();
+    expect(getCursedTilesCount()).toBe(0);
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · SACRED COW byte-perfect audit', () => {
+  // CLAUDE.md §2.1 + §2.5 sacred values referenced by Cursed Tiles for
+  // READ-ONLY purposes (threshold clamp + telegraph re-use). Verify they
+  // stay byte-perfect after the full fx round-trip.
+  it('HERO_ULT_COST_BY_NEWROLE thresholds byte-perfect (sacred CLAUDE.md §2.1)', () => {
+    expect(HERO_ULT_COST_BY_NEWROLE.warrior).toBe(80);
+    expect(HERO_ULT_COST_BY_NEWROLE.mage).toBe(100);
+    expect(HERO_ULT_COST_BY_NEWROLE.hunter).toBe(120);
+    expect(HERO_ULT_COST_BY_NEWROLE.tank).toBe(80);
+    expect(HERO_ULT_COST_BY_NEWROLE.captain).toBe(100);
+  });
+  it('SACRED RE-USE INVARIANT: CURSED_TILES_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS', () => {
+    // Spec §3.2 field 7 + spec §3 "Convention": Cursed Tiles RE-USES the
+    // sacred 3000ms telegraph value. This invariant ensures the two stay
+    // in lock-step — any future edit to one MUST update the other (and
+    // will trip this test if not).
+    expect(CURSED_TILES_TELEGRAPH_MS).toBe(REACTIVITY_TELEGRAPH_MS);
+    expect(CURSED_TILES_TELEGRAPH_MS).toBe(3000);
+  });
+  it('Cursed Tiles fx round-trip does NOT modify sacred Phoenix/HERO_ULT/REACTIVITY constants', () => {
+    resetCursedTiles();
+    resetAshenReign();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[0][0] = 'ember';
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    // Sacred values byte-perfect during active curse.
+    expect(PHOENIX_REVIVE_HP_PCT).toBe(0.6);
+    expect(PHOENIX_IMMUNE_TURNS).toBe(2);
+    expect(REACTIVITY_TELEGRAPH_MS).toBe(3000);
+    expect(REACTIVITY_BANNER_DURATION_MS).toBe(1500);
+    expect(HERO_ULT_COST_BY_NEWROLE.mage).toBe(100);
+    expect(HERO_ULT_COST_BY_NEWROLE.warrior).toBe(80);
+    resetCursedTiles();
+    // Still byte-perfect after release.
+    expect(PHOENIX_REVIVE_HP_PCT).toBe(0.6);
+    expect(REACTIVITY_TELEGRAPH_MS).toBe(3000);
+    expect(HERO_ULT_COST_BY_NEWROLE.mage).toBe(100);
+  });
+  it('+20 ULT compensation NEVER overshoots any sacred role threshold (5-case audit)', () => {
+    // Audit each sacred per-role threshold from HERO_ULT_COST_BY_NEWROLE.
+    // For each, verify that current + 20 → clamps to the threshold.
+    expect(clampUltCharge(70, 20, HERO_ULT_COST_BY_NEWROLE.warrior)).toBe(80);   // warrior=80
+    expect(clampUltCharge(90, 20, HERO_ULT_COST_BY_NEWROLE.mage)).toBe(100);     // mage=100
+    expect(clampUltCharge(110, 20, HERO_ULT_COST_BY_NEWROLE.hunter)).toBe(120);  // hunter=120
+    expect(clampUltCharge(70, 20, HERO_ULT_COST_BY_NEWROLE.tank)).toBe(80);      // tank=80
+    expect(clampUltCharge(90, 20, HERO_ULT_COST_BY_NEWROLE.captain)).toBe(100);  // captain=100
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · constants & budgets', () => {
+  it('CURSED_TILES_COUNT === 3 (spec §3.2 field 4)', () => {
+    expect(CURSED_TILES_COUNT).toBe(3);
+  });
+  it('CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR === 3 (spec §3.2 field 4)', () => {
+    expect(CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR).toBe(3);
+  });
+  it('CURSED_TILES_HP_DAMAGE_PER_TURN === 1 (spec §3.2 field 4)', () => {
+    expect(CURSED_TILES_HP_DAMAGE_PER_TURN).toBe(1);
+  });
+  it('CURSED_TILES_ULT_COMPENSATION === 20 (spec §3.2 field 4)', () => {
+    expect(CURSED_TILES_ULT_COMPENSATION).toBe(20);
+  });
+  it('CURSED_TILES_TRIGGER_SHARK_THRESHOLD === 2 (spec §3.2 field 3)', () => {
+    expect(CURSED_TILES_TRIGGER_SHARK_THRESHOLD).toBe(2);
+  });
+  it('CURSED_TILES_SKULL_DECAY_MS === 300 (spec §3.2 field 7)', () => {
+    expect(CURSED_TILES_SKULL_DECAY_MS).toBe(300);
+  });
+  it('CURSED_TILES_SKULL_COLOR === "#7e3fb8" (re-use of Rock Echo palette per ESC-02 O4)', () => {
+    expect(CURSED_TILES_SKULL_COLOR).toBe('#7e3fb8');
+  });
+  it('CURSED_TILES_INITIAL_BUDGET_MS === 16 (spec §3.2 field 7)', () => {
+    expect(CURSED_TILES_INITIAL_BUDGET_MS).toBe(16);
+  });
+  it('CURSED_TILES_PER_TURN_TICK_BUDGET_MS === 3 (spec §3.2 field 7)', () => {
+    expect(CURSED_TILES_PER_TURN_TICK_BUDGET_MS).toBe(3);
+  });
+  it('IDENTITY_BOSS_FX_KEYS exposes LICH_CURSED_TILES === "lich_cursed_tiles"', () => {
+    expect(IDENTITY_BOSS_FX_KEYS.LICH_CURSED_TILES).toBe('lich_cursed_tiles');
+  });
+  it('IDENTITY_BOSS_FX_BUDGETS[LICH_CURSED_TILES] matches spec §3.2 field 7', () => {
+    const b = IDENTITY_BOSS_FX_BUDGETS[IDENTITY_BOSS_FX_KEYS.LICH_CURSED_TILES];
+    expect(b.initialMs).toBe(16);
+    expect(b.steadyStateMs).toBe(3);
+    expect(b.decayMs).toBe(300);
+    expect(b.duration).toBe('3 turns');
+  });
+  it('BOSS_IDENTITY_FX maps assassin → lich_cursed_tiles (sibling export)', () => {
+    expect(BOSS_IDENTITY_FX.assassin).toBe('lich_cursed_tiles');
+  });
+  it('BOSS_IDENTITY_FX.phoenix still present (T2.07 invariant — sibling registry growth, no regression)', () => {
+    expect(BOSS_IDENTITY_FX.phoenix).toBe('phoenix_ashen_reign');
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · cross-mechanic regression (T2.02-T2.07 invariants)', () => {
+  it('Cursed Tiles fx active during mixed-race dispatch does NOT block race FX', () => {
+    // Place curses, then fire a 5-race line clear — all race FX must run
+    // independently. Cursed Tiles is a BOSS-side state.
+    __identityFxTestables.resetCoinPool();
+    __identityFxTestables.resetSharkBitePool();
+    __identityFxTestables.resetRockEchoPool();
+    __identityFxTestables.resetCrocFragmentPool();
+    __identityFxTestables.resetSparkRayPool();
+    resetCrocFragmentBank();
+    resetCursedTiles();
+
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) grid[0][c] = 'solar';     // gates Spark
+    for (let c = 0; c < 8; c++) grid[2][c] = 'grove';     // gates Crocodile
+    // Seed extra cells for Cursed Tiles candidate pool.
+    grid[5][0] = 'umbra';
+    grid[5][1] = 'umbra';
+    grid[5][2] = 'umbra';
+
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    expect(getCursedTilesCount()).toBeGreaterThan(0);
+
+    const squad = [
+      { race: 'pirate' },
+      { race: 'shark' },
+      { race: 'shark' },
+      { race: 'rock' },
+      { race: 'crocodile' },
+      { race: 'spark' },
+    ];
+    const ctx = { gridState: grid, dominantElementsByLine: ['solar', 'grove'] };
+    expect(() => dispatchIdentityFx([0, 2], [], squad, null, ctx)).not.toThrow();
+
+    // Spark cascade still fired.
+    expect(ctx._dominantCountModifier).toBe(1);
+    // Cursed Tiles still active.
+    expect(getCursedTilesCount()).toBeGreaterThan(0);
+    resetCursedTiles();
+  });
+
+  it('Sacred RACE_SYNERGY entries byte-perfect after Cursed Tiles fx round-trip', () => {
+    resetCursedTiles();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[1][1] = 'umbra';
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    resetCursedTiles();
+    expect(RACE_SYNERGY.lion[5].bonusDmg.solar).toBe(3);
+    expect(RACE_SYNERGY.rock[3].encore).toBe(true);
+    expect(RACE_SYNERGY.golem[2].maxShieldBonus).toBe(1);
+    expect(RACE_SYNERGY.golem[3].maxShieldBonus).toBe(2);
+    expect(RACE_SYNERGY.golem[5].maxShieldBonus).toBe(2);
+    // Race identity sibling export untouched.
+    expect(RACE_IDENTITY_FX.pirate).toBe('pirate_plunder');
+    expect(RACE_IDENTITY_FX.spark).toBe('spark_cascade');
+  });
+
+  it('Phoenix Ashen Reign + Lich Cursed Tiles can coexist (mixed boss-reactive layers)', () => {
+    resetAshenReign();
+    resetCursedTiles();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[0][0] = 'umbra';
+    grid[0][1] = 'umbra';
+    grid[0][2] = 'umbra';
+
+    fxPhoenixAshenReign(null, null);
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+
+    // Both states active independently.
+    expect(isAshenReignActive()).toBe(true);
+    expect(getCursedTilesCount()).toBeGreaterThan(0);
+
+    // Cleanup.
+    fxPhoenixAshenReignRelease();
+    resetCursedTiles();
+    expect(isAshenReignActive()).toBe(false);
+    expect(getCursedTilesCount()).toBe(0);
   });
 });

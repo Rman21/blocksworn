@@ -2785,6 +2785,103 @@ All 9 tests pass.
 
 ---
 
+### TASK-035 (T2.08) — REVIEW 2026-05-12 — Lich Cursed Tiles — explicit Shark counter (SECOND boss-reactive identity mechanic)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev sign-off 2026-05-12 — awaiting CTO)
+**Started:** 2026-05-12
+**Completed (Game Dev):** 2026-05-12
+**Priority:** HIGH
+**Phase:** 2 (Identity Layer) — **8/12** (second boss-reactive after Phoenix)
+**Estimated complexity:** L (extends T2.07 parallel-namespace pattern with first per-turn-tick mechanic)
+**Depends on:** ✅ TASK-034 (T2.07 — IDENTITY_BOSS_HANDLERS parallel registry pattern), ✅ TASK-030 (T2.03 — countAliveSharks helper), ✅ TASK-031 (T2.04 — clampUltCharge pattern)
+**Spec:** `docs/design/mechanics/identity-layer.md` §3.2 + §2.2 (explicit Shark counter ref) + §1 hard rule 1 + §3 Convention
+
+**Implementation summary:**
+
+Implements the **second boss-reactive identity mechanic** of Phase 2 — **Lich Cursed Tiles** — per spec §3.2. Adds a NEW handler under `identity_assassin_shark_counter` namespace in `src/core/reactivity-events.js`, ALONGSIDE the sacred 22 REACTIVITY_HANDLERS (still BYTE-PERFECT — `git diff src/core/reactivity-events.js | grep '^-' | wc -l = 0` proves zero modifications). When the legacy `clearLines` site fires AND the player's active squad has ≥2 sharks, the T2.B bridge will additionally call `triggerIdentityBossEvent('identity_assassin_shark_counter')` at end-of-turn to layer Cursed Tiles on top of the sacred assassin reactivity (untouched `assassin_p1_p2` stealth + `assassin_p2_p3` backstab chain). The handler shows the existing 3000ms wind-up banner (sacred REACTIVITY_TELEGRAPH_MS re-used), then at start of next player turn places 3 random non-empty cell curses:
+
+- Translucent purple skull overlay on each cell (CSS `@keyframes identityLichCursedPulse` — pure CSS entry pulse, zero JS per frame during the 3-turn curse window)
+- `isCellCursed(row, col)` predicate for legacy `pieceCanBePlaced` / `clearLines` gate (T2.B wires it; existing `gridState.cursedCells` Set surface already recognized by Shark's `isSharkBiteBlocked` per T2.03)
+- Per-turn tick (`fxLichCursedTilesTick`): applies 1 HP damage per active cursed cell, grants +20 ULT charge per expiring cell at turn N+3 (CLAMPED to sacred `HERO_ULT_COST_BY_NEWROLE.<role>` via T2.04 `clampUltCharge` pattern — sacred thresholds READ-ONLY)
+- Auto-clear at turn N+3 fades skull over 300ms via CSS class swap, single setTimeout per expiring cell
+- 3 pre-allocated DOM elements (object pool — no `createElement` per fire)
+- Trigger gate `cursedTilesGatePasses(squad)` reuses T2.03 `countAliveSharks` helper
+
+**Architectural pattern — parallel namespace continues (spec §1 hard rule 1):**
+
+The T2.07-established `IDENTITY_BOSS_HANDLERS` parallel registry now contains TWO entries (`identity_phoenix_revive`, `identity_assassin_shark_counter`). Sacred 22 REACTIVITY_HANDLERS untouched. The dispatcher `triggerIdentityBossEvent` is unchanged (T2.07 generic template handles any new entry). T2.09–T2.11 will add 3 more entries to the same registry per spec §3.3–§3.7.
+
+**Files touched (8):**
+
+1. `src/data/identity-layer.js` — Added `IDENTITY_BOSS_FX_KEYS.LICH_CURSED_TILES = 'lich_cursed_tiles'` + `IDENTITY_BOSS_FX_BUDGETS[LICH_CURSED_TILES]` entry. Added 10 Cursed Tiles constants: `CURSED_TILES_COUNT = 3` (HARD), `CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR = 3` (HARD), `CURSED_TILES_HP_DAMAGE_PER_TURN = 1`, `CURSED_TILES_ULT_COMPENSATION = 20`, `CURSED_TILES_TRIGGER_SHARK_THRESHOLD = 2`, `CURSED_TILES_TELEGRAPH_MS = 3000` (RE-USES sacred REACTIVITY_TELEGRAPH_MS), `CURSED_TILES_SKULL_DECAY_MS = 300`, `CURSED_TILES_SKULL_COLOR = '#7e3fb8'` (Rock-echo palette re-use per ESC-02 O4 RE-USE-FIRST), `CURSED_TILES_INITIAL_BUDGET_MS = 16`, `CURSED_TILES_PER_TURN_TICK_BUDGET_MS = 3`. +85 LoC of documentation explaining sacred re-use invariants + parallel-namespace rationale + threshold clamp safety.
+2. `src/data/bosses.js` — Extended `BOSS_IDENTITY_FX` with `assassin: 'lich_cursed_tiles'` entry. Phoenix entry from T2.07 preserved byte-perfect. BOSS_TTK_TARGETS / EXPECTED_DPS_BY_CHAPTER / TOWER_DPS_REFERENCE / TOWER_BOSS_TTK_TARGETS all BYTE-PERFECT.
+3. `src/feel/identity-fx.js` — Added 11 exports: `pickRandomNonEmptyCells`, `applyCurseCellDamage`, `computeCurseTickResult`, `clampUltCharge`, `cursedTilesGatePasses`, `isCellCursed`, `getCursedTilesCount`, `getCursedTilesSnapshot`, `fxLichCursedTiles`, `fxLichCursedTilesTick`, `resetCursedTiles`. Added pool init `_ensureCursedTilesPool` + module state `_cursedTiles` array + 3-element DOM pool. Added testables to `__identityFxTestables`. ~445 LoC of helpers + DOM/pool wiring + per-turn tick lifecycle + comprehensive sacred-cow comment surface.
+4. `src/feel/particles.js` — Added `spawnSkullOverlay({ el, x, y, color, decayMs })` pure factory. Re-uses existing CSS-transform-only animation pattern (no rAF loop, no per-frame DOM writes). +70 LoC.
+5. `src/core/reactivity-events.js` — Added `identity_assassin_shark_counter` entry to `IDENTITY_BOSS_HANDLERS` (parallel registry from T2.07). Imported `fxLichCursedTiles` + `resetCursedTiles` aliased as `_fxLichCursedTilesImpl` + `_resetCursedTilesImpl`. Extended `resetIdentityBossState()` to also reset Cursed Tiles. `git diff` proves ZERO deletions — sacred 22 REACTIVITY_HANDLERS BYTE-PERFECT. +30 LoC.
+6. `src/styles/screens/battle.css` — Added `.identity-lich-cursed-tile-container` + `.identity-lich-cursed-tile` + `.identity-lich-cursed-tile-pulse` + `.identity-lich-cursed-tile-fade` classes. Pure CSS skull glyph via `::after` Unicode U+2620 with radial-purple gradient (#7e3fb8). 2 entry/exit keyframes + 2 reduced-motion fallback keyframes + media query. z-index 9992 (below Phoenix flame border 9994). +120 LoC.
+7. `tests/unit/identity-layer.test.js` — Added 58 unit tests across 10 describe blocks: pickRandomNonEmptyCells (5), applyCurseCellDamage (5), computeCurseTickResult (5), clampUltCharge (8 — includes 5-case sacred threshold audit), cursedTilesGatePasses (6 — trigger gate boundary at 0/1/2/5 sharks), isCellCursed + getCursedTilesCount (4), 3-turn expiration + ULT lifecycle (3 — full lifecycle with HP + ULT accounting), resetCursedTiles (2), SACRED COW byte-perfect audit (4 — HERO_ULT_COST_BY_NEWROLE / TELEGRAPH re-use / fx round-trip / 5-role threshold audit), constants & budgets (13), cross-mechanic regression (3 — race FX coexist + RACE_SYNERGY byte-perfect + Phoenix Ashen Reign + Cursed Tiles coexist). 303 → 361 total.
+8. `tests/smoke/identity-layer.spec.js` — Added 6 smoke tests: trigger gate boundary, fxLichCursedTiles + 3-turn lifecycle (full HP + ULT accounting with API stubs), telegraph + HERO_ULT_COST_BY_NEWROLE sacred byte-perfect audit, cross-mechanic regression (5-race + Phoenix + Cursed Tiles coexist), IDENTITY_BOSS_HANDLERS byte-perfect audit (sacred 22 + 2 identity entries), performance ≤16ms. 76 → 88 smoke runs across 2 projects.
+
+**Sacred cow audit (all PASS — 0 modifications):**
+
+- [x] **22 v2.1 P4 reactivity handlers byte-perfect** — `git diff src/core/reactivity-events.js | grep '^-' | grep -v '^---' | wc -l = 0` ✅
+- [x] **REACTIVITY_TELEGRAPH_MS = 3000** byte-perfect (re-used, not modified)
+- [x] **HERO_ULT_COST_BY_NEWROLE byte-perfect** — `{warrior:80, mage:100, hunter:120, tank:80, captain:100}` READ-ONLY for clamp
+- [x] **PHOENIX_REVIVE_HP_PCT = 0.6 + PHOENIX_IMMUNE_TURNS = 2** untouched (T2.07 invariants)
+- [x] **PHOENIX_ASHEN_REIGN constants** untouched (T2.07 invariants)
+- [x] **Combo crit formula** byte-perfect (T2.06 invariant)
+- [x] **All RACE_SYNERGY literals** byte-perfect (T2.02–T2.05 invariants)
+- [x] **V_HAPTICS** untouched (no new keys)
+- [x] **vPlayLineClearBurst timing** untouched
+- [x] **BOSS_TTK_TARGETS** byte-perfect
+- [x] **No magic numbers** in logic (all 10 constants in `src/data/identity-layer.js`)
+- [x] **NARRATOR_LINES untouched** — no new narrator lines in T2.08 (placeholder for T2.11 copy-pass per ESC-02 O2 ruling). The handler shows "CURSED TILES · 3 SKULLS · 3 TURNS" via the existing `flashStateBanner` UI surface (not NARRATOR_LINES infrastructure).
+- [x] **+20 ULT compensation respects sacred threshold clamps** — verified 5-role audit (warrior=80, mage=100, hunter=120, tank=80, captain=100) in unit + smoke tests
+- [x] **No `createElement` per fire** — pool of 3 skull overlays pre-allocated at first activation
+
+**Performance audit (all within spec §3.2 field 7 budgets):**
+
+- Telegraph banner: ≤8ms ✅ (re-use of existing `flashStateBanner` UI surface, no new allocation)
+- 3 cursed-cell overlay placements: ≤6ms total (2ms × 3) ✅ (pool elements + class swap + position via CSS variables)
+- Per-turn tick: ≤3ms ✅ (3 cells × pure integer math for HP damage + threshold-clamped ULT charge write; 3 DOM class swaps only at expiration turn)
+- Total per fire: ≤16ms peak ✅ (smoke test wallTime <48ms with 3× CI headroom)
+- Steady-state during 3-turn window: pure CSS @keyframes — zero JS per-frame work
+
+**Threshold clamp safety (5-case + 5-role audit):**
+
+1. current=80 + 20 + threshold=100 → 100 (clamp at threshold) ✅
+2. current=99 + 20 + threshold=100 → 100 (clamp) ✅
+3. current=50 + 20 + threshold=100 → 70 (no clamp needed) ✅
+4. current=100 + 20 + threshold=100 → 100 (already at cap) ✅
+5. current=120 (defensive) + 20 + threshold=100 → 100 (defensive clamp DOWN) ✅
+
+Plus per-role audit: warrior=80, mage=100, hunter=120, tank=80, captain=100 — all verified clamp correctly with +20 delta.
+
+**Test results:** 361 unit tests pass (303 → 361 = +58), 88 smoke runs pass across 2 projects (76 → 88 = +12). Lint clean. Build clean (212.73 KB JS, 382.90 KB CSS — both well under bundle ceiling).
+
+**Spec-required test coverage (all met):**
+- ≥12 new unit tests (delivered 58 — 4.8× target)
+- ≥2 smoke tests (delivered 6 — 3× target)
+- HP damage lifecycle audit (3 turns × 3 cells × 1 HP = 9 HP) ✅
+- ULT compensation clamp audit (5-case sacred threshold safety) ✅
+- 3-turn expiration accounting (placedTurn 5, expiresTurn 8) ✅
+- Trigger gate boundary (0/1/2/5 sharks) ✅
+- Cross-mechanic regression (race FX + Phoenix + Lich coexist) ✅
+
+**T2.B bridge cost for Cursed Tiles (deferred):**
+
+3 single-line additions to legacy code (smaller than Phoenix's 2 + tick wiring):
+
+1. In legacy `clearLines` (after sacred line-clear math): `if (window.cursedTilesGatePasses?.(squad)) window.triggerIdentityBossEvent?.('identity_assassin_shark_counter');`
+2. In legacy `pieceCanBePlaced` (additive gate): `if (window.isCellCursed?.(row, col)) return false;` (also blocks the cell from being cleared)
+3. In legacy per-turn-advance hook: `window.fxLichCursedTilesTick?.({ currentTurn, squadHpApi, ultMeterApi, ultMeter: 'umbra', role: 'mage' });`
+
+Combined with Phoenix's 2-line bridge from T2.07 and Spark's one-line bridge from T2.06, T2.B's per-mechanic bridge cost is staying small by design.
+
+**Commit:** TBD by Game Dev push
+
+---
+
 ### TASK-034 (T2.07) — ✅ DONE 2026-05-12 — Phoenix Ashen Reign — FIRST boss-reactive identity mechanic
 
 **CTO acceptance 2026-05-12:** PASS. Architectural milestone — established `IDENTITY_BOSS_HANDLERS` parallel registry alongside sacred 22 P4 handlers. `git diff src/core/reactivity-events.js | grep '^-' | wc -l = 0` proves zero modifications to existing handlers (only additive entries). All 4 sacred Phoenix constants byte-perfect (PHOENIX_REVIVE_HP_PCT=0.6, PHOENIX_IMMUNE_TURNS=2, REACTIVITY_TELEGRAPH_MS=3000, REACTIVITY_BANNER_DURATION_MS=1500). Telegraph sacred re-use invariant verified. Steady-state ZERO JS per-frame work by construction (pure CSS @keyframes). T2.B bridge cost = 2 single-line additions. 303/303 unit + 76/76 smoke × 2 projects. Commit `060fbcc`.

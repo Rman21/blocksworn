@@ -89,5 +89,8 @@ export const TOWER_BOSS_TTK_TARGETS = Object.freeze({
 // berserker / engineer / grovewarden / void / uroboros).
 export const BOSS_IDENTITY_FX = Object.freeze({
   phoenix:    'phoenix_ashen_reign',
-  // T2.08–T2.11: assassin / berserker / engineer / grovewarden / void / uroboros
+  // T2.08 — Lich Cursed Tiles (Assassin archetype, Ch1 Boss 5 CRYPT LICH +
+  // Ch3 ARCHIVAL ETERNAL). Explicit Shark counter per spec §2.2 / §3.2.
+  assassin:   'lich_cursed_tiles',
+  // T2.09–T2.11: berserker / engineer / grovewarden / void / uroboros
 });

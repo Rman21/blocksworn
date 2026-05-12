@@ -1806,3 +1806,383 @@ test('IDENTITY_BOSS_HANDLERS: registers identity_phoenix_revive alongside sacred
   }
   expect(errors).toEqual([]);
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-035 (T2.08): Lich Cursed Tiles smoke tests.
+// Spec: docs/design/mechanics/identity-layer.md §3.2.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+test('Lich Cursed Tiles: trigger gate fires for ≥2-shark squad, silent for <2-shark squad', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+
+    // Gate predicate covers spec §3.2 field 3 boundary.
+    return {
+      noSharks:     mod.cursedTilesGatePasses([{ race: 'pirate' }, { race: 'rock' }]),
+      oneShark:     mod.cursedTilesGatePasses([{ race: 'shark' }, { race: 'rock' }]),
+      twoSharks:    mod.cursedTilesGatePasses([{ race: 'shark' }, { race: 'shark' }]),
+      fiveSharks:   mod.cursedTilesGatePasses([
+        { race: 'shark' }, { race: 'shark' }, { race: 'shark' },
+        { race: 'shark' }, { race: 'shark' },
+      ]),
+      deadShark:    mod.cursedTilesGatePasses([
+        { race: 'shark', hp: 0 }, { race: 'shark', hp: 100 },
+      ]),
+    };
+  });
+
+  expect(result.noSharks).toBe(false);
+  expect(result.oneShark).toBe(false);
+  expect(result.twoSharks).toBe(true);
+  expect(result.fiveSharks).toBe(true);
+  expect(result.deadShark).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('Lich Cursed Tiles: fxLichCursedTiles places 3 curses on random non-empty cells + 3-turn lifecycle', async ({ page }) => {
+  // Spec §3.2 field 4: 3 random non-empty cells, 3-turn lifecycle, 1 HP/turn
+  // damage, +20 ULT compensation per expiring cell clamped to sacred threshold.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCursedTilesPool();
+
+    // Build an 8x8 grid stub with 10 non-empty cells in different positions
+    // so the random pick of 3 cells is exercised.
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    const seeded = [
+      [0, 0], [0, 1], [0, 2], [1, 3], [2, 4],
+      [3, 5], [4, 6], [5, 7], [6, 0], [7, 1],
+    ];
+    for (const [r, c] of seeded) grid[r][c] = 'umbra';
+
+    // Place curses at turn 5.
+    mod.fxLichCursedTiles(null, { gridState: grid, currentTurn: 5 });
+    const afterPlace = {
+      count: mod.getCursedTilesCount(),
+      snap: mod.getCursedTilesSnapshot(),
+    };
+
+    // Per-turn tick at turn 6 — all 3 active, 3 HP damage applied.
+    let hp = 100;
+    const hpApi = { get: () => hp, set: (n) => { hp = n; } };
+    let umbraCharge = 80;
+    const ultApi = {
+      get: (_meter) => umbraCharge,
+      set: (_meter, n) => { umbraCharge = n; },
+      threshold: (_role) => 100,
+    };
+    const t6 = mod.fxLichCursedTilesTick({
+      currentTurn: 6,
+      squadHpApi: hpApi,
+      ultMeterApi: ultApi,
+      ultMeter: 'umbra',
+      role: 'mage',
+    });
+
+    // Turn 7 — still all 3 active.
+    const t7 = mod.fxLichCursedTilesTick({
+      currentTurn: 7,
+      squadHpApi: hpApi,
+      ultMeterApi: ultApi,
+      ultMeter: 'umbra',
+      role: 'mage',
+    });
+
+    // Turn 8 — expiration fires, +20 ULT × 3 cells (clamped at 100).
+    const t8 = mod.fxLichCursedTilesTick({
+      currentTurn: 8,
+      squadHpApi: hpApi,
+      ultMeterApi: ultApi,
+      ultMeter: 'umbra',
+      role: 'mage',
+    });
+
+    mod.resetCursedTiles();
+
+    return {
+      afterPlace,
+      hpAfterAll: hp,
+      umbraChargeAfterAll: umbraCharge,
+      t6, t7, t8,
+    };
+  });
+
+  // Place: 3 curses on the grid.
+  expect(result.afterPlace.count).toBe(3);
+  expect(result.afterPlace.snap.length).toBe(3);
+  // Each curse has expected turn arithmetic: placedTurn 5, expiresTurn 8.
+  for (const s of result.afterPlace.snap) {
+    expect(s.placedTurn).toBe(5);
+    expect(s.expiresTurn).toBe(8);
+  }
+  // Turn 6: 3 cells active, 3 HP damage, 0 ULT granted.
+  expect(result.t6.activeCount).toBe(3);
+  expect(result.t6.hpDamage).toBe(3);
+  expect(result.t6.ultChargeGranted).toBe(0);
+  // Turn 7: same.
+  expect(result.t7.activeCount).toBe(3);
+  expect(result.t7.hpDamage).toBe(3);
+  expect(result.t7.ultChargeGranted).toBe(0);
+  // Turn 8: expiration. HP damage applied (3 cells active before expiration),
+  // ULT clamped to threshold (80 + 20 = 100, additional cells add 0).
+  expect(result.t8.activeCount).toBe(0);
+  expect(result.t8.expiredCount).toBe(3);
+  expect(result.t8.hpDamage).toBe(3);
+  expect(result.t8.ultChargeGranted).toBe(20);   // clamped: 80 → 100, additional grants = 0
+  // Cumulative effect: 100 HP - (3 + 3 + 3) = 91 HP.
+  expect(result.hpAfterAll).toBe(91);
+  // ULT cap respected.
+  expect(result.umbraChargeAfterAll).toBe(100);
+  expect(errors).toEqual([]);
+});
+
+test('Lich Cursed Tiles: telegraph re-uses sacred REACTIVITY_TELEGRAPH_MS = 3000 + HERO_ULT_COST_BY_NEWROLE byte-perfect', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const idMod = await import('/src/data/identity-layer.js');
+    const bsMod = await import('/src/core/bosses.js');
+    const hMod  = await import('/src/data/heroes.js');
+    return {
+      cursedTilesTelegraph: idMod.CURSED_TILES_TELEGRAPH_MS,
+      sacredTelegraph:      bsMod.REACTIVITY_TELEGRAPH_MS,
+      sacredBannerDuration: bsMod.REACTIVITY_BANNER_DURATION_MS,
+      phoenixReviveHpPct:   bsMod.PHOENIX_REVIVE_HP_PCT,
+      phoenixImmuneTurns:   bsMod.PHOENIX_IMMUNE_TURNS,
+      warrior: hMod.HERO_ULT_COST_BY_NEWROLE.warrior,
+      mage:    hMod.HERO_ULT_COST_BY_NEWROLE.mage,
+      hunter:  hMod.HERO_ULT_COST_BY_NEWROLE.hunter,
+      tank:    hMod.HERO_ULT_COST_BY_NEWROLE.tank,
+      captain: hMod.HERO_ULT_COST_BY_NEWROLE.captain,
+    };
+  });
+
+  // Sacred re-use invariant.
+  expect(result.cursedTilesTelegraph).toBe(result.sacredTelegraph);
+  expect(result.cursedTilesTelegraph).toBe(3000);
+  // Sacred byte-perfect (CLAUDE.md §2.1 + §2.5).
+  expect(result.sacredTelegraph).toBe(3000);
+  expect(result.sacredBannerDuration).toBe(1500);
+  expect(result.phoenixReviveHpPct).toBe(0.6);
+  expect(result.phoenixImmuneTurns).toBe(2);
+  expect(result.warrior).toBe(80);
+  expect(result.mage).toBe(100);
+  expect(result.hunter).toBe(120);
+  expect(result.tank).toBe(80);
+  expect(result.captain).toBe(100);
+  expect(errors).toEqual([]);
+});
+
+test('Lich Cursed Tiles: cross-mechanic regression — race FX + Phoenix Ashen Reign + Cursed Tiles coexist', async ({ page }) => {
+  // Critical regression: activating Cursed Tiles must NOT break the 5-race
+  // identity layer dispatch OR Phoenix Ashen Reign — all are independent
+  // layers per spec §1 hard rule 3.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    // Stub all five race-layer APIs.
+    let goldDelta = 0;
+    window.addGold = (n) => { goldDelta += Number(n) || 0; };
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.shieldCount = 0;
+    window.MAX_SHIELD = 3;
+    window.maxShieldBonus = 2;
+    window.HERO_DECK = [
+      { id: 'sp1', race: 'spark' },
+      { id: 'p1',  race: 'pirate' },
+      { id: 'p2',  race: 'pirate' },
+      { id: 'r1',  race: 'rock' },
+      { id: 's1',  race: 'shark' },
+      { id: 's2',  race: 'shark' },
+      { id: 'c1',  race: 'crocodile' },
+    ];
+
+    // Build an 8x8 grid stub.
+    window.grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) {
+      window.grid[0][c] = 'solar';   // gates Spark
+      window.grid[3][c] = 'grove';   // gates Crocodile
+      window.grid[5][c] = 'umbra';   // seed for Cursed Tiles pick pool
+    }
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetSparkRayPool();
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.__identityFxTestables.resetRockEchoPool();
+    mod.__identityFxTestables.resetSharkBitePool();
+    mod.__identityFxTestables.resetAshenReignPool();
+    mod.__identityFxTestables.resetCursedTilesPool();
+    mod.resetCrocFragmentBank();
+
+    // Activate BOTH boss-reactive layers.
+    mod.fxPhoenixAshenReign(null, null);
+    const ashenActiveBefore = mod.isAshenReignActive();
+    mod.fxLichCursedTiles(null, { gridState: window.grid, currentTurn: 0 });
+    const cursedCountBefore = mod.getCursedTilesCount();
+
+    // Verify trigger gate fires for 2+ sharks.
+    const gatePasses = mod.cursedTilesGatePasses(window.HERO_DECK);
+
+    // Now fire the 5-race line clear. All race FX must still run.
+    const api = {
+      get: () => window.shieldCount,
+      set: (n) => { window.shieldCount = n; },
+      cap: window.MAX_SHIELD + 2 + window.maxShieldBonus,
+    };
+    const ctx = {
+      gridState: window.grid,
+      squadShieldsApi: api,
+      dominantElementsByLine: ['solar', 'umbra'],
+    };
+    mod.dispatchIdentityFx([0, 3], [], window.HERO_DECK, null, ctx);
+
+    const ashenActiveAfter   = mod.isAshenReignActive();
+    const cursedCountAfter   = mod.getCursedTilesCount();
+
+    // Cleanup.
+    mod.resetAshenReign();
+    mod.resetCursedTiles();
+
+    return {
+      goldDelta,
+      shieldCount:    window.shieldCount,
+      umbraCharge:    window.ultCharges.umbra,
+      sparkModifier:  ctx._dominantCountModifier,
+      bank:           mod.__identityFxTestables.getCrocFragmentBank(),
+      ashenActiveBefore,
+      ashenActiveAfter,
+      cursedCountBefore,
+      cursedCountAfter,
+      gatePasses,
+    };
+  });
+
+  // Cursed Tiles trigger gate fires for ≥2-shark squad.
+  expect(result.gatePasses).toBe(true);
+  // Both boss-reactive layers active.
+  expect(result.ashenActiveBefore).toBe(true);
+  expect(result.cursedCountBefore).toBeGreaterThan(0);
+  // Both remain active after race dispatch.
+  expect(result.ashenActiveAfter).toBe(true);
+  expect(result.cursedCountAfter).toBeGreaterThan(0);
+  // Race FX still fire (T2.02-T2.06 invariants).
+  expect(result.goldDelta).toBeGreaterThanOrEqual(160);   // 2 pirates × 8 × 5 × 2 lines = 160 (Pirate's Plunder)
+  expect(result.shieldCount).toBeGreaterThanOrEqual(1);   // Crocodile Bastion accrued
+  expect(result.umbraCharge).toBeGreaterThanOrEqual(1);   // Rock Echo on umbra-dominant line
+  expect(result.sparkModifier).toBe(1);                   // Spark Sun Cascade fired
+  expect(errors).toEqual([]);
+});
+
+test('IDENTITY_BOSS_HANDLERS: registers identity_assassin_shark_counter alongside sacred 22 + Phoenix (byte-perfect audit)', async ({ page }) => {
+  // Verify the new T2.08 boss-reactive handler is wired correctly AND the
+  // sacred 22 REACTIVITY_HANDLERS entries + the T2.07 Phoenix entry are
+  // both still present. Confirms the parallel-namespace contract from spec
+  // §1 hard rule 1 continues to scale to multiple identity layers.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/core/reactivity-events.js');
+    const identityKeys = Object.keys(mod.IDENTITY_BOSS_HANDLERS || {});
+    const sacredKeys   = Object.keys(mod.REACTIVITY_HANDLERS || {});
+    return {
+      identityKeys,
+      sacredKeyCount: sacredKeys.length,
+      sacredKeys,
+      identityPhoenixHandlerType: typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_phoenix_revive'],
+      identityLichHandlerType:    typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_assassin_shark_counter'],
+      triggerEventType: typeof mod.triggerIdentityBossEvent,
+      resetIdentityType: typeof mod.resetIdentityBossState,
+    };
+  });
+
+  // Sacred 22 still byte-perfect.
+  expect(result.sacredKeyCount).toBe(22);
+  // Identity registry now has BOTH Phoenix (T2.07) AND Lich (T2.08) handlers.
+  expect(result.identityKeys).toContain('identity_phoenix_revive');
+  expect(result.identityKeys).toContain('identity_assassin_shark_counter');
+  expect(result.identityPhoenixHandlerType).toBe('function');
+  expect(result.identityLichHandlerType).toBe('function');
+  // Dispatch + reset entry points still exposed.
+  expect(result.triggerEventType).toBe('function');
+  expect(result.resetIdentityType).toBe('function');
+  // Sacred 22 entries still explicitly present.
+  const expectedSacred = [
+    'berserker_p1_p2', 'berserker_p2_p3',
+    'armored_p1_p2',   'armored_p2_p3',
+    'phoenix_p1_p2',   'phoenix_p2_p3',
+    'assassin_p1_p2',  'assassin_p2_p3',
+    'bruiser_p1_p2',   'bruiser_p2_p3',
+    'hypnotist_p1_p2', 'hypnotist_p2_p3',
+    'engineer_p1_p2',  'engineer_p2_p3',
+    'frenzy_p1_p2',    'frenzy_p2_p3',
+    'tempo_disruptor_p1_p2', 'tempo_disruptor_p2_p3',
+    'battery_p1_p2',   'battery_p2_p3',
+    'tower_voidfang_p1_p2', 'tower_voidfang_p2_p3',
+  ];
+  for (const k of expectedSacred) {
+    expect(result.sacredKeys).toContain(k);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('fxLichCursedTiles performance: initial trigger within ≤16ms budget', async ({ page }) => {
+  // Spec §3.2 field 7: initial trigger ≤16ms wall-time. Pool init + 3 random
+  // picks + 3 DOM class swaps. Single-fire measurement.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const wallTime = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCursedTilesPool();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) grid[2][c] = 'umbra';
+
+    // Warm-up call (pool init cost factored out).
+    mod.fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    mod.resetCursedTiles();
+
+    const t0 = performance.now();
+    mod.fxLichCursedTiles(null, { gridState: grid, currentTurn: 1 });
+    const dt = performance.now() - t0;
+    mod.resetCursedTiles();
+    return dt;
+  });
+
+  // Spec §3.2 field 7: ≤16ms initial. Allow 3× CI headroom.
+  expect(wallTime).toBeLessThan(48);
+  expect(errors).toEqual([]);
+});
