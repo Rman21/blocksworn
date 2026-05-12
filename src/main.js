@@ -38,6 +38,7 @@ import { initFirebase } from './services/firebase.js';
 import { initRevenueCat } from './services/revenuecat.js';
 import { migrateBareStringKeys, migrateRemoveArtifacts, migrateRemoveCosmicMemorial } from './services/migrate.js';
 import { log } from './services/logger.js';
+import { setSegmentState, getPlayerSegment, setUserProperty } from './services/analytics.js';
 
 // Core state.
 import { initProgression } from './core/progression.js';
@@ -52,6 +53,45 @@ import { setupRouting, showScreen } from './ui/router.js';
 // legacy-style call sites that survived the T1.12 switchover.
 if (typeof window !== 'undefined') {
   window.showScreen = showScreen;
+}
+
+// T1.20 — Read lifetime USD spend from the canonical legacy key
+// (`blocksworn_p5_spending`, written by legacy `trackSpending(usdAmount)`
+// at docs/_legacy/_archive_v1/blocksworn_index_fixed.html:29942). Returns
+// 0 when missing or unparseable so the segment computation defaults to F2P.
+function _readTotalSpentUSD() {
+  try {
+    if (typeof localStorage === 'undefined') return 0;
+    const raw = localStorage.getItem('blocksworn_p5_spending');
+    if (!raw) return 0;
+    const n = parseFloat(raw);
+    return (typeof n === 'number' && isFinite(n) && n > 0) ? n : 0;
+  } catch (_e) { return 0; }
+}
+
+// T1.20 — Refresh the cached segment state used by logEvent enrichment +
+// push the matching user property to Firebase Analytics. Idempotent; cheap
+// enough to call on boot and after each successful IAP. Exposed on window
+// so legacy IAP completion handlers can refresh post-purchase without
+// re-routing through ES modules.
+function _refreshPlayerSegment() {
+  const state = { iap: { totalSpentUSD: _readTotalSpentUSD() } };
+  try { setSegmentState(state); } catch (_e) { /* swallow */ }
+  try { setUserProperty('segment', getPlayerSegment(state)); } catch (_e) { /* swallow */ }
+}
+if (typeof window !== 'undefined') {
+  // Expose for legacy IAP completion handlers (post-purchase refresh).
+  window.refreshPlayerSegment = _refreshPlayerSegment;
+  // Cross-tab + same-tab fallback: legacy `trackSpending()` writes
+  // `blocksworn_p5_spending` synchronously. Listening on the storage event
+  // captures cross-tab purchases; same-tab purchases should call
+  // window.refreshPlayerSegment directly (legacy may dispatch a custom event
+  // in a future task). This listener is cheap and idempotent.
+  try {
+    window.addEventListener('storage', function (e) {
+      if (e && e.key === 'blocksworn_p5_spending') _refreshPlayerSegment();
+    });
+  } catch (_e) { /* swallow */ }
 }
 
 async function main() {
@@ -97,6 +137,12 @@ async function main() {
     // 5. Progression — first-clears + boss-stars + dungeon + hero-levels +
     //    unlocked-heroes + top-level progress (loadProgress runs inside).
     try { initProgression(); } catch (err) { log.warn('[boot] initProgression:', err); }
+
+    // 5b. T1.20 — Player segment from lifetime USD spend (sacred thresholds
+    //     per CLAUDE.md §9). Caches the state for logEvent auto-enrichment +
+    //     pushes 'segment' user property to Firebase Analytics. Re-runs from
+    //     legacy IAP completion handlers via window.refreshPlayerSegment.
+    try { _refreshPlayerSegment(); } catch (err) { log.warn('[boot] refreshPlayerSegment:', err); }
 
     // 6. FTUE beat cursor.
     try { initFtueState(); } catch (err) { log.warn('[boot] initFtueState:', err); }

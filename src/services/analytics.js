@@ -1,4 +1,7 @@
 // 2026-05-11 — TASK-009 (T1.08): analytics event wrapper.
+// 2026-05-12 — TASK-027 (T1.20): Player Segments — getPlayerSegment(state) +
+//              logEvent auto-enrichment with the current segment + boot/IAP
+//              hooks that refresh the cached state.
 //
 // Consolidates the legacy `logEvent(name, props)` function (legacy lines
 // 18878-18912) — which forwards events to:
@@ -11,10 +14,20 @@
 // will rewire callers; T1.08 just exposes the helpers.
 //
 // Public API:
-//   - logEvent(name, properties)  — fires the event across all sinks.
-//   - setUserProperty(key, value) — wraps Firebase Analytics user properties.
-//   - setUserId(uid)               — wraps Firebase Analytics user-id binding.
-//   - EVT                          — frozen event-name registry (matches legacy).
+//   - logEvent(name, properties)        — fires the event across all sinks.
+//                                         Auto-enriches `properties.segment`
+//                                         with the current player segment
+//                                         (caller-set via setSegmentState).
+//   - setUserProperty(key, value)       — wraps Firebase Analytics user props.
+//   - setUserId(uid)                    — wraps Firebase Analytics user-id.
+//   - EVT                               — frozen event-name registry.
+//   - getPlayerSegment(state)           — pure thresholding per CLAUDE.md §9
+//                                         + v2.1 P7 §2. SACRED thresholds.
+//   - setSegmentState(state)            — caches state so logEvent can compute
+//                                         segment without a state import. Call
+//                                         on boot + after every successful IAP.
+//   - SEGMENT_F2P / SEGMENT_MINNOW /
+//     SEGMENT_DOLPHIN / SEGMENT_WHALE   — segment-name constants.
 
 import { addBreadcrumb } from './sentry.js';
 
@@ -84,6 +97,56 @@ export const EVT = Object.freeze({
   error_caught: 'error_caught',
 });
 
+// ──────────────────────────────────────────────────────────────────────────
+// T1.20 — Player Segments (v2.1 P7 §2 + CLAUDE.md §9).
+// Sacred thresholds: DO NOT change without an ESC to Roman.
+//   F2P     — totalSpentUSD === 0
+//   Minnow  — $1 .. $24.99
+//   Dolphin — $25 .. $99.99
+//   Whale   — $100+
+// ──────────────────────────────────────────────────────────────────────────
+export const SEGMENT_F2P = 'F2P';
+export const SEGMENT_MINNOW = 'Minnow';
+export const SEGMENT_DOLPHIN = 'Dolphin';
+export const SEGMENT_WHALE = 'Whale';
+
+/**
+ * Compute the current player segment from the canonical state shape
+ * `{ iap: { totalSpentUSD: number } }`. Pure function — safe to call with
+ * any input shape (undefined, {}, partial state). Defensive defaults to
+ * SEGMENT_F2P when totalSpentUSD is missing or non-numeric.
+ *
+ * Thresholds are sacred per CLAUDE.md §9 (Glossary) and Execution Plan
+ * §13 T1.20. Do not edit without architect approval.
+ *
+ * @param {object} state - canonical game state object (or partial)
+ * @returns {'F2P'|'Minnow'|'Dolphin'|'Whale'} segment name
+ */
+export function getPlayerSegment(state) {
+  const raw = state && state.iap && state.iap.totalSpentUSD;
+  const totalSpentUSD = (typeof raw === 'number' && isFinite(raw) && raw > 0) ? raw : 0;
+  if (totalSpentUSD === 0) return SEGMENT_F2P;
+  if (totalSpentUSD < 25) return SEGMENT_MINNOW;
+  if (totalSpentUSD < 100) return SEGMENT_DOLPHIN;
+  return SEGMENT_WHALE;
+}
+
+// Module-scoped cache for the most-recent state snapshot. Callers (boot,
+// post-IAP completion handler) set this so `logEvent` can auto-enrich
+// each event with the current segment without importing state directly.
+let _segmentState = null;
+
+/**
+ * Caller-side state binder. The boot path and every successful IAP
+ * completion handler should call this so subsequent logEvent() calls
+ * carry the up-to-date segment. Safe to call with any shape.
+ *
+ * @param {object} state - canonical game state with iap.totalSpentUSD
+ */
+export function setSegmentState(state) {
+  _segmentState = (state && typeof state === 'object') ? state : null;
+}
+
 const _IS_DEV_HOSTNAME = (typeof window !== 'undefined' && window.location &&
   /^(localhost|127\.0\.0\.1|0\.0\.0\.0)/.test(window.location.hostname || ''));
 
@@ -98,7 +161,19 @@ function _legacyFirebase() {
 
 export function logEvent(name, properties = {}) {
   if (!name) return;
-  const payload = (properties && typeof properties === 'object') ? properties : {};
+  const incoming = (properties && typeof properties === 'object') ? properties : {};
+
+  // T1.20 — enrich every event with the current player segment so the
+  // downstream analytics dashboards (Firebase + Sentry) can slice by
+  // F2P / Minnow / Dolphin / Whale without per-call site plumbing.
+  // Caller-supplied `segment` wins (avoids stomping rare deliberate overrides).
+  let payload = incoming;
+  if (!('segment' in incoming)) {
+    try {
+      const seg = getPlayerSegment(_segmentState || {});
+      payload = Object.assign({}, incoming, { segment: seg });
+    } catch (_e) { /* enrichment must never break gameplay */ }
+  }
 
   if (_IS_DEV_HOSTNAME) {
     try { console.log('[analytics]', name, payload); } catch (_e) { /* swallow */ }
