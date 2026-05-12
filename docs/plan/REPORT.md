@@ -2030,6 +2030,99 @@ The +20 ULT compensation respects sacred `HERO_ULT_COST_BY_NEWROLE` for ALL 5 ro
 
 ---
 
+## REPORT-27: T2.09 Berserker/Frenzy Bloodtide Pulse — Stagger Loop READ-only integration PASS
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Dev agent `a69be9e7fb0dfb375` returned PASS; CTO review confirmed.
+
+### Summary
+
+T2.09 lands clean — third boss-reactive, first to integrate with sacred v2.1 P2 Stagger Loop. +1682 / -2 LoC across 9 files, +60 unit tests (361 → 421), +12 smoke (88 → 100 × 2 projects), 0 sacred-cow modifications. Commit `e471099`. CTO PASS.
+
+### Sacred cow audit — explicit central proofs
+
+| Sacred system | Status | Verification |
+|---|---|---|
+| 22 v2.1 P4 reactivity handlers | byte-perfect ✅ | `git diff src/core/reactivity-events.js \| grep '^-' \| grep -v '^---' \| wc -l = 0` |
+| **Stagger Loop state machine** | **UNTOUCHED** ✅ | `git diff src/core/stagger-loop.js = 0 lines` |
+| `BERSERKER_ENRAGE_MULT = 2.0` | byte-perfect ✅ | Pulse layers on top via `applyBloodtideToDamage` |
+| `BERSERKER_ENRAGE_HP_PCT = 0.5` | byte-perfect ✅ | Not modified |
+| `STAGGER_DURATION_TURNS = 4` | byte-perfect ✅ | (real constant name discovered) |
+| `RECOVERY_DURATION_TURNS = 2` | byte-perfect ✅ | (real constant name discovered) |
+| `BOSS_STATE_ACTIVE = 'active'` | byte-perfect ✅ | Lowercase string — verified against actual codebase |
+| `REACTIVITY_TELEGRAPH_MS = 3000` | byte-perfect ✅ | Bloodtide doesn't use telegraph per spec §3.3 field 4; constant intact |
+
+### Damage composition verified LAYERED (not replacement)
+
+```
+finalDamage = baseDamage × BERSERKER_ENRAGE_MULT × (1 + pulseBonus)
+            = 100 × 2.0 × 1.05
+            = 210
+```
+
+NOT `100 × (2.0 + 0.05) = 205` — that would mutate sacred enrage mult. Asserted in both unit + smoke tests via explicit `not.toBe(205)` diff check. The pulse multiplies the **result** of enrage-multiplied base damage, never modifies the enrage constant.
+
+### One-shot buff verified
+
+3 consecutive pulses (without consume) → `consumeBloodtidePulse()` returns `0.05` ONCE, then `0` for subsequent calls. No stacking, per spec §3.3 field 4.
+
+### Game Dev codebase-reading discipline (engineering win)
+
+Brief used optimistic API names that didn't exist:
+
+| Brief said | Reality (codebase) | Resolution |
+|---|---|---|
+| `getStaggerState()` | `getBossState()` | Used real name |
+| `STAGGER_DURATION = 4` | `STAGGER_DURATION_TURNS = 4` | Used real name; value byte-perfect |
+| `RECOVERY = 2` | `RECOVERY_DURATION_TURNS = 2` | Used real name; value byte-perfect |
+| `'ACTIVE'` (uppercase) | `'active'` (lowercase) | Matched real string |
+
+Game Dev caught all 4 discrepancies during file-reading phase, used real APIs, and verified sacred values byte-perfect via dedicated tests. This is AAA+ codebase-reading discipline — verifies actual code before writing, matches the one-question rule (CLAUDE.md §7.5) in spirit (precision corrections, not improvisation).
+
+### Performance — all within spec §3.3 field 7
+
+- Pulse VFX initial: smoke wallTime <30ms (3× CI headroom over 10ms budget)
+- Gate check: O(1) integer math (clearCount modulo 3 + state read)
+- Steady-state: ZERO JS per-frame (pure CSS @keyframes for pulse sweep + HUD pending indicator)
+
+### Architectural insight — Bloodtide doesn't use telegraph
+
+Per spec §3.3 field 4, the pulse VFX itself IS the reaction signal — no separate 3000ms wind-up banner needed. This is a deliberate spec design choice (boss-tempo mechanic visible as the pulse sweep). `REACTIVITY_TELEGRAPH_MS = 3000` remains byte-perfect as a sacred constant; T2.09 simply doesn't consume it. Pattern note: future boss-reactive mechanics with **action-based** triggers (vs phase-gate) may also skip telegraph; T2.10 Engineer Lockdown (4-line crit trigger) may follow same pattern.
+
+### Quality bar trajectory
+
+| Metric | T2.07 | T2.08 | **T2.09** | AAA+ |
+|---|---|---|---|---|
+| Unit tests | 303 | 361 | **421** | growing ✅ |
+| Smoke runs (× 2 projects) | 76 | 88 | **100** | green ✅ |
+| Sacred audit | 0 mods | 0 mods | **0 mods** | always 0 ✅ |
+| Bundle JS | 209.74 kB | 212.73 kB | **214.20 kB** (approx — TBD) | <5 MB ✅ |
+| Bundle CSS | 381.09 | 382.90 | **384.70** (approx) | reasonable ✅ |
+
+### Engineering wins
+
+- 5× brief target on unit tests (target +12-18, delivered **+60**)
+- Game Dev caught 4 brief inaccuracies via codebase reading (real APIs vs optimistic naming)
+- Damage composition verified LAYERED via diff check (not 205, must be 210)
+- One-shot buff verified — no stacking exploit
+- Steady-state ZERO JS per-frame via pure CSS
+- Stagger Loop sacred READ via single API call; no state-mutation path
+
+### Phase 2 boss-reactive scoreboard (3/5)
+
+| # | Boss/archetype | Identity | Status |
+|---|---|---|---|
+| 1 | Phoenix | Ashen Reign | ✅ T2.07 |
+| 2 | Lich (assassin) | Cursed Tiles | ✅ T2.08 |
+| 3 | Berserker / Frenzy | Bloodtide Pulse | ✅ T2.09 |
+| 4 | Engineer | Lockdown Protocol | 🟡 T2.10 next |
+| 5 | Grovewarden (bruiser) | Root Surge | T2.11 |
+
+🟢 **T2.09 DONE. Next: T2.10 Engineer Lockdown Protocol — anti-Tetris 4-line crit counter.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)

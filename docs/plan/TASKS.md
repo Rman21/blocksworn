@@ -2785,7 +2785,9 @@ All 9 tests pass.
 
 ---
 
-### TASK-036 (T2.09) — REVIEW — Berserker / Frenzy Bloodtide Pulse — THIRD boss-reactive identity mechanic
+### TASK-036 (T2.09) — ✅ DONE 2026-05-12 — Berserker / Frenzy Bloodtide Pulse — THIRD boss-reactive identity mechanic
+
+**CTO acceptance 2026-05-12:** PASS. Stagger Loop READ-only integration verified (`git diff src/core/stagger-loop.js = 0`). Sacred 22 P4 handlers byte-perfect. BERSERKER_ENRAGE_MULT=2.0 / BERSERKER_ENRAGE_HP_PCT=0.5 byte-perfect. Damage composition LAYERED verified (210 not 205). One-shot buff verified. Game Dev codebase-reading discipline caught 4 brief inaccuracies via real APIs (`getBossState()`, `STAGGER_DURATION_TURNS`, `RECOVERY_DURATION_TURNS`, `BOSS_STATE_ACTIVE='active'`) — all real values byte-perfect. 421/421 unit + 100/100 smoke × 2 projects. Commit `e471099`. Bundle: 215.63 KB JS / 385.17 KB CSS — well under AAA+ 5MB ceiling.
 
 **Game Dev acceptance 2026-05-12:** PASS (self-review). Sacred 22 P4 handlers byte-perfect (`git diff src/core/reactivity-events.js | grep '^-' | grep -v '^---' | wc -l = 0`). Stagger Loop UNTOUCHED (`git diff src/core/stagger-loop.js = 0 lines`). BERSERKER_ENRAGE_HP_PCT = 0.5 / BERSERKER_ENRAGE_MULT = 2.0 byte-perfect. Pulse damage composition LAYERED: `baseDamage × enrageMult × (1 + pulseBonus)` — verified with unit + smoke tests that 100 × 2.0 × 1.05 = 210 (NOT 205 additive). One-shot semantics: 3 consecutive pulses do NOT stack — verified. 421/421 unit + 100/100 smoke runs (×2 projects). Lint clean. Build clean (215.63 KB JS, 385.17 KB CSS). Awaiting CTO sign-off.
 
