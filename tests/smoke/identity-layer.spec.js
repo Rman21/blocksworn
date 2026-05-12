@@ -617,3 +617,411 @@ test('fxSharkLineClear performance: 5-shark × quad-line clear completes within 
   expect(wallTime).toBeLessThan(30);
   expect(errors).toEqual([]);
 });
+
+// ─── T2.05 — Crocodile Bedrock Bastion smoke tests (spec §2.4) ────────────
+
+// Build a stub 8×8 grid (2D array of stihiya strings) and inject it onto
+// window.grid + a fresh .grid .cell DOM scaffold so the FX's cell-origin
+// resolver finds positions. The crocodile portrait is also injected so the
+// fragment target is resolvable.
+function _crocSmokeSetupScript() {
+  return /* js */ `
+    function _setupCrocSmoke() {
+      const grid = Array.from({ length: 8 }, () => Array(8).fill(null));
+      // Mark all of row 3 as grove (8 grove cells for full-row clear scenarios).
+      for (let c = 0; c < 8; c++) grid[3][c] = 'grove';
+      // Mark all of row 5 as grove (separate row for cumulative-fire tests).
+      for (let c = 0; c < 8; c++) grid[5][c] = 'grove';
+      window.grid = grid;
+      // Default shield bookkeeping (legacy shape).
+      window.shieldCount = 0;
+      window.MAX_SHIELD = 3;        // legacy line 20163
+      window.maxShieldBonus = 2;    // synthesize tier-5 golem bonus (sacred read)
+      // 8×8 grid DOM scaffold for fragment origin resolution.
+      const gridHost = document.createElement('div');
+      gridHost.className = 'grid';
+      gridHost.style.cssText = 'position:fixed;left:0;top:0;width:320px;height:320px;display:grid;grid-template-columns:repeat(8,40px);';
+      for (let i = 0; i < 64; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.style.cssText = 'width:40px;height:40px;';
+        gridHost.appendChild(cell);
+      }
+      document.body.appendChild(gridHost);
+      // Leftmost crocodile portrait — used as the fragment target.
+      const portrait = document.createElement('div');
+      portrait.className = 'heroPortrait';
+      portrait.setAttribute('data-race', 'crocodile');
+      portrait.style.cssText = 'position:fixed;left:32px;bottom:32px;width:64px;height:64px;background:rgba(120,80,50,0.4);';
+      document.body.appendChild(portrait);
+      return { grid, portrait };
+    }
+    _setupCrocSmoke();
+  `;
+}
+
+test('fxCrocodileLineClear: 5-crocodile squad + 5 grove cells (full row) → +1 shield, fragments spawned', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `c${i}`, race: 'crocodile' }));
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.resetCrocFragmentBank();
+
+    const before = window.shieldCount;
+    // Inject a 5-grove-cell row via overriding row 3 cell values: keep first 5 as grove, rest as null.
+    for (let c = 0; c < 8; c++) window.grid[3][c] = c < 5 ? 'grove' : null;
+
+    const shieldsGranted = mod.fxCrocodileLineClear(
+      [3], [], window.HERO_DECK,
+      { gridState: window.grid, squadShieldsApi: {
+        get: () => window.shieldCount,
+        set: (n) => { window.shieldCount = n; },
+        cap: window.MAX_SHIELD + 2 + window.maxShieldBonus,
+      } },
+    );
+    const after = window.shieldCount;
+
+    await new Promise(r => requestAnimationFrame(() => r()));
+
+    const fragmentNodes = document.querySelectorAll('.identity-croc-fragment');
+    const flyingNodes = document.querySelectorAll('.identity-croc-fragment.identity-croc-fragment-flying');
+    const shieldGrantNodes = document.querySelectorAll('.identity-croc-shield-grant');
+    const bankAfter = mod.__identityFxTestables.getCrocFragmentBank();
+
+    return {
+      before,
+      after,
+      shieldsGranted,
+      fragmentNodeCount: fragmentNodes.length,
+      flyingNodeCount: flyingNodes.length,
+      shieldGrantNodeCount: shieldGrantNodes.length,
+      bankAfter,
+      poolSize: mod.__identityFxTestables.getCrocFragmentPoolSize(),
+    };
+  }, _crocSmokeSetupScript());
+
+  // Spec §2.4: 5 grove cells → exactly 1 shield granted (5/5 = 1, bank=0).
+  expect(result.before).toBe(0);
+  expect(result.after).toBe(1);
+  expect(result.shieldsGranted).toBe(1);
+  // Bank consumed exactly to 0.
+  expect(result.bankAfter).toBe(0);
+  // Visual: 5 fragments spawned, all flying.
+  expect(result.fragmentNodeCount).toBeGreaterThanOrEqual(5);
+  expect(result.flyingNodeCount).toBeGreaterThanOrEqual(5);
+  // Shield-grant flash element rendered.
+  expect(result.shieldGrantNodeCount).toBeGreaterThanOrEqual(1);
+  // Pool pre-allocated at first fire (16 = hard cap).
+  expect(result.poolSize).toBe(16);
+  expect(errors).toEqual([]);
+});
+
+test('fxCrocodileLineClear: cumulative accrual across 4 fires demonstrates cross-fire fragment bank persistence', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = [{ id: 'c1', race: 'crocodile' }];
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.resetCrocFragmentBank();
+
+    // 3-grove-cell pattern: first 3 cells of row 3 are grove, rest null.
+    for (let c = 0; c < 8; c++) window.grid[3][c] = c < 3 ? 'grove' : null;
+    // For 4th fire, swap to a single-grove cell at row 5.
+    for (let c = 0; c < 8; c++) window.grid[5][c] = c < 1 ? 'grove' : null;
+
+    const api = {
+      get: () => window.shieldCount,
+      set: (n) => { window.shieldCount = n; },
+      cap: window.MAX_SHIELD + 2 + window.maxShieldBonus,
+    };
+
+    const fire1 = mod.fxCrocodileLineClear([3], [], window.HERO_DECK,
+      { gridState: window.grid, squadShieldsApi: api });
+    const bank1 = mod.__identityFxTestables.getCrocFragmentBank();
+    const fire2 = mod.fxCrocodileLineClear([3], [], window.HERO_DECK,
+      { gridState: window.grid, squadShieldsApi: api });
+    const bank2 = mod.__identityFxTestables.getCrocFragmentBank();
+    const fire3 = mod.fxCrocodileLineClear([3], [], window.HERO_DECK,
+      { gridState: window.grid, squadShieldsApi: api });
+    const bank3 = mod.__identityFxTestables.getCrocFragmentBank();
+    const shieldAfter3 = window.shieldCount;
+    // 4th fire — row 5 has 1 grove cell. Cumulative: bank4 = 4+1=5 → 2nd shield granted, bank→0.
+    const fire4 = mod.fxCrocodileLineClear([5], [], window.HERO_DECK,
+      { gridState: window.grid, squadShieldsApi: api });
+    const bank4 = mod.__identityFxTestables.getCrocFragmentBank();
+    const shieldAfter4 = window.shieldCount;
+
+    return {
+      fire1, fire2, fire3, fire4,
+      bank1, bank2, bank3, bank4,
+      shieldAfter3, shieldAfter4,
+    };
+  }, _crocSmokeSetupScript());
+
+  // Spec §2.4: cumulative fragment persistence across fires.
+  // Fire 1: 0+3 = 3 fragments → 3<5 → no shield, bank=3.
+  expect(result.fire1).toBe(0);
+  expect(result.bank1).toBe(3);
+  // Fire 2: 3+3 = 6 fragments → 1 shield consumed, bank=6-5=1.
+  expect(result.fire2).toBe(1);
+  expect(result.bank2).toBe(1);
+  // Fire 3: 1+3 = 4 fragments → 4<5 → no new shield, bank=4.
+  expect(result.fire3).toBe(0);
+  expect(result.bank3).toBe(4);
+  expect(result.shieldAfter3).toBe(1);  // 1 shield total (granted at fire 2)
+  // Fire 4: 4+1 = 5 fragments → 2nd shield consumed, bank=0.
+  expect(result.fire4).toBe(1);
+  expect(result.bank4).toBe(0);
+  expect(result.shieldAfter4).toBe(2);  // 2 shields total after 4 fires
+  expect(errors).toEqual([]);
+});
+
+test('fxCrocodileLineClear: shield cap clamp — squad at cap → fragments accumulate but no overflow shield grant', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `c${i}`, race: 'crocodile' }));
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.resetCrocFragmentBank();
+
+    // Sacred cap = MAX_SHIELD(3) + 2 + maxShieldBonus(2) = 7. Pre-seed shields at cap.
+    const cap = window.MAX_SHIELD + 2 + window.maxShieldBonus;
+    window.shieldCount = cap;
+    const before = window.shieldCount;
+
+    // Fire with 8 grove cells (full row) — bank=8, would grant 1 shield, but capped.
+    for (let c = 0; c < 8; c++) window.grid[3][c] = 'grove';
+    const shieldsGranted = mod.fxCrocodileLineClear(
+      [3], [], window.HERO_DECK,
+      { gridState: window.grid, squadShieldsApi: {
+        get: () => window.shieldCount,
+        set: (n) => { window.shieldCount = n; },
+        cap: cap,
+      } },
+    );
+    const after = window.shieldCount;
+    const bankAfter = mod.__identityFxTestables.getCrocFragmentBank();
+
+    return { before, after, shieldsGranted, bankAfter, cap };
+  }, _crocSmokeSetupScript());
+
+  // Sacred cap respected: shieldCount never exceeds cap.
+  expect(result.before).toBe(result.cap);
+  expect(result.after).toBe(result.cap);
+  expect(result.after).toBe(7);
+  expect(result.shieldsGranted).toBe(0);   // capped — no grant
+  // Bank: 8 fragments consumed by computeShieldsGrantable (1 shield potential),
+  // but shield write clamped, so the 5 fragments are gone (per spec "surplus
+  // discarded"). Remaining bank = 8 - 5 = 3.
+  expect(result.bankAfter).toBe(3);
+  expect(errors).toEqual([]);
+});
+
+test('fxCrocodileLineClear: 0 grove cells → silent no-op (no DOM, no errors)', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = [{ id: 'c1', race: 'crocodile' }];
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.resetCrocFragmentBank();
+
+    // Row 3 has no grove cells (all null).
+    for (let c = 0; c < 8; c++) window.grid[3][c] = null;
+
+    const before = document.querySelectorAll('.identity-croc-fragment').length;
+    const shieldsGranted = mod.fxCrocodileLineClear(
+      [3], [], window.HERO_DECK,
+      { gridState: window.grid, squadShieldsApi: {
+        get: () => window.shieldCount,
+        set: (n) => { window.shieldCount = n; },
+        cap: 7,
+      } },
+    );
+    const after = document.querySelectorAll('.identity-croc-fragment').length;
+    const bankAfter = mod.__identityFxTestables.getCrocFragmentBank();
+
+    return {
+      shieldsGranted,
+      umbraShieldDelta: window.shieldCount,
+      before,
+      after,
+      bankAfter,
+    };
+  }, _crocSmokeSetupScript());
+
+  expect(result.shieldsGranted).toBe(0);
+  expect(result.umbraShieldDelta).toBe(0);
+  expect(result.before).toBe(0);
+  expect(result.after).toBe(0);
+  expect(result.bankAfter).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('resetCrocFragmentBank: bank cleared between battles', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = [{ id: 'c1', race: 'crocodile' }];
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.resetCrocFragmentBank();
+
+    // Accrue 4 fragments (below 5-threshold so they persist).
+    for (let c = 0; c < 8; c++) window.grid[3][c] = c < 4 ? 'grove' : null;
+    mod.fxCrocodileLineClear([3], [], window.HERO_DECK,
+      { gridState: window.grid });
+    const bankBefore = mod.__identityFxTestables.getCrocFragmentBank();
+
+    // Battle ends → reset bank.
+    mod.resetCrocFragmentBank();
+    const bankAfter = mod.__identityFxTestables.getCrocFragmentBank();
+
+    return { bankBefore, bankAfter };
+  }, _crocSmokeSetupScript());
+
+  expect(result.bankBefore).toBe(4);
+  expect(result.bankAfter).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('Mixed-race squad regression: crocodile + pirate + shark + rock fire all four identity layers without interference', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    // Stub all four layer APIs.
+    let goldDelta = 0;
+    window.addGold = (n) => { goldDelta += Number(n) || 0; };
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.HERO_DECK = [
+      { id: 'c1', race: 'crocodile' },
+      { id: 'p1', race: 'pirate' },
+      { id: 'p2', race: 'pirate' },
+      { id: 'r1', race: 'rock' },
+      { id: 's1', race: 'shark' },
+    ];
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.__identityFxTestables.resetRockEchoPool();
+    mod.__identityFxTestables.resetSharkBitePool();
+    mod.resetCrocFragmentBank();
+
+    // Single grove-row clear via dispatcher — all four FX fire.
+    // (Pirate +gold, Shark gate fails with only 1 shark + no tide-dominant,
+    //  Rock fires only if umbra-dominant — here we'll set umbra dominant so
+    //  Rock test is alongside Crocodile.)
+    // Row 3 is all grove.
+    for (let c = 0; c < 8; c++) window.grid[3][c] = 'grove';
+
+    const api = {
+      get: () => window.shieldCount,
+      set: (n) => { window.shieldCount = n; },
+      cap: window.MAX_SHIELD + 2 + window.maxShieldBonus,
+    };
+
+    mod.dispatchIdentityFx(
+      [3], [], window.HERO_DECK, null,
+      { gridState: window.grid, squadShieldsApi: api, dominantElementsByLine: ['umbra'] },
+    );
+
+    return {
+      goldDelta,                          // Pirate Plunder (2 pirates × 8 cells × 5)
+      shieldCount: window.shieldCount,    // Crocodile (8 fragments → 1 shield)
+      umbraCharge: window.ultCharges.umbra, // Rock Encore Echo (umbra-dominant line)
+      bank: mod.__identityFxTestables.getCrocFragmentBank(),
+    };
+  }, _crocSmokeSetupScript());
+
+  // Pirate Plunder: 2 pirates × 8 cells × 5g/cell = 80g.
+  expect(result.goldDelta).toBe(80);
+  // Crocodile Bedrock Bastion: 8 grove cells → 1 shield (bank=3 remaining).
+  expect(result.shieldCount).toBe(1);
+  expect(result.bank).toBe(3);
+  // Rock Encore Echo: +1 umbra charge.
+  expect(result.umbraCharge).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('fxCrocodileLineClear performance: quad-grove-line clear completes within wall-time budget', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const wallTime = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `c${i}`, race: 'crocodile' }));
+
+    const mod = await import('/src/feel/identity-fx.js');
+
+    // Warm-up call so the pool init cost doesn't skew timing.
+    for (let c = 0; c < 8; c++) window.grid[3][c] = 'grove';
+    mod.fxCrocodileLineClear([3], [], window.HERO_DECK,
+      { gridState: window.grid });
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.resetCrocFragmentBank();
+
+    // Quad-line clear with all grove rows (max fragment volume = 16 cap).
+    for (const r of [0, 2, 4, 6]) {
+      for (let c = 0; c < 8; c++) window.grid[r][c] = 'grove';
+    }
+    const t0 = performance.now();
+    mod.fxCrocodileLineClear([0, 2, 4, 6], [], window.HERO_DECK,
+      { gridState: window.grid });
+    return performance.now() - t0;
+  }, _crocSmokeSetupScript());
+
+  // Spec §2.4 field 9: wall-time ≤8ms per fire. Allow 3× headroom for CI
+  // variability — any value >24ms is a clear regression.
+  expect(wallTime).toBeLessThan(24);
+  expect(errors).toEqual([]);
+});

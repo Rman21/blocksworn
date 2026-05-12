@@ -174,6 +174,67 @@ export function spawnRockEchoGhost({ el, x, y, direction, decayMs, delayMs }) {
   return el;
 }
 
+// 2026-05-12 — TASK-032 (T2.05): Identity Layer crocodile fragment particle factory.
+//
+// Pure factory — given pre-allocated DOM element + spawn-cell screen coords +
+// destination (leftmost crocodile portrait) screen coords, configures the
+// element for a single sandstone/earth fragment that flies inward from a
+// cleared grove cell and lands on the receiving hero portrait. Used
+// exclusively by the Crocodile Bedrock Bastion identity FX (spec §2.4).
+// Pool allocation lives in `src/feel/identity-fx.js` per the object-pool
+// requirement of spec §5 (no `document.createElement` per fire).
+//
+// The element is expected to carry the `.identity-croc-fragment` class
+// (sandstone-brown 8×8 painterly chip) and to support the
+// `.identity-croc-fragment-flying` keyframe set defined in
+// `src/styles/screens/battle.css`. Caller is responsible for returning the
+// element to the pool when its decay timer fires.
+//
+// Parameters:
+//   el      — pre-allocated <div> from the pool (Identity Layer owns the pool)
+//   x, y    — origin in viewport coords (cleared grove-cell center)
+//   targetX, targetY — destination in viewport coords (leftmost crocodile portrait)
+//   decayMs — animation lifetime; matches CROCODILE_BASTION_FRAGMENT_DECAY_MS
+//             (600ms)
+//   color   — optional fragment color override (defaults to '#8B5A3C' sandstone)
+//
+// Returns: the same `el` (caller-tracked for cleanup / pool release).
+//
+// Re-uses the existing CSS-transform-only animation pattern from
+// `spawnCoinParticle` / `spawnSharkBiteParticle` / `spawnRockEchoGhost` above
+// — no requestAnimationFrame loop, no per-frame DOM writes, single transform
+// via CSS keyframes. Pure addition; touches no sacred element of the
+// existing particle factories.
+//
+// Visual reference (spec §2.4 field 3): "From each cleared cell of grove
+// element, a small sandstone/earth fragment (8×8 brown pixel-rect) flies
+// inward toward the squad portraits at the bottom of the screen and lands
+// visually on whichever crocodile hero is leftmost in the lineup."
+// Sandstone color (#8B5A3C) is a warm earthy brown — re-use of existing
+// earth/grove palette per ESC-02 O4 RE-USE-FIRST ruling (no new asset
+// archetype added).
+export function spawnCrocFragmentParticle({ el, x, y, targetX, targetY, decayMs, color }) {
+  if (!el) return null;
+  // Position at cleared grove-cell center, expose target delta via CSS
+  // custom properties so the .identity-croc-fragment-flying keyframe can
+  // interpolate translate3d().
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  el.style.setProperty('--frag-tx', (targetX - x) + 'px');
+  el.style.setProperty('--frag-ty', (targetY - y) + 'px');
+  el.style.setProperty('--frag-decay-ms', decayMs + 'ms');
+  if (color) {
+    el.style.setProperty('--frag-color', color);
+  }
+  // Restart the animation deterministically (re-trigger CSS keyframes on
+  // re-used pool elements). Toggle class off then on by forcing a layout read.
+  el.classList.remove('identity-croc-fragment-flying');
+  // Force a synchronous reflow so the keyframe restarts cleanly.
+  void el.offsetWidth;
+  el.classList.add('identity-croc-fragment-flying');
+  return el;
+}
+
 // Spawns the 16-particle radial burst at the boss portrait centerpoint.
 // Returns nothing; the container auto-removes itself after 1600ms.
 // `wrap` is the #bossImgWrap element (caller passes its getBoundingClientRect

@@ -5965,3 +5965,129 @@ button, .menu-btn, .btn, .hero-card, .piece, .cell, .roster-card, .tier-btn, .ba
   35%  { opacity: 0.6; transform: translate3d(0, 0, 0) scale(1.0); }
   100% { opacity: 0; transform: translate3d(0, 0, 0) scale(1.0); }
 }
+
+/* ─── 2026-05-12 — TASK-032 (T2.05): Identity Layer · Crocodile Bedrock Bastion ───
+ * Sandstone/earth fragment VFX. Pool of 16 elements lives under
+ * `.identity-croc-fragment-layer` (appended to body lazily on first fire by
+ * `src/feel/identity-fx.js`). Each fragment element re-uses across fires via
+ * the object pool — `.identity-croc-fragment-flying` toggled on re-trigger.
+ *
+ * Decay timing matches `CROCODILE_BASTION_FRAGMENT_DECAY_MS = 600` (spec
+ * §2.4 field 9). The animation duration reads `--frag-decay-ms` (set
+ * per-fire by `spawnCrocFragmentParticle`) so the JS-side constant stays the
+ * single source of truth. Translation distance pulled from `--frag-tx` /
+ * `--frag-ty` custom properties (cleared grove-cell → leftmost crocodile
+ * portrait delta).
+ *
+ * Visual: 8×8 sandstone-brown pixel-rect with subtle inner highlight and
+ * soft outer shadow (recall: spec §2.4 field 3 — "small sandstone/earth
+ * fragment (8×8 brown pixel-rect)"). The fragment trajectories arc gently
+ * inward toward the squad portraits. Painterly style matches Pirate Plunder
+ * + Shark Frenzy + Rock Echo treatment (PR #157 emblem aesthetic).
+ *
+ * Sacred safety: no existing class modified. Pure addition.
+ */
+.identity-croc-fragment-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0; height: 0;          /* layer is positioning-only — fragments absolute */
+  pointer-events: none;
+  z-index: 9996;                /* below rock-echo (9997); below shark (9998); below coin (9999) */
+}
+.identity-croc-fragment {
+  position: fixed;
+  width: 8px; height: 8px;
+  margin-left: -4px; margin-top: -4px;  /* center on (left, top) */
+  border-radius: 1px;                    /* near-square painterly chip */
+  background:
+    linear-gradient(135deg,
+      var(--frag-color, #8B5A3C) 0%,
+      #6B3D26 50%,
+      var(--frag-color, #8B5A3C) 100%);
+  box-shadow:
+    0 0 3px rgba(139, 90, 60, 0.55),
+    inset -1px -1px 1px rgba(60, 30, 15, 0.55),
+    inset  1px  1px 1px rgba(220, 180, 140, 0.45);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) rotate(0deg) scale(0.7);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.identity-croc-fragment.identity-croc-fragment-flying {
+  animation: identityCrocFragment var(--frag-decay-ms, 600ms) cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes identityCrocFragment {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(0.7);
+  }
+  15% {
+    opacity: 1;
+    transform: translate3d(0, -4px, 0) rotate(35deg) scale(1.0);
+  }
+  60% {
+    opacity: 1;
+    transform:
+      translate3d(calc(var(--frag-tx, 0px) * 0.65), calc(var(--frag-ty, 0px) * 0.55 - 6px), 0)
+      rotate(220deg) scale(0.95);
+  }
+  100% {
+    opacity: 0;
+    transform:
+      translate3d(var(--frag-tx, 0px), var(--frag-ty, 0px), 0)
+      rotate(360deg) scale(0.6);
+  }
+}
+/* Shield-grant flash on the receiving crocodile portrait. Single-shot
+ * (one DOM creation per grant, 0–3 grants per fire max by spec field 9
+ * math). Sacred safety: not pooled because grant count is bounded by
+ * fragment-bank arithmetic, not by particle density. */
+.identity-croc-shield-grant {
+  position: fixed;
+  width: 36px; height: 36px;
+  margin-left: -18px; margin-top: -18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      rgba(180, 220, 255, 0.0) 0%,
+      rgba(180, 220, 255, 0.85) 35%,
+      rgba(120, 170, 220, 0.65) 60%,
+      rgba(80, 130, 200, 0.0) 100%);
+  box-shadow:
+    0 0 8px rgba(180, 220, 255, 0.75),
+    inset 0 0 4px rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.5);
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: identityCrocShieldGrant 300ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes identityCrocShieldGrant {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.5); }
+  35%  { opacity: 1; transform: translate3d(0, -4px, 0) scale(1.15); }
+  70%  { opacity: 0.85; transform: translate3d(0, -8px, 0) scale(1.05); }
+  100% { opacity: 0; transform: translate3d(0, -14px, 0) scale(1.0); }
+}
+/* Reduced-motion: respect prefers-reduced-motion. Fragment fades in place
+ * (no arc / rotate) and the shield-grant flash is a single quick fade. The
+ * mechanical effect (shield granted) is preserved; only the kinetic energy
+ * is dialed back. Mirrors the Pirate Plunder / Shark Frenzy / Rock Echo
+ * reduced-motion fallback pattern. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-croc-fragment.identity-croc-fragment-flying {
+    animation: identityCrocFragmentFadeOnly var(--frag-decay-ms, 600ms) ease-out forwards;
+  }
+  .identity-croc-shield-grant {
+    animation: identityCrocShieldGrantStatic 300ms ease-out forwards;
+  }
+}
+@keyframes identityCrocFragmentFadeOnly {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.8); }
+  20%  { opacity: 1; transform: translate3d(0, -2px, 0) scale(1.0); }
+  100% { opacity: 0; transform: translate3d(0, -4px, 0) scale(0.8); }
+}
+@keyframes identityCrocShieldGrantStatic {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.9); }
+  35%  { opacity: 0.7; transform: translate3d(0, 0, 0) scale(1.0); }
+  100% { opacity: 0; transform: translate3d(0, 0, 0) scale(1.0); }
+}

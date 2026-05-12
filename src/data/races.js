@@ -185,11 +185,18 @@ export const RACE_SYNERGY = Object.freeze({
 //   ×2). The Encore Echo identity layer fires ALONGSIDE the sacred
 //   RACE_SYNERGY tier 3 ENCORE (compound synergy intentional per spec §2.3
 //   field 8 stacking notes).
-// T2.05–T2.06 will append crocodile / spark entries.
+// T2.05 (2026-05-12) appends the crocodile entry per spec §2.4 (Bedrock Bastion).
+//   NOTE: crocodile has NO RACE_SYNERGY entry per ESC-02 O1 ruling (DEFER to
+//   post-Phase-2 sacred-cow-EXTENSION task). The Bedrock Bastion identity
+//   layer READS `RACE_SYNERGY.golem.<tier>.maxShieldBonus` (sacred, byte-
+//   perfect) ONLY to compute the squad shield-cap clamp — never writes.
+//   Crocodile + Golem grove-stacked squads hit max-shield faster but the
+//   sacred cap is NEVER exceeded.
+// T2.06 will append the spark entry.
 export const RACE_IDENTITY_FX = Object.freeze({
-  pirate: 'pirate_plunder',
-  shark:  'shark_frenzy',           // T2.03
-  rock:   'rock_echo',              // T2.04
-  // crocodile: 'crocodile_bastion',  // T2.05
+  pirate:    'pirate_plunder',
+  shark:     'shark_frenzy',           // T2.03
+  rock:      'rock_echo',              // T2.04
+  crocodile: 'crocodile_bastion',      // T2.05
   // spark:     'spark_cascade',      // T2.06
 });

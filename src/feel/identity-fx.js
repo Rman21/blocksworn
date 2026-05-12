@@ -39,7 +39,8 @@
 // more coins than the pool currently has free, surplus requests are dropped
 // (silently — cap is hard per spec §2.1 field 9 + §5).
 
-/* global addGold, HERO_DECK, ultCharges, ULT_THRESHOLD, currentUltThreshold */
+/* global addGold, HERO_DECK, ultCharges, ULT_THRESHOLD, currentUltThreshold,
+          MAX_SHIELD, maxShieldBonus, grid */
 
 import {
   IDENTITY_FX_KEYS,
@@ -57,8 +58,19 @@ import {
   ROCK_ECHO_DELAY_MS,
   ROCK_ECHO_DOMINANT_ELEMENT,
   ROCK_ECHO_ULT_METER,
+  CROCODILE_BASTION_FRAGMENTS_PER_SHIELD,
+  CROCODILE_BASTION_MAX_FRAGMENT_PARTICLES,
+  CROCODILE_BASTION_FRAGMENT_DECAY_MS,
+  CROCODILE_BASTION_GROVE_ELEMENT,
+  CROCODILE_BASTION_TARGET_HERO_INDEX,
 } from '../data/identity-layer.js';
-import { spawnCoinParticle, spawnSharkBiteParticle, spawnRockEchoGhost } from './particles.js';
+import { RACE_SYNERGY } from '../data/races.js';
+import {
+  spawnCoinParticle,
+  spawnSharkBiteParticle,
+  spawnRockEchoGhost,
+  spawnCrocFragmentParticle,
+} from './particles.js';
 import { vHaptic } from './haptics.js';
 import { log } from '../services/logger.js';
 
@@ -984,14 +996,540 @@ export function fxRockLineClear(rows, cols, squad, ctx) {
   }
 }
 
-// ─── Stubs for T2.05–T2.06 (export contract only) ──────────────────────
-// These exist so `dispatchIdentityFx` can route to them today without
-// throwing. Each is a no-op pass-through; T2.05 / T2.06 will replace
-// the body. Signatures must NOT change without spec revision.
-export function fxCrocodileLineClear(_rows, _cols, _squad) {
-  // T2.05 — Bedrock Bastion (spec §2.4). Stub.
+// ─── Crocodile Bedrock Bastion DOM pool (spec §2.4 + §5 — no createElement per fire) ──
+// Pre-allocate CROCODILE_BASTION_MAX_FRAGMENT_PARTICLES (16) fragment elements
+// at module load (lazy — first call to `_ensureCrocFragmentPool`). Track
+// available vs in-flight via two arrays. Mirrors the coin + shark-bite + rock-
+// echo pool patterns above. The fragment ceiling matches the spec's hard cap
+// (16 fragment particles simultaneous), so pool exhaustion under realistic
+// load is mathematically impossible inside a single fire — exhaustion would
+// only occur if two fires overlap their 600ms decay windows.
+const _crocFragmentPool          = [];   // all CROCODILE_BASTION_MAX_FRAGMENT_PARTICLES elements (created once)
+const _crocFragmentPoolAvailable = [];   // currently idle elements (poppable)
+let   _crocFragmentPoolInitDone  = false;
+let   _crocFragmentPoolContainer = null;
+
+function _ensureCrocFragmentPool() {
+  if (_crocFragmentPoolInitDone) return;
+  if (typeof document === 'undefined') return; // unit-test guard
+  _crocFragmentPoolContainer = document.createElement('div');
+  _crocFragmentPoolContainer.className = 'identity-croc-fragment-layer';
+  _crocFragmentPoolContainer.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(_crocFragmentPoolContainer);
+  for (let i = 0; i < CROCODILE_BASTION_MAX_FRAGMENT_PARTICLES; i++) {
+    const el = document.createElement('div');
+    el.className = 'identity-croc-fragment';
+    _crocFragmentPoolContainer.appendChild(el);
+    _crocFragmentPool.push(el);
+    _crocFragmentPoolAvailable.push(el);
+  }
+  _crocFragmentPoolInitDone = true;
+}
+
+function _acquireCrocFragment() {
+  return _crocFragmentPoolAvailable.pop() || null;
+}
+
+function _releaseCrocFragment(el) {
+  if (!el) return;
+  el.classList.remove('identity-croc-fragment-flying');
+  _crocFragmentPoolAvailable.push(el);
+}
+
+// ─── Crocodile cross-fire fragment bank (spec §2.4 field 4) ────────────
+// `_crocFragmentBank` accumulates ACROSS multiple line clears in a single
+// battle. Reset only on battle end / new battle start via the exported
+// `resetCrocFragmentBank()` function. Unique to Crocodile (the other 4 race
+// flavors are per-fire stateless).
+//
+// Spec §2.4 field 4 verbatim: "Per cleared grove cell, accumulate 1 fragment
+// on a counter. Every 5 fragments grants 1 shield to the squad (or refreshes
+// 1 expired shield) up to the squad's existing max shield cap from
+// RACE_SYNERGY golem tier 2/3/5 maxShieldBonus (sacred). If max-shield cap
+// reached, surplus fragments are discarded (no overflow exploit)."
+//
+// "Surplus discarded" is enforced by `clampShieldsToSquadMax` (below).
+let _crocFragmentBank = 0;
+
+// Resets the per-battle fragment bank. Called by:
+//   - Battle pipeline at battle start (clears prior battle's residue)
+//   - Battle pipeline at battle end (defensive — same reason)
+//   - Smoke / unit tests between scenarios
+// Pure side-effect: no DOM, no return value.
+export function resetCrocFragmentBank() {
+  _crocFragmentBank = 0;
+}
+
+// ─── Crocodile pure math (unit-testable, no DOM) ───────────────────────
+//
+// Squad alive-crocodile count. Defensive against the codebase reality that
+// heroes in HERO_DECK don't track per-hero hp (squad shares global `hp`).
+// Treats absence of `.hp` as alive (heroes are removed from deck on death;
+// `h.hp > 0` gate is preserved when hp IS present). Mirrors
+// `countAlivePirates` / `countAliveSharks` / `countAliveRocks` precedent
+// (T2.02 CTO ruling #2 — defensive hp / single-haptic).
+export function countAliveCrocodiles(squad) {
+  if (!Array.isArray(squad)) return 0;
+  let n = 0;
+  for (const h of squad) {
+    if (!h || h.race !== 'crocodile') continue;
+    if (h.hp !== undefined && h.hp <= 0) continue;
+    n++;
+  }
+  return n;
+}
+
+// Count grove cells in cleared rows∪cols. Pure function — unit-testable.
+// `gridState` is a flexible source of grid element data:
+//   - 2D array indexed `[r][c]` returning stihiya string or null (legacy grid global pattern)
+//   - { getElementAt(r, c): string|null } object (module-style API)
+//   - null/undefined → returns 0 (defensive — no source means no grove cells)
+//
+// Spec §2.4 field 10 trigger: rows∪cols must contain ≥1 grove cell. The
+// CROCODILE_BASTION_GROVE_ELEMENT constant ('grove') is the literal value
+// produced by the legacy grid (line 191 — `weightedStihiya()` writes
+// 'ember'|'tide'|'grove'|'solar'|'umbra' strings into grid cells).
+//
+// `gridCols` / `gridRows` default to BOARD_COLS / BOARD_ROWS (8×8). Cells
+// are accounted via inclusion–exclusion (the intersection of a cleared row
+// and cleared col is one cell, not two — same accounting as
+// `computeCellsCleared` above).
+export function countGroveCells(rows, cols, gridState, gridCols = BOARD_COLS, gridRows = BOARD_ROWS) {
+  if (!gridState) return 0;
+  const _rowList = Array.isArray(rows) ? rows.filter(r => typeof r === 'number' && r >= 0 && r < gridRows) : [];
+  const _colList = Array.isArray(cols) ? cols.filter(c => typeof c === 'number' && c >= 0 && c < gridCols) : [];
+  if (_rowList.length === 0 && _colList.length === 0) return 0;
+
+  // Resolve a unified accessor. Prefer explicit `getElementAt` (module API),
+  // fall back to 2D-array indexing (legacy grid global).
+  const _getter = (typeof gridState.getElementAt === 'function')
+    ? ((r, c) => { try { return gridState.getElementAt(r, c); } catch (_e) { return null; } })
+    : ((r, c) => {
+        const row = gridState[r];
+        if (!row) return null;
+        return row[c];
+      });
+
+  // Track visited cells via the inclusion-exclusion key so a cell at a row×col
+  // intersection counts ONCE (not twice).
+  const _seen = new Set();
+  let n = 0;
+  for (const r of _rowList) {
+    for (let c = 0; c < gridCols; c++) {
+      const key = r + '_' + c;
+      if (_seen.has(key)) continue;
+      _seen.add(key);
+      const v = _getter(r, c);
+      if (v === CROCODILE_BASTION_GROVE_ELEMENT) n++;
+    }
+  }
+  for (const c of _colList) {
+    for (let r = 0; r < gridRows; r++) {
+      const key = r + '_' + c;
+      if (_seen.has(key)) continue;
+      _seen.add(key);
+      const v = _getter(r, c);
+      if (v === CROCODILE_BASTION_GROVE_ELEMENT) n++;
+    }
+  }
+  return n;
+}
+
+// Accumulates the per-fire grove-cell count onto the running bank. Pure
+// function — unit-testable. Returns the new bank value.
+//
+// Defensive against non-finite / negative inputs (returns the current bank
+// unchanged so a malformed input cannot corrupt the cross-fire counter).
+export function accumulateFragments(currentBank, groveCellsCount) {
+  const _current = Math.max(0, Math.floor(Number(currentBank) || 0));
+  const _delta   = Math.max(0, Math.floor(Number(groveCellsCount) || 0));
+  return _current + _delta;
+}
+
+// Computes how many shields the current fragment bank can grant, and what
+// the bank is left at after consumption. Pure function — unit-testable.
+//
+// Spec §2.4 field 4: "Every 5 fragments grants 1 shield."
+//   bank=4  → grant 0 shields, bank stays 4
+//   bank=5  → grant 1 shield,  bank goes to 0
+//   bank=12 → grant 2 shields, bank goes to 2
+//   bank=20 → grant 4 shields, bank goes to 0
+//
+// Returns `{ shieldsToGrant, newBank }`.
+export function computeShieldsGrantable(fragmentBank, fragmentsPerShield) {
+  const _bank = Math.max(0, Math.floor(Number(fragmentBank) || 0));
+  const _per  = Math.max(1, Math.floor(Number(fragmentsPerShield) || CROCODILE_BASTION_FRAGMENTS_PER_SHIELD));
+  if (_bank === 0) return { shieldsToGrant: 0, newBank: 0 };
+  const shieldsToGrant = Math.floor(_bank / _per);
+  const newBank        = _bank - (shieldsToGrant * _per);
+  return { shieldsToGrant, newBank };
+}
+
+// Clamps a shield grant to the sacred squad max. Pure function — unit-testable.
+//
+// Per spec §2.4 field 4: "up to the squad's existing max shield cap from
+// RACE_SYNERGY golem tier 2/3/5 maxShieldBonus (sacred). If max-shield cap
+// reached, surplus fragments are discarded (no overflow exploit)."
+//
+// Returns the FINAL clamped shield count (i.e., the new total, not the
+// delta). Caller is responsible for computing the actual delta if needed
+// (delta = clamped - currentShields).
+//
+// Examples:
+//   current=3, grant=2, cap=4 → final=4 (NOT 5 — surplus 1 discarded)
+//   current=0, grant=4, cap=7 → final=4 (within cap)
+//   current=7, grant=2, cap=7 → final=7 (already at cap)
+//
+// All inputs floored to ≥0 defensively. The cap is sacred — read-only.
+export function clampShieldsToSquadMax(currentShields, shieldsToGrant, sacredMaxShieldCap) {
+  const _current = Math.max(0, Math.floor(Number(currentShields) || 0));
+  const _grant   = Math.max(0, Math.floor(Number(shieldsToGrant) || 0));
+  const _cap     = Math.max(0, Math.floor(Number(sacredMaxShieldCap) || 0));
+  return Math.min(_cap, _current + _grant);
+}
+
+// Resolves the sacred maxShieldBonus contribution from `RACE_SYNERGY.golem`
+// based on the active tier (golem count threshold). Pure function — READ
+// ONLY of the sacred `RACE_SYNERGY` literal (CLAUDE.md §2.1 — NEVER write).
+//
+// Per RACE_SYNERGY.golem (src/data/races.js):
+//   tier 2 (≥2 golems): maxShieldBonus = 1
+//   tier 3 (≥3 golems): maxShieldBonus = 2
+//   tier 5 (≥5 golems): maxShieldBonus = 2
+//   <2 golems:          0 (no synergy contribution)
+//
+// Higher tier supersedes lower (per RACE_SYNERGY schema comment line 41).
+//
+// Returns the byte-perfect sacred value (defensive read with optional
+// chaining + Number coercion so a hostile mock can't crash this).
+export function resolveSacredMaxShieldBonus(golemCount) {
+  const _count = Math.max(0, Math.floor(Number(golemCount) || 0));
+  const _golem = RACE_SYNERGY && RACE_SYNERGY.golem;
+  if (!_golem) return 0; // defensive — never happens with sacred literal intact
+  if (_count >= 5 && _golem[5] && typeof _golem[5].maxShieldBonus === 'number') {
+    return _golem[5].maxShieldBonus;
+  }
+  if (_count >= 3 && _golem[3] && typeof _golem[3].maxShieldBonus === 'number') {
+    return _golem[3].maxShieldBonus;
+  }
+  if (_count >= 2 && _golem[2] && typeof _golem[2].maxShieldBonus === 'number') {
+    return _golem[2].maxShieldBonus;
+  }
   return 0;
 }
+
+// Counts alive golem heroes in the squad. Pure function — used to resolve
+// the active RACE_SYNERGY.golem tier (for the sacred max-shield-cap lookup).
+// Same defensive hp pattern as countAlivePirates / countAliveSharks /
+// countAliveRocks / countAliveCrocodiles.
+function _countAliveGolems(squad) {
+  if (!Array.isArray(squad)) return 0;
+  let n = 0;
+  for (const h of squad) {
+    if (!h || h.race !== 'golem') continue;
+    if (h.hp !== undefined && h.hp <= 0) continue;
+    n++;
+  }
+  return n;
+}
+
+// Resolves the screen-coord origin for the leftmost crocodile hero portrait
+// in the rendered squad. Returns {x, y} viewport coords, or null when the
+// portrait DOM isn't available (early-boot / unit-test).
+//
+// The legacy hero panel renders portraits as `.heroPortrait` or
+// `.hero-portrait` (V18 / V19 selectors); we accept either. The "leftmost"
+// is the FIRST portrait whose data-race attribute === 'crocodile' (or whose
+// heroIdx is the lowest among crocodile entries).
+//
+// Falls back to the bottom-center of the viewport if no portrait is found
+// — better to show fragments arriving at the squad area than to suppress
+// the visual entirely. Read-only DOM query — no mutation.
+function _resolveLeftmostCrocodilePortraitTarget() {
+  if (typeof document === 'undefined') {
+    return { x: 0, y: 0 };
+  }
+  const portraits = document.querySelectorAll(
+    '[data-race="crocodile"], .heroPortrait[data-race="crocodile"], .hero-portrait[data-race="crocodile"]',
+  );
+  if (portraits.length > 0) {
+    const el = portraits[0];
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+  // Fallback — bottom-center of viewport with 64px inset (squad portraits
+  // typically render in the lower band of the screen).
+  return {
+    x: (typeof window !== 'undefined' ? window.innerWidth  : 360) / 2,
+    y: (typeof window !== 'undefined' ? window.innerHeight : 640) - 64,
+  };
+}
+
+// Resolves the screen-coord origin for a specific grid cell (r, c). Read-
+// only DOM query — no mutation. Mirrors `_resolveCellOrigin` above but
+// indexes by (r, c) instead of flat cell idx (Crocodile iterates the
+// grove-cell set per-r/c, not by flat idx, because it needs to filter on
+// the cell value).
+function _resolveCellOriginRC(r, c) {
+  if (typeof document === 'undefined') return null;
+  const cells = document.querySelectorAll('.grid .cell');
+  const el = cells[r * BOARD_COLS + c];
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+// ─── Crocodile Bedrock Bastion (spec §2.4) ─────────────────────────────
+//
+// Trigger contract (spec §2.4 field 10):
+//   - Fires every `clearLines(rows, cols)` resolve.
+//   - Gate: ≥1 crocodile hero alive AND ≥1 grove cell in rows∪cols.
+//     Else silent no-op (no DOM, no allocation, no log, no bank touch).
+// Effect contract (spec §2.4 fields 3–9):
+//   - Per cleared grove cell, +1 fragment on the cross-fire `_crocFragmentBank`.
+//   - Every CROCODILE_BASTION_FRAGMENTS_PER_SHIELD (5) fragments grants 1
+//     shield to the squad (or refreshes 1 expired shield).
+//   - Shield count is CLAMPED to the sacred squad max shield cap:
+//       cap = MAX_SHIELD + 2 + maxShieldBonus
+//     where `maxShieldBonus` is RUNTIME-AGGREGATED from RACE_SYNERGY tiers
+//     by the legacy battle-init pipeline (heroes.js sets `maxShieldBonus`
+//     via the active synergy tier). When the runtime global isn't populated,
+//     we fall back to the sacred read from RACE_SYNERGY.golem based on the
+//     squad's golem count via `resolveSacredMaxShieldBonus` — RACE_SYNERGY
+//     is READ ONLY here per CLAUDE.md §2.1.
+//   - If cap reached, surplus shields are discarded; the consumed fragments
+//     are NOT refunded (per spec field 4 — "surplus fragments are discarded
+//     (no overflow exploit)"). This is enforced by the order:
+//       (1) consume fragments to compute shieldsToGrant
+//       (2) clamp shieldsToGrant against cap → final
+//       (3) write final to shieldCount global
+//     so the bank moves forward even when the shield write is capped.
+//   - Visual: sandstone-brown 8×8 fragment particle from each cleared grove
+//     cell, flying inward to the leftmost crocodile portrait. Pool of 16,
+//     decay 600ms each.
+//   - If shieldsToGrant > 0 → a shield-grant flash animates on the receiving
+//     crocodile's portrait (re-uses HUD shield iconography; spec §2.4
+//     field 3).
+//   - Sound: light rocky thunk 150ms, re-use existing earth/grove SFX per
+//     ESC-02 O4 ruling. Audio mixer handles re-use; this module does NOT
+//     call audio APIs directly.
+//   - Haptic: standard `clear` already fired by host `clearLines` via
+//     `vibrate(25)` — `fxCrocodileLineClear` does NOT re-fire (T2.02
+//     precedent #3 — no double-pulse).
+//   - Total wall-time ≤8ms (spec §2.4 field 9).
+//
+// `ctx` is an optional cell-state predicate snapshot (passed through from
+// the dispatcher; nullable in T2.05 since legacy bridge is deferred to
+// T2.B). Recognized keys for Crocodile:
+//   - `gridState` — 2D grid array OR `{ getElementAt(r, c) }` accessor
+//     (for the grove-cell scan)
+//   - `squadShieldsApi` — optional `{ get(): number, set(n: number): void,
+//     cap?: number }` (test injection for the smoke-test path; production
+//     path uses legacy globals)
+//
+// Returns the count of shields actually GRANTED (post-clamp). Useful for
+// smoke assertions. When the runtime globals aren't populated AND no
+// squadShieldsApi is supplied, returns 0 for the granted side — VFX still
+// runs (observable via DOM count), and the fragment bank still advances.
+export function fxCrocodileLineClear(rows, cols, squad, ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  try {
+    // Squad alive-crocodile count. Same fallback chain as Pirate / Shark / Rock.
+    const _squad = Array.isArray(squad) ? squad
+                 : (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) ? HERO_DECK
+                 : [];
+    const crocodileCount = countAliveCrocodiles(_squad);
+    if (crocodileCount === 0) return 0;
+
+    const rowCount = Array.isArray(rows) ? rows.length : 0;
+    const colCount = Array.isArray(cols) ? cols.length : 0;
+    if (rowCount + colCount === 0) return 0;
+
+    // Resolve gridState from ctx → legacy `grid` global. The legacy grid
+    // is a 2D array of stihiya strings (see src/core/grid.js line 132).
+    const _gridState = (ctx && ctx.gridState) ? ctx.gridState
+                     : (typeof grid !== 'undefined' && Array.isArray(grid)) ? grid
+                     : (typeof window !== 'undefined' && Array.isArray(window.grid)) ? window.grid
+                     : null;
+
+    const groveCells = countGroveCells(rows, cols, _gridState);
+    if (groveCells === 0) return 0;
+
+    // Accumulate fragments onto the cross-fire bank.
+    _crocFragmentBank = accumulateFragments(_crocFragmentBank, groveCells);
+
+    // Compute shield grant + remaining bank.
+    const { shieldsToGrant, newBank } = computeShieldsGrantable(
+      _crocFragmentBank, CROCODILE_BASTION_FRAGMENTS_PER_SHIELD,
+    );
+    _crocFragmentBank = newBank;
+
+    // ── Resolve sacred squad max shield cap. ──
+    // Production path reads the runtime `maxShieldBonus` global (set by
+    // legacy battle init from active synergy tier). When unavailable
+    // (unit-test / FTUE pre-battle), fall back to the sacred read from
+    // RACE_SYNERGY.golem based on the squad's golem count. The cap formula
+    // matches the legacy convention at src/core/heroes.js:715
+    //   cap = MAX_SHIELD + 2 + maxShieldBonus
+    //   where MAX_SHIELD defaults to 3 (legacy line 20163) when not available.
+    let _bonus = 0;
+    if (typeof maxShieldBonus === 'number') {
+      _bonus = maxShieldBonus;
+    } else if (typeof window !== 'undefined' && typeof window.maxShieldBonus === 'number') {
+      _bonus = window.maxShieldBonus;
+    } else {
+      // Sacred fallback — read RACE_SYNERGY.golem by active tier.
+      const _golemCount = _countAliveGolems(_squad);
+      _bonus = resolveSacredMaxShieldBonus(_golemCount);
+    }
+    const _baseMaxShield = (typeof MAX_SHIELD === 'number') ? MAX_SHIELD
+                         : (typeof window !== 'undefined' && typeof window.MAX_SHIELD === 'number') ? window.MAX_SHIELD
+                         : 3; // legacy line 20163 default
+    const _sacredCap = _baseMaxShield + 2 + _bonus;
+
+    // ── Write to SQUAD shieldCount via clamp (sacred — never overshoot). ──
+    // SQUAD shields (defensive) — NOT boss armored shields (ARMORED_SHIELD_*
+    // is sacred §2.5 and UNTOUCHED — different system, different global).
+    let _shieldsGranted = 0;
+    try {
+      // Optional test-injection API (smoke tests pass a shim so they don't
+      // need to stub the legacy `shieldCount` global directly).
+      if (ctx && ctx.squadShieldsApi
+          && typeof ctx.squadShieldsApi.get === 'function'
+          && typeof ctx.squadShieldsApi.set === 'function') {
+        const _current = Number(ctx.squadShieldsApi.get()) || 0;
+        const _capOverride = (typeof ctx.squadShieldsApi.cap === 'number') ? ctx.squadShieldsApi.cap : _sacredCap;
+        const _clamped = clampShieldsToSquadMax(_current, shieldsToGrant, _capOverride);
+        _shieldsGranted = _clamped - _current;
+        if (_shieldsGranted > 0) {
+          ctx.squadShieldsApi.set(_clamped);
+        }
+      } else if (typeof window !== 'undefined' && typeof window.shieldCount === 'number') {
+        // Window-bridge path — T2.B (legacy bridge) will wire legacy
+        // `shieldCount` onto `window.shieldCount` so this read/write reaches
+        // the live runtime. Until T2.B lands, smoke tests stub
+        // `window.shieldCount` directly (mirrors T2.04 ultCharges pattern).
+        // Note: we DO NOT attempt to write to a bare `shieldCount` global
+        // because legacy declares it via `let shieldCount` at module scope,
+        // and ES-module strict mode forbids assigning to an undeclared
+        // binding (ReferenceError). The window bridge is the contract.
+        const _current = window.shieldCount;
+        const _clamped = clampShieldsToSquadMax(_current, shieldsToGrant, _sacredCap);
+        _shieldsGranted = _clamped - _current;
+        if (_shieldsGranted > 0) {
+          window.shieldCount = _clamped;
+        }
+      }
+    } catch (e) {
+      log.warn('Crocodile Bedrock Bastion shield write failed:', e);
+    }
+
+    // ── Visual: spawn fragment particles from each cleared grove cell. ──
+    // Pool init is lazy (first fire creates the 16 elements). Particle
+    // count is capped at CROCODILE_BASTION_MAX_FRAGMENT_PARTICLES (16) per
+    // fire. Each fragment flies to the leftmost crocodile portrait.
+    _ensureCrocFragmentPool();
+    if (_crocFragmentPoolInitDone) {
+      const target = _resolveLeftmostCrocodilePortraitTarget();
+      // Build the set of grove cell (r,c) coordinates for this fire (same
+      // inclusion-exclusion accounting as `countGroveCells`).
+      const _getter = (typeof _gridState.getElementAt === 'function')
+        ? ((r, c) => { try { return _gridState.getElementAt(r, c); } catch (_e) { return null; } })
+        : ((r, c) => {
+            const row = _gridState[r];
+            if (!row) return null;
+            return row[c];
+          });
+      const _coords = [];
+      const _seen = new Set();
+      const _rowList = Array.isArray(rows) ? rows : [];
+      const _colList = Array.isArray(cols) ? cols : [];
+      for (const r of _rowList) {
+        if (typeof r !== 'number') continue;
+        for (let c = 0; c < BOARD_COLS; c++) {
+          const key = r + '_' + c;
+          if (_seen.has(key)) continue;
+          _seen.add(key);
+          if (_getter(r, c) === CROCODILE_BASTION_GROVE_ELEMENT) _coords.push({ r, c });
+        }
+      }
+      for (const c of _colList) {
+        if (typeof c !== 'number') continue;
+        for (let r = 0; r < BOARD_ROWS; r++) {
+          const key = r + '_' + c;
+          if (_seen.has(key)) continue;
+          _seen.add(key);
+          if (_getter(r, c) === CROCODILE_BASTION_GROVE_ELEMENT) _coords.push({ r, c });
+        }
+      }
+      let _spawned = 0;
+      for (const { r, c } of _coords) {
+        if (_spawned >= CROCODILE_BASTION_MAX_FRAGMENT_PARTICLES) break;
+        const origin = _resolveCellOriginRC(r, c);
+        if (!origin) continue;
+        const el = _acquireCrocFragment();
+        if (!el) break;
+        spawnCrocFragmentParticle({
+          el,
+          x: origin.x,
+          y: origin.y,
+          targetX: target.x,
+          targetY: target.y,
+          decayMs: CROCODILE_BASTION_FRAGMENT_DECAY_MS,
+          color: '#8B5A3C',
+        });
+        setTimeout(() => _releaseCrocFragment(el), CROCODILE_BASTION_FRAGMENT_DECAY_MS);
+        _spawned++;
+      }
+
+      // If shields were actually granted, animate the shield-grant flash on
+      // the receiving portrait (leftmost crocodile). Defensive — only fires
+      // when we have a portrait to anchor to.
+      if (_shieldsGranted > 0 && typeof document !== 'undefined') {
+        const portrait = document.querySelector(
+          '[data-race="crocodile"], .heroPortrait[data-race="crocodile"], .hero-portrait[data-race="crocodile"]',
+        );
+        if (portrait && CROCODILE_BASTION_TARGET_HERO_INDEX >= 0) {
+          // Create a one-shot flash element OUTSIDE the pool (lightweight,
+          // short-lived — 300ms). It's a single DOM creation per shield
+          // grant, not per fire — the sacred §5 "no createElement per fire"
+          // rule covers the per-fire particle volume (16 fragments); shield
+          // grants are 0-3 per fire by spec field 9 math (16/5 = 3 max).
+          const flash = document.createElement('div');
+          flash.className = 'identity-croc-shield-grant';
+          flash.setAttribute('aria-hidden', 'true');
+          const r = portrait.getBoundingClientRect();
+          flash.style.left = (r.left + r.width / 2) + 'px';
+          flash.style.top  = (r.top + r.height / 2) + 'px';
+          document.body.appendChild(flash);
+          setTimeout(() => { try { flash.remove(); } catch (_e) { /* swallow */ } }, 350);
+        }
+      }
+    }
+
+    // Spec §2.4 field 6: standard `clear` haptic. Already fired by host
+    // clearLines (`vibrate(25)` at grid.js:399). NOT re-fired here — T2.02
+    // precedent #3 (no double-pulse).
+    void vHaptic;
+
+    // Return the CLAMPED shields actually granted (post-cap). Useful for
+    // smoke assertions that need to verify the squad-shield-cap invariant.
+    // When the runtime globals aren't populated (unit-test / FTUE without
+    // a squadShieldsApi override), returns 0 — VFX still ran (observable
+    // via DOM count) and the fragment bank still advanced.
+    return _shieldsGranted;
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      // Spec §2.4 field 9 — soft budget check at 8ms.
+      if (dt > 8) log.warn('Crocodile Bedrock Bastion over budget:', dt.toFixed(2), 'ms');
+    }
+  }
+}
+
+// ─── Stubs for T2.06 (export contract only) ───────────────────────────
+// This exists so `dispatchIdentityFx` can route to Spark today without
+// throwing. No-op pass-through; T2.06 will replace the body.
 export function fxSparkLineClear(_rows, _cols, _squad) {
   // T2.06 — Sun Cascade (spec §2.5). Stub.
   return 0;
@@ -1044,7 +1582,7 @@ export function dispatchIdentityFx(rows, cols, squad, _currentBoss, ctx = null) 
     if (races.has('rock'))      fxRockLineClear(rows, cols, squad, ctx);
   } catch (e) { log.warn('Rock FX threw:', e); }
   try {
-    if (races.has('crocodile')) fxCrocodileLineClear(rows, cols, squad);
+    if (races.has('crocodile')) fxCrocodileLineClear(rows, cols, squad, ctx);
   } catch (e) { log.warn('Crocodile FX threw:', e); }
   try {
     if (races.has('spark'))     fxSparkLineClear(rows, cols, squad);
@@ -1095,6 +1633,26 @@ export const __identityFxTestables = Object.freeze({
       _rockEchoPoolContainer.parentNode.removeChild(_rockEchoPoolContainer);
     }
     _rockEchoPoolContainer = null;
+  },
+  // T2.05 — Crocodile Bedrock Bastion testables.
+  getCrocFragmentPoolSize: () => _crocFragmentPool.length,
+  getCrocFragmentPoolAvailable: () => _crocFragmentPoolAvailable.length,
+  resetCrocFragmentPool: () => {
+    while (_crocFragmentPool.length) _crocFragmentPool.pop();
+    while (_crocFragmentPoolAvailable.length) _crocFragmentPoolAvailable.pop();
+    _crocFragmentPoolInitDone = false;
+    if (_crocFragmentPoolContainer && _crocFragmentPoolContainer.parentNode) {
+      _crocFragmentPoolContainer.parentNode.removeChild(_crocFragmentPoolContainer);
+    }
+    _crocFragmentPoolContainer = null;
+  },
+  // Read-only view into the cross-fire fragment bank (spec §2.4 field 4).
+  getCrocFragmentBank: () => _crocFragmentBank,
+  // Test-only setter (smoke tests need to seed the bank for cumulative
+  // assertions). Production code MUST NOT call this — use
+  // `resetCrocFragmentBank()` exported above instead.
+  setCrocFragmentBankForTest: (n) => {
+    _crocFragmentBank = Math.max(0, Math.floor(Number(n) || 0));
   },
   IDENTITY_FX_KEYS,
 });

@@ -34,6 +34,15 @@ import {
   computeEncoreEchoCharge,
   clampEncoreEchoCharge,
   fxRockLineClear,
+  // T2.05 — Crocodile Bedrock Bastion helpers.
+  countAliveCrocodiles,
+  countGroveCells,
+  accumulateFragments,
+  computeShieldsGrantable,
+  clampShieldsToSquadMax,
+  resolveSacredMaxShieldBonus,
+  fxCrocodileLineClear,
+  resetCrocFragmentBank,
   __identityFxTestables,
 } from '../../src/feel/identity-fx.js';
 import {
@@ -53,7 +62,13 @@ import {
   ROCK_ECHO_DELAY_MS,
   ROCK_ECHO_DOMINANT_ELEMENT,
   ROCK_ECHO_ULT_METER,
+  CROCODILE_BASTION_FRAGMENTS_PER_SHIELD,
+  CROCODILE_BASTION_MAX_FRAGMENT_PARTICLES,
+  CROCODILE_BASTION_FRAGMENT_DECAY_MS,
+  CROCODILE_BASTION_GROVE_ELEMENT,
+  CROCODILE_BASTION_TARGET_HERO_INDEX,
 } from '../../src/data/identity-layer.js';
+import { RACE_SYNERGY } from '../../src/data/races.js';
 
 describe('identity-layer · Pirate\'s Plunder · computePirateGold', () => {
   it('0 pirates × 10 cells → 0g (silent no-op contract)', () => {
@@ -806,5 +821,489 @@ describe('identity-layer · dispatchIdentityFx — rock race regression', () => 
     ];
     // All three FX layers fire in sequence; no exception, no interference.
     expect(() => dispatchIdentityFx([0], [], squad, { dominantElementsByLine: ['umbra'] })).not.toThrow();
+  });
+});
+
+// ─── T2.05 — Crocodile Bedrock Bastion unit tests (spec §2.4) ────────────
+
+// Builds a stub 8×8 grid (2D array of stihiya strings or null). `fillRow`
+// arguments override specific rows with a uniform element. Default: all null.
+function _makeStubGrid(overrides = {}) {
+  const g = Array.from({ length: 8 }, () => Array(8).fill(null));
+  if (overrides.rowsGrove) {
+    for (const r of overrides.rowsGrove) {
+      for (let c = 0; c < 8; c++) g[r][c] = 'grove';
+    }
+  }
+  if (overrides.cellsGrove) {
+    for (const [r, c] of overrides.cellsGrove) {
+      g[r][c] = 'grove';
+    }
+  }
+  if (overrides.cellsMixed) {
+    // cellsMixed: [[r, c, element], ...]
+    for (const [r, c, el] of overrides.cellsMixed) {
+      g[r][c] = el;
+    }
+  }
+  return g;
+}
+
+describe('identity-layer · Crocodile Bedrock Bastion · countAliveCrocodiles', () => {
+  it('empty / undefined / null squad → 0', () => {
+    expect(countAliveCrocodiles([])).toBe(0);
+    expect(countAliveCrocodiles(undefined)).toBe(0);
+    expect(countAliveCrocodiles(null)).toBe(0);
+  });
+
+  it('mixed squad with 1 crocodile → 1', () => {
+    const squad = [
+      { id: 'c1', race: 'crocodile' },
+      { id: 'o1', race: 'orc' },
+      { id: 'p1', race: 'pirate' },
+    ];
+    expect(countAliveCrocodiles(squad)).toBe(1);
+  });
+
+  it('5-crocodile squad → 5 (squad max)', () => {
+    const squad = Array.from({ length: 5 }, (_, i) => ({ id: `c${i}`, race: 'crocodile' }));
+    expect(countAliveCrocodiles(squad)).toBe(5);
+  });
+
+  it('dead crocodile (hp=0) excluded; absent hp treated as alive (T2.02 precedent #2)', () => {
+    const squad = [
+      { id: 'c1', race: 'crocodile', hp: 100 },
+      { id: 'c2', race: 'crocodile', hp: 0 },     // dead — excluded
+      { id: 'c3', race: 'crocodile' },            // hp absent — alive
+      { id: 'c4', race: 'crocodile', hp: -5 },    // negative — excluded
+    ];
+    expect(countAliveCrocodiles(squad)).toBe(2);
+  });
+
+  it('null entries + non-crocodile races ignored', () => {
+    expect(countAliveCrocodiles([null, { race: 'crocodile' }, undefined, { race: 'orc' }])).toBe(1);
+  });
+});
+
+describe('identity-layer · Crocodile Bedrock Bastion · countGroveCells', () => {
+  it('null gridState → 0 (defensive)', () => {
+    expect(countGroveCells([0], [], null)).toBe(0);
+    expect(countGroveCells([0], [], undefined)).toBe(0);
+  });
+
+  it('empty rows∪cols → 0', () => {
+    const grid = _makeStubGrid({ rowsGrove: [0] });
+    expect(countGroveCells([], [], grid)).toBe(0);
+  });
+
+  it('all-grove single row clear → 8 (one full grove row)', () => {
+    const grid = _makeStubGrid({ rowsGrove: [3] });
+    expect(countGroveCells([3], [], grid)).toBe(8);
+  });
+
+  it('mixed-element row → counts grove cells only', () => {
+    const grid = _makeStubGrid({
+      cellsMixed: [
+        [0, 0, 'grove'],
+        [0, 1, 'ember'],
+        [0, 2, 'grove'],
+        [0, 3, 'tide'],
+        [0, 4, 'grove'],
+        [0, 5, 'umbra'],
+        [0, 6, 'grove'],
+        [0, 7, 'grove'],
+      ],
+    });
+    expect(countGroveCells([0], [], grid)).toBe(5);
+  });
+
+  it('no grove cells in cleared lines → 0', () => {
+    const grid = _makeStubGrid({
+      cellsMixed: [
+        [0, 0, 'ember'], [0, 1, 'tide'], [0, 2, 'umbra'],
+      ],
+    });
+    expect(countGroveCells([0], [], grid)).toBe(0);
+  });
+
+  it('row+col intersection counted once (inclusion-exclusion)', () => {
+    // Row 0 = all grove; col 3 = all grove. Intersection (0,3) counts once.
+    const grid = _makeStubGrid({ rowsGrove: [0] });
+    for (let r = 0; r < 8; r++) grid[r][3] = 'grove';
+    // Total unique grove cells: 8 (row 0) + 7 (col 3 minus intersect) = 15
+    expect(countGroveCells([0], [3], grid)).toBe(15);
+  });
+
+  it('supports gridState.getElementAt accessor', () => {
+    const state = {
+      getElementAt(r, c) {
+        if (r === 0 && c === 0) return 'grove';
+        return null;
+      },
+    };
+    expect(countGroveCells([0], [], state)).toBe(1);
+  });
+
+  it('CROCODILE_BASTION_GROVE_ELEMENT constant matches spec §2.4', () => {
+    expect(CROCODILE_BASTION_GROVE_ELEMENT).toBe('grove');
+  });
+
+  it('all-grove quad-row clear → 32 (4 rows × 8 cells)', () => {
+    const grid = _makeStubGrid({ rowsGrove: [0, 2, 4, 6] });
+    expect(countGroveCells([0, 2, 4, 6], [], grid)).toBe(32);
+  });
+});
+
+describe('identity-layer · Crocodile Bedrock Bastion · accumulateFragments', () => {
+  it('0 + 0 → 0', () => {
+    expect(accumulateFragments(0, 0)).toBe(0);
+  });
+
+  it('0 + 5 → 5 (single fire seeds bank)', () => {
+    expect(accumulateFragments(0, 5)).toBe(5);
+  });
+
+  it('99 + 1 → 100 (high-bank addition holds)', () => {
+    expect(accumulateFragments(99, 1)).toBe(100);
+  });
+
+  it('5 + 7 → 12 (mid-bank cross-fire accumulation)', () => {
+    expect(accumulateFragments(5, 7)).toBe(12);
+  });
+
+  it('negative / NaN delta → bank unchanged (defensive)', () => {
+    expect(accumulateFragments(10, -3)).toBe(10);
+    expect(accumulateFragments(10, NaN)).toBe(10);
+  });
+
+  it('negative current → floored to 0 (defensive)', () => {
+    expect(accumulateFragments(-5, 3)).toBe(3);
+  });
+});
+
+describe('identity-layer · Crocodile Bedrock Bastion · computeShieldsGrantable', () => {
+  it('bank=0 → 0 shields, bank stays 0', () => {
+    expect(computeShieldsGrantable(0, 5)).toEqual({ shieldsToGrant: 0, newBank: 0 });
+  });
+
+  it('bank=4 → 0 shields, bank=4 (below threshold)', () => {
+    expect(computeShieldsGrantable(4, 5)).toEqual({ shieldsToGrant: 0, newBank: 4 });
+  });
+
+  it('bank=5 → 1 shield, bank=0 (exact threshold consumes all)', () => {
+    expect(computeShieldsGrantable(5, 5)).toEqual({ shieldsToGrant: 1, newBank: 0 });
+  });
+
+  it('bank=12 → 2 shields, bank=2 (spec §2.4 worked example)', () => {
+    expect(computeShieldsGrantable(12, 5)).toEqual({ shieldsToGrant: 2, newBank: 2 });
+  });
+
+  it('bank=20 → 4 shields, bank=0 (max quad accumulation)', () => {
+    expect(computeShieldsGrantable(20, 5)).toEqual({ shieldsToGrant: 4, newBank: 0 });
+  });
+
+  it('CROCODILE_BASTION_FRAGMENTS_PER_SHIELD = 5 (constant matches spec §2.4)', () => {
+    expect(CROCODILE_BASTION_FRAGMENTS_PER_SHIELD).toBe(5);
+  });
+
+  it('fragmentsPerShield defaults to constant when omitted', () => {
+    // Defensive — falsy input falls back to CROCODILE_BASTION_FRAGMENTS_PER_SHIELD.
+    expect(computeShieldsGrantable(15, 0))
+      .toEqual({ shieldsToGrant: 3, newBank: 0 });
+  });
+});
+
+describe('identity-layer · Crocodile Bedrock Bastion · clampShieldsToSquadMax', () => {
+  // CRITICAL sacred-cow invariant per CLAUDE.md §2.1: never exceed the
+  // squad max-shield cap derived from RACE_SYNERGY.golem maxShieldBonus.
+  it('current=0, grant=2, cap=5 → 2 (within cap)', () => {
+    expect(clampShieldsToSquadMax(0, 2, 5)).toBe(2);
+  });
+
+  it('current=3, grant=2, cap=4 → 4 (surplus discarded — sacred invariant)', () => {
+    // Brief contract: "current=3 + grant=2 + cap=4 → final=4 (not 5)"
+    expect(clampShieldsToSquadMax(3, 2, 4)).toBe(4);
+    expect(clampShieldsToSquadMax(3, 2, 4)).not.toBe(5);
+  });
+
+  it('current=5, grant=3, cap=5 → 5 (already at cap, no shield granted)', () => {
+    expect(clampShieldsToSquadMax(5, 3, 5)).toBe(5);
+  });
+
+  it('current=0, grant=10, cap=5 → 5 (large surplus discarded)', () => {
+    expect(clampShieldsToSquadMax(0, 10, 5)).toBe(5);
+  });
+
+  it('cap=0 → always 0 (no shields possible)', () => {
+    expect(clampShieldsToSquadMax(0, 5, 0)).toBe(0);
+  });
+
+  it('negative inputs floored to 0 (defensive)', () => {
+    expect(clampShieldsToSquadMax(-3, 2, 5)).toBe(2);  // current floors to 0
+    expect(clampShieldsToSquadMax(2, -1, 5)).toBe(2);  // grant floors to 0
+  });
+});
+
+describe('identity-layer · Crocodile Bedrock Bastion · resolveSacredMaxShieldBonus (READ-ONLY of RACE_SYNERGY.golem)', () => {
+  // Sacred invariant: RACE_SYNERGY.golem.<tier>.maxShieldBonus is NEVER
+  // modified by Identity Layer. These tests prove the resolution is a pure
+  // read.
+  it('0 golems → 0 bonus (no synergy contribution)', () => {
+    expect(resolveSacredMaxShieldBonus(0)).toBe(0);
+  });
+
+  it('1 golem → 0 bonus (tier 2 not yet active)', () => {
+    expect(resolveSacredMaxShieldBonus(1)).toBe(0);
+  });
+
+  it('2 golems → tier 2 bonus = 1 (sacred RACE_SYNERGY.golem[2].maxShieldBonus)', () => {
+    expect(resolveSacredMaxShieldBonus(2)).toBe(1);
+    expect(resolveSacredMaxShieldBonus(2)).toBe(RACE_SYNERGY.golem[2].maxShieldBonus);
+  });
+
+  it('3 golems → tier 3 bonus = 2 (sacred RACE_SYNERGY.golem[3].maxShieldBonus)', () => {
+    expect(resolveSacredMaxShieldBonus(3)).toBe(2);
+    expect(resolveSacredMaxShieldBonus(3)).toBe(RACE_SYNERGY.golem[3].maxShieldBonus);
+  });
+
+  it('4 golems → tier 3 bonus = 2 (count gates at 3, not 5 yet)', () => {
+    expect(resolveSacredMaxShieldBonus(4)).toBe(2);
+  });
+
+  it('5 golems → tier 5 bonus = 2 (sacred RACE_SYNERGY.golem[5].maxShieldBonus)', () => {
+    expect(resolveSacredMaxShieldBonus(5)).toBe(2);
+    expect(resolveSacredMaxShieldBonus(5)).toBe(RACE_SYNERGY.golem[5].maxShieldBonus);
+  });
+
+  it('RACE_SYNERGY.golem sacred bytes — tier 2/3/5 maxShieldBonus byte-perfect (CLAUDE.md §2.1 sacred invariant)', () => {
+    // This is the LITMUS sacred-cow test. If any value here changes, T2.05
+    // has violated CLAUDE.md §2.1. RACE_SYNERGY.golem is the read-only source.
+    expect(RACE_SYNERGY.golem[2].maxShieldBonus).toBe(1);
+    expect(RACE_SYNERGY.golem[3].maxShieldBonus).toBe(2);
+    expect(RACE_SYNERGY.golem[5].maxShieldBonus).toBe(2);
+  });
+
+  it('negative / NaN golem count → 0 (defensive)', () => {
+    expect(resolveSacredMaxShieldBonus(-1)).toBe(0);
+    expect(resolveSacredMaxShieldBonus(NaN)).toBe(0);
+  });
+});
+
+describe('identity-layer · Crocodile Bedrock Bastion · _crocFragmentBank persistence (cross-fire accrual)', () => {
+  // CRITICAL spec §2.4 field 4 invariant: bank persists across fires within
+  // a battle; only resetCrocFragmentBank() clears it.
+  it('resetCrocFragmentBank() resets bank to 0', () => {
+    __identityFxTestables.setCrocFragmentBankForTest(17);
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(17);
+    resetCrocFragmentBank();
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(0);
+  });
+
+  it('3 fires × 3 grove cells cross-fire bank arithmetic (shield grant at boundary)', () => {
+    resetCrocFragmentBank();
+    const grid = _makeStubGrid({
+      cellsMixed: [
+        [0, 0, 'grove'], [0, 1, 'grove'], [0, 2, 'grove'],
+      ],
+    });
+    const squad = [{ race: 'crocodile' }];
+    // Fire 1: 0+3 = 3 fragments. 3<5 → no shield, bank=3.
+    fxCrocodileLineClear([0], [], squad, { gridState: grid });
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(3);
+    // Fire 2: 3+3 = 6 fragments. 6/5=1 shield consumed, bank=6-5=1.
+    fxCrocodileLineClear([0], [], squad, { gridState: grid });
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(1);
+    // Fire 3: 1+3 = 4 fragments. 4<5 → no new shield, bank=4.
+    fxCrocodileLineClear([0], [], squad, { gridState: grid });
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(4);
+    resetCrocFragmentBank();
+  });
+
+  it('cumulative bank → shield grant at threshold boundaries (5, 10, 15)', () => {
+    resetCrocFragmentBank();
+    // 5 fragments → 1 shield, bank goes to 0
+    let res = computeShieldsGrantable(5, 5);
+    expect(res).toEqual({ shieldsToGrant: 1, newBank: 0 });
+    // 10 fragments → 2 shields, bank goes to 0
+    res = computeShieldsGrantable(10, 5);
+    expect(res).toEqual({ shieldsToGrant: 2, newBank: 0 });
+    // 15 fragments → 3 shields, bank goes to 0
+    res = computeShieldsGrantable(15, 5);
+    expect(res).toEqual({ shieldsToGrant: 3, newBank: 0 });
+  });
+
+  it('battle reset clears prior battle residue', () => {
+    __identityFxTestables.setCrocFragmentBankForTest(4);
+    resetCrocFragmentBank();
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(0);
+    // After reset, a new accumulation starts from 0.
+    const next = accumulateFragments(__identityFxTestables.getCrocFragmentBank(), 3);
+    expect(next).toBe(3);
+  });
+});
+
+describe('identity-layer · Crocodile Bedrock Bastion · fxCrocodileLineClear gate behavior', () => {
+  it('0-crocodile squad → silent no-op, returns 0, bank untouched', () => {
+    resetCrocFragmentBank();
+    __identityFxTestables.resetCrocFragmentPool();
+    const grid = _makeStubGrid({ rowsGrove: [0] });
+    const result = fxCrocodileLineClear([0], [], [{ race: 'orc' }, { race: 'pirate' }],
+      { gridState: grid });
+    expect(result).toBe(0);
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(0);
+  });
+
+  it('1-crocodile + 0-grove-cells line clear → silent no-op, bank untouched', () => {
+    resetCrocFragmentBank();
+    __identityFxTestables.resetCrocFragmentPool();
+    const grid = _makeStubGrid({
+      cellsMixed: [[0, 0, 'ember'], [0, 1, 'tide']],
+    });
+    const result = fxCrocodileLineClear([0], [], [{ race: 'crocodile' }],
+      { gridState: grid });
+    expect(result).toBe(0);
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(0);
+  });
+
+  it('1-crocodile + 5 grove cells → fires (gate passes, bank advances to 5, shield delta depends on shield API)', () => {
+    resetCrocFragmentBank();
+    __identityFxTestables.resetCrocFragmentPool();
+    const grid = _makeStubGrid({
+      cellsMixed: [
+        [0, 0, 'grove'], [0, 1, 'grove'], [0, 2, 'grove'],
+        [0, 3, 'grove'], [0, 4, 'grove'],
+      ],
+    });
+    // No squadShieldsApi → shield write is silently skipped; bank still advances.
+    // 5 fragments collected → 1 shield potentially granted, bank goes to 0.
+    const result = fxCrocodileLineClear([0], [], [{ race: 'crocodile' }],
+      { gridState: grid });
+    // In node env: result is 0 (no shield API connected) but the bank
+    // consumed the 5 fragments toward the shield computation.
+    expect(result).toBe(0);
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(0);
+  });
+
+  it('1-crocodile + 5 grove cells + squadShieldsApi → 1 shield granted', () => {
+    resetCrocFragmentBank();
+    __identityFxTestables.resetCrocFragmentPool();
+    const grid = _makeStubGrid({
+      cellsMixed: [
+        [0, 0, 'grove'], [0, 1, 'grove'], [0, 2, 'grove'],
+        [0, 3, 'grove'], [0, 4, 'grove'],
+      ],
+    });
+    let shields = 0;
+    const api = {
+      get: () => shields,
+      set: (n) => { shields = n; },
+      cap: 5,
+    };
+    const result = fxCrocodileLineClear([0], [], [{ race: 'crocodile' }],
+      { gridState: grid, squadShieldsApi: api });
+    expect(result).toBe(1);
+    expect(shields).toBe(1);
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(0);
+  });
+
+  it('zero lines clear → silent no-op (no bank touch, no shield)', () => {
+    resetCrocFragmentBank();
+    __identityFxTestables.resetCrocFragmentPool();
+    const grid = _makeStubGrid({ rowsGrove: [0] });
+    const result = fxCrocodileLineClear([], [], [{ race: 'crocodile' }],
+      { gridState: grid });
+    expect(result).toBe(0);
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(0);
+  });
+
+  it('missing gridState ctx + no global grid → silent no-op (defensive)', () => {
+    resetCrocFragmentBank();
+    __identityFxTestables.resetCrocFragmentPool();
+    const result = fxCrocodileLineClear([0], [], [{ race: 'crocodile' }], null);
+    // No gridState → countGroveCells returns 0 → gate fails.
+    expect(result).toBe(0);
+    expect(__identityFxTestables.getCrocFragmentBank()).toBe(0);
+  });
+});
+
+describe('identity-layer · Crocodile Bedrock Bastion · sacred max-shield-cap clamp safety', () => {
+  // CRITICAL sacred-cow invariant per CLAUDE.md §2.1: shield count NEVER
+  // exceeds the squad cap (MAX_SHIELD + 2 + RACE_SYNERGY.golem maxShieldBonus).
+  // These tests exercise the clamp at every meaningful cap value.
+  it('5-crocodile full bank → cap clamp respects sacred max (tier 5 cap = 7)', () => {
+    // MAX_SHIELD=3 + 2 + tier5_bonus(2) = 7. Squad currently at 5, +3 grant → 7.
+    expect(clampShieldsToSquadMax(5, 3, 7)).toBe(7);
+    // Surplus discarded: +5 grant onto current=5 with cap=7 → 7, not 10.
+    expect(clampShieldsToSquadMax(5, 5, 7)).toBe(7);
+  });
+
+  it('sacred read: RACE_SYNERGY.golem tier 5 maxShieldBonus is 2 (byte-perfect)', () => {
+    // If this test fails, the sacred read was corrupted — STOP and rollback.
+    const tier5Bonus = resolveSacredMaxShieldBonus(5);
+    expect(tier5Bonus).toBe(2);
+    // The reciprocal sacred cap formula: MAX_SHIELD(3) + 2 + 2 = 7.
+    const sacredCap = 3 + 2 + tier5Bonus;
+    expect(sacredCap).toBe(7);
+  });
+
+  it('no-golem squad → base cap = MAX_SHIELD(3) + 2 = 5 (no synergy contribution)', () => {
+    const noGolemBonus = resolveSacredMaxShieldBonus(0);
+    expect(noGolemBonus).toBe(0);
+    // current=4, +3 grant, cap=5 → 5 (surplus 2 discarded)
+    expect(clampShieldsToSquadMax(4, 3, 5)).toBe(5);
+  });
+
+  it('cap clamp invariant — never exceeds sacred ceiling regardless of input', () => {
+    // Exhaustive check: for current 0..7 and grant 0..10, the result is
+    // ALWAYS ≤ sacred cap of 7.
+    const cap = 7; // MAX_SHIELD(3) + 2 + tier5(2)
+    for (let cur = 0; cur <= 7; cur++) {
+      for (let grant = 0; grant <= 10; grant++) {
+        const clamped = clampShieldsToSquadMax(cur, grant, cap);
+        expect(clamped).toBeLessThanOrEqual(cap);
+      }
+    }
+  });
+});
+
+describe('identity-layer · Crocodile Bedrock Bastion · constants & budgets', () => {
+  it('Crocodile Bastion constants match spec §2.4', () => {
+    expect(CROCODILE_BASTION_FRAGMENTS_PER_SHIELD).toBe(5);
+    expect(CROCODILE_BASTION_MAX_FRAGMENT_PARTICLES).toBe(16);
+    expect(CROCODILE_BASTION_FRAGMENT_DECAY_MS).toBe(600);
+    expect(CROCODILE_BASTION_GROVE_ELEMENT).toBe('grove');
+    expect(CROCODILE_BASTION_TARGET_HERO_INDEX).toBe(0);
+  });
+
+  it('Crocodile Bastion budget ≤8ms wall-time (spec §2.4 field 9)', () => {
+    expect(IDENTITY_FX_BUDGETS[IDENTITY_FX_KEYS.CROCODILE_BASTION].wallTimeMs).toBeLessThanOrEqual(8);
+    expect(IDENTITY_FX_BUDGETS[IDENTITY_FX_KEYS.CROCODILE_BASTION].maxConcurrentParticles).toBe(16);
+    expect(IDENTITY_FX_BUDGETS[IDENTITY_FX_KEYS.CROCODILE_BASTION].decayMs).toBe(600);
+  });
+
+  it('IDENTITY_FX_KEYS exposes CROCODILE_BASTION', () => {
+    expect(IDENTITY_FX_KEYS.CROCODILE_BASTION).toBe('crocodile_bastion');
+  });
+});
+
+describe('identity-layer · dispatchIdentityFx — crocodile race regression', () => {
+  it('crocodile race squad dispatches to fxCrocodileLineClear without throw', () => {
+    const squad = [{ race: 'crocodile' }];
+    const grid = _makeStubGrid({ rowsGrove: [0] });
+    expect(() => dispatchIdentityFx([0], [], squad, null, { gridState: grid })).not.toThrow();
+  });
+
+  it('mixed crocodile + pirate + shark + rock squad dispatches all four layers (T2.02/T2.03/T2.04 regression)', () => {
+    const squad = [
+      { race: 'crocodile' },
+      { race: 'pirate' },
+      { race: 'shark' },
+      { race: 'shark' },
+      { race: 'rock' },
+    ];
+    const grid = _makeStubGrid({ rowsGrove: [0] });
+    // All four FX layers fire in sequence; no exception, no interference.
+    expect(() => dispatchIdentityFx([0], [], squad, null,
+      { gridState: grid, dominantElementsByLine: ['umbra'] })).not.toThrow();
   });
 });
