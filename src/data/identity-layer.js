@@ -92,3 +92,45 @@ export const SHARK_FRENZY_MAX_EXTRA_CELLS           = 4;  // HARD CAP per spec �
 export const SHARK_FRENZY_BITE_DECAY_MS             = 500;
 export const SHARK_FRENZY_BITE_SVG_PER_LINE         = 1;
 export const SHARK_FRENZY_DOMINANT_ELEMENT          = 'tide';
+
+// ─── Rock Encore Echo constants (spec §2.3) ─────────────────────────────
+// Mechanical contract:
+//   echoChargeToAdd = min(umbraDominantLineCount, ROCK_ECHO_MAX_CHARGE_PER_FIRE)
+//   ultCharges.umbra = min(threshold, ultCharges.umbra + echoChargeToAdd)
+//
+// Per spec §2.3 field 4: "+1 ULT charge to the umbra ULT meter (only) per
+// cleared line where dominant element is `umbra`. Capped at +4 per fire
+// (one per line, max 4 lines from a quad-clear). No charge awarded if
+// dominant is anything other than umbra."
+//
+// Trigger gate (spec §2.3 field 10):
+//   - At least one cleared row/col has dominant element === 'umbra'
+//     (via `getDominantElementCount` from `src/core/grid.js`), AND
+//   - ≥1 rock hero alive in squad.
+//   Else silent no-op (no DOM, no allocation, no log).
+//
+// Sacred-cow safety (CLAUDE.md §2.1 — HERO_ULT_COST_BY_NEWROLE is sacred):
+//   - This is a CHARGE addition, NOT a threshold modification. The ULT
+//     threshold (mage=100 etc.) is UNTOUCHED. We add to `ultCharges.umbra`
+//     and clamp to `currentUltThreshold.umbra` / `ULT_THRESHOLD.umbra` —
+//     never overshoot, never modify the threshold itself.
+//   - The ULT-fire pipeline (player-initiated trigger at threshold-ready
+//     state) is left alone. Encore Echo writes charge; the pipeline reads.
+//
+// Stacking (spec §2.3 field 8):
+//   - With RACE_SYNERGY rock tier 3 `ENCORE` (first 🌑ULT ×2): both fire,
+//     compound synergy intentional. RACE_SYNERGY UNTOUCHED.
+//   - With Element Synergy umbra 3x/5x (`-4 ULT, +20% passive`, `-6 ULT,
+//     +50% damage, 30% start`): independent layers; Identity Layer adds
+//     raw charge, Element Synergy reduces threshold. No conflict.
+//   - With Combo Crit: no interaction (charge ≠ damage).
+//
+// Performance budget (spec §2.3 field 9): ≤8ms wall-time per fire, max 4
+// echo ghost elements simultaneously (one per cleared line, max 4 lines
+// per `clearLines` call by board geometry), 700ms decay.
+export const ROCK_ECHO_CHARGE_PER_LINE       = 1;     // +1 charge per umbra-dominant line
+export const ROCK_ECHO_MAX_CHARGE_PER_FIRE   = 4;     // HARD CAP per spec §2.3 field 4
+export const ROCK_ECHO_GHOST_DECAY_MS        = 700;
+export const ROCK_ECHO_DELAY_MS              = 200;   // delay between clear and ghost flash
+export const ROCK_ECHO_DOMINANT_ELEMENT      = 'umbra';
+export const ROCK_ECHO_ULT_METER             = 'umbra'; // which ULT meter to write to

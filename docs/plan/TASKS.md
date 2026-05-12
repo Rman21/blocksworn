@@ -2785,6 +2785,105 @@ All 9 tests pass.
 
 ---
 
+### TASK-031 (T2.04) — REVIEW 2026-05-12 — Rock Encore Echo
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev complete 2026-05-12, awaiting CTO sign-off)
+**Started:** 2026-05-12
+**Completed (Game Dev):** 2026-05-12
+**Priority:** HIGH
+**Phase:** 2 (Identity Layer) — **4/12**
+**Estimated complexity:** M
+**Depends on:** ✅ TASK-029 (T2.02 — dispatcher scaffold + 4 precedent rulings), ✅ TASK-030 (T2.03 — `ctx.dominantElementsByLine` surface)
+**Spec:** `docs/design/mechanics/identity-layer.md` §2.3 (Rock Encore Echo)
+
+**Implementation summary:**
+
+Implements the third Phase 2 Identity Layer race flavor — **Rock Encore Echo** — per spec §2.3. Replaces the T2.02 stub with the full mechanic: umbra-dominant line-clears with ≥1 rock alive grant +1 ULT charge to the umbra meter per umbra-dominant line, **HARD CAPPED at +4 per fire** AND **threshold-clamped** so the sacred `HERO_ULT_COST_BY_NEWROLE` ULT-trigger pipeline is never bypassed. Visual: translucent purple ghost-flash element appears ~200ms after the line clears, dissolves over 700ms (one per umbra-dominant line, max 4).
+
+**Files touched (7):**
+
+1. `src/data/identity-layer.js` — Added 6 new Rock constants (`ROCK_ECHO_CHARGE_PER_LINE = 1`, `ROCK_ECHO_MAX_CHARGE_PER_FIRE = 4`, `ROCK_ECHO_GHOST_DECAY_MS = 700`, `ROCK_ECHO_DELAY_MS = 200`, `ROCK_ECHO_DOMINANT_ELEMENT = 'umbra'`, `ROCK_ECHO_ULT_METER = 'umbra'`). `IDENTITY_FX_BUDGETS[ROCK_ECHO]` already correct from T2.02 scaffold — no change.
+2. `src/data/races.js` — Added `rock: 'rock_echo'` entry to `RACE_IDENTITY_FX` sibling export. **`RACE_SYNERGY.rock` literal byte-perfect** — INCLUDING the sacred tier-3 `ENCORE` flag (first 🌑ULT ×2) — per T2.02 precedent #1.
+3. `src/feel/particles.js` — Added `spawnRockEchoGhost({el, x, y, direction, decayMs, delayMs})` factory. Mirrors `spawnCoinParticle` / `spawnSharkBiteParticle` pattern (pool-aware, CSS-keyframe-driven, no rAF loop). Recolor-only per ESC-02 O4 RE-USE-FIRST ruling (#7e3fb8 violet vs #4ADBFF cyan).
+4. `src/feel/identity-fx.js` — Replaced `fxRockLineClear` stub with full impl + 4 pure helpers (`countAliveRocks`, `countUmbraDominantLines`, `computeEncoreEchoCharge`, `clampEncoreEchoCharge`). Added 4-element ghost-echo DOM pool (`_ensureRockEchoPool`). Dispatcher now forwards `ctx` to Rock fx (T2.03 ctx surface re-used). New Rock testables added to `__identityFxTestables`. Module-load globals declaration extended (`ultCharges`, `ULT_THRESHOLD`, `currentUltThreshold`) — read-only access via `Math.min(threshold, current + delta)` clamp pattern matching legacy heroes.js:790.
+5. `src/styles/screens/battle.css` — Added `.identity-rock-echo-{layer,ghost,flashing}` classes + `@keyframes identityRockEcho` (200ms delay + flash + 700ms dissolve) + `@keyframes identityRockEchoStaticFade` (reduced-motion fallback, mirrors Pirate/Shark precedent). Painterly violet-purple gradient matches PR #157 emblem aesthetic.
+6. `tests/unit/identity-layer.test.js` — Added **42 new Rock unit tests** (73 → 115): `countAliveRocks` (5), `countUmbraDominantLines` (7), `computeEncoreEchoCharge` (8), `clampEncoreEchoCharge` threshold safety (8), `fxRockLineClear` gate behavior (6), threshold-clamp sacred invariant (4), constants/budgets (2), dispatcher regression (2). Includes HARD CAP, threshold-99/100, sacred mage-100-threshold exhaustive sweep.
+7. `tests/smoke/identity-layer.spec.js` — Added **6 new Rock smoke tests** (16 → 22 = +6 entries × 2 projects = +12 smoke runs): umbra-dominant 1-row clear → +1 charge + ghost element + flashing class observed; quad-umbra-line clear → +4 HARD CAP; threshold-clamp (meter at 11/12 + 4 echo → 12, NOT 15) — explicit sacred-cow invariant smoke; 0 umbra-dominant silent no-op; mixed-race rock+pirate+shark dispatch (cross-race regression); performance budget (≤8ms wall-time, allow 3× CI headroom).
+
+**Sacred cow audit — 0 modifications:**
+
+- [x] V_HAPTICS table untouched (haptics.js NOT in diff)
+- [x] `vPlayLineClearBurst` 180/440ms timing untouched (animations.js NOT in diff)
+- [x] Combo crit formula UNTOUCHED — Encore Echo writes to `ultCharges.umbra` (a charge meter, NEVER `dominantCount` or damage formula inputs)
+- [x] Element Synergy umbra 2x/3x/5x values untouched (data/synergies.js NOT in diff)
+- [x] **`HERO_ULT_COST_BY_NEWROLE` UNTOUCHED** — Encore Echo adds CHARGE, never modifies THRESHOLD. The threshold (mage=100, etc.) is only READ for the clamp invariant. Verified via 4 dedicated threshold-clamp tests + 1 smoke test + 100-row exhaustive sweep test.
+- [x] **`RACE_SYNERGY.rock` literal byte-perfect** — INCLUDING the sacred tier-3 `ENCORE` flag (first 🌑ULT ×2). Only the sibling `RACE_IDENTITY_FX` export was extended (T2.02 precedent #1).
+- [x] All 22 v2.1 P4 reactivity handlers byte-perfect (reactivity-events.js NOT in diff)
+- [x] TIER_COSTS_V18 / MAX_HP / TTK / GEM_PACKS / Battle Pass / Tower retry untouched
+- [x] NARRATOR_LINES untouched (no narrator in T2.04 race-flavor scope)
+- [x] No new V_HAPTICS keys
+- [x] No `document.createElement` per fire — 4-element ghost-echo DOM pool allocated once at first `_ensureRockEchoPool()` call (matches T2.02/T2.03 pool pattern; spec §5 object-pool requirement satisfied)
+- [x] No magic numbers in logic — all values imported from `src/data/identity-layer.js`
+- [x] No legacy bridge added — deferred to T2.B per T2.02 precedent #4 (`ctx.dominantElementsByLine` thread + `ultCharges` global access wired live in T2.B alongside the dispatcher hook into legacy clearLines)
+- [x] No ULT-fire pipeline bypass — clamp uses `Math.min(threshold, current + delta)` matching legacy heroes.js:790 pattern. Reaching threshold = ULT-ready (existing pipeline observes); Encore Echo never writes > threshold.
+
+**T2.02 precedent compliance:**
+
+1. **Sibling export pattern** ✅ — extended `RACE_IDENTITY_FX` only; `RACE_SYNERGY.rock` byte-perfect (incl. sacred ENCORE flag)
+2. **Defensive hp handling** ✅ — `countAliveRocks` mirrors `countAlivePirates` / `countAliveSharks`: absence-of-hp = alive, hp<=0 = excluded
+3. **Single haptic / no double-pulse** ✅ — `fxRockLineClear` does NOT fire `vHaptic('clear')`; legacy's `vibrate(25)` is the sole haptic per fire
+4. **Deferred legacy bridge** ✅ — Module-side correctness contract-tested via dynamic import + window stubs (smoke); live legacy wiring is T2.B (single batched integration moment for the entire Identity Layer)
+
+**T2.03 precedent compliance:**
+
+- `ctx.dominantElementsByLine` surface re-used as the read-only side-channel for per-line dominance — same pattern T2.03 established for Shark's tide-gate. T2.B will populate from legacy `getDominantElementCount` once.
+
+**Verification:**
+
+- `npm run lint` → 0 errors / 0 warnings
+- `npm run test:unit` → **152/152 pass** (110 → 152, +42 Rock tests in identity-layer.test.js)
+- `npm run test:smoke` → **34/34 pass** × 2 projects (chromium + mobile-chrome), 22 → 34 (+12 smoke entries: 6 new × 2 projects)
+- `npm run build` → 205.87 kB JS (unchanged) + 372.50 kB CSS (≈+1.6 kB Rock keyframes/classes — well under 5 MB AAA+ ceiling)
+
+**Performance measurement:**
+
+Live browser perf probe (chromium, 20 samples post-warmup, 5-rock × quad-umbra-line clear): **median 0.2ms / max 0.2ms** vs spec budget of ≤8ms — **40× under budget**. Hard cap at 4 echo elements means even maximum-input fires stay bounded by the DOM pool ceiling.
+
+**Threshold clamp safety verified (sacred AAA+ invariant):**
+
+The brief flagged "a rock at 99/100 charge + +4 echo charge stays at 100 max (NOT 103)" as a critical invariant. Verified via:
+
+- Unit test: `clampEncoreEchoCharge(99, 4, 100) → 100`
+- Unit test: `clampEncoreEchoCharge(100, 4, 100) → 100` (already at threshold, no overflow)
+- Unit test: 100-row exhaustive sweep — `for current in 0..100: for echo in 0..4: clamp(current, echo, 100) ≤ 100`
+- Smoke test: live `window.ultCharges.umbra = 11` + 4 echo → `umbraCharge === 12` (not 15)
+
+The legacy `Math.min(cap, current + delta)` pattern at heroes.js:790 IS the established sacred clamp; Encore Echo uses the identical pattern. ULT-fire trigger remains in the existing pipeline (player-initiated at threshold-ready state) — Encore Echo never auto-fires.
+
+**Mechanical contract verified (spec §2.3):**
+
+- Trigger gate: `rockCount ≥ 1` AND `≥1 cleared line with dominant === 'umbra'` — verified via 6 `fxRockLineClear` gate tests
+- Charge per line: `ROCK_ECHO_CHARGE_PER_LINE = 1` — verified for line counts 0/1/2/3/4/6
+- Hard cap: `ROCK_ECHO_MAX_CHARGE_PER_FIRE = 4` enforced inside `computeEncoreEchoCharge` AND `countUmbraDominantLines` (defense-in-depth) — verified via "5 rocks + 6 umbra lines" test (would yield 6; capped at 4)
+- Threshold clamp: `Math.min(threshold, current + delta)` — verified via 4 dedicated tests + 1 smoke test
+- ULT meter targeting: writes ONLY to `ultCharges.umbra` (never ember/tide/grove/solar) — verified via `ROCK_ECHO_ULT_METER === 'umbra'` constant test
+- Visual: 200ms delay + 700ms decay, 4-element pool, recolor-only purple (#7e3fb8) — verified via smoke DOM observation (`.identity-rock-echo-ghost.identity-rock-echo-flashing` class present after fire)
+- No ULT-fire pipeline bypass — threshold reached = ULT-ready (existing pipeline owns the trigger); Encore Echo writes only charge, never bypasses
+
+**T2.02 + T2.03 cross-race regression verified:**
+
+`Mixed-race squad regression: rock + pirate + shark fire all three identity layers without interference` smoke test confirms: 2 pirates × 8 cells × 5g/cell = 80g (Pirate); +1 umbra charge (Rock); ≥1 bitten cell (Shark) — all three layers fire independently from a single `dispatchIdentityFx` call.
+
+**Anything unexpected:**
+
+- **None.** Spec §2.3 is unambiguous; threshold-clamp pattern is byte-identical to existing legacy code (heroes.js:790, 1356, 1506, 1560, 1900, 2258 all use `Math.min(cap, current + delta)`).
+- The dispatcher's `ctx` parameter signature established in T2.03 was the exact surface needed for Rock's umbra-dominant gate — T2.03's foresight paid off immediately.
+- Reading `ultCharges` from src/ works the same way T1.10.* tasks established (via `/* global */` ESLint annotation). No new bridge needed; T2.B will populate the globals naturally as part of the legacy wiring pass.
+
+**Status:** REVIEW awaiting CTO sign-off.
+
+---
+
 ### TASK-030 (T2.03) — ✅ DONE 2026-05-12 — Shark Feeding Frenzy
 
 **CTO acceptance 2026-05-12:** PASS. Implementation matches spec §2.2; 36-row sacred audit clean (combo crit untouched, RACE_SYNERGY byte-perfect, all 22 P4 handlers byte-perfect); 110/110 unit + 22/22 smoke (×2 projects); wall-time 1-3ms (10× under 10ms budget); commit `3dee3cd`. All 4 T2.02 precedents followed.

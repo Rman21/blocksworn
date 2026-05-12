@@ -120,6 +120,60 @@ export function spawnSharkBiteParticle({ el, x, y, direction, decayMs }) {
   return el;
 }
 
+// 2026-05-12 — TASK-031 (T2.04): Identity Layer rock ghost-flash particle factory.
+//
+// Pure factory — given pre-allocated DOM element + cleared-line origin coords +
+// orientation (row vs col), configures the element for a single translucent
+// purple ghost-flash that appears ~200ms AFTER the line clears and dissolves
+// over 700ms. Used exclusively by the Rock Encore Echo identity FX (spec §2.3).
+// Pool allocation lives in `src/feel/identity-fx.js` per the object-pool
+// requirement of spec §5 (no `document.createElement` per fire).
+//
+// The element is expected to carry the `.identity-rock-echo-ghost` class
+// (translucent purple, painterly violet-spark texture) and to support the
+// `.identity-rock-echo-flashing` keyframe set defined in
+// `src/styles/screens/battle.css`. Caller is responsible for returning the
+// element to the pool when its decay timer fires.
+//
+// Parameters:
+//   el        — pre-allocated <div> from the pool (Identity Layer owns the pool)
+//   x, y      — line origin (cleared-row/cleared-col midpoint) in viewport coords
+//   direction — 'horizontal-row' | 'vertical-col' (ghost stretches along the line)
+//   decayMs   — total animation lifetime; matches ROCK_ECHO_GHOST_DECAY_MS (700ms)
+//   delayMs   — delay before the ghost begins flashing; matches ROCK_ECHO_DELAY_MS (200ms)
+//
+// Returns: the same `el` (caller-tracked for cleanup / pool release).
+//
+// Re-uses the existing CSS-transform-only animation pattern from
+// `spawnCoinParticle` / `spawnSharkBiteParticle` above — no requestAnimationFrame
+// loop, no per-frame DOM writes, single transform via CSS keyframes. Pure
+// addition; touches no sacred element of the existing particle factories.
+//
+// Visual reference (spec §2.3 field 3): "a translucent purple `ghost` of the
+// cleared cells flashes back in place for one beat, then dissolves. Particles
+// are slow-moving violet sparks (re-use particle pool, recolor only)." The
+// recolor-only contract is satisfied by the `.identity-rock-echo-ghost`
+// background gradient (#7e3fb8 violet-purple) — the underlying transform
+// pattern is identical to the cyan Shark bite, just recolored per ESC-02 O4
+// RE-USE-FIRST ruling (no new SFX/particle archetype added).
+export function spawnRockEchoGhost({ el, x, y, direction, decayMs, delayMs }) {
+  if (!el) return null;
+  // Position at line origin, expose orientation + timing via CSS custom
+  // properties so the .identity-rock-echo-flashing keyframe can interpolate.
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  el.style.setProperty('--echo-decay-ms', decayMs + 'ms');
+  el.style.setProperty('--echo-delay-ms', (delayMs || 0) + 'ms');
+  el.setAttribute('data-echo-direction', direction || 'horizontal-row');
+  // Restart the animation deterministically (re-trigger CSS keyframes on
+  // re-used pool elements). Toggle class off then on by forcing a layout read.
+  el.classList.remove('identity-rock-echo-flashing');
+  // Force a synchronous reflow so the keyframe restarts cleanly.
+  void el.offsetWidth;
+  el.classList.add('identity-rock-echo-flashing');
+  return el;
+}
+
 // Spawns the 16-particle radial burst at the boss portrait centerpoint.
 // Returns nothing; the container auto-removes itself after 1600ms.
 // `wrap` is the #bossImgWrap element (caller passes its getBoundingClientRect

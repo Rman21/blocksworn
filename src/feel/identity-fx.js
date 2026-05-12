@@ -39,7 +39,7 @@
 // more coins than the pool currently has free, surplus requests are dropped
 // (silently — cap is hard per spec §2.1 field 9 + §5).
 
-/* global addGold, HERO_DECK */
+/* global addGold, HERO_DECK, ultCharges, ULT_THRESHOLD, currentUltThreshold */
 
 import {
   IDENTITY_FX_KEYS,
@@ -51,8 +51,14 @@ import {
   SHARK_FRENZY_MAX_EXTRA_CELLS,
   SHARK_FRENZY_BITE_DECAY_MS,
   SHARK_FRENZY_DOMINANT_ELEMENT,
+  ROCK_ECHO_CHARGE_PER_LINE,
+  ROCK_ECHO_MAX_CHARGE_PER_FIRE,
+  ROCK_ECHO_GHOST_DECAY_MS,
+  ROCK_ECHO_DELAY_MS,
+  ROCK_ECHO_DOMINANT_ELEMENT,
+  ROCK_ECHO_ULT_METER,
 } from '../data/identity-layer.js';
-import { spawnCoinParticle, spawnSharkBiteParticle } from './particles.js';
+import { spawnCoinParticle, spawnSharkBiteParticle, spawnRockEchoGhost } from './particles.js';
 import { vHaptic } from './haptics.js';
 import { log } from '../services/logger.js';
 
@@ -639,14 +645,349 @@ export function fxSharkLineClear(rows, cols, squad, ctx) {
   }
 }
 
-// ─── Stubs for T2.04–T2.06 (export contract only) ──────────────────────
-// These exist so `dispatchIdentityFx` can route to them today without
-// throwing. Each is a no-op pass-through; T2.04 / T2.05 / T2.06 will replace
-// the body. Signatures must NOT change without spec revision.
-export function fxRockLineClear(_rows, _cols, _squad) {
-  // T2.04 — Encore Echo (spec §2.3). Stub.
-  return 0;
+// ─── Rock Encore Echo DOM pool (spec §2.3 + §5 — no createElement per fire) ──
+// Pre-allocate ROCK_ECHO_MAX_CHARGE_PER_FIRE ghost elements at module load
+// (lazy — first call to `_ensureRockEchoPool`). Track available vs in-flight
+// via two arrays. Mirrors the coin + shark-bite pool patterns above. The
+// ghost ceiling matches the spec's hard cap (4 echo elements per fire = one
+// per cleared line in a max quad-clear), so pool exhaustion under realistic
+// load is mathematically impossible inside a single fire — exhaustion would
+// only occur if two fires overlap their 700ms decay windows.
+const _rockEchoPool          = [];   // all ROCK_ECHO_MAX_CHARGE_PER_FIRE elements (created once)
+const _rockEchoPoolAvailable = [];   // currently idle elements (poppable)
+let   _rockEchoPoolInitDone  = false;
+let   _rockEchoPoolContainer = null;
+
+function _ensureRockEchoPool() {
+  if (_rockEchoPoolInitDone) return;
+  if (typeof document === 'undefined') return; // unit-test guard
+  _rockEchoPoolContainer = document.createElement('div');
+  _rockEchoPoolContainer.className = 'identity-rock-echo-layer';
+  _rockEchoPoolContainer.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(_rockEchoPoolContainer);
+  for (let i = 0; i < ROCK_ECHO_MAX_CHARGE_PER_FIRE; i++) {
+    const el = document.createElement('div');
+    el.className = 'identity-rock-echo-ghost';
+    _rockEchoPoolContainer.appendChild(el);
+    _rockEchoPool.push(el);
+    _rockEchoPoolAvailable.push(el);
+  }
+  _rockEchoPoolInitDone = true;
 }
+
+function _acquireRockEcho() {
+  return _rockEchoPoolAvailable.pop() || null;
+}
+
+function _releaseRockEcho(el) {
+  if (!el) return;
+  el.classList.remove('identity-rock-echo-flashing');
+  el.removeAttribute('data-echo-direction');
+  _rockEchoPoolAvailable.push(el);
+}
+
+// ─── Rock pure math (unit-testable, no DOM) ─────────────────────────────
+//
+// Squad alive-rock count. Defensive against the codebase reality that heroes
+// in HERO_DECK don't track per-hero hp (squad shares global `hp`). Treats
+// absence of `.hp` as alive (heroes are removed from deck on death;
+// `h.hp > 0` gate is preserved when hp IS present). Mirrors
+// `countAlivePirates` / `countAliveSharks` precedent (T2.02 CTO ruling #2 —
+// defensive hp / single-haptic).
+export function countAliveRocks(squad) {
+  if (!Array.isArray(squad)) return 0;
+  let n = 0;
+  for (const h of squad) {
+    if (!h || h.race !== 'rock') continue;
+    if (h.hp !== undefined && h.hp <= 0) continue;
+    n++;
+  }
+  return n;
+}
+
+// Count of cleared lines whose dominant element is `umbra`. Pure function —
+// unit-testable. `dominantElementsByLine` is the per-line dominant-element
+// array threaded through the dispatcher's `ctx` (same surface T2.03 surfaced
+// for Shark's tide-dominant gate; T2.B will populate from legacy
+// `getDominantElementCount` on the cleared rows+cols).
+//
+// HARD CAP at ROCK_ECHO_MAX_CHARGE_PER_FIRE (4) — even if more umbra-dominant
+// lines were somehow supplied (impossible by board geometry but defensive),
+// the count never exceeds the spec field 4 ceiling.
+//
+// `rows` / `cols` are accepted for signature symmetry with the other
+// `compute*` helpers + future-proofing if the caller needs to discriminate
+// row-vs-col dominance, but the current implementation only consumes the
+// `dominantElementsByLine` array.
+export function countUmbraDominantLines(rows, cols, dominantElementsByLine) {
+  if (!Array.isArray(dominantElementsByLine)) return 0;
+  let n = 0;
+  for (const el of dominantElementsByLine) {
+    if (el === ROCK_ECHO_DOMINANT_ELEMENT) {
+      n++;
+      if (n >= ROCK_ECHO_MAX_CHARGE_PER_FIRE) return ROCK_ECHO_MAX_CHARGE_PER_FIRE;
+    }
+  }
+  return n;
+}
+
+// Compute the umbra-ULT charge to add this fire. Pure function —
+// unit-testable. Per spec §2.3 field 4: "+1 ULT charge to the umbra ULT
+// meter (only) per cleared line where dominant element is `umbra`. Capped
+// at +4 per fire."
+//
+// Returns:
+//   0 if rockCount === 0 (silent no-op gate)
+//   0 if umbraDominantLineCount === 0 (no umbra dominance → no charge)
+//   min(umbraDominantLineCount, ROCK_ECHO_MAX_CHARGE_PER_FIRE) otherwise
+export function computeEncoreEchoCharge(rockCount, umbraDominantLineCount) {
+  const _rocks = Math.max(0, Math.floor(Number(rockCount) || 0));
+  const _lines = Math.max(0, Math.floor(Number(umbraDominantLineCount) || 0));
+  if (_rocks === 0 || _lines === 0) return 0;
+  return Math.min(_lines * ROCK_ECHO_CHARGE_PER_LINE, ROCK_ECHO_MAX_CHARGE_PER_FIRE);
+}
+
+// Threshold-safe clamp helper. Reads the umbra ULT threshold from the
+// runtime globals (legacy `currentUltThreshold.umbra` first, then static
+// `ULT_THRESHOLD.umbra`), defaults to 12 when neither is available (matches
+// the legacy fallback at heroes.js:790).
+//
+// Sacred-cow safety (CLAUDE.md §2.1): the threshold itself is NEVER
+// modified by Encore Echo — we only READ it to compute the clamp. The
+// ULT-fire pipeline observes `ultCharges.umbra >= threshold` and marks
+// the ULT ready; Encore Echo writes charge up to (but never beyond) the
+// threshold and lets the existing pipeline trigger the actual ULT fire.
+//
+// Pure function — exported so unit tests can verify the clamp math without
+// needing real globals (caller passes `_currentCharge`, `_thresholdOverride`
+// to drive the math). When `_thresholdOverride` is undefined, the function
+// reads runtime globals (production path).
+export function clampEncoreEchoCharge(currentCharge, echoCharge, thresholdOverride) {
+  const _current = Math.max(0, Math.floor(Number(currentCharge) || 0));
+  const _delta   = Math.max(0, Math.floor(Number(echoCharge) || 0));
+  // Resolve threshold: explicit override > currentUltThreshold > ULT_THRESHOLD > 12.
+  let _threshold;
+  if (typeof thresholdOverride === 'number' && thresholdOverride > 0) {
+    _threshold = thresholdOverride;
+  } else if (typeof currentUltThreshold !== 'undefined' && currentUltThreshold
+             && typeof currentUltThreshold[ROCK_ECHO_ULT_METER] === 'number') {
+    _threshold = currentUltThreshold[ROCK_ECHO_ULT_METER];
+  } else if (typeof ULT_THRESHOLD !== 'undefined' && ULT_THRESHOLD
+             && typeof ULT_THRESHOLD[ROCK_ECHO_ULT_METER] === 'number') {
+    _threshold = ULT_THRESHOLD[ROCK_ECHO_ULT_METER];
+  } else {
+    _threshold = 12; // legacy fallback per heroes.js:790
+  }
+  return Math.min(_threshold, _current + _delta);
+}
+
+// Resolves a screen-coord origin for a cleared line's midpoint. Returns
+// {x, y, direction} for the FIRST row in `rows` (preferred) or first col in
+// `cols`. Used by the Rock Echo VFX to anchor the ghost flash on the line
+// the player just cleared. Read-only DOM query — no mutation. Returns null
+// when no cells are renderable (early-boot / FTUE / unit-test env).
+function _resolveLineOrigin(rows, cols) {
+  if (typeof document === 'undefined') return null;
+  const cells = document.querySelectorAll('.grid .cell');
+  if (!cells.length) return null;
+  // Prefer row anchor: row r, center col (col 4 on 8×8).
+  if (Array.isArray(rows) && rows.length > 0 && typeof rows[0] === 'number') {
+    const idx = rows[0] * BOARD_COLS + Math.floor(BOARD_COLS / 2);
+    const el = cells[idx];
+    if (el) {
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, direction: 'horizontal-row' };
+    }
+  }
+  if (Array.isArray(cols) && cols.length > 0 && typeof cols[0] === 'number') {
+    const idx = Math.floor(BOARD_ROWS / 2) * BOARD_COLS + cols[0];
+    const el = cells[idx];
+    if (el) {
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, direction: 'vertical-col' };
+    }
+  }
+  return null;
+}
+
+// ─── Rock Encore Echo (spec §2.3) ──────────────────────────────────────
+//
+// Trigger contract (spec §2.3 field 10):
+//   - Fires every `clearLines(rows, cols)` resolve.
+//   - Gate: ≥1 rock hero alive in squad AND ≥1 cleared line with dominant
+//     element === 'umbra'. Else silent no-op (no DOM, no allocation, no log).
+// Effect contract (spec §2.3 fields 3–9):
+//   - +1 ULT charge to `ultCharges.umbra` per umbra-dominant cleared line.
+//   - HARD CAP at ROCK_ECHO_MAX_CHARGE_PER_FIRE (4) charge per fire.
+//   - **Threshold-clamped**: writes `min(threshold, current + delta)` so
+//     the umbra ULT meter NEVER overshoots its sacred threshold. The
+//     ULT-fire pipeline (player-initiated at ready-state) is left alone;
+//     Encore Echo only adds charge up to ready, never beyond.
+//   - Visual: ~200ms after the line clears, a translucent purple "ghost"
+//     of the cleared cells flashes back in place for one beat, then
+//     dissolves over 700ms. Max 4 echo elements simultaneously.
+//   - Sound: soft cymbal swell — re-use existing `Encore` proc from
+//     rock-tier RACE_SYNERGY (per ESC-02 O4 RE-USE-FIRST ruling). No new
+//     SFX asset added in T2.04. Audio mixer handles re-use; this module
+//     does NOT call audio APIs directly.
+//   - Haptic: standard `clear` already fired by host `clearLines` via
+//     `vibrate(25)` — `fxRockLineClear` does NOT re-fire (T2.02 precedent
+//     #3 — no double-pulse).
+//   - Total wall-time ≤8ms (spec §2.3 field 9).
+//
+// `ctx` is an optional cell-state predicate snapshot (passed through from
+// the dispatcher; nullable in T2.04 since legacy bridge is deferred to
+// T2.B). Recognized keys for Rock: `dominantElementsByLine` (per-line
+// dominant element array — same surface T2.03 surfaced for Shark).
+//
+// Returns the count of charges actually added (clamped — useful for smoke
+// assertions). When the threshold is reached mid-add, the returned value
+// reflects the post-clamp delta (e.g., adding +4 to a meter at 99/100
+// returns 1, not 4).
+export function fxRockLineClear(rows, cols, squad, ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  try {
+    // Squad alive-rock count. Same fallback chain as Pirate / Shark.
+    const _squad = Array.isArray(squad) ? squad
+                 : (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) ? HERO_DECK
+                 : [];
+    const rockCount = countAliveRocks(_squad);
+    if (rockCount === 0) return 0;
+
+    const rowCount = Array.isArray(rows) ? rows.length : 0;
+    const colCount = Array.isArray(cols) ? cols.length : 0;
+    if (rowCount + colCount === 0) return 0;
+
+    // Read per-line dominant elements from ctx (T2.03 side-channel).
+    const dominantByLine = (ctx && Array.isArray(ctx.dominantElementsByLine))
+      ? ctx.dominantElementsByLine
+      : null;
+    const umbraDominantLineCount = countUmbraDominantLines(rows, cols, dominantByLine);
+    if (umbraDominantLineCount === 0) return 0;
+
+    const echoChargeToAdd = computeEncoreEchoCharge(rockCount, umbraDominantLineCount);
+    if (echoChargeToAdd <= 0) return 0;
+
+    // ── Write to umbra ULT meter via threshold-clamped Math.min (sacred). ──
+    // The legacy globals `ultCharges` + `currentUltThreshold` / `ULT_THRESHOLD`
+    // are runtime-populated by the legacy battle init (battle.js:765+ /
+    // heroes.js:790). When the globals aren't populated (early-boot / unit-
+    // test / FTUE pre-battle), write is silently skipped — VFX still plays
+    // so the smoke test can observe the ghost element, but no spurious
+    // charge is granted in a non-battle context.
+    let _actualDelta = 0;
+    try {
+      if (typeof ultCharges !== 'undefined' && ultCharges
+          && typeof ultCharges[ROCK_ECHO_ULT_METER] === 'number') {
+        const _current = ultCharges[ROCK_ECHO_ULT_METER];
+        const _clamped = clampEncoreEchoCharge(_current, echoChargeToAdd);
+        _actualDelta = _clamped - _current;
+        ultCharges[ROCK_ECHO_ULT_METER] = _clamped;
+      } else if (typeof window !== 'undefined' && window.ultCharges
+                 && typeof window.ultCharges[ROCK_ECHO_ULT_METER] === 'number') {
+        // Window-bridge fallback (T1.13.5 pattern) — legacy may expose globals
+        // only on window in some boot orderings.
+        const _current = window.ultCharges[ROCK_ECHO_ULT_METER];
+        const _clamped = clampEncoreEchoCharge(_current, echoChargeToAdd);
+        _actualDelta = _clamped - _current;
+        window.ultCharges[ROCK_ECHO_ULT_METER] = _clamped;
+      }
+    } catch (e) {
+      log.warn('Rock Encore Echo ultCharges write failed:', e);
+    }
+
+    // Visual: ghost-flash per umbra-dominant cleared line. One element per
+    // line up to ROCK_ECHO_MAX_CHARGE_PER_FIRE (the pool size). We spawn
+    // echoChargeToAdd ghosts regardless of `_actualDelta` — VFX represents
+    // the player's action, not the clamped mechanical result (mirrors the
+    // Shark "blocked bite still fires visually" pattern from T2.03).
+    _ensureRockEchoPool();
+    if (_rockEchoPoolInitDone) {
+      // Spawn one ghost per umbra-dominant line — but we need a per-line
+      // origin. Since `dominantElementsByLine` is parallel to (rows ∪ cols),
+      // we iterate `rows` first then `cols` to match the dispatcher's
+      // upstream ordering (T2.03 convention).
+      const _rowList = Array.isArray(rows) ? rows : [];
+      const _colList = Array.isArray(cols) ? cols : [];
+      let _spawned = 0;
+      const _maxSpawn = Math.min(echoChargeToAdd, ROCK_ECHO_MAX_CHARGE_PER_FIRE);
+      // Per-line spawn: for each (rows[i] then cols[j]) entry, if the
+      // matching dominantByLine[k] is 'umbra', spawn a ghost at that line's
+      // origin. When dominantByLine is null (defensive — gate already
+      // guarded above), this loop is skipped.
+      if (dominantByLine) {
+        let _lineIdx = 0;
+        for (const r of _rowList) {
+          if (_spawned >= _maxSpawn) break;
+          if (dominantByLine[_lineIdx] === ROCK_ECHO_DOMINANT_ELEMENT) {
+            const origin = _resolveLineOrigin([r], []);
+            if (origin) {
+              const el = _acquireRockEcho();
+              if (!el) break;
+              spawnRockEchoGhost({
+                el,
+                x: origin.x,
+                y: origin.y,
+                direction: origin.direction,
+                decayMs: ROCK_ECHO_GHOST_DECAY_MS,
+                delayMs: ROCK_ECHO_DELAY_MS,
+              });
+              setTimeout(() => _releaseRockEcho(el),
+                ROCK_ECHO_GHOST_DECAY_MS + ROCK_ECHO_DELAY_MS);
+              _spawned++;
+            }
+          }
+          _lineIdx++;
+        }
+        for (const c of _colList) {
+          if (_spawned >= _maxSpawn) break;
+          if (dominantByLine[_lineIdx] === ROCK_ECHO_DOMINANT_ELEMENT) {
+            const origin = _resolveLineOrigin([], [c]);
+            if (origin) {
+              const el = _acquireRockEcho();
+              if (!el) break;
+              spawnRockEchoGhost({
+                el,
+                x: origin.x,
+                y: origin.y,
+                direction: origin.direction,
+                decayMs: ROCK_ECHO_GHOST_DECAY_MS,
+                delayMs: ROCK_ECHO_DELAY_MS,
+              });
+              setTimeout(() => _releaseRockEcho(el),
+                ROCK_ECHO_GHOST_DECAY_MS + ROCK_ECHO_DELAY_MS);
+              _spawned++;
+            }
+          }
+          _lineIdx++;
+        }
+      }
+    }
+
+    // Spec §2.3 field 6: standard `clear` haptic. Already fired by host
+    // clearLines (`vibrate(25)` at grid.js:399). NOT re-fired here — T2.02
+    // precedent #3 (no double-pulse).
+    void vHaptic;
+
+    // Return the CLAMPED actual delta — useful for smoke assertions that
+    // need to verify the threshold-clamp invariant. Note: this may be
+    // smaller than echoChargeToAdd when the meter was near the cap. When
+    // the runtime globals aren't populated (unit-test / FTUE), returns 0
+    // for the charge side but VFX still ran (observable via DOM count).
+    return _actualDelta;
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      // Spec §2.3 field 9 — soft budget check at 8ms.
+      if (dt > 8) log.warn('Rock Encore Echo over budget:', dt.toFixed(2), 'ms');
+    }
+  }
+}
+
+// ─── Stubs for T2.05–T2.06 (export contract only) ──────────────────────
+// These exist so `dispatchIdentityFx` can route to them today without
+// throwing. Each is a no-op pass-through; T2.05 / T2.06 will replace
+// the body. Signatures must NOT change without spec revision.
 export function fxCrocodileLineClear(_rows, _cols, _squad) {
   // T2.05 — Bedrock Bastion (spec §2.4). Stub.
   return 0;
@@ -700,7 +1041,7 @@ export function dispatchIdentityFx(rows, cols, squad, _currentBoss, ctx = null) 
     if (races.has('shark'))     fxSharkLineClear(rows, cols, squad, ctx);
   } catch (e) { log.warn('Shark FX threw:', e); }
   try {
-    if (races.has('rock'))      fxRockLineClear(rows, cols, squad);
+    if (races.has('rock'))      fxRockLineClear(rows, cols, squad, ctx);
   } catch (e) { log.warn('Rock FX threw:', e); }
   try {
     if (races.has('crocodile')) fxCrocodileLineClear(rows, cols, squad);
@@ -743,5 +1084,17 @@ export const __identityFxTestables = Object.freeze({
   // `window.__identityFxLastBittenCells` for the combo-crit input modification
   // path (spec §2.2 field 8). Pure observation — no mutation.
   getLastBittenCells: () => _lastBittenCells.slice(),
+  // T2.04 — Rock Encore Echo testables.
+  getRockEchoPoolSize: () => _rockEchoPool.length,
+  getRockEchoPoolAvailable: () => _rockEchoPoolAvailable.length,
+  resetRockEchoPool: () => {
+    while (_rockEchoPool.length) _rockEchoPool.pop();
+    while (_rockEchoPoolAvailable.length) _rockEchoPoolAvailable.pop();
+    _rockEchoPoolInitDone = false;
+    if (_rockEchoPoolContainer && _rockEchoPoolContainer.parentNode) {
+      _rockEchoPoolContainer.parentNode.removeChild(_rockEchoPoolContainer);
+    }
+    _rockEchoPoolContainer = null;
+  },
   IDENTITY_FX_KEYS,
 });

@@ -319,6 +319,277 @@ test('Pirate Plunder still fires unchanged after Shark addition (T2.02 regressio
   expect(errors).toEqual([]);
 });
 
+// ─── T2.04 — Rock Encore Echo smoke tests (spec §2.3) ───────────────────
+
+test('fxRockLineClear: 5-rock squad + umbra-dominant 1-row clear → +1 umbra charge + ghost flash element', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    // Stub runtime globals (legacy battle init normally populates these).
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `r${i}`, race: 'rock' }));
+
+    // Inject a stubbed 8×8 grid of `.cell` elements so the FX's line-origin
+    // resolver finds positions to spawn ghosts from.
+    const gridHost = document.createElement('div');
+    gridHost.className = 'grid';
+    gridHost.style.cssText = 'position:fixed;left:0;top:0;width:320px;height:320px;display:grid;grid-template-columns:repeat(8,40px);';
+    for (let i = 0; i < 64; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.cssText = 'width:40px;height:40px;';
+      gridHost.appendChild(cell);
+    }
+    document.body.appendChild(gridHost);
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetRockEchoPool();
+
+    // 1-row clear with umbra dominance → 1 charge added.
+    const before = window.ultCharges.umbra;
+    const actualDelta = mod.fxRockLineClear(
+      [3], [], window.HERO_DECK,
+      { dominantElementsByLine: ['umbra'] },
+    );
+    const after = window.ultCharges.umbra;
+
+    await new Promise(r => requestAnimationFrame(() => r()));
+
+    const ghostNodes = document.querySelectorAll('.identity-rock-echo-ghost');
+    const flashingNodes = document.querySelectorAll('.identity-rock-echo-ghost.identity-rock-echo-flashing');
+
+    return {
+      before,
+      after,
+      actualDelta,
+      ghostNodeCount: ghostNodes.length,
+      flashingNodeCount: flashingNodes.length,
+      poolSize: mod.__identityFxTestables.getRockEchoPoolSize(),
+    };
+  });
+
+  // Spec §2.3: 1 umbra-dominant line → +1 charge on umbra meter.
+  expect(result.before).toBe(0);
+  expect(result.after).toBe(1);
+  expect(result.actualDelta).toBe(1);
+  // Visual: 1 ghost element exists, currently flashing.
+  expect(result.ghostNodeCount).toBeGreaterThanOrEqual(1);
+  expect(result.flashingNodeCount).toBeGreaterThanOrEqual(1);
+  // Pool pre-allocated at module load (4 = hard cap).
+  expect(result.poolSize).toBe(4);
+  expect(errors).toEqual([]);
+});
+
+test('fxRockLineClear: 5-rock + 4 umbra-lines quad-clear → HARD CAP at +4 charge', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `r${i}`, race: 'rock' }));
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetRockEchoPool();
+
+    // 4-row clear with all umbra → +4 (hard cap).
+    const before = window.ultCharges.umbra;
+    const actualDelta = mod.fxRockLineClear(
+      [0, 2, 4, 6], [], window.HERO_DECK,
+      { dominantElementsByLine: ['umbra', 'umbra', 'umbra', 'umbra'] },
+    );
+    const after = window.ultCharges.umbra;
+
+    return { before, after, actualDelta };
+  });
+
+  expect(result.before).toBe(0);
+  expect(result.actualDelta).toBe(4);
+  expect(result.after).toBe(4);
+  expect(errors).toEqual([]);
+});
+
+test('fxRockLineClear: threshold clamp — meter at 11/12 + +4 echo → 12 (NOT 15), sacred invariant', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    // CRITICAL AAA+ INVARIANT: Encore Echo never overshoots the sacred
+    // ULT threshold. Meter at 11/12 + 4 echo charge → 12 (clamped), not 15.
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 11 };
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `r${i}`, race: 'rock' }));
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetRockEchoPool();
+
+    const actualDelta = mod.fxRockLineClear(
+      [0, 2, 4, 6], [], window.HERO_DECK,
+      { dominantElementsByLine: ['umbra', 'umbra', 'umbra', 'umbra'] },
+    );
+
+    return {
+      umbraCharge: window.ultCharges.umbra,
+      actualDelta,
+    };
+  });
+
+  // Sacred-cow invariant: clamp at threshold, never overshoot.
+  expect(result.umbraCharge).toBe(12);
+  expect(result.umbraCharge).not.toBe(15);
+  // Delta is the clamped delta (1, not 4) — Encore Echo only added what fit.
+  expect(result.actualDelta).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('fxRockLineClear: 1-rock + 0 umbra-dominant lines → silent no-op (no charge, no DOM)', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.HERO_DECK = [{ id: 'r1', race: 'rock' }];
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetRockEchoPool();
+
+    const before = document.querySelectorAll('.identity-rock-echo-ghost').length;
+    const actualDelta = mod.fxRockLineClear(
+      [0], [], window.HERO_DECK,
+      { dominantElementsByLine: ['ember'] },
+    );
+    const after = document.querySelectorAll('.identity-rock-echo-ghost').length;
+
+    return {
+      actualDelta,
+      umbraCharge: window.ultCharges.umbra,
+      before,
+      after,
+    };
+  });
+
+  expect(result.actualDelta).toBe(0);
+  expect(result.umbraCharge).toBe(0);
+  // No-op: pool NOT initialized (early-return before _ensureRockEchoPool).
+  expect(result.before).toBe(0);
+  expect(result.after).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('Mixed-race squad regression: rock + pirate + shark fire all three identity layers without interference', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    // Set up all three sets of runtime stubs.
+    let goldDelta = 0;
+    window.addGold = (n) => { goldDelta += Number(n) || 0; };
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.HERO_DECK = [
+      { id: 'p1', race: 'pirate' },
+      { id: 'p2', race: 'pirate' },
+      { id: 'r1', race: 'rock' },
+      { id: 's1', race: 'shark' },
+      { id: 's2', race: 'shark' },
+    ];
+
+    // Inject grid for shark + rock VFX resolvers.
+    const gridHost = document.createElement('div');
+    gridHost.className = 'grid';
+    gridHost.style.cssText = 'position:fixed;left:0;top:0;width:320px;height:320px;display:grid;grid-template-columns:repeat(8,40px);';
+    for (let i = 0; i < 64; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.cssText = 'width:40px;height:40px;';
+      gridHost.appendChild(cell);
+    }
+    document.body.appendChild(gridHost);
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetRockEchoPool();
+    mod.__identityFxTestables.resetSharkBitePool();
+
+    // Single umbra-dominant row clear: rock fires (+1 umbra), pirate fires
+    // (+gold for 2 pirates × 8 cells), shark fires (+1 bite extra cell).
+    mod.dispatchIdentityFx(
+      [3], [], window.HERO_DECK, null,
+      { dominantElementsByLine: ['umbra'] },
+    );
+
+    return {
+      goldDelta,                            // Pirate Plunder
+      umbraCharge: window.ultCharges.umbra, // Rock Encore Echo
+      lastBitten: mod.__identityFxTestables.getLastBittenCells().length, // Shark Frenzy
+    };
+  });
+
+  // Pirate Plunder: 2 pirates × 8 cells × 5g/cell = 80g.
+  expect(result.goldDelta).toBe(80);
+  // Rock Encore Echo: +1 umbra charge.
+  expect(result.umbraCharge).toBe(1);
+  // Shark Feeding Frenzy: ≥1 extra cell bitten (2 sharks pass gate on tide
+  // OR ≥2-shark count path; here ≥2 sharks alive so gate passes regardless).
+  expect(result.lastBitten).toBeGreaterThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
+
+test('fxRockLineClear performance: 5-rock × quad-umbra-line clear completes within wall-time budget', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const wallTime = await page.evaluate(async () => {
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `r${i}`, race: 'rock' }));
+    const mod = await import('/src/feel/identity-fx.js');
+
+    // Warm-up call so the pool init cost doesn't skew timing.
+    mod.fxRockLineClear([0], [], window.HERO_DECK,
+      { dominantElementsByLine: ['umbra'] });
+    mod.__identityFxTestables.resetRockEchoPool();
+    window.ultCharges.umbra = 0;
+
+    // Measure a quad-line clear (4 rows, 0 cols → max 4 echo ghosts).
+    const t0 = performance.now();
+    mod.fxRockLineClear([0, 2, 4, 6], [], window.HERO_DECK,
+      { dominantElementsByLine: ['umbra', 'umbra', 'umbra', 'umbra'] });
+    return performance.now() - t0;
+  });
+
+  // Spec §2.3 field 9: wall-time ≤8ms per fire. Allow 3× headroom for CI
+  // variability — any value >24ms is a clear regression.
+  expect(wallTime).toBeLessThan(24);
+  expect(errors).toEqual([]);
+});
+
 test('fxSharkLineClear performance: 5-shark × quad-line clear completes within wall-time budget', async ({ page }) => {
   await seedAuthenticatedState(page);
   await page.goto(VITE_PATH);

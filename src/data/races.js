@@ -179,11 +179,17 @@ export const RACE_SYNERGY = Object.freeze({
 //   (pirate+rock have RACE_SYNERGY+Identity; shark+crocodile+spark have
 //   Identity only) is intentional for Phase 2 and explicitly approved
 //   (see docs/design/mechanics/identity-layer.md §10/§12).
-// T2.04–T2.06 will append rock / crocodile / spark entries.
+// T2.04 (2026-05-12) appends the rock entry per spec §2.3 (Encore Echo).
+//   NOTE: rock keeps its full RACE_SYNERGY tier 2/3/5 entries above
+//   byte-perfect — including the sacred tier-3 `ENCORE` flag (first 🌑ULT
+//   ×2). The Encore Echo identity layer fires ALONGSIDE the sacred
+//   RACE_SYNERGY tier 3 ENCORE (compound synergy intentional per spec §2.3
+//   field 8 stacking notes).
+// T2.05–T2.06 will append crocodile / spark entries.
 export const RACE_IDENTITY_FX = Object.freeze({
   pirate: 'pirate_plunder',
   shark:  'shark_frenzy',           // T2.03
-  // rock:      'rock_echo',          // T2.04
+  rock:   'rock_echo',              // T2.04
   // crocodile: 'crocodile_bastion',  // T2.05
   // spark:     'spark_cascade',      // T2.06
 });
