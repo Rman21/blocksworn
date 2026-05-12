@@ -7,6 +7,67 @@
 
 ## GAME DEVELOPER
 
+### TASK-039 (T2.12) — REVIEW (2026-05-12) — FINAL Phase 2 implementation task — Codex screen
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)
+**Started:** 2026-05-12
+**Completed:** 2026-05-12
+**Priority:** HIGH
+**Phase:** 2 (Identity Layer) — **12/13**
+**Estimated complexity:** L (largest Phase 2 task — full screen + persistence + 10-fx recording wiring)
+**Depends on:** ✅ TASK-029 (T2.02) through ✅ TASK-038 (T2.11) — all 10 identity fx + dispatch primitives wired
+
+**Implementation summary:**
+
+Codex screen is the **collection surface** for the Identity Layer per spec §4.
+Three tabs (Races / Bosses / Moments) × 3-state unlock model (Locked / Encountered /
+Mastered) over persistent `localStorage[blocksworn_codex_state]` slot. Records
+every race line-clear flavor witnessed (25 triggers = Mastered) + every boss
+encountered (1 defeat = Mastered) + every boss-reactive identity moment seen
+(chronological list with first-seen + count). Pure additive — Codex is READ-ONLY
+of game state; writes ONLY to its own localStorage key (strictest sacred-cow
+discipline in Phase 2 per spec §4.10).
+
+**Files created:**
+
+- `src/ui/codex.js` (+560 LoC) — Codex screen component (renderers + state + recording API)
+- `src/styles/screens/codex.css` (+260 LoC) — Parchment / Darkest-Dungeon-archive aesthetic
+- `tests/unit/codex.test.js` (+340 LoC, 46 tests) — Full unit coverage
+- `tests/smoke/codex.spec.js` (+230 LoC, 6 smoke tests) — Persistence + render + cross-mechanic regression
+
+**Files modified (additive only — sacred audit clean):**
+
+- `src/data/identity-layer.js` (+44 LoC) — Codex constants block (`CODEX_LOCALSTORAGE_KEY` / `CODEX_RACE_MASTERY_THRESHOLD = 25` / `CODEX_BOSS_MASTERY_DEFEATS = 1` / `CODEX_FCP_BUDGET_MS = 300` / `CODEX_SCHEMA_VERSION = 1` / `CODEX_STATE` enum / `CODEX_TABS` / `CODEX_DEFAULT_TAB`)
+- `src/feel/identity-fx.js` (+33 LoC) — Recording calls added at end-of-fire in all 10 fx functions (fxPirateLineClear / fxSharkLineClear / fxRockLineClear / fxCrocodileLineClear / fxSparkLineClear / fxPhoenixAshenReign / fxLichCursedTiles / fxBerserkerBloodtidePulse / fxEngineerLockdownProtocol / fxGrovewardenRootSurge). Each call is wrapped in `try { … } catch (_e) { /* defensive */ }` so Codex recording NEVER regresses fx pipeline.
+- `src/ui/router.js` (+10 LoC) — Added `'codex'` route mapping to `screenCodex` element + `renderCodex` dispatch on screen activation.
+- `src/ui/menu.js` (+45 LoC) — `vRenderCodexDrawerEntry` adds "📜 CODEX" drawer entry per spec §4.7. FTUE-gated. Idempotent.
+- `src/main.js` (+12 LoC) — Boot Codex state hydration (`getCodexState()`) so the in-memory cache is warm before first dispatch.
+- `src/styles/index.css` (+1 LoC) — Imports the new `screens/codex.css`.
+- `index.html` (+2 LoC) — Adds `<div id="screenCodex" class="screen v-secondary v-codex">` scaffold.
+
+**Sacred audit (T2.12 — STRICTEST Phase 2 discipline):**
+
+- [x] **22 v2.1 P4 reactivity handlers byte-perfect** — `git diff src/core/reactivity-events.js | grep '^-' | wc -l = 0`
+- [x] **Codex state writes ONLY to `localStorage[blocksworn_codex_state]`** — `grep 'localStorage\.' src/ui/codex.js` returns only `CODEX_LOCALSTORAGE_KEY` references (2 hits — getItem + setItem)
+- [x] **Codex does NOT mutate game state** — Codex never writes to: heroes, bosses, gameState, save data, RACE_SYNERGY, RACE_IDENTITY_FX, BOSS_IDENTITY_FX, IDENTITY_FX_KEYS, IDENTITY_BOSS_FX_KEYS, IDENTITY_BOSS_HANDLERS, REACTIVITY_HANDLERS, V_HAPTICS, NARRATOR_LINES. Unit test "Sacred-cow audit" verifies the audit (seeds blocksworn_progress key, runs all 4 recorders, asserts only codex key was touched).
+- [x] **All 10 identity fx contracts unchanged** — `git diff src/feel/identity-fx.js | grep '^-' | wc -l = 0` (zero deletions). Recording added as ONE line at the END of each fx function, never modifying the mechanical contract.
+- [x] **Sacred files audit** — `git diff` deletions = 0 for: `src/data/races.js`, `src/data/bosses.js`, `src/data/chapters.js`, `src/feel/narrator-lines.js`, `src/feel/haptics.js`, `src/core/reactivity-events.js`, `src/core/grid.js`, `src/data/balance.js`.
+- [x] T2.02-T2.11 invariants ALL maintained (RACE_SYNERGY / HERO_ULT_COST / ARMORED_SHIELD / Combo crit / Element Synergy / Stagger Loop / Phoenix/Berserker constants / engineer-welded CSS class / NARRATOR_LINES sacred table — all byte-perfect).
+- [x] **No magic numbers in logic** — all Codex constants live in `src/data/identity-layer.js` (`CODEX_RACE_MASTERY_THRESHOLD = 25`, `CODEX_LOCALSTORAGE_KEY`, etc.)
+- [x] **No new V_HAPTICS keys** — Codex is silent (no haptics)
+- [x] **No new NARRATOR_LINES entries** — Codex copy lives in Codex module + Chronicler-tone constants; sacred table untouched
+- [x] **Codex render FCP ≤300ms** — Smoke test "Codex: render FCP under 300ms budget (spec §4.9)" verifies in-page render under 300ms. Local timing: ~5ms on Chromium.
+
+**Test counts:** 535 → 581 unit (+46 tests). 128 → 140 smoke runs × 2 projects (+12 = +6 codex tests × 2 projects). Build: 223.90 → 243.30 kB JS (+19.4 kB), 389.06 → 394.86 kB CSS (+5.8 kB). All under budget.
+
+**Anything unexpected:**
+
+1. **Recording hook semantics for boss-reactive fx.** Five boss-reactive identity fx (Phoenix/Lich/Berserker/Engineer/Grovewarden) fire as RESPONSES to player triggers — they're not "always-on" race effects. So `recordMomentTrigger` runs ONCE per activation (e.g., Phoenix Ashen Reign 5s window starting fires one moment, not one per frame). This matches spec §4.6 ("Phoenix Ashen Reign #4" — counter increments per UNIQUE activation, not per duration tick).
+2. **shark/crocodile/spark are Identity-only races (no `RACES` entry).** Per ESC-02 O1 deferral, these 3 don't have `RACE_SYNERGY` entries. Codex catalog includes them as separate "Identity-only" entries (13 races total in catalog rather than 10) so the Races tab matches the full set the player can encounter via fx triggers.
+3. **`page.reload()` + `addInitScript` interaction in smoke tests.** The shared `seedAuthenticatedState` helper calls `localStorage.clear()` on every page load — including post-reload. The persistence smoke test had to use a one-shot version (only seed if not already seeded) so the codex data we wrote in phase 1 survives the reload in phase 2. Pattern documented in test file.
+
+**Pass to Claude Code (Game Dev brief):** Implementation complete per CTO brief. All gates pass. Ready for CTO acceptance review.
+
 ### TASK-027 (T1.20) — REVIEW (2026-05-12) — LAST Phase 1 task
 
 **Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)

@@ -47,6 +47,12 @@ import { initFtueState, isFtueActive, routeByFtue } from './core/ftue-state.js';
 // UI router.
 import { setupRouting, showScreen } from './ui/router.js';
 
+// T2.12 (2026-05-12): Codex state hydration. Pure additive — hydrates on boot
+// so the in-memory cache is warm before the first dispatch fires. The Codex
+// writes ONLY to localStorage[blocksworn_codex_state] per spec §4.10 (READ-
+// ONLY of game state, never mutates sacred tables).
+import { getCodexState } from './ui/codex.js';
+
 // T1.13.5 (2026-05-12): bridge `showScreen` onto window so legacy inline
 // onclick="showScreen('menu')" handlers (still present in any scaffold the
 // new shell mounts) resolve. Cosmetic — required for compatibility with the
@@ -146,6 +152,11 @@ async function main() {
 
     // 6. FTUE beat cursor.
     try { initFtueState(); } catch (err) { log.warn('[boot] initFtueState:', err); }
+
+    // 6b. T2.12 — Codex state hydration. Loads `blocksworn_codex_state` into
+    // the in-memory cache so the first render is immediate. Defensive — Codex
+    // never mutates game state; pure load from its own localStorage key.
+    try { getCodexState(); } catch (err) { log.warn('[boot] getCodexState:', err); }
 
     // 7. Router (no-op in the T1.12 shell — listener wiring lands in T1.13+).
     try { setupRouting(); } catch (err) { log.warn('[boot] setupRouting:', err); }

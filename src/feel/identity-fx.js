@@ -133,6 +133,14 @@ import {
 } from './particles.js';
 import { vHaptic } from './haptics.js';
 import { log } from '../services/logger.js';
+// T2.12 (2026-05-12): Codex recording hooks. Each fx<Race>LineClear and
+// fx<Boss><Identity> function calls `recordRaceTrigger(raceKey)` /
+// `recordMomentTrigger(momentKey)` at end-of-fire (after all mechanical +
+// visual work). The recording calls are wrapped in try/catch so Codex
+// recording NEVER regresses the underlying fx pipeline (sacred path).
+// Codex writes ONLY to localStorage[blocksworn_codex_state] per spec §4.10
+// (READ-ONLY of game state — never mutates sacred tables).
+import { recordRaceTrigger, recordMomentTrigger } from '../ui/codex.js';
 
 // ─── 8×8 board dimensions ───────────────────────────────────────────────
 // SACRED per spec §0 / legacy line 20042: SIZE = 8. Sourced here as a local
@@ -343,6 +351,11 @@ export function fxPirateLineClear(rows, cols, squad) {
     // double-haptic. The `vHaptic` import is retained as a contract anchor
     // for future race FX whose host-path haptic gate doesn't match.
     void vHaptic; // referenced to keep import for future T2.03–T2.06 reuse
+
+    // T2.12 (2026-05-12): Codex recording — pirate race triggered. End-of-fire
+    // hook AFTER all mechanical + visual work completes. Defensive try/catch
+    // — Codex recording must never regress the fx pipeline.
+    try { recordRaceTrigger('pirate'); } catch (_e) { /* defensive */ }
 
     return _awarded ? goldGained : 0;
   } finally {
@@ -707,6 +720,9 @@ export function fxSharkLineClear(rows, cols, squad, ctx) {
     // in the Pirate path; nothing additional here.
     void vHaptic;
 
+    // T2.12 (2026-05-12): Codex recording — shark race triggered.
+    try { recordRaceTrigger('shark'); } catch (_e) { /* defensive */ }
+
     return extraCleared.length;
   } finally {
     if (typeof performance !== 'undefined') {
@@ -1040,6 +1056,9 @@ export function fxRockLineClear(rows, cols, squad, ctx) {
     // clearLines (`vibrate(25)` at grid.js:399). NOT re-fired here — T2.02
     // precedent #3 (no double-pulse).
     void vHaptic;
+
+    // T2.12 (2026-05-12): Codex recording — rock race triggered.
+    try { recordRaceTrigger('rock'); } catch (_e) { /* defensive */ }
 
     // Return the CLAMPED actual delta — useful for smoke assertions that
     // need to verify the threshold-clamp invariant. Note: this may be
@@ -1572,6 +1591,9 @@ export function fxCrocodileLineClear(rows, cols, squad, ctx) {
     // precedent #3 (no double-pulse).
     void vHaptic;
 
+    // T2.12 (2026-05-12): Codex recording — crocodile race triggered.
+    try { recordRaceTrigger('crocodile'); } catch (_e) { /* defensive */ }
+
     // Return the CLAMPED shields actually granted (post-cap). Useful for
     // smoke assertions that need to verify the squad-shield-cap invariant.
     // When the runtime globals aren't populated (unit-test / FTUE without
@@ -1979,6 +2001,9 @@ export function fxSparkLineClear(rows, cols, squad, ctx) {
     // precedent #3 (no double-pulse).
     void vHaptic;
 
+    // T2.12 (2026-05-12): Codex recording — spark race triggered.
+    try { recordRaceTrigger('spark'); } catch (_e) { /* defensive */ }
+
     // Return the modifier actually written (0 or
     // SPARK_CASCADE_MAX_DOMINANT_BOOST). Useful for smoke assertions:
     //   - Gate passed + enabled → returns 1
@@ -2190,6 +2215,9 @@ export function fxPhoenixAshenReign(_bossState, _ctx) {
       _ashenReignReleaseTimer = null;
       fxPhoenixAshenReignRelease();
     }, ASHEN_REIGN_DURATION_MS);
+
+    // T2.12 (2026-05-12): Codex recording — Phoenix Ashen Reign moment witnessed.
+    try { recordMomentTrigger('phoenix_ashen_reign'); } catch (_e) { /* defensive */ }
   } finally {
     if (typeof performance !== 'undefined') {
       const dt = performance.now() - _t0;
@@ -2699,6 +2727,9 @@ export function fxLichCursedTiles(_bossState, ctx) {
         el,
       });
     }
+
+    // T2.12 (2026-05-12): Codex recording — Lich Cursed Tiles moment witnessed.
+    try { recordMomentTrigger('lich_cursed_tiles'); } catch (_e) { /* defensive */ }
   } finally {
     if (typeof performance !== 'undefined') {
       const dt = performance.now() - _t0;
@@ -3204,6 +3235,9 @@ export function fxBerserkerBloodtidePulse(_bossState, ctx) {
         _bloodtidePulseHudEl.classList.add('identity-bloodtide-pulse-hud-pending');
       } catch (_e) { /* swallow */ }
     }
+
+    // T2.12 (2026-05-12): Codex recording — Berserker Bloodtide Pulse moment.
+    try { recordMomentTrigger('berserker_bloodtide'); } catch (_e) { /* defensive */ }
   } finally {
     if (typeof performance !== 'undefined') {
       const dt = performance.now() - _t0;
@@ -3692,6 +3726,9 @@ export function fxEngineerLockdownProtocol(_bossState, ctx) {
       startTurn:   currentTurn,
       expiresTurn: currentTurn + ENGINEER_LOCKDOWN_TURNS,
     });
+
+    // T2.12 (2026-05-12): Codex recording — Engineer Lockdown Protocol moment.
+    try { recordMomentTrigger('engineer_lockdown'); } catch (_e) { /* defensive */ }
   } finally {
     if (typeof performance !== 'undefined') {
       const dt = performance.now() - _t0;
@@ -4313,6 +4350,9 @@ export function fxGrovewardenRootSurge(_bossState, ctx) {
         flashStateBanner(ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER, ROOT_SURGE_OVERLAY_COLOR);
       }
     } catch (_e) { /* swallow — narrator is non-essential to gameplay */ }
+
+    // T2.12 (2026-05-12): Codex recording — Grovewarden Root Surge moment.
+    try { recordMomentTrigger('grovewarden_root_surge'); } catch (_e) { /* defensive */ }
   } finally {
     if (typeof performance !== 'undefined') {
       const dt = performance.now() - _t0;

@@ -864,3 +864,48 @@ export const ROOT_SURGE_INITIAL_BUDGET_MS           = 14;
 export const ROOT_SURGE_PER_OVERLAY_BUDGET_MS       = 2;
 export const ROOT_SURGE_BLOOM_BUDGET_MS             = 8;
 export const ROOT_SURGE_PER_TURN_TICK_BUDGET_MS     = 1;
+
+// ─── Codex screen constants (T2.12) ─────────────────────────────────────
+// Spec: docs/design/mechanics/identity-layer.md §4 (Codex screen design).
+// Codex is the aggregation surface for the Identity Layer. All numeric
+// thresholds + storage keys live here (single source of truth per CLAUDE.md
+// §7.8 — no magic numbers in logic).
+//
+// Sacred safety (spec §4.10):
+//   - Codex state writes ONLY to localStorage[CODEX_LOCALSTORAGE_KEY].
+//   - Codex NEVER mutates game state (heroes / bosses / save / sacred tables).
+//   - Pure additive — zero modifications to the 36-row sacred audit table.
+//
+// CODEX_LOCALSTORAGE_KEY is namespaced under `blocksworn_codex_state` per
+// spec §4.9. Distinct from `blocksworn_progress` / `blocksworn_save` so
+// Codex state lives in its own isolated slot; sacred save data UNTOUCHED.
+//
+// CODEX_RACE_MASTERY_THRESHOLD (25) is the trigger count required to mark
+// a race as Mastered (spec §4.5). Reading: "saw the Identity flavor fire
+// AT LEAST 25 times". For bosses, Mastered = defeated at least once
+// (CODEX_BOSS_MASTERY_DEFEATS = 1).
+//
+// CODEX_FCP_BUDGET_MS (300) is the page render budget per spec §4.9 — the
+// performance contract verified by smoke test.
+//
+// CODEX_SCHEMA_VERSION = 1 — first Codex schema. Bumping triggers a
+// defensive defaults reset in getCodexState (forward-compat with future
+// schema migrations; mirrors the migrateBareStringKeys precedent).
+export const CODEX_LOCALSTORAGE_KEY           = 'blocksworn_codex_state';
+export const CODEX_RACE_MASTERY_THRESHOLD     = 25;
+export const CODEX_BOSS_MASTERY_DEFEATS       = 1;
+export const CODEX_FCP_BUDGET_MS              = 300;
+export const CODEX_SCHEMA_VERSION             = 1;
+
+// Three unlock states per spec §4.5. Frozen enum — never re-numbered.
+export const CODEX_STATE = Object.freeze({
+  LOCKED:      'locked',
+  ENCOUNTERED: 'encountered',
+  MASTERED:    'mastered',
+});
+
+// Tabs in info architecture (spec §4.2). Ordered: Races / Bosses / Moments.
+export const CODEX_TABS = Object.freeze(['races', 'bosses', 'moments']);
+
+// Default tab opened on first nav per spec §4.2.
+export const CODEX_DEFAULT_TAB = 'races';

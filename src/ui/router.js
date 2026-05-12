@@ -39,6 +39,10 @@ import { isFtueActive, ftueBlockNavIfActive } from '../core/ftue-state.js';
 import { renderMenu, renderResourceBar } from './menu.js';
 import { renderSelect } from './select.js';
 import { renderProfile } from './profile.js';
+// T2.12 (2026-05-12): Codex screen renderer — Identity Layer aggregation surface.
+// Pure read of game state + writes only to its own localStorage key. Additive
+// — never modifies any sacred table per CLAUDE.md §2.
+import { renderCodex } from './codex.js';
 import { clearVoidfangTints } from '../core/reactivity-events.js';
 import { log } from '../services/logger.js';
 
@@ -89,7 +93,9 @@ export function showScreen(name) {
   // V3.0 Phase 3 Block 3.1: added 'shop' route for Shop screen
   // FIX BUG-001: added 'season' — without it, goToSeason() produced a black
   // screen (no .screen had .active, user was soft-locked).
-  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile' };
+  // T2.12 (2026-05-12): added 'codex' route for Codex screen (Identity Layer
+  // aggregation surface). Pure addition — existing routes preserved byte-perfect.
+  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex' };
   for (const key in map) {
     const el = document.getElementById(map[key]);
     if (el) el.classList.toggle('active', key === name);
@@ -113,6 +119,11 @@ export function showScreen(name) {
   if (name === 'menu') renderMenu();
   if (name === 'select') renderSelect();
   if (name === 'profile' && typeof renderProfile === 'function') renderProfile();
+  // T2.12 (2026-05-12): Codex render on screen activation. Defensive try/catch
+  // — Codex render is never allowed to crash screen switching.
+  if (name === 'codex') {
+    try { renderCodex(); } catch (e) { log.warn('renderCodex failed:', e); }
+  }
   // V3.0 Phase 2 Vivid Stylized: sync bottom-nav active state on every transition.
   try { activateNavFor(name); } catch(e) {}
   // 2026-04-27 — Audio: per-screen background music routing.
