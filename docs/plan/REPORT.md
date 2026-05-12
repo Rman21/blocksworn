@@ -1397,7 +1397,144 @@ docs/_legacy/  21.47 MB legacy (primary runtime per ADR-004)
 
 ---
 
+## REPORT-18: T2.01 Identity Layer Design Spec — Phase 2 first task DONE
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Designer agent `af5e07dec8a66a89e` returned PASS; CTO review confirmed
+
+### Summary
+
+Phase 2 Identity Layer opens with TASK-028 (T2.01) — the design specification. Game Designer agent produced `docs/design/mechanics/identity-layer.md` (1189 LoC, single commit `b325c30`). CTO acceptance review: **PASS** on all 12 acceptance criteria. T2.02 (Pirate Plunder implementation) is BLOCKED on Roman approval of 4 open questions surfaced in §10 of the spec, escalated below as **ESC-02**.
+
+### Deliverable
+
+- **Doc:** `docs/design/mechanics/identity-layer.md` (1189 LoC)
+- **Structure:** 11 sections + acceptance checklist
+- **Coverage:** 5 races × 10-field spec (Pirate/Shark/Rock/Crocodile/Spark), 7 boss mechanics × 8-field spec (5 required + 2 optional spotlights Voidfang/Uroboros), Codex (T2.12), perf budgets, player perspectives, dependencies, sacred audit, baselines, open questions
+- **Sacred audit:** 36-row table — **0 modifications confirmed** (combat math, V_HAPTICS, RACE_SYNERGY tier values, all 22 v2.1 P4 reactivity handlers, phase gates 70/35, telegraph 3000ms, Phoenix/Berserker/Armored constants, TTK formula, ULT thresholds, TIER_COSTS_V18, MAX_HP, GEM_PACKS — all byte-perfect untouched). Identity Layer is purely additive via parallel `identity_*` namespace.
+
+### Architectural insight
+
+Identity Layer fires **every line clear** (10–40× per battle); v2.1 P4 Reactivity Events fire at **HP phase gates 70%/35%** (2× per battle). The two layers are **complementary, not overlapping**. Reactivity escalates difficulty in two pre-announced beats; Identity Layer sprinkles small race-coded "I-was-here" moments and turns rare ones (Phoenix board burn, Lich curse cells) into adaptive puzzles. New code extends; sacred 22 handlers stay byte-perfect.
+
+### CTO acceptance bullets (12/12)
+
+- [x] 5 race flavors at full 10-field spec
+- [x] 5+ boss-reactive mechanics at full 8-field spec (7 total: 5 required + 2 spotlights)
+- [x] Codex screen spec — 3 tabs, 3-state unlock, parchment aesthetic, `blocksworn_codex_state` localStorage schema, ≤300ms FCP
+- [x] Performance budgets explicit + measurable (≤16ms/effect, ≤100 particles, ≤4ms/frame avg, object-pool required)
+- [x] Player perspective per effect (newbie/mid/hardcore) + cross-cutting §6
+- [x] Implementation dependencies (new files + additive-only modifications listed)
+- [x] Sacred cow audit — 0 modifications across 36 systems
+- [x] Visual baseline impact (14 new baselines, existing must not change = regression contract)
+- [x] Open questions for Roman (4 items O1–O4 with Designer recommendations)
+- [x] No code written, no src/ touched, no remote push
+- [x] Single commit (`b325c30`)
+- [x] Match Phase 1 quality bar
+
+### Risk assessment
+
+- **Sun Cascade (§2.5)** is highest-impact mechanic: adds +1 to `dominantCount` before sacred combo crit formula runs. Designer frames it as input-modification (same architectural pattern as cascade), not formula-modification. CTO concurs but explicit Roman sign-off needed (ESC-02 O3) before T2.06 starts. Fallback if Roman rejects: demote Spark to pure-FX with NO mechanical contribution.
+- **shark / crocodile / spark have NO RACE_SYNERGY tier entries** in `src/data/races.js` (only RACE_TO_STIHIYA + HERO_TIER_ABILITIES). Phase 2 will ship with asymmetric synergy support: pirate+rock have RACE_SYNERGY ✓, others have Identity Layer only ✓. ESC-02 O1 surfaces this.
+- **Identity Layer is mostly low-risk:** all extensions parallel-namespace, no sacred mutations, telegraph→execute pattern re-uses Reactivity Events surface.
+
+### Phase 2 plan post-Roman-approval
+
+| Task | Owner | Estimated | Dep |
+|---|---|---|---|
+| T2.02 Pirate Plunder | Game Dev | M | data/identity-layer.js scaffold |
+| T2.03 Shark Feeding Frenzy | Game Dev | M | T2.02 |
+| T2.04 Rock Encore Echo | Game Dev | M | T2.02 |
+| T2.05 Crocodile Bedrock Bastion | Game Dev | M | T2.02 |
+| T2.06 Spark Sun Cascade | Game Dev | M | T2.02 + O3 ruling |
+| T2.07 Phoenix Ashen Reign | Game Dev | L | T2.02 |
+| T2.08 Lich Cursed Tiles | Game Dev | L | T2.07 |
+| T2.09 Berserker Bloodtide Pulse | Game Dev | L | T2.07 |
+| T2.10 Engineer Lockdown Protocol | Game Dev | L | T2.07 |
+| T2.11 Grovewarden Root Surge | Game Dev | L | T2.07 |
+| T2.12 Codex screen | Game Dev | L | ALL prior triggers wired |
+
+### Memory note
+
+Phase 2 first task closed. T2.01 design spec is the source of truth for T2.02–T2.12 implementation. If Roman rules on ESC-02 differently from Designer recommendation, design spec gets a §10 ruling appendix before T2.02 starts.
+
+---
+
 ## ESCALATIONS
+
+### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)
+
+**Status:** ⚠️ **AWAITING ROMAN APPROVAL**
+**Created:** 2026-05-12
+**Origin:** TASK-028 / T2.01 (`b325c30`)
+**Severity:** NORMAL (blocks Phase 2 progress, not Phase 1 finish; safe to deliberate)
+**Reference:** `docs/design/mechanics/identity-layer.md` §10
+
+### Context
+
+Game Designer completed T2.01 with PASS verdict from CTO. Spec surfaces 4 questions whose answers Designer cannot decide without Roman because they touch sacred-cow boundaries OR Phase 2 scope boundaries. T2.02 cannot start without these resolved (per CTO_INSTRUCTION §5.4 phase-locked pipeline — Designer's N+1 work is conditional on Roman's N approval).
+
+### O1 — RACE_SYNERGY entries for shark / crocodile / spark?
+
+**Issue:** 5 V18.8 NEW RACES per Execution Plan §7.2 are `pirate / shark / rock / crocodile / spark`. Of these, only **pirate and rock** have RACE_SYNERGY tier 2/3/5 entries in `src/data/races.js` (lines 100–159). `shark / crocodile / spark` exist only in `RACE_TO_STIHIYA` mapping + HERO_TIER_ABILITIES blocks. They have NO tier-bonus block.
+
+The 5 RACE_SYNERGY entries that DO exist in `src/data/races.js` for "newer" races are `pirate / skeleton / golem / lion / rock` (i.e., the V18.8 race kit is split between two unaligned 5-race sets — and the version that has HERO_TIER_ABILITIES is the one Identity Layer targets).
+
+**Question:** Should Identity Layer also fill RACE_SYNERGY tier 2/3/5 entries for shark/crocodile/spark? Or defer to a separate post-Phase-2 sacred-cow-EXTENSION request?
+
+**Designer recommendation:** **Defer.** Identity Layer ships without modifying RACE_SYNERGY (sacred §2.1). Phase 2 ships with asymmetry: pirate+rock have RACE_SYNERGY+Identity ✓; shark/crocodile/spark have Identity only ✓.
+
+**CTO concurs.** Identity Layer is purely additive by design. Adding RACE_SYNERGY entries to 3 races mid-phase mixes design layers and risks bundle scalar conflicts. Schedule a separate "race kit symmetry" task post-Phase-2 (or post-Phase-4, opportunistically).
+
+### O2 — Narrator line approvals
+
+**Issue:** Boss-reactive mechanics include 5+ new Darkest-Dungeon-voice narrator lines (e.g., "The ash remembers. Strike only with the flame that birthed it." — Phoenix Ashen Reign §3.1). These are NEW content (not edits to existing NARRATOR_LINES), but voice tone is sacred per §2.3.
+
+**Question:** Should new lines route through CTO → Roman for tone approval BEFORE Game Dev wires them, or is "Darkest-Dungeon-voice compliance per Designer judgment" sufficient?
+
+**Designer recommendation:** **Placeholder-first.** Game Dev wires with Designer's draft strings; CTO + Roman do a copy-pass before T2.11 closes (parallel review track, doesn't block implementation).
+
+**CTO concurs.** Preserves throughput while preserving Roman's veto on voice. Roman's copy-pass would happen as a single editorial PR review near end of Phase 2.
+
+### O3 — Sun Cascade combo-crit input modification (HIGHEST-IMPACT QUESTION)
+
+**Issue:** Spark's "Sun Cascade" (§2.5) adds **+1 to `dominantCount`** before the sacred combo-crit formula `total_dmg × (1 + dominantCount × combo × 10%)` runs. Designer frames this as input-modification, not formula-modification (same architectural pattern as existing cascade behavior).
+
+**Why it matters:** It's the only race flavor that interacts directly with sacred combat math. A 3-line clear that would be Combo 3 (33% damage bonus) becomes Combo 4 (44% damage bonus). Gated by 2-solar-cell minimum AND capped at +1.
+
+**Question:** Is "modify dominantCount before combo crit math runs" within the sacred §2.1 boundary, or does it cross the line?
+
+**Designer recommendation:** **Within boundary** — input modification, not formula modification. But this is a JUDGMENT CALL deserving explicit Roman sign-off because Sun Cascade is the single highest-impact mechanic in the spec.
+
+**CTO recommendation:** **Approve with monitoring.** The pattern (mutating the input set before sacred formula evaluation) is established precedent (cascade does it). Caps prevent runaway (2-solar minimum + max +1, not stacking). However, recommend Bug Tester runs the matchup matrix (5 races × 5 chapter-finale bosses = 25 matchup smokes) with explicit Spark balance check before T2.06 closes.
+
+**Fallback if Roman REJECTS:** Demote Spark to pure-FX (gold visual rays, no mechanical contribution). Spark drops to same tier as Pirate / Rock / Crocodile (flavor-only). Spec §2.5 has explicit fallback path.
+
+### O4 — Audio asset budget for 5–6 new SFX
+
+**Issue:** Identity Layer needs 5 new SFX (coin, bite, cymbal, thunk, chime) + 1 ambient (fire roar for Ashen Reign). Most can re-use existing assets at modified volume / pitch.
+
+**Question:** Is the audio team's Phase 2 budget includes 5–6 new samples, or strict re-use-only?
+
+**Designer recommendation:** **Re-use-first.** Flag re-use-impossible cases for separate asset-request tasks.
+
+**CTO concurs.** Audio mixer can hold 5MB working set; new samples eat into mobile audio budget. Re-use protects bundle, preserves mobile parity, and matches the §3.2 "<5MB total" performance constraint.
+
+### What CTO needs from Roman
+
+A single reply: **"O1 ✓ defer, O2 ✓ placeholder, O3 ✓ within boundary (or REJECT → Spark demoted), O4 ✓ re-use-first"** or specific edits.
+
+Once Roman replies:
+- Designer updates §10 of the design spec with ruling appendix
+- CTO unblocks T2.02 (Pirate Plunder) for Game Dev
+- Phase 2 pipeline opens
+
+### Risk if Roman delays
+
+NONE — Phase 1 is complete and PR #158 is still queued for Roman merge. Phase 2 is on the critical path but not under deadline pressure. Designer's recommended rulings give CTO + Roman a starting position; full reversal of any question is recoverable (Sun Cascade has a documented fallback).
+
+---
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host
 

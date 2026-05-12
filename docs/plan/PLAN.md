@@ -86,16 +86,24 @@
 
 ## Phase 2: Identity Layer
 
-**Status:** IN_PROGRESS (started 2026-05-12; T2.01 Designer assigned)
+**Status:** IN_PROGRESS (started 2026-05-12; T2.01 DONE; T2.02 BLOCKED on Roman O1–O4)
 **Goal:** Реализовать mechanics × race/boss identity — per-race line-clear flavor + boss-reactive mechanics.
 **Estimated:** 3-4 weeks
 **Tasks:** T2.01 — T2.12 (defined в Execution Plan §14)
 
 ### High-level Tasks
-- T2.01 — Identity Layer design doc (Designer)
-- T2.02-T2.06 — Race line-clear flavors (Pirate / Shark / Rock / Crocodile / Spark)
-- T2.07-T2.11 — Boss-reactive mechanics (Phoenix burn, Lich curse, etc.)
-- T2.12 — Codex screen
+- [x] T2.01 — Identity Layer design doc (Designer) — **DONE 2026-05-12** (`b325c30`; 1189 LoC spec `docs/design/mechanics/identity-layer.md`; 5 race flavors + 7 boss mechanics + Codex + 36-row sacred audit; ESC-02 O1–O4 awaiting Roman)
+- [ ] T2.02 — Pirate line-clear flavor (Pirate's Plunder) — **BLOCKED on ESC-02**
+- [ ] T2.03 — Shark line-clear flavor (Feeding Frenzy) — BLOCKED on ESC-02
+- [ ] T2.04 — Rock line-clear flavor (Encore Echo) — BLOCKED on ESC-02
+- [ ] T2.05 — Crocodile line-clear flavor (Bedrock Bastion) — BLOCKED on ESC-02
+- [ ] T2.06 — Spark line-clear flavor (Sun Cascade) — BLOCKED on ESC-02 (specifically O3)
+- [ ] T2.07 — Phoenix Ashen Reign
+- [ ] T2.08 — Lich Cursed Tiles
+- [ ] T2.09 — Berserker/Frenzy Bloodtide Pulse
+- [ ] T2.10 — Engineer Lockdown Protocol
+- [ ] T2.11 — Grovewarden Root Surge
+- [ ] T2.12 — Codex screen
 
 ### Gate Criteria
 - Each race has distinct line-clear flavor
