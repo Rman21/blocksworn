@@ -2315,6 +2315,118 @@ Other cross-layer interactions (Shark↔Lich predicate chain, Crocodile↔Lich s
 
 ---
 
+## REPORT-30: 🎯 T2.12 Codex Screen — final implementation task PASS; Phase 2 module-side COMPLETE
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Dev agent `a5b4964ecc80f804f` returned PASS; CTO review confirmed.
+
+### Summary
+
+T2.12 lands clean — the LAST Phase 2 implementation task. +2009 / -1 LoC across 12 files (4 new + 8 modified additively). +46 unit tests (535 → 581), +12 smoke (128 → 140 × 2 projects). 0 sacred-cow modifications. Commit `2b85e9f`. CTO acceptance PASS.
+
+**Module-side Phase 2 is now COMPLETE.** Only T2.B (legacy bridge + matchup matrix + visual baselines + narrator copy-pass) remains before Phase 2 PR opens.
+
+### Sacred cow audit — strictest discipline in Phase 2
+
+The Codex is a **pure aggregation surface** — READ-ONLY of game state, writes ONLY to `localStorage[blocksworn_codex_state]`. Verified:
+
+| Sacred system | Status | Verification |
+|---|---|---|
+| 22 v2.1 P4 reactivity handlers | byte-perfect ✅ | `git diff src/core/reactivity-events.js \| grep '^-' \| wc -l = 0` |
+| **Codex localStorage isolation** | verified ✅ | `grep 'localStorage\.' src/ui/codex.js` returns 2 hits, both `CODEX_LOCALSTORAGE_KEY`; dedicated sacred-audit unit test seeds unrelated keys + runs all 4 recorders + asserts only codex key touched |
+| All 10 identity fx mechanical contracts | unchanged ✅ | 0 deletions in `src/feel/identity-fx.js`; recording calls added at end-of-fire only, each wrapped in `try { recordX(...); } catch (_e) { /* defensive */ }` |
+| 0 deletions across sacred files | ✅ | `races.js`, `bosses.js`, `chapters.js`, `narrator-lines.js`, `haptics.js`, `reactivity-events.js`, `grid.js`, `balance.js` — all sacred files have zero deletions |
+| All T2.02-T2.11 invariants | byte-perfect ✅ | Race flavors, boss-reactive mechanics, all sacred constants maintained |
+
+The 1 "deletion" in the diff is `src/ui/router.js`'s inline route-map literal being extended to add `codex` — not a sacred-cow change.
+
+### Defensive recording wrapper
+
+Every existing fx function gets ONE additional line at end-of-fire:
+
+```js
+try { recordRaceTrigger('pirate'); } catch (_e) { /* defensive — Codex must not regress fx */ }
+```
+
+This is the same defensive pattern T2.02 established for the dispatcher. If Codex recording somehow fails, the underlying fx mechanical work is NOT regressed.
+
+### Performance
+
+| Metric | Budget | Measured |
+|---|---|---|
+| Codex render FCP | ≤300ms | **<5ms** (60× under) ✅ |
+| Recording call cost | ≤1ms | <0.1ms (single localStorage update) ✅ |
+| Bundle delta | reasonable | +19.4 kB JS / +5.8 kB CSS ✅ |
+
+### Information architecture verified
+
+| Tab | Content | Source |
+|---|---|---|
+| Races | 13 entries (10 RACES + 3 Identity-only: shark/crocodile/spark per ESC-02 O1 deferral) | `RACES` + `RACE_IDENTITY_FX` |
+| Bosses | 25 entries (all Ch1–Ch5) | `BOSSES` |
+| Moments | Chronological list of UNIQUE boss-reactive Identity triggers | `recordMomentTrigger` events |
+
+3-state unlock model:
+- **Locked:** silhouette + ?
+- **Encountered:** soft glow, full info visible (race: ≥1 trigger; boss: ≥1 fight)
+- **Mastered:** gilded gold border + sparkle (race: ≥25 triggers; boss: ≥1 defeat)
+
+### Notable engineering decisions
+
+1. **13-race catalog (not 10):** spec §4.2 says "all 10 races (5 in scope + 5 original)" — but Game Dev correctly noted that `shark/crocodile/spark` have no `RACES` entry per ESC-02 O1 DEFER. Solution: Codex catalog includes 13 entries (10 from `RACES` + 3 Identity-only from `RACE_IDENTITY_FX`). The 3 Identity-only entries display as Codex-only (no race-synergy detail page section).
+2. **Boss-reactive moments count UNIQUE activations** per spec §4.6 — e.g., Phoenix Ashen Reign 5s window = 1 moment, NOT 1-per-frame. Pattern: `recordMomentTrigger(momentKey)` is fired ONCE per fire event, not per frame of the visual decay.
+3. **Persistence smoke test pattern:** `seedAuthenticatedState` helper's `localStorage.clear()` runs on every reload (including post-`page.reload()`). Game Dev used a **one-shot init-script variant** for the persistence smoke test so codex data survives the reload phase. Pattern documented.
+
+### Phase 2 architectural primitives — 6 total now
+
+| # | Primitive | Origin |
+|---|---|---|
+| 1 | Sibling export | T2.02 |
+| 2 | Ctx side-channel | T2.03 |
+| 3 | Sacred-clamp | T2.04 |
+| 4 | Parallel-registry | T2.07 |
+| 5 | Per-turn-tick | T2.08 |
+| 6 | Sliding-window | T2.11 |
+
+Plus the Codex aggregation surface pattern: pure-read of game state, isolated localStorage namespace, defensive recording wrappers at end-of-fire.
+
+### Quality bar — Phase 2 final module-side numbers
+
+| Metric | Phase 1 | T2.02 | T2.06 | T2.11 | **T2.12** | AAA+ |
+|---|---|---|---|---|---|---|
+| Unit tests | 37 | 65 | 224 | 535 | **581** | growing ✅ |
+| Smoke runs (× 2 projects) | 2 | 12 | 62 | 128 | **140** | green ✅ |
+| Sacred audit | 0 mods | 0 mods | 0 mods | 0 mods | **0 mods** | always 0 ✅ |
+| Bundle JS | 4.5 MB | 205.87 kB | 205.87 kB | 223.90 kB | **243.30 kB** | <5 MB ✅ |
+| Bundle CSS | 368 kB | 369.41 | 376.96 | 389.06 | **394.86** | reasonable ✅ |
+
+### Phase 2 task scoreboard (12/13)
+
+| Task | Status |
+|---|---|
+| T2.01 Design spec | ✅ |
+| T2.02–T2.06 Race flavors | ✅ 5/5 |
+| T2.07–T2.11 Boss-reactive | ✅ 5/5 |
+| T2.12 Codex screen | ✅ |
+| **T2.B Legacy Bridge** | 🟡 FINAL TASK |
+
+### What T2.B will do
+
+The last task before Phase 2 PR opens:
+
+1. **Legacy bridges** for all 10 mechanics + Codex (1-3 lines per mechanic in legacy clearLines / pieceCanBePlaced / phoenixRevive / etc.)
+2. **Cross-race synergy wiring** — Shark `_lastBittenCells` → Pirate gold extension; cursed-cells predicate cascade
+3. **Spark combo-crit input modification** — one-line `+ (ctx._dominantCountModifier || 0)` at legacy line 63664
+4. **Bug Tester audit** — 25-smoke matchup matrix (5 races × 5 chapter-finale bosses) per ESC-02 O3 gate
+5. **14 visual baseline updates** per spec §7.4
+6. **Sacred audit re-verification** post-batched mutations
+7. **Narrator copy-pass** — Roman approves T2.11 placeholder line + any other identity narrator copy per ESC-02 O2
+
+🎯 **T2.12 DONE. Module-side Phase 2 COMPLETE. Next and last: T2.B Legacy Bridge.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)
