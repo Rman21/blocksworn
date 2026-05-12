@@ -173,10 +173,16 @@ export const RACE_SYNERGY = Object.freeze({
 // here so T2.03–T2.06 + the T2.12 Codex screen have a stable lookup surface.
 //
 // T2.02 ships only the pirate entry per spec §1 scope (Pirate's Plunder).
-// T2.03–T2.06 will append shark / rock / crocodile / spark entries.
+// T2.03 (2026-05-12) appends the shark entry per spec §2.2.
+//   NOTE: shark has NO RACE_SYNERGY entry per ESC-02 O1 ruling (DEFER to
+//   post-Phase-2 sacred-cow-EXTENSION task). The asymmetric synergy support
+//   (pirate+rock have RACE_SYNERGY+Identity; shark+crocodile+spark have
+//   Identity only) is intentional for Phase 2 and explicitly approved
+//   (see docs/design/mechanics/identity-layer.md §10/§12).
+// T2.04–T2.06 will append rock / crocodile / spark entries.
 export const RACE_IDENTITY_FX = Object.freeze({
   pirate: 'pirate_plunder',
-  // shark:     'shark_frenzy',       // T2.03
+  shark:  'shark_frenzy',           // T2.03
   // rock:      'rock_echo',          // T2.04
   // crocodile: 'crocodile_bastion',  // T2.05
   // spark:     'spark_cascade',      // T2.06

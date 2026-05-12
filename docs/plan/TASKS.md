@@ -2785,6 +2785,113 @@ All 9 tests pass.
 
 ---
 
+### TASK-030 (T2.03) — REVIEW (2026-05-12) — Shark Feeding Frenzy
+
+**Status:** IN PROGRESS → REVIEW (CTO sign-off pending)
+**Started:** 2026-05-12
+**Completed (Game Dev):** 2026-05-12
+**Priority:** HIGH
+**Phase:** 2 (Identity Layer) — **3/12**
+**Estimated complexity:** M
+**Depends on:** ✅ TASK-029 (T2.02 — dispatcher scaffold + 4 precedent rulings)
+**Spec:** `docs/design/mechanics/identity-layer.md` §2.2 (Shark Feeding Frenzy)
+
+**Implementation summary:**
+
+Implements the second Phase 2 Identity Layer race flavor — **Shark Feeding Frenzy** — per spec §2.2. Replaces the T2.02 stub with the full bite-extension mechanic: tide-dominant line-clears (or ≥2-shark squads on any element) trigger teeth-arc bites that clear up to 1 extra adjacent cell per cleared row/col, HARD CAPPED at 4 extra cells per fire. Locked / electrified / cursed cells absorb the bite (visual fires, cell not cleared) — natural boss-counter via existing cell-state predicates.
+
+**Files touched (7):**
+
+1. `src/data/identity-layer.js` — Added 5 new constants (`SHARK_FRENZY_MIN_SHARKS_FOR_2X_TRIGGER`, `SHARK_FRENZY_MAX_EXTRA_CELLS`, `SHARK_FRENZY_BITE_DECAY_MS`, `SHARK_FRENZY_BITE_SVG_PER_LINE`, `SHARK_FRENZY_DOMINANT_ELEMENT`). `IDENTITY_FX_BUDGETS[SHARK_FRENZY]` already correct from T2.02 scaffold — no change.
+2. `src/data/races.js` — Added `shark: 'shark_frenzy'` entry to `RACE_IDENTITY_FX` sibling export. **`RACE_SYNERGY` byte-perfect** (no shark entry per ESC-02 O1 ruling — DEFER to post-Phase-2 sacred-cow-EXTENSION).
+3. `src/feel/particles.js` — Added `spawnSharkBiteParticle({el, x, y, direction, decayMs})` factory. Mirrors `spawnCoinParticle` pattern (pool-aware, CSS-keyframe-driven, no rAF loop).
+4. `src/feel/identity-fx.js` — Replaced `fxSharkLineClear` stub with full impl + 4 pure helpers (`countAliveSharks`, `computeSharkBiteCount`, `isSharkBiteBlocked`, `computeBittenCells`, `sharkFrenzyGatePasses`). Added 4-element teeth-arc DOM pool (`_ensureSharkBitePool`). Added `_lastBittenCells` module-level side-channel exposing the most-recent fire's extra-cleared cells for T2.B legacy bridge consumption (combo-crit `dominantCount` input modification path per spec §2.2 field 8 — input mod, NOT formula mod). Dispatcher signature extended with optional `ctx` parameter (cell-state predicate snapshot); defaults to null for backward compat with the T2.02 grid.js wiring. New Shark testables added to `__identityFxTestables`.
+5. `src/styles/screens/battle.css` — Added `.identity-shark-bite{,-layer,-sweeping}` classes + `@keyframes identitySharkBiteSweep` (500ms) + `@keyframes identitySharkBiteFlashOnly` (reduced-motion fallback, mirrors Pirate Plunder pattern). Teeth-arc curve rendered via CSS radial gradients (no inline SVG element needed).
+6. `tests/unit/identity-layer.test.js` — Added 45 new Shark unit tests (28 → 73): `countAliveSharks` (5), `computeSharkBiteCount` (7), `sharkFrenzyGatePasses` (5), `isSharkBiteBlocked` (7), `computeBittenCells` (9), `fxSharkLineClear` gate behavior (7), constants/budgets (2), dispatcher regression (2). Includes hard-cap verification, locked-cell absorption, board-edge handling.
+7. `tests/smoke/identity-layer.spec.js` — Added 5 new Shark smoke tests (smokes: 12 → 22): 2-shark + tide-dominant 1-row clear → 1 extra + visual bite element + sweeping class observed; 5-shark + 4-row clear → HARD CAP at 4; 0-shark silent no-op; Pirate Plunder regression after Shark addition; performance budget (≤10ms wall-time per fire, allow 3× CI headroom).
+
+**Sacred cow audit — 0 modifications:**
+
+- [x] V_HAPTICS table untouched (haptics.js NOT in diff)
+- [x] `vPlayLineClearBurst` 180/440ms timing untouched (animations.js NOT in diff)
+- [x] Combo crit formula UNTOUCHED — `_lastBittenCells` side-channel is INPUT MODIFICATION (cells added BEFORE the formula consumes `dominantCount`), exactly the cascade-pattern precedent established in spec §2.2 field 8. The legacy bridge (T2.B) will thread bitten cells into `countElementsInCells` input; the formula `total_dmg × (1 + dominantCount × combo × 10%)` itself is never touched.
+- [x] Element Synergy 2x/3x/5x values untouched (data/synergies untouched)
+- [x] RACE_SYNERGY tier values UNTOUCHED — no shark entry added per ESC-02 O1 DEFER ruling. Only `RACE_IDENTITY_FX` sibling export extended per T2.02 precedent #1.
+- [x] All 22 v2.1 P4 reactivity handlers byte-perfect (reactivity-events.js NOT in diff)
+- [x] TIER_COSTS_V18 / HERO_ULT_COST / MAX_HP / TTK / GEM_PACKS / Battle Pass / Tower retry untouched
+- [x] NARRATOR_LINES untouched (no narrator in T2.03 race-flavor scope)
+- [x] No new V_HAPTICS keys
+- [x] No `document.createElement` per fire — 4-element teeth-arc DOM pool allocated once at first `_ensureSharkBitePool()` call (matches T2.02's coin pool pattern; spec §5 object-pool requirement satisfied)
+- [x] No magic numbers in logic — all values imported from `src/data/identity-layer.js`
+- [x] No legacy bridge added — deferred to T2.B per T2.02 precedent #4
+- [x] No infinite cascade risk — extra-bitten cells go into `extraCleared` list but do NOT count as a new line for cascade purposes (cascade only triggers on `rows.length + cols.length` increments, never re-entrant from `_lastBittenCells`)
+
+**T2.02 precedent compliance:**
+
+1. **Sibling export pattern** ✅ — extended `RACE_IDENTITY_FX` only; `RACE_SYNERGY` literal byte-perfect
+2. **Defensive hp handling** ✅ — `countAliveSharks` mirrors `countAlivePirates`: absence-of-hp = alive, hp<=0 = excluded
+3. **Single haptic / no double-pulse** ✅ — `fxSharkLineClear` does NOT fire `vHaptic('clear')`; legacy's `vibrate(25)` is the sole haptic per fire
+4. **Deferred legacy bridge** ✅ — `_lastBittenCells` side-channel exposed via `__identityFxTestables.getLastBittenCells()` for tests; T2.B will additionally wire `window.__identityFxLastBittenCells` into legacy `countElementsInCells` input
+
+**Verification:**
+
+- `npm run lint` → 0 errors / 0 warnings
+- `npm run test:unit` → **110/110 pass** (65 → 110, +45 Shark tests in identity-layer.test.js)
+- `npm run test:smoke` → **22/22 pass** × 2 projects (chromium + mobile-chrome), 12 → 22 (+10 smoke entries: 5 new × 2 projects)
+- `npm run build` → 205.87 kB JS (unchanged) + 370.91 kB CSS (≈+1.5 kB Shark keyframes/classes — well under 5 MB AAA+ ceiling)
+
+**Performance measurement:**
+
+Wall-time smoke (5-shark × 4-row quad-line clear, after warm-up): typical ~1-3 ms in chromium headless. Spec §2.2 budget is ≤10ms per fire; we have ~7ms+ headroom. Hard cap at 4 extra cells means even maximum-input fires stay bounded.
+
+**Performance budget verified:**
+
+- `IDENTITY_FX_BUDGETS[SHARK_FRENZY]` = `{ wallTimeMs: 10, maxConcurrentParticles: 4, decayMs: 500 }` (already correctly defined in T2.02 scaffold; no change needed)
+- 4-element teeth-arc DOM pool — pool size matches hard cap, mathematically impossible to exhaust within a single fire
+- Reduced-motion fallback: static cyan flash instead of curved-scale sweep (mechanical effect preserved)
+
+**Mechanical contract verified (spec §2.2):**
+
+- Trigger gate: `sharkCount ≥ 2` (any element) OR `sharkCount ≥ 1` AND tide-dominant in ≥1 cleared line — verified via 5 `sharkFrenzyGatePasses` unit tests
+- Bite count: `Math.min(1, Math.floor(sharkCount / 2))` per cleared row/col — verified for sharkCount 0/1/2/3/4/5 (1 → 0 bites, 2-5 → 1 bite). Per brief: "use Math.floor, not the spec's literal `min(1, x/2)` which is ambiguous"
+- Hard cap: `SHARK_FRENZY_MAX_EXTRA_CELLS = 4` enforced inside `computeBittenCells` via `_extraCount` accumulator — verified via "5 sharks + 5 rows" test (would yield 5; capped at 4)
+- Locked / electrified / cursed cell predicates respected — `isSharkBiteBlocked` consulted before adding to `extraCleared` list; blocked bites still spawn visual particle ("absorbed" per spec field 7)
+- Extra cells flow into combo-crit `dominantCount` input via `_lastBittenCells` side-channel (input modification, NOT formula modification — spec §2.2 field 8). Sacred combo crit formula UNTOUCHED.
+- No new line for cascade purposes (no chain trigger from bitten cells)
+
+**Замечено рядом (NOT fixed, reported):**
+
+1. **`dominantElementsByLine` ctx field unconsumed in T2.03 live path.** The Shark gate accepts a `ctx.dominantElementsByLine` array (one element per cleared line — `ember`|`tide`|`grove`|`solar`|`umbra`|null), but the T2.02 grid.js dispatcher hook does NOT compute this and pass it through. Until T2.B wires this from legacy's per-line element counts, the gate's "single-shark + tide-dominant smaller effect" branch never triggers in live gameplay — only the "2+ sharks always fires" branch is live. This is by design (T2.B will wire it batched) but worth documenting for the CTO's situational awareness. Unit tests exercise the tide-dominant branch via the ctx parameter directly.
+
+2. **Bite cell selection heuristic — center column anchor.** `computeBittenCells` chooses bite candidate cells starting at the row/col midpoint (col 4 for rows, row 4 for cols) and scans outward if blocked. The spec §2.2 field 3 wording ("one extra adjacent cell per cleared line") doesn't specify WHICH adjacent cell to pick; my heuristic prefers center for visual balance (sweep anchored mid-row/col), then radiates out if the center neighbor is in-line or blocked. Mid-design judgment — flagged in case Designer wants edge-priority or grid-aware selection.
+
+3. **Performance budget already meets spec, no `performance.now()` runtime gate.** `fxSharkLineClear` measures wall-time and logs `warn` if >10ms but does not throttle/short-circuit on overrun. Same pattern as Pirate Plunder. If we ever ship a runtime budget gate, it should be a layer-wide service applied uniformly.
+
+4. **Spec §2.2 wording vs implementation reality on dominantCount feed-back.** Spec says "extra cleared cells DO count as cells cleared by the line — feeding back into Combo Crit's `dominantCount` AND back into Pirate's Plunder (cross-race synergy in mixed squads)". The dominantCount path is correctly architected (side-channel + T2.B bridge). However the **Pirate's Plunder cross-race synergy** path (extra bitten cells should also award Plunder gold in mixed squads) is NOT wired in T2.03 — would require ordering dispatch so Shark fires before Pirate AND passing extra-cleared count into `computePirateGold`. Recommend handling this in T2.B with the cross-race synergy reading the same `_lastBittenCells` side-channel. Not blocking T2.03 since the legacy bridge is deferred either way.
+
+**Self-check:**
+
+- [x] Spec §2.2 fields 1–10 all addressed
+- [x] T2.02 precedents 1–4 all followed
+- [x] Hard cap at 4 extra cells enforced inside impl (not just spec)
+- [x] Locked/electrified/cursed cells respected (bite absorbed, not cleared)
+- [x] Combo crit formula UNTOUCHED — input modification path via side-channel
+- [x] No `RACE_SYNERGY` modification (shark has no entry per ESC-02 O1 DEFER)
+- [x] No `vHaptic('clear')` stacking — single haptic per fire
+- [x] No new V_HAPTICS keys
+- [x] No legacy bridge — deferred to T2.B
+- [x] Pirate Plunder regression test passes (200g spec §2.1 byte-perfect)
+- [x] Sacred audit 0 findings
+- [x] ≥6 new unit tests (delivered 45)
+- [x] ≥2 smoke tests (delivered 5)
+- [x] Lint clean, build clean, all tests green
+
+**Time:** ~1 hour focused implementation (T2.02's foundation reduced T2.03 effort substantially — pool pattern, dispatcher signature, defensive hp gate, and Pirate's haptic precedent all transplanted directly).
+
+**Commit:** `[T2.03] Shark Feeding Frenzy — line-clear bite extension + dominantCount input modification` (pending CTO review)
+
+---
+
 ### TASK-029 (T2.02) — ✅ DONE 2026-05-12 — Pirate's Plunder + Identity Layer dispatcher scaffold
 
 **CTO acceptance 2026-05-12:** PASS. Implementation matches spec §2.1; 36-row sacred audit verified clean; 65/65 unit + 12/12 smoke; bundle delta negligible. Commit `6a6ad39`.

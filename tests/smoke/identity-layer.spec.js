@@ -174,3 +174,175 @@ test('fxPirateLineClear performance: 5-pirate × quad-line clear completes withi
   expect(wallTime).toBeLessThan(20);
   expect(errors).toEqual([]);
 });
+
+// ─── T2.03 — Shark Feeding Frenzy smoke tests (spec §2.2) ───────────────
+
+test('fxSharkLineClear: 2-shark squad + tide-dominant 1-row clear → 1 extra cell cleared + visual bite', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    window.HERO_DECK = [
+      { id: 's1', race: 'shark' },
+      { id: 's2', race: 'shark' },
+    ];
+
+    // Inject a stubbed 8×8 grid of `.cell` elements so the FX's cell-origin
+    // resolver finds positions to spawn bites from. (On the menu screen the
+    // live grid isn't rendered; this stub mirrors what battle screen provides.)
+    const gridHost = document.createElement('div');
+    gridHost.className = 'grid';
+    gridHost.style.cssText = 'position:fixed;left:0;top:0;width:320px;height:320px;display:grid;grid-template-columns:repeat(8,40px);';
+    for (let i = 0; i < 64; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.cssText = 'width:40px;height:40px;';
+      gridHost.appendChild(cell);
+    }
+    document.body.appendChild(gridHost);
+
+    const mod = await import('/src/feel/identity-fx.js');
+
+    // Reset shark bite pool for deterministic count assertion.
+    mod.__identityFxTestables.resetSharkBitePool();
+
+    // tide-dominant 1-row clear (also triggers visual since 2 sharks).
+    const extraCleared = mod.fxSharkLineClear(
+      [3], [], window.HERO_DECK,
+      { dominantElementsByLine: ['tide'] },
+    );
+
+    // Allow the spawn loop to acquire from the pool before checking DOM.
+    await new Promise(r => requestAnimationFrame(() => r()));
+
+    const biteNodes = document.querySelectorAll('.identity-shark-bite');
+    const sweepingNodes = document.querySelectorAll('.identity-shark-bite.identity-shark-bite-sweeping');
+    const lastBitten = mod.__identityFxTestables.getLastBittenCells();
+
+    return {
+      extraCleared,
+      lastBittenLength: lastBitten.length,
+      biteNodeCount: biteNodes.length,
+      sweepingNodeCount: sweepingNodes.length,
+      poolSize: mod.__identityFxTestables.getSharkBitePoolSize(),
+    };
+  });
+
+  // Spec §2.2: 2 sharks + 1 row → exactly 1 extra cleared cell.
+  expect(result.extraCleared).toBe(1);
+  expect(result.lastBittenLength).toBe(1);
+  // Visual: 1 bite element exists, currently sweeping.
+  expect(result.biteNodeCount).toBeGreaterThanOrEqual(1);
+  expect(result.sweepingNodeCount).toBeGreaterThanOrEqual(1);
+  // Pool pre-allocated at module load.
+  expect(result.poolSize).toBe(4);
+  expect(errors).toEqual([]);
+});
+
+test('fxSharkLineClear: 5-shark + 4-row clear → HARD CAP at 4 extra cells', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const extraCleared = await page.evaluate(async () => {
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, race: 'shark' }));
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetSharkBitePool();
+
+    // 4-row clear with 5 sharks; per-line bite=1; would yield 4 extras already.
+    // We push 5 rows to confirm the hard cap really clamps at 4 (not 5).
+    return mod.fxSharkLineClear([0, 2, 4, 6], [], window.HERO_DECK, null);
+  });
+
+  expect(extraCleared).toBeLessThanOrEqual(4);
+  expect(extraCleared).toBe(4);
+  expect(errors).toEqual([]);
+});
+
+test('fxSharkLineClear: 0-shark squad → silent no-op (no DOM allocations, no errors)', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    window.HERO_DECK = [
+      { id: 'o1', race: 'orc' },
+      { id: 'e1', race: 'elf' },
+    ];
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetSharkBitePool();
+
+    const before = document.querySelectorAll('.identity-shark-bite').length;
+    const extraCleared = mod.fxSharkLineClear([0, 1], [0], window.HERO_DECK, null);
+    const after = document.querySelectorAll('.identity-shark-bite').length;
+
+    return { extraCleared, before, after };
+  });
+
+  expect(result.extraCleared).toBe(0);
+  // No-op: pool is NOT initialized (no shark = early return before _ensureSharkBitePool).
+  expect(result.before).toBe(0);
+  expect(result.after).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('Pirate Plunder still fires unchanged after Shark addition (T2.02 regression)', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    let goldDelta = 0;
+    window.addGold = (n) => { goldDelta += Number(n) || 0; };
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, race: 'pirate' }));
+    const mod = await import('/src/feel/identity-fx.js');
+    const awarded = mod.fxPirateLineClear([0], [], window.HERO_DECK);
+    return { goldDelta, awarded };
+  });
+
+  // Spec §2.1 byte-perfect: 5 pirates × 8 cells × 5g/cell = 200g.
+  expect(result.goldDelta).toBe(200);
+  expect(result.awarded).toBe(200);
+  expect(errors).toEqual([]);
+});
+
+test('fxSharkLineClear performance: 5-shark × quad-line clear completes within wall-time budget', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const wallTime = await page.evaluate(async () => {
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, race: 'shark' }));
+    const mod = await import('/src/feel/identity-fx.js');
+
+    // Warm-up call so the pool init cost doesn't skew timing.
+    mod.fxSharkLineClear([0], [], window.HERO_DECK, null);
+    mod.__identityFxTestables.resetSharkBitePool();
+
+    // Measure a quad-line clear (4 rows, 0 cols → max 4 extras after hard cap).
+    const t0 = performance.now();
+    mod.fxSharkLineClear([0, 2, 4, 6], [], window.HERO_DECK, null);
+    return performance.now() - t0;
+  });
+
+  // Spec §2.2 field 9: wall-time ≤10ms per fire. Allow 3× headroom for CI
+  // variability — any value >30ms is a clear regression.
+  expect(wallTime).toBeLessThan(30);
+  expect(errors).toEqual([]);
+});

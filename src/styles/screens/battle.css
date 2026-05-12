@@ -5754,3 +5754,100 @@ button, .menu-btn, .btn, .hero-card, .piece, .cell, .roster-card, .tier-btn, .ba
   20%  { opacity: 1; transform: translate3d(0, -6px, 0) scale(1.0); }
   100% { opacity: 0; transform: translate3d(0, -12px, 0) scale(0.8); }
 }
+
+/* ─── 2026-05-12 — TASK-030 (T2.03): Identity Layer · Shark Feeding Frenzy ───
+ * Teeth-arc bite VFX. Pool of 4 elements lives under `.identity-shark-bite-layer`
+ * (appended to body lazily on first fire by `src/feel/identity-fx.js`). Each
+ * bite element re-uses across fires via the object pool —
+ * `.identity-shark-bite-sweeping` toggled on re-trigger.
+ *
+ * Decay timing matches `SHARK_FRENZY_BITE_DECAY_MS = 500` (spec §2.2 field 9).
+ * The animation duration reads `--bite-decay-ms` (set per-fire by
+ * `spawnSharkBiteParticle`) so the JS-side constant stays the single source
+ * of truth. Sweep direction is read from `data-bite-direction`:
+ *   horizontal-row → left→right wipe across the row
+ *   vertical-col   → top→bottom wipe down the col
+ * (Spec §2.2 field 3: "sweeps left→right across each cleared row and
+ * top→bottom across each cleared column".)
+ *
+ * Visual: a 64×24 (or 24×64) curved teeth-arc rendered via a radial gradient
+ * (white teeth on a cyan glow background) — the bite shape is encoded via a
+ * conic / radial gradient mask so no inline SVG element is needed. Painterly
+ * style matches Pirate Plunder treatment (PR #157 emblem aesthetic).
+ *
+ * Sacred safety: no existing class modified. Pure addition.
+ */
+.identity-shark-bite-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0; height: 0;          /* layer is positioning-only — bites absolute */
+  pointer-events: none;
+  z-index: 9998;                /* below coin layer (9999); above HUD */
+}
+.identity-shark-bite {
+  position: fixed;
+  width: 64px; height: 24px;
+  margin-left: -32px; margin-top: -12px;  /* center on (left, top) */
+  border-radius: 50% 50% 30% 30% / 80% 80% 50% 50%;  /* mouth-shape curve */
+  background:
+    radial-gradient(ellipse at 50% 80%, rgba(255, 255, 255, 0.0) 0%,
+      rgba(255, 255, 255, 0.0) 30%,
+      rgba(255, 255, 255, 0.95) 38%,
+      rgba(74, 219, 255, 0.85) 50%,
+      rgba(74, 219, 255, 0.35) 75%,
+      rgba(74, 219, 255, 0.0) 100%);
+  box-shadow:
+    0 0 12px rgba(74, 219, 255, 0.65),
+    inset 0 -2px 4px rgba(255, 255, 255, 0.7);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.4);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.identity-shark-bite[data-bite-direction="vertical-col"] {
+  width: 24px; height: 64px;
+  margin-left: -12px; margin-top: -32px;
+  border-radius: 50% 30% 30% 50% / 50% 80% 80% 50%;
+  background:
+    radial-gradient(ellipse at 80% 50%, rgba(255, 255, 255, 0.0) 0%,
+      rgba(255, 255, 255, 0.0) 30%,
+      rgba(255, 255, 255, 0.95) 38%,
+      rgba(74, 219, 255, 0.85) 50%,
+      rgba(74, 219, 255, 0.35) 75%,
+      rgba(74, 219, 255, 0.0) 100%);
+}
+.identity-shark-bite.identity-shark-bite-sweeping {
+  animation: identitySharkBiteSweep var(--bite-decay-ms, 500ms) cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+}
+@keyframes identitySharkBiteSweep {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.4);
+  }
+  20% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(0.9);
+  }
+  55% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.85);
+  }
+}
+/* Reduced-motion: respect prefers-reduced-motion. Bite appears as a static
+ * cyan flash without the sweep/scale animation (mechanical effect — extra
+ * cell still clears — remains identical; only the kinetic energy is dialed
+ * back). Mirrors the Pirate Plunder reduced-motion fallback pattern. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-shark-bite.identity-shark-bite-sweeping {
+    animation: identitySharkBiteFlashOnly var(--bite-decay-ms, 500ms) ease-out forwards;
+  }
+}
+@keyframes identitySharkBiteFlashOnly {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.9); }
+  20%  { opacity: 1; transform: translate3d(0, 0, 0) scale(1.0); }
+  100% { opacity: 0; transform: translate3d(0, 0, 0) scale(0.95); }
+}

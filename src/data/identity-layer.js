@@ -61,3 +61,34 @@ export const PIRATE_PLUNDER_GOLD_PER_CELL  = 5;
 export const PIRATE_PLUNDER_MAX_PIRATES    = 5;
 export const PIRATE_PLUNDER_MAX_COINS      = 32; // DOM-pool ceiling per spec §2.1 + §5
 export const PIRATE_PLUNDER_COIN_DECAY_MS  = 1000;
+
+// ─── Shark Feeding Frenzy constants (spec §2.2) ─────────────────────────
+// Mechanical contract:
+//   bitesPerLine = min(1, floor(sharkCount / 2))   [per-line cap, spec field 4]
+//   extraCellsCleared ≤ SHARK_FRENZY_MAX_EXTRA_CELLS  [hard cap, spec field 9]
+//
+// Trigger gate (spec field 10):
+//   - Dominant element of ≥1 cleared row/col is `tide`, OR
+//   - ≥ SHARK_FRENZY_MIN_SHARKS_FOR_2X_TRIGGER alive shark heroes in squad.
+//   (Two paths: dominant-tide allows a single-shark squad to enter the
+//    "smaller effect" branch — visual fires, bite count is 0; 2+ sharks
+//    always enter the full effect branch with 1 bite/line.)
+//
+// Cell-state predicates (spec field 7): locked / electrified / cursed
+// cells are immune. Shark bite is absorbed visually but the cell is NOT
+// added to the cleared set. This is the boss-counter mechanism — Shark
+// just respects existing grid.js cell-state predicates, no new boss code.
+//
+// Combo-crit interaction (spec field 8): extra-bitten cells DO count
+// toward `dominantCount` (input modification path — same architectural
+// pattern as cascade; sacred combo crit formula UNTOUCHED). They do NOT
+// count as a new line for cascade purposes (no infinite chain risk).
+//
+// Performance budget (spec field 9): ≤10ms wall-time per fire, max 4
+// teeth-arc SVG elements concurrent (one per cleared line, max 4 lines
+// per `clearLines` call by board geometry), 500ms decay.
+export const SHARK_FRENZY_MIN_SHARKS_FOR_2X_TRIGGER = 2;
+export const SHARK_FRENZY_MAX_EXTRA_CELLS           = 4;  // HARD CAP per spec §2.2 field 9
+export const SHARK_FRENZY_BITE_DECAY_MS             = 500;
+export const SHARK_FRENZY_BITE_SVG_PER_LINE         = 1;
+export const SHARK_FRENZY_DOMINANT_ELEMENT          = 'tide';

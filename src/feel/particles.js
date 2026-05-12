@@ -77,6 +77,49 @@ export function spawnCoinParticle({ el, x, y, targetX, targetY, decayMs }) {
   return el;
 }
 
+// 2026-05-12 — TASK-030 (T2.03): Identity Layer shark teeth-arc particle factory.
+//
+// Pure factory — given pre-allocated DOM element + bite cell screen coords +
+// sweep direction, configures the element for a single teeth-arc bite
+// animation. Used exclusively by the Shark Feeding Frenzy identity FX (spec
+// §2.2). Pool allocation lives in `src/feel/identity-fx.js` per the
+// object-pool requirement of spec §5 (no `document.createElement` per fire).
+//
+// The element is expected to carry the `.identity-shark-bite` class (curved
+// teeth-arc white-on-cyan SVG-style) and to support the
+// `.identity-shark-bite-sweeping` keyframe set defined in
+// `src/styles/screens/battle.css`. Caller is responsible for returning the
+// element to the pool when its decay timer fires.
+//
+// Parameters:
+//   el        — pre-allocated <div> from the pool (Identity Layer owns the pool)
+//   x, y      — bite cell center in viewport coords
+//   direction — 'horizontal-row' | 'vertical-col' (sweep axis per spec §2.2 field 3)
+//   decayMs   — animation lifetime; matches SHARK_FRENZY_BITE_DECAY_MS (500ms)
+//
+// Returns: the same `el` (caller-tracked for cleanup / pool release).
+//
+// Re-uses the existing CSS-transform-only animation pattern from
+// `spawnCoinParticle` above — no requestAnimationFrame loop, no per-frame DOM
+// writes, single transform via CSS keyframes. Pure addition; touches no sacred
+// element of `spawnBossDeathParticles` or `spawnCoinParticle`.
+export function spawnSharkBiteParticle({ el, x, y, direction, decayMs }) {
+  if (!el) return null;
+  // Position at bite cell, expose sweep direction as data attribute so the
+  // .identity-shark-bite-sweeping keyframe can branch (horizontal vs vertical).
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  el.style.setProperty('--bite-decay-ms', decayMs + 'ms');
+  el.setAttribute('data-bite-direction', direction || 'horizontal-row');
+  // Restart the animation deterministically (re-trigger CSS keyframes on
+  // re-used pool elements). Toggle class off then on by forcing a layout read.
+  el.classList.remove('identity-shark-bite-sweeping');
+  // Force a synchronous reflow so the keyframe restarts cleanly.
+  void el.offsetWidth;
+  el.classList.add('identity-shark-bite-sweeping');
+  return el;
+}
+
 // Spawns the 16-particle radial burst at the boss portrait centerpoint.
 // Returns nothing; the container auto-removes itself after 1600ms.
 // `wrap` is the #bossImgWrap element (caller passes its getBoundingClientRect
