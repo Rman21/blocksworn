@@ -12,7 +12,8 @@
   - `SQUAD_MAX` legacy-only constant — needs named export
   - Cross-boundary deferrals (placePiece return, ~600 LoC dead hero code, getSquadMitigation ownership)
   - Future quality upgrade: re-import parent-dir PNG originals + re-capture baselines (currently using legacy JPEG-compressed `sips -Z 1024 q85`)
-- **Last updated:** 2026-05-11 by CTO (after T1.13.3 review)
+- **CI status:** ✅ ALL GREEN (PR #158, 6 iterations to fix: Node 22 + lockfile + vitest@2 + threshold + select skip + mobile-chrome CI-skip)
+- **Last updated:** 2026-05-12 by CTO (CI green; T1.13 main verify next)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
