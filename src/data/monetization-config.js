@@ -1,4 +1,5 @@
 // 2026-05-11 — TASK-008 (T1.07): monetization constants relocated from legacy.
+// 2026-05-12 — TASK-025 (T1.18): SHOP_PACKS consolidates scalar shadows.
 //
 // Sacred per CLAUDE.md §2.4: GEM_PACKS price ladder
 //   $0.99 → $4.99 → $9.99 (+10%) → $19.99 (+15%) → $49.99 (+20% MEGA) → $99.99 (+30% WHALE)
@@ -13,17 +14,16 @@
 //   - TOWER_BOOSTS         line 29769-29779
 //   - COSMETIC_TIER_PACKS  line 29782-29800
 //   - RESOURCE_PACKS       line 29803-29818
+//   - IAP_PRODUCT_IDS      line 37692-37710
 //
-// Per T1.07 task spec, shop pack consolidation lives in T1.18. Multiple
-// PACK_* exports stay separate here — we relocate as-is.
+// T1.18 SHOP_PACKS unifies scalar shadows (STARTER_PACK_*, TOWER_CLIMBER_PACK_*,
+// MEGA_BUFF_*, PACK_BIG_*, PACK_PREMIUM_*, PACK_ULTIMATE_*, PACK_STANDARD_*,
+// PACK_RACE_*, SEASON_PASS_SUB_*) into one frozen registry that REFERENCES
+// canonical MONETIZATION.* values — single source of truth, no duplication.
 //
-// Constants NOT extracted (deferred to T1.10 or T1.18):
+// Constants NOT extracted (deferred to T1.10 or T1.20):
 //   - SEASON_FREE_TRACK / SEASON_PREMIUM_TRACK / SEASON_XP / SEASON_CONFIG
 //     (lines 45466+) — large; defer to T1.10 with the rest of season state
-//   - STARTER_PACK_* / TOWER_CLIMBER_PACK_* / MEGA_BUFF_* etc. (lines
-//     34276-34555, 35545-35547) — these are scalar shadows of MONETIZATION.*.
-//     Once T1.10 imports MONETIZATION, those scalars become trivial accessors
-//     and the consolidation can land in T1.18.
 //   - WHALE_OFFERINGS / DOLPHIN_OFFERINGS / MINNOW_OFFERINGS / PRICING_TIERS /
 //     REGIONAL_PRICING / LOOT_BOX_RATES (P7 segment configs lines 45635-45929)
 //     — these are large pure-literal blocks but they're tightly coupled to
@@ -61,7 +61,13 @@ export const MONETIZATION = Object.freeze({
     // Available 3-day window after each chapter drops via CONTENT.3 engine.
     // Designed to ride emotional spike of new content launch.
     chapterUnlock: Object.freeze({ usd: 9.99, gems: 1100, cards: 50, t2Stones: 5,
-                                   gold: 1000, durationMs: 3 * 24 * 60 * 60 * 1000 })
+                                   gold: 1000, durationMs: 3 * 24 * 60 * 60 * 1000 }),
+    // SHOP.1-REV §4.11 — Tower Climber's Pack ($0.99, 7-day window).
+    // Featured tile shown at top of shop. Hidden after purchase or expiry.
+    // Promoted to MONETIZATION block by T1.18 (was free-floating constants).
+    towerClimber: Object.freeze({ usd: 0.99, windowDays: 7,
+                                  sigilShards: 10, heartFragments: 1,
+                                  gold: 200, heroCards: 5 })
   }),
   pity: Object.freeze({
     threshold: 30, premiumDropBoost: 1.30,
@@ -83,6 +89,10 @@ export const MONETIZATION = Object.freeze({
                                 essencePer: 20 })
   }),
   firstPurchase: Object.freeze({ freeBuffMs: 7*24*60*60*1000 }),
+  // SHOP.4 — Season Pass subscription ($4.99/mo). Mock-IAP today; flips to
+  // RevenueCat in Phase G. Promoted to MONETIZATION block by T1.18.
+  seasonPassSub: Object.freeze({ usd: 4.99, periodDays: 30, gemsBonus: 500,
+                                  retries: 2, dailyLoginX: 2 }),
   // SHOP.1 — Progressive shop reveal (PRELAUNCH §11.5). Day 1-3 hidden,
   // Day 4-6 disabled with "Day 7" tooltip, Day 7+ full shop. accountAge
   // measured via _daysSinceFirstLaunch helper.
@@ -226,3 +236,199 @@ export const RESOURCE_PACKS = Object.freeze({
     deferred: true,
   }),
 });
+
+// 2026-05-12 — TASK-025 (T1.18): IAP product-ID registry. Mirrors legacy
+// IAP_PRODUCT_IDS table at line 37692. Stable SKUs — RevenueCat / Apple
+// / Google product IDs MUST remain identical across releases (changing
+// them breaks live IAP for existing receipts).
+export const IAP_PRODUCT_IDS = Object.freeze({
+  // Gem packs (6 SKUs, $0.99 → $99.99)
+  GEM_099:           'blocksworn.gems.099',
+  GEM_499:           'blocksworn.gems.499',
+  GEM_999:           'blocksworn.gems.999',
+  GEM_1999:          'blocksworn.gems.1999',
+  GEM_4999:          'blocksworn.gems.4999',
+  GEM_9999:          'blocksworn.gems.9999',
+  // Packs (one-time consumables)
+  TOWER_CLIMBER:     'blocksworn.pack.tower_climber',
+  STARTER:           'blocksworn.pack.starter',
+  MEGA_BUFF:         'blocksworn.pack.mega_buff',
+  RACE_BUNDLE_FN:    (race) => 'blocksworn.pack.race_bundle.' + race,
+  ENDGAME_KIT:       'blocksworn.pack.endgame_kit',
+  CHAPTER_UNLOCK_FN: (n)    => 'blocksworn.pack.chapter_unlock.' + n,
+  // Subscription + battle pass
+  SEASON_PASS_SUB:   'blocksworn.sub.season_pass',
+  BATTLEPASS_SEASON: 'blocksworn.battlepass.season',
+});
+
+// 2026-05-12 — TASK-025 (T1.18): SHOP_PACKS — unified shop pack registry.
+//
+// Replaces 38+ scalar shadow constants (PACK_STANDARD_*, PACK_RACE_*,
+// PACK_BIG_*, PACK_PREMIUM_*, PACK_ULTIMATE_*, PACK_PITY_THRESHOLD,
+// STARTER_PACK_*, MEGA_BUFF_*, TOWER_CLIMBER_PACK_*, SEASON_PASS_SUB_*)
+// that duplicated values from MONETIZATION.*. SHOP_PACKS entries REFERENCE
+// the canonical MONETIZATION blocks via direct property reads — no values
+// are redeclared here, so MONETIZATION remains single source of truth.
+//
+// Shape (all entries frozen):
+//   id            : string — stable pack identifier
+//   sku           : string — IAP product id (or null for soft-currency packs)
+//   priceUSD      : number — real-money price (null for gold/gem-only packs)
+//   priceGold     : number — gold cost (null for IAP packs)
+//   priceGems    : number — gems cost (null for IAP-only packs)
+//   contents      : object — frozen reference into MONETIZATION.* sub-blocks
+//   availability  : string — gating rule key (decoded by renderShopPacks)
+//   window        : object — lifecycle rules (one-time / rolling-Nd / always / subscription)
+//
+// Sacred §2.4 economy values UNCHANGED — every numeric still lives in
+// GEM_PACKS / MONETIZATION; SHOP_PACKS is a structured view.
+export const SHOP_PACKS = Object.freeze({
+  // F2P gold-priced packs --------------------------------------------------
+  standard: Object.freeze({
+    id: 'standard',
+    sku: null,
+    priceUSD: null,
+    priceGold: MONETIZATION.packs.standard.gold,
+    priceGems: null,
+    contents: MONETIZATION.packs.standard,
+    availability: 'always',
+    window: Object.freeze({ type: 'always' }),
+  }),
+  race: Object.freeze({
+    id: 'race',
+    sku: null,
+    priceUSD: null,
+    priceGold: MONETIZATION.packs.race.gold,
+    priceGems: null,
+    contents: MONETIZATION.packs.race,
+    availability: 'always',
+    window: Object.freeze({ type: 'always' }),
+  }),
+  // Gold + gems dual-currency pack ----------------------------------------
+  big: Object.freeze({
+    id: 'big',
+    sku: null,
+    priceUSD: null,
+    priceGold: MONETIZATION.packs.big.gold,
+    priceGems: MONETIZATION.packs.big.gems,
+    contents: MONETIZATION.packs.big,
+    availability: 'always',
+    window: Object.freeze({ type: 'always' }),
+  }),
+  // Premium currency packs ------------------------------------------------
+  premium: Object.freeze({
+    id: 'premium',
+    sku: null,
+    priceUSD: null,
+    priceGold: null,
+    priceGems: MONETIZATION.packs.premium.gems,
+    contents: MONETIZATION.packs.premium,
+    availability: 'always',
+    window: Object.freeze({ type: 'always' }),
+  }),
+  ultimate: Object.freeze({
+    id: 'ultimate',
+    sku: null,
+    priceUSD: null,
+    priceGold: null,
+    priceGems: MONETIZATION.packs.ultimate.gems,
+    contents: MONETIZATION.packs.ultimate,
+    availability: 'always',
+    window: Object.freeze({ type: 'always' }),
+  }),
+  // IAP packs -------------------------------------------------------------
+  starter: Object.freeze({
+    id: 'starter',
+    sku: IAP_PRODUCT_IDS.STARTER,
+    priceUSD: MONETIZATION.packs.starter.usd,
+    priceGold: null,
+    priceGems: null,
+    contents: MONETIZATION.packs.starter,
+    availability: 'starter-window',
+    window: Object.freeze({ type: 'day-range',
+                            minDay: MONETIZATION.packs.starter.minDay,
+                            maxDay: MONETIZATION.packs.starter.maxDay }),
+  }),
+  tower_climber: Object.freeze({
+    id: 'tower_climber',
+    sku: IAP_PRODUCT_IDS.TOWER_CLIMBER,
+    priceUSD: MONETIZATION.packs.towerClimber.usd,
+    priceGold: null,
+    priceGems: null,
+    contents: MONETIZATION.packs.towerClimber,
+    availability: 'tower-climber-eligible',
+    window: Object.freeze({ type: 'rolling',
+                            days: MONETIZATION.packs.towerClimber.windowDays }),
+  }),
+  race_bundle: Object.freeze({
+    id: 'race_bundle',
+    sku: null,                                       // RACE_BUNDLE_FN(race) at purchase
+    priceUSD: MONETIZATION.packs.raceBundle.usd,
+    priceGold: null,
+    priceGems: null,
+    contents: MONETIZATION.packs.raceBundle,
+    availability: 'race-bundle-eligible',
+    window: Object.freeze({ type: 'one-time-per-race' }),
+  }),
+  chapter_unlock: Object.freeze({
+    id: 'chapter_unlock',
+    sku: null,                                       // CHAPTER_UNLOCK_FN(n) at purchase
+    priceUSD: MONETIZATION.packs.chapterUnlock.usd,
+    priceGold: null,
+    priceGems: null,
+    contents: MONETIZATION.packs.chapterUnlock,
+    availability: 'chapter-drop-window',
+    window: Object.freeze({ type: 'rolling',
+                            durationMs: MONETIZATION.packs.chapterUnlock.durationMs }),
+  }),
+  // Buffs / subscriptions -------------------------------------------------
+  mega_buff: Object.freeze({
+    id: 'mega_buff',
+    sku: IAP_PRODUCT_IDS.MEGA_BUFF,
+    priceUSD: MONETIZATION.buffs.mega.usd,
+    priceGold: null,
+    priceGems: MONETIZATION.buffs.mega.gems,
+    contents: MONETIZATION.buffs.mega,
+    availability: 'mega-buff-inactive',
+    window: Object.freeze({ type: 'duration-ms',
+                            durationMs: MONETIZATION.buffs.mega.durationMs }),
+  }),
+  gold_rush: Object.freeze({
+    id: 'gold_rush',
+    sku: null,
+    priceUSD: MONETIZATION.buffs.goldRush.usd,
+    priceGold: null,
+    priceGems: MONETIZATION.buffs.goldRush.gems,
+    contents: MONETIZATION.buffs.goldRush,
+    availability: 'gold-rush-inactive',
+    window: Object.freeze({ type: 'duration-ms',
+                            durationMs: MONETIZATION.buffs.goldRush.durationMs }),
+  }),
+  squad_power: Object.freeze({
+    id: 'squad_power',
+    sku: null,
+    priceUSD: MONETIZATION.buffs.squadPower.usd,
+    priceGold: null,
+    priceGems: MONETIZATION.buffs.squadPower.gems,
+    contents: MONETIZATION.buffs.squadPower,
+    availability: 'always',
+    window: Object.freeze({ type: 'always' }),
+  }),
+  season_pass_sub: Object.freeze({
+    id: 'season_pass_sub',
+    sku: IAP_PRODUCT_IDS.SEASON_PASS_SUB,
+    priceUSD: MONETIZATION.seasonPassSub.usd,
+    priceGold: null,
+    priceGems: null,
+    contents: MONETIZATION.seasonPassSub,
+    availability: 'season-pass-inactive',
+    window: Object.freeze({ type: 'subscription',
+                            periodDays: MONETIZATION.seasonPassSub.periodDays }),
+  }),
+});
+
+// 2026-05-12 — pity threshold lifted out of MONETIZATION as a SHOP-side
+// constant for shop renderer access. Still references MONETIZATION as
+// single source of truth.
+export const SHOP_PITY_THRESHOLD   = MONETIZATION.pity.threshold;
+export const SHOP_T3_PITY_THRESHOLD = MONETIZATION.pity.t3Threshold;

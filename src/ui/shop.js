@@ -30,32 +30,29 @@
 //     watchRewardedAd) — RevenueCat/IAP integration territory, lives in
 //     legacy until follow-up.
 //   - Pity / drop-rate state (_getPackPityCounter / _getPackT3PityCounter /
-//     PACK_PITY_THRESHOLD / MONETIZATION.pity.t3Threshold /
+//     SHOP_PITY_THRESHOLD / MONETIZATION.pity.t3Threshold /
 //     _isPremiumDropActive / _premiumDropDaysRemaining) — progression
 //     state; legacy module-scope.
-//   - COSMETICS_CATALOG / TOWER_CLIMBER_PACK_CONTENTS / GEM_PACKS — data
-//     tables; legacy module-scope until src/data/shop.js extraction.
+//   - COSMETICS_CATALOG / GEM_PACKS — data tables; legacy module-scope
+//     until src/data/shop.js extraction.
 //
 // 2026-05-11 — Roman: pure-relocation discipline.
 
 /* eslint-disable no-empty, no-unused-vars */
 
 // T1.13.1: /* global */ → ES imports for resolved src/ exports.
+// T1.18 (2026-05-12): pack scalar shadows (PACK_*, STARTER_PACK_*, MEGA_BUFF_*,
+// TOWER_CLIMBER_PACK_*, SEASON_PASS_SUB_*) replaced by SHOP_PACKS reads.
 import { isFtueActive } from '../core/ftue-state.js';
 import { showScreen } from './router.js';
 import { logEvent, EVT } from '../services/analytics.js';
-import { MONETIZATION, GEM_PACKS } from '../data/monetization-config.js';
+import { MONETIZATION, GEM_PACKS, SHOP_PACKS, SHOP_PITY_THRESHOLD } from '../data/monetization-config.js';
 
 /* global gold, gems, flashText,
    _hoursSinceFirstLaunch, _daysSinceFirstLaunch,
    _isShopLocked, _shopLockReason, SHOP_UNLOCK_MIN_HOURS,
    _isFirstShopVisit, _grantWelcomeGiftIfNeeded, _showShopWelcomeModal,
    _renderWelcomeGiftBannerIfPending,
-   PACK_STANDARD_COST, PACK_RACE_COST,
-   PACK_BIG_GOLD_COST, PACK_BIG_GEMS_COST, PACK_PREMIUM_GEMS_COST,
-   PACK_PREMIUM_GOLD_BONUS, PACK_PREMIUM_ESSENCE_BONUS,
-   PACK_ULTIMATE_GEMS_COST, PACK_ULTIMATE_GOLD_BONUS,
-   PACK_ULTIMATE_ESSENCE_BONUS, PACK_PITY_THRESHOLD,
    GOLD_TO_GEMS_COST, GOLD_TO_GEMS_AMOUNT,
    SQUAD_POWER_T2, SQUAD_POWER_CARDS, SQUAD_POWER_ESSENCE_PER,
    SQUAD_POWER_GOLD, SQUAD_POWER_USD, SQUAD_POWER_GEMS,
@@ -64,12 +61,8 @@ import { MONETIZATION, GEM_PACKS } from '../data/monetization-config.js';
    RAPID_ASCENSION_USD, RAPID_ASCENSION_GEMS,
    ENDGAME_KIT_T3, ENDGAME_KIT_T2, ENDGAME_KIT_CARDS,
    ENDGAME_KIT_HEARTS, ENDGAME_KIT_USD, ENDGAME_KIT_GEMS,
-   RACE_BUNDLE_USD, MEGA_BUFF_USD, MEGA_BUFF_GEMS,
+   RACE_BUNDLE_USD,
    GOLD_RUSH_USD, GOLD_RUSH_GEMS, DAILY_GIFT_USD, DAILY_GIFT_GEMS,
-   STARTER_PACK_USD, STARTER_PACK_GEMS, STARTER_PACK_CARDS,
-   STARTER_PACK_T2_STONES, STARTER_PACK_GOLD,
-   SEASON_PASS_SUB_PRICE_USD, SEASON_PASS_SUB_GEMS_BONUS,
-   TOWER_CLIMBER_PACK_CONTENTS, TOWER_CLIMBER_PACK_USD,
    COSMETICS_CATALOG,
    _PACK_RACE_LABELS, _PACK_RACE_COLORS,
    _isFirstPurchaseDone, _isTowerClimberPackVisible,
@@ -88,6 +81,10 @@ import { MONETIZATION, GEM_PACKS } from '../data/monetization-config.js';
    _isStarterPackEligible, _isRaceF2PUnlocked,
    _goldToGemsAvailable, _goldToGemsCooldownText */
 // LEGACY-ONLY: above tokens have no src/ export — shims retired in T1.14+ cleanup.
+// Bundle-specific scalars (SQUAD_POWER_*, RAPID_ASCENSION_*, ENDGAME_KIT_*,
+// RACE_BUNDLE_USD, GOLD_RUSH_*, DAILY_GIFT_*) still legacy-side — they live
+// in offer/bundle blocks outside the pack registry; future task may fold
+// them into SHOP_PACKS once their unique gating is generalized.
 
 import { log } from '../services/logger.js';
 
@@ -144,8 +141,8 @@ export function renderShopPacks() {
   const host = document.getElementById('shopSectionOffers');
   if (!host) return;
   const goldNow = gold || 0;
-  const stdAffordable  = goldNow >= PACK_STANDARD_COST;
-  const raceAffordable = goldNow >= PACK_RACE_COST;
+  const stdAffordable  = goldNow >= SHOP_PACKS.standard.priceGold;
+  const raceAffordable = goldNow >= SHOP_PACKS.race.priceGold;
   const races = ['pirate', 'rock', 'shark', 'crocodile', 'spark'];
 
   // SHOP.1-REV §4.10 — Minimal mode flag. Each section below conditionally
@@ -158,7 +155,7 @@ export function renderShopPacks() {
   if (_isTowerClimberPackVisible()) {
     const hoursLeft = _towerClimberPackHoursRemaining();
     const daysLeft = Math.max(1, Math.ceil(hoursLeft / 24));
-    const c = TOWER_CLIMBER_PACK_CONTENTS;
+    const c = SHOP_PACKS.tower_climber.contents;
     towerClimberHtml =
       '<button class="shop-pack-btn shop-tower-climber-pack" onclick="buyTowerClimberPack()">' +
         '<span class="shop-tcp-badge">FEATURED · ' + daysLeft + 'd LEFT</span>' +
@@ -170,7 +167,7 @@ export function renderShopPacks() {
           '<div>• ' + c.gold + ' Gold</div>' +
           '<div>• ' + c.heroCards + ' Hero Cards (weighted)</div>' +
         '</span>' +
-        '<span class="shop-pack-cost">$' + TOWER_CLIMBER_PACK_USD.toFixed(2) + '</span>' +
+        '<span class="shop-pack-cost">$' + SHOP_PACKS.tower_climber.priceUSD.toFixed(2) + '</span>' +
       '</button>';
   }
 
@@ -211,7 +208,7 @@ export function renderShopPacks() {
       '<span class="shop-pack-emoji" style="color:' + color + '">📦</span>' +
       '<span class="shop-pack-name">' + label + ' PACK</span>' +
       '<span class="shop-pack-desc">5 ' + label + ' cards</span>' +
-      '<span class="shop-pack-cost">' + PACK_RACE_COST + ' 💰</span>' +
+      '<span class="shop-pack-cost">' + SHOP_PACKS.race.priceGold + ' 💰</span>' +
       '</button>';
   }).join('');
 
@@ -231,16 +228,16 @@ export function renderShopPacks() {
 
   // ----- Section 3b: Phase B — Big / Premium / Ultimate Packs + pity + drop boost -----
   const gemsNow = (typeof gems === 'number') ? gems : 0;
-  const bigGoldAfford = goldNow >= PACK_BIG_GOLD_COST;
-  const bigGemsAfford = gemsNow >= PACK_BIG_GEMS_COST;
-  const premiumAfford = gemsNow >= PACK_PREMIUM_GEMS_COST;
-  const ultimateAfford = gemsNow >= PACK_ULTIMATE_GEMS_COST;
+  const bigGoldAfford = goldNow >= SHOP_PACKS.big.priceGold;
+  const bigGemsAfford = gemsNow >= SHOP_PACKS.big.priceGems;
+  const premiumAfford = gemsNow >= SHOP_PACKS.premium.priceGems;
+  const ultimateAfford = gemsNow >= SHOP_PACKS.ultimate.priceGems;
   // SHOP.3 — Pity bar UX overhaul. Two parallel pity tracks (T2 from
   // standard/race, T3 from premium) shown side by side with tap-to-explain.
   // Per spec: "Pity bar shows 'T2 STONE GUARANTEED — N packs left'".
   const pityCount = _getPackPityCounter();
-  const pityPct = Math.min(100, Math.round((pityCount / PACK_PITY_THRESHOLD) * 100));
-  const pityT2Left = Math.max(0, PACK_PITY_THRESHOLD - pityCount);
+  const pityPct = Math.min(100, Math.round((pityCount / SHOP_PITY_THRESHOLD) * 100));
+  const pityT2Left = Math.max(0, SHOP_PITY_THRESHOLD - pityCount);
   const t3Count = (typeof _getPackT3PityCounter === 'function') ? _getPackT3PityCounter() : 0;
   const t3Threshold = MONETIZATION.pity.t3Threshold;
   const t3Pct = Math.min(100, Math.round((t3Count / t3Threshold) * 100));
@@ -271,28 +268,28 @@ export function renderShopPacks() {
         '<span class="shop-pack-emoji">📦</span>' +
         '<span class="shop-pack-name">BIG PACK</span>' +
         '<span class="shop-pack-desc">10 cards + 1 ⚡ T2</span>' +
-        '<span class="shop-pack-cost">' + PACK_BIG_GOLD_COST.toLocaleString() + ' 💰</span>' +
+        '<span class="shop-pack-cost">' + SHOP_PACKS.big.priceGold.toLocaleString() + ' 💰</span>' +
       '</button>' +
       '<button class="shop-pack-btn shop-pack-big" ' + (bigGemsAfford ? '' : 'disabled') + ' onclick="buyBigPackGems()">' +
         '<span class="shop-pack-emoji">📦</span>' +
         '<span class="shop-pack-name">BIG PACK</span>' +
         '<span class="shop-pack-desc">10 cards + 1 ⚡ T2</span>' +
-        '<span class="shop-pack-cost">' + PACK_BIG_GEMS_COST + ' 💎</span>' +
+        '<span class="shop-pack-cost">' + SHOP_PACKS.big.priceGems + ' 💎</span>' +
       '</button>' +
     '</div>';
   const premiumPackHtml =
     '<button class="shop-pack-btn shop-pack-premium" ' + (premiumAfford ? '' : 'disabled') + ' onclick="buyPremiumPack()">' +
       '<span class="shop-pack-emoji">🎁</span>' +
       '<span class="shop-pack-name">PREMIUM PACK</span>' +
-      '<span class="shop-pack-desc">10 cards · 1 ⚡ T2 · 5% chance 💠 T3 · +' + PACK_PREMIUM_GOLD_BONUS + '💰 · +' + PACK_PREMIUM_ESSENCE_BONUS + '✦</span>' +
-      '<span class="shop-pack-cost">' + PACK_PREMIUM_GEMS_COST + ' 💎</span>' +
+      '<span class="shop-pack-desc">10 cards · 1 ⚡ T2 · 5% chance 💠 T3 · +' + SHOP_PACKS.premium.contents.goldBonus + '💰 · +' + SHOP_PACKS.premium.contents.essenceBonus + '✦</span>' +
+      '<span class="shop-pack-cost">' + SHOP_PACKS.premium.priceGems + ' 💎</span>' +
     '</button>';
   const ultimatePackHtml =
     '<button class="shop-pack-btn shop-pack-ultimate" ' + (ultimateAfford ? '' : 'disabled') + ' onclick="buyUltimatePack()">' +
       '<span class="shop-pack-emoji">👑</span>' +
       '<span class="shop-pack-name">ULTIMATE PACK</span>' +
-      '<span class="shop-pack-desc">25 cards · 2 ⚡ T2 · 1 💠 T3 · +' + PACK_ULTIMATE_GOLD_BONUS + '💰 · +' + PACK_ULTIMATE_ESSENCE_BONUS + '✦ · 7d 🎯 boost</span>' +
-      '<span class="shop-pack-cost">' + PACK_ULTIMATE_GEMS_COST + ' 💎</span>' +
+      '<span class="shop-pack-desc">25 cards · 2 ⚡ T2 · 1 💠 T3 · +' + SHOP_PACKS.ultimate.contents.goldBonus + '💰 · +' + SHOP_PACKS.ultimate.contents.essenceBonus + '✦ · 7d 🎯 boost</span>' +
+      '<span class="shop-pack-cost">' + SHOP_PACKS.ultimate.priceGems + ' 💎</span>' +
     '</button>';
 
   // ----- Section 4: Cosmetics (existing — unchanged) -----
@@ -345,8 +342,8 @@ export function renderShopPacks() {
         '<div class="shop-sub-tile-row">' +
           '<span class="shop-sub-tile-icon">★</span>' +
           '<div class="shop-sub-tile-info">' +
-            '<div class="shop-sub-tile-title">SEASON PASS · $' + SEASON_PASS_SUB_PRICE_USD.toFixed(2) + '/mo</div>' +
-            '<div class="shop-sub-tile-sub">' + SEASON_PASS_SUB_GEMS_BONUS + '💎/season · auto-premium · 2× retries · cancel anytime</div>' +
+            '<div class="shop-sub-tile-title">SEASON PASS · $' + SHOP_PACKS.season_pass_sub.priceUSD.toFixed(2) + '/mo</div>' +
+            '<div class="shop-sub-tile-sub">' + SHOP_PACKS.season_pass_sub.contents.gemsBonus + '💎/season · auto-premium · 2× retries · cancel anytime</div>' +
           '</div>' +
         '</div>' +
       '</button>';
@@ -406,7 +403,7 @@ export function renderShopPacks() {
     : '<button class="shop-conv shop-conv-buff" onclick="buyMegaBuff()">' +
         '<div class="shop-conv-title">⚡ 24h MEGA BUFF</div>' +
         '<div class="shop-conv-contents">+25% gold · +50% Hero Cards · +25% shards · 24h</div>' +
-        '<div class="shop-conv-cost">$' + MEGA_BUFF_USD.toFixed(2) + ' / ' + MEGA_BUFF_GEMS + '💎</div>' +
+        '<div class="shop-conv-cost">$' + SHOP_PACKS.mega_buff.priceUSD.toFixed(2) + ' / ' + SHOP_PACKS.mega_buff.priceGems + '💎</div>' +
       '</button>';
   // SHOP.7 — Squad Boost replaced with Gold Rush in shop UI per PRELAUNCH §11.5.
   // Legacy buySquadLevelBoost function kept for save compat; just hidden from UI.
@@ -541,8 +538,8 @@ export function renderShopPacks() {
   const starterHtml = starterEligible
     ? '<button class="shop-bundle shop-bundle-endgame" onclick="buyStarterPack()" style="border-color:#FFAA00;background:linear-gradient(135deg,rgba(255,170,0,0.18),rgba(255,213,61,0.12))">' +
         '<div class="shop-bundle-title">★ SUMMONER\'S STARTER PACK · 1× ONLY</div>' +
-        '<div class="shop-bundle-contents">1 random Captain · ' + STARTER_PACK_GEMS + '💎 · ' + STARTER_PACK_CARDS + ' cards · ' + STARTER_PACK_T2_STONES + ' T2 · ' + STARTER_PACK_GOLD + '💰 · FOUNDER badge</div>' +
-        '<div class="shop-bundle-cost">$' + STARTER_PACK_USD.toFixed(2) + '</div>' +
+        '<div class="shop-bundle-contents">1 random Captain · ' + SHOP_PACKS.starter.contents.gems + '💎 · ' + SHOP_PACKS.starter.contents.cards + ' cards · ' + SHOP_PACKS.starter.contents.t2Stones + ' T2 · ' + SHOP_PACKS.starter.contents.gold + '💰 · FOUNDER badge</div>' +
+        '<div class="shop-bundle-cost">$' + SHOP_PACKS.starter.priceUSD.toFixed(2) + '</div>' +
       '</button>'
     : '';
   // SHOP.1-REV §4.10 — minimal mode hides all sections except:
@@ -587,7 +584,7 @@ export function renderShopPacks() {
       '<span class="shop-pack-emoji">📦</span>' +
       '<span class="shop-pack-name">STANDARD HERO PACK</span>' +
       '<span class="shop-pack-desc">1 random hero card · weighted to less-owned</span>' +
-      '<span class="shop-pack-cost">' + PACK_STANDARD_COST + ' 💰</span>' +
+      '<span class="shop-pack-cost">' + SHOP_PACKS.standard.priceGold + ' 💰</span>' +
     '</button>' +
     (minimal ? '' :
       '<div class="shop-pack-divider">RACE PACKS</div>' +
