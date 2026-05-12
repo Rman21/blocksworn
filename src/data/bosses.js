@@ -92,5 +92,12 @@ export const BOSS_IDENTITY_FX = Object.freeze({
   // T2.08 — Lich Cursed Tiles (Assassin archetype, Ch1 Boss 5 CRYPT LICH +
   // Ch3 ARCHIVAL ETERNAL). Explicit Shark counter per spec §2.2 / §3.2.
   assassin:   'lich_cursed_tiles',
-  // T2.09–T2.11: berserker / engineer / grovewarden / void / uroboros
+  // T2.09 — Berserker / Frenzy Bloodtide Pulse (Ch1 Boss 1 PYREDRAKE +
+  // Ch2 Boss 8 URSARO). SAME identity hook for BOTH archetypes per spec
+  // §3.3 field 1 ("both are 'build aggression over time' archetypes"):
+  // every 3rd line clear in boss Active state → +5% next-attack damage
+  // pulse, layered ON TOP of sacred BERSERKER_ENRAGE_MULT = 2.0.
+  berserker:  'berserker_bloodtide',
+  frenzy:     'berserker_bloodtide',
+  // T2.10–T2.11: engineer / grovewarden / void / uroboros
 });

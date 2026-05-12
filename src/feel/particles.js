@@ -377,6 +377,54 @@ export function spawnSkullOverlay({ el, x, y, color, decayMs }) {
   return el;
 }
 
+// 2026-05-12 — TASK-036 (T2.09): Berserker / Frenzy Bloodtide Pulse particle
+// factory. THIRD boss-reactive identity mechanic — a red pulse sweep from the
+// boss portrait toward the grid, signaling the player that the boss's NEXT
+// attack will deal +5% damage (BLOODTIDE_PULSE_DAMAGE_BONUS, layered on top
+// of sacred BERSERKER_ENRAGE_MULT = 2.0 per spec §3.3 field 4).
+//
+// Architecture (spec §5 — object-pool requirement, no createElement per fire):
+// Single pre-allocated pool element re-used per pulse (the Bloodtide effect
+// is one-shot — only one pulse VFX is ever live at a time). The element is
+// positioned by `fromX`/`fromY` (boss portrait center) and animated to
+// `toX`/`toY` (grid center) via CSS custom properties read by the
+// `@keyframes identityBloodtidePulse` sweep. No requestAnimationFrame loop,
+// no per-frame DOM writes — pure CSS animation.
+//
+// Visual reference (spec §3.3 field 4 + field 6): "A red 'pulse' sweeps from
+// the boss portrait outward toward the grid... visible 'tempo' — every 3rd
+// clear, the boss 'winds up.'" The red palette (#E53935) is intentionally
+// distinct from purple curse (Lich) / cyan bite (Shark) / orange flame
+// (Phoenix) — each boss-reactive mechanic has its own color signature.
+//
+// SACRED-COW SAFETY: This factory ONLY configures the pulse element and its
+// CSS variables for the sweep animation. It does NOT touch combat math, the
+// Stagger Loop state machine, BERSERKER_ENRAGE_MULT, or any sacred constant.
+// The damage modifier is owned by the JS module
+// (`src/feel/identity-fx.js#consumeBloodtidePulse`); this visual is purely
+// a tempo indicator for the player.
+export function spawnBloodtidePulse({ el, fromX, fromY, toX, toY, color, decayMs }) {
+  if (!el) return null;
+  // Position at the source (boss portrait center). The sweep keyframe
+  // animates `transform: translate(...)` toward the delta below.
+  el.style.left = fromX + 'px';
+  el.style.top  = fromY + 'px';
+  // Expose sweep delta + duration as CSS variables so the
+  // `@keyframes identityBloodtidePulse` rule can read them.
+  el.style.setProperty('--bloodtide-dx', (toX - fromX) + 'px');
+  el.style.setProperty('--bloodtide-dy', (toY - fromY) + 'px');
+  el.style.setProperty('--bloodtide-duration-ms', (decayMs || 600) + 'ms');
+  if (color) {
+    el.style.setProperty('--bloodtide-color', color);
+  }
+  // Restart the sweep keyframe deterministically (re-trigger on pool re-use).
+  el.classList.remove('identity-bloodtide-pulse-sweep');
+  // Force a synchronous reflow so the keyframe restarts cleanly.
+  void el.offsetWidth;
+  el.classList.add('identity-bloodtide-pulse-sweep');
+  return el;
+}
+
 // Spawns the 16-particle radial burst at the boss portrait centerpoint.
 // Returns nothing; the container auto-removes itself after 1600ms.
 // `wrap` is the #bossImgWrap element (caller passes its getBoundingClientRect

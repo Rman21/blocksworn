@@ -86,6 +86,15 @@ import {
   CURSED_TILES_SKULL_COLOR,
   CURSED_TILES_INITIAL_BUDGET_MS,
   CURSED_TILES_PER_TURN_TICK_BUDGET_MS,
+  // T2.09 — Berserker / Frenzy Bloodtide Pulse constants.
+  BLOODTIDE_PULSE_INTERVAL,
+  BLOODTIDE_PULSE_DAMAGE_BONUS,
+  BLOODTIDE_PULSE_MAX_BONUS,
+  BLOODTIDE_PULSE_VFX_DURATION_MS,
+  BLOODTIDE_PULSE_DECAY_MS,
+  BLOODTIDE_REQUIRED_STAGGER_STATE,
+  BLOODTIDE_PULSE_COLOR,
+  BLOODTIDE_INITIAL_BUDGET_MS,
 } from '../data/identity-layer.js';
 import { RACE_SYNERGY } from '../data/races.js';
 import {
@@ -95,6 +104,7 @@ import {
   spawnCrocFragmentParticle,
   spawnSparkRayParticle,
   spawnSkullOverlay,
+  spawnBloodtidePulse,
 } from './particles.js';
 import { vHaptic } from './haptics.js';
 import { log } from '../services/logger.js';
@@ -2850,6 +2860,348 @@ export function cursedTilesGatePasses(squad) {
   return sharkCount >= CURSED_TILES_TRIGGER_SHARK_THRESHOLD;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-036 (T2.09): Berserker / Frenzy Bloodtide Pulse (THIRD
+// boss-reactive identity mechanic — every-3rd-clear tempo mechanic shared by
+// BOTH `berserker` and `frenzy` archetypes per spec §3.3 field 1).
+//
+// Spec: docs/design/mechanics/identity-layer.md §3.3.
+// Architecture (spec §1 hard rule 1): Identity Layer EXTENDS, never MODIFIES,
+// v2.1 P4 reactivity AND v2.1 P2 Stagger Loop. Sacred berserker / frenzy
+// reactivity handlers (`berserker_p1_p2` enrage banner + 1.2× boss damage,
+// `berserker_p2_p3` stagger immunity, `frenzy_p1_p2` raise frenzyMaxStacks,
+// `frenzy_p2_p3` forced maul combo) and the 22 reactivity handlers stay
+// BYTE-PERFECT. Stagger Loop state machine (BOSS_STATE_ACTIVE/STAGGER/RECOVERY,
+// STAGGER_DURATION_TURNS = 4, RECOVERY_DURATION_TURNS = 2) stays BYTE-PERFECT.
+// Bloodtide is a NEW handler under namespace `identity_berserker_frenzy_pulse`
+// in `src/core/reactivity-events.js`, fired ALONGSIDE the sacred path via the
+// T2.07-established `IDENTITY_BOSS_HANDLERS` parallel registry.
+//
+// Mechanical contract (spec §3.3):
+//   - Trigger: every `BLOODTIDE_PULSE_INTERVAL` (3) line clears the player
+//     resolves WHILE the boss is in Active state (NOT Stagger, NOT Recovery).
+//     The gate reads `getBossState()` from `src/core/stagger-loop.js` — pure
+//     READ-ONLY observation; no state-mutation API is called.
+//   - `incrementBloodtideClearCount()`: called by battle pipeline on every
+//     successful line clear. Pure integer increment; returns new count.
+//   - `shouldBloodtidePulse(count, staggerState)`: pure predicate. True iff
+//     count > 0 && count % 3 === 0 && staggerState === 'active'.
+//   - `fxBerserkerBloodtidePulse(bossState, ctx)`: when the gate passes, this
+//     is called (by the boss-reactive handler) to:
+//       * Set _bloodtidePulsePending = true (the one-shot buff flag).
+//       * Spawn a red pulse VFX from boss portrait → grid via
+//         spawnBloodtidePulse (single DOM element, ≤10ms).
+//       * Toggle the HUD pending indicator.
+//   - `consumeBloodtidePulse()`: called by battle pipeline before resolving
+//     a boss attack. Returns `{ damageBonus: 0.05 | 0 }` and clears the
+//     pending flag. One-shot semantics: 3 consecutive pulses do NOT stack —
+//     each consume returns 0.05 once, then 0 until a new pulse fires.
+//   - `applyBloodtideToDamage(baseDamage, enrageMult, pulseBonus)`: pure
+//     composition helper that codifies the LAYERED damage rule:
+//       finalDamage = baseDamage × enrageMult × (1 + pulseBonus)
+//     This guarantees the +5% pulse multiplies the ENRAGE-MULTIPLIED result,
+//     NEVER modifies the sacred BERSERKER_ENRAGE_MULT = 2.0 itself.
+//
+// Sacred-cow safety (CLAUDE.md §2.1 + §2.5):
+//   - Reads `getBossState()` from src/core/stagger-loop.js (lazy import via
+//     dynamic resolution; tests pass the state string directly).
+//   - Reads BERSERKER_ENRAGE_HP_PCT = 0.5 / BERSERKER_ENRAGE_MULT = 2.0 via
+//     name only for the pulse-layering test — NEVER mutates these values.
+//   - Stagger Loop state machine UNTOUCHED — no setState/transition call.
+//     STAGGER_DURATION_TURNS = 4 / RECOVERY_DURATION_TURNS = 2 byte-perfect.
+//   - REACTIVITY_TELEGRAPH_MS UNUSED by Bloodtide (no wind-up telegraph —
+//     the pulse VFX IS the player's reaction time signal). The sacred 3000ms
+//     constant stays byte-perfect regardless.
+//   - Phoenix/Lich invariants UNTOUCHED.
+//
+// Performance budget (spec §3.3 field 7):
+//   - Gate check: O(1) pure integer math (count % 3 === 0 && state check).
+//   - Pulse VFX: ≤BLOODTIDE_INITIAL_BUDGET_MS (10ms) DOM element activation
+//     + CSS keyframe sweep. Single pre-allocated pool element.
+//   - Damage modifier: pure integer math at consume time.
+//
+// Reset on battle start/end via `resetBloodtide()`.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Pre-allocated DOM elements (object pool: 1 pulse + 1 HUD indicator). Sized
+// at the spec cap of 1 — only one pulse is ever live at a time per spec §3.3
+// field 4 "one-shot buff, not stacking". Created lazily on first
+// fxBerserkerBloodtidePulse invocation.
+let _bloodtidePulseEl       = null;
+let _bloodtidePulseHudEl    = null;
+let _bloodtidePoolContainer = null;
+let _bloodtidePoolInitDone  = false;
+
+// Module state. `_bloodtideClearCount` is the per-battle line-clear counter
+// (incremented on every fire by `incrementBloodtideClearCount`). `_bloodtidePulsePending`
+// is the one-shot buff flag — true between pulse fire and consume. Per spec
+// §3.3 field 4, only ONE pulse is ever live at a time; if a new pulse fires
+// before the previous is consumed, the flag stays true (no stacking).
+let _bloodtideClearCount    = 0;
+let _bloodtidePulsePending  = false;
+// Pulse fade-out timer (single setTimeout, no setInterval / rAF).
+let _bloodtidePulseDecayTimer = null;
+
+// Ensures the 1-element DOM pool exists. Idempotent — calling again is a
+// no-op. In Node-only unit-test environments (no `document`), the pool stays
+// empty and helpers work on the integer-only state path.
+function _ensureBloodtidePool() {
+  if (_bloodtidePoolInitDone) return;
+  if (typeof document === 'undefined') return;          // unit-test guard
+  _bloodtidePoolContainer = document.createElement('div');
+  _bloodtidePoolContainer.className = 'identity-bloodtide-pulse-container';
+  _bloodtidePoolContainer.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(_bloodtidePoolContainer);
+  // Pulse element (1 pre-allocated, re-used per fire — one-shot semantics).
+  _bloodtidePulseEl = document.createElement('div');
+  _bloodtidePulseEl.className = 'identity-bloodtide-pulse';
+  _bloodtidePulseEl.style.display = 'none';
+  _bloodtidePoolContainer.appendChild(_bloodtidePulseEl);
+  // HUD pending indicator (1 pre-allocated).
+  _bloodtidePulseHudEl = document.createElement('div');
+  _bloodtidePulseHudEl.className = 'identity-bloodtide-pulse-hud';
+  _bloodtidePulseHudEl.textContent = 'BLOODTIDE PULSE — +5% incoming';
+  _bloodtidePulseHudEl.style.display = 'none';
+  document.body.appendChild(_bloodtidePulseHudEl);
+  _bloodtidePoolInitDone = true;
+}
+
+// ─── Pure helpers (unit-testable, no DOM) ──────────────────────────────
+//
+// Trigger gate predicate. Pure function — given a clear count and stagger
+// state, returns true iff:
+//   - clearCount > 0 (defensive: never fire at boot before any clears)
+//   - clearCount % BLOODTIDE_PULSE_INTERVAL (3) === 0
+//   - staggerState === BLOODTIDE_REQUIRED_STAGGER_STATE ('active')
+// During Stagger / Recovery the gate fails silently (no pulse). Clear count
+// keeps incrementing across states; pulse fires on the first qualifying
+// 3rd-clear after returning to Active.
+//
+// `staggerState` should be the result of `getBossState()` from
+// `src/core/stagger-loop.js`. Pass the string directly for tests.
+export function shouldBloodtidePulse(clearCount, staggerState) {
+  const _count = Number(clearCount);
+  if (!Number.isFinite(_count) || _count <= 0) return false;
+  if (Math.floor(_count) !== _count) return false;
+  if (_count % BLOODTIDE_PULSE_INTERVAL !== 0) return false;
+  return staggerState === BLOODTIDE_REQUIRED_STAGGER_STATE;
+}
+
+// Pure helper: compute the damage bonus for a hypothetical N pulses. Caps at
+// BLOODTIDE_PULSE_MAX_BONUS (0.25 = +25%) per spec §3.3 field 4 HARD CAP.
+// In normal play `pulsesPending` is always 0 or 1 (one-shot consume), but
+// this helper exists for the cap-clamp invariant test and forward-compat.
+export function computeBloodtideDamageBonus(pulsesPending) {
+  const _n = Math.max(0, Math.floor(Number(pulsesPending) || 0));
+  return Math.min(BLOODTIDE_PULSE_MAX_BONUS, _n * BLOODTIDE_PULSE_DAMAGE_BONUS);
+}
+
+// Pure composition helper: apply Bloodtide pulse to the FINAL damage value
+// after enrage. The order is critical:
+//   finalDamage = baseDamage × enrageMult × (1 + pulseBonus)
+// NEVER `baseDamage × (enrageMult + pulseBonus)` — that would functionally
+// modify the sacred BERSERKER_ENRAGE_MULT = 2.0 value. Pulse multiplies the
+// already-enraged base; sacred multipliers stay untouched.
+//
+// Example: baseDamage = 100, enrageMult = 2.0, pulseBonus = 0.05
+//   correct: 100 × 2.0 × 1.05 = 210
+//   wrong:   100 × (2.0 + 0.05) = 205  (would mean modifying enrageMult)
+export function applyBloodtideToDamage(baseDamage, enrageMult, pulseBonus) {
+  const _base   = Number(baseDamage);
+  const _enrage = Number(enrageMult);
+  const _bonus  = Number(pulseBonus);
+  if (!Number.isFinite(_base) || !Number.isFinite(_enrage)) return 0;
+  const safeBonus = Number.isFinite(_bonus) ? _bonus : 0;
+  return _base * _enrage * (1 + safeBonus);
+}
+
+// ─── Battle-pipeline helpers (count tick + consume) ────────────────────
+//
+// Increment the per-battle line-clear count by 1. Called by the battle
+// pipeline on every successful line clear (T2.B bridge will wire this into
+// `src/core/grid.js#clearLines`). Returns the new count for callers that
+// want to compute the gate inline.
+export function incrementBloodtideClearCount() {
+  _bloodtideClearCount += 1;
+  return _bloodtideClearCount;
+}
+
+// Read-only accessor for the current clear count. Used by tests and the
+// dispatcher gate check.
+export function getBloodtideClearCount() {
+  return _bloodtideClearCount;
+}
+
+// Consume the pending pulse buff. Called by battle pipeline BEFORE resolving
+// a boss attack. Returns `{ damageBonus }` — 0.05 if a pulse was pending,
+// 0 otherwise. Side effect: sets _bloodtidePulsePending = false. Idempotent
+// for subsequent calls until a new pulse fires.
+//
+// One-shot semantics: 3 consecutive pulses (clears 3, 6, 9 without any boss
+// attack in between) all set pending=true, but consume returns 0.05 ONCE
+// (one buff is the maximum live at any time — no stacking per spec §3.3
+// field 4).
+export function consumeBloodtidePulse() {
+  if (_bloodtidePulsePending) {
+    _bloodtidePulsePending = false;
+    // Hide HUD indicator after consume.
+    if (_bloodtidePulseHudEl) {
+      try {
+        _bloodtidePulseHudEl.classList.remove('identity-bloodtide-pulse-hud-pending');
+        _bloodtidePulseHudEl.style.display = 'none';
+      } catch (_e) { /* swallow */ }
+    }
+    return { damageBonus: BLOODTIDE_PULSE_DAMAGE_BONUS };
+  }
+  return { damageBonus: 0 };
+}
+
+// Read-only accessor: is a pulse currently pending? Used by tests and the
+// damage-resolution pipeline.
+export function isBloodtidePulsePending() {
+  return _bloodtidePulsePending;
+}
+
+// Reset hook for battle pipeline (battle start / battle end). Clears all
+// state + cancels pending timers + hides DOM. Mirrors `resetAshenReign` /
+// `resetCursedTiles` precedents. Idempotent — safe to call when no pulse
+// is active.
+export function resetBloodtide() {
+  _bloodtideClearCount = 0;
+  _bloodtidePulsePending = false;
+  if (_bloodtidePulseDecayTimer) {
+    clearTimeout(_bloodtidePulseDecayTimer);
+    _bloodtidePulseDecayTimer = null;
+  }
+  if (_bloodtidePulseEl) {
+    try {
+      _bloodtidePulseEl.classList.remove('identity-bloodtide-pulse-sweep');
+      _bloodtidePulseEl.style.display = 'none';
+    } catch (_e) { /* swallow */ }
+  }
+  if (_bloodtidePulseHudEl) {
+    try {
+      _bloodtidePulseHudEl.classList.remove('identity-bloodtide-pulse-hud-pending');
+      _bloodtidePulseHudEl.style.display = 'none';
+    } catch (_e) { /* swallow */ }
+  }
+}
+
+// ─── Activate (module state mutation) ──────────────────────────────────
+//
+// `fxBerserkerBloodtidePulse(bossState, ctx)` — fire the red pulse VFX and
+// set the one-shot pending buff. Spec §3.3 field 4. Called by the new boss-
+// reactive handler (`identity_berserker_frenzy_pulse` in
+// `src/core/reactivity-events.js`) when the gate passes.
+//
+// Initial-trigger wall-time budget: ≤BLOODTIDE_INITIAL_BUDGET_MS (10ms).
+//   - 1 DOM pool element activation (class swap + position): ≤4ms
+//   - 1 HUD indicator activation (class swap): ≤2ms
+//   - module state flag set: ≤1ms
+//   Total: ≤7ms typical, 10ms ceiling with CI headroom.
+//
+// `ctx` is the dispatch context (may carry `bossImgWrap` and `gridEl`):
+//   - `ctx.bossImgWrap`: the #bossImgWrap DOM element (for source position).
+//   - `ctx.gridEl`: the grid container DOM element (for target position).
+// Defaults to `document.querySelector` lookups if not provided.
+//
+// `bossState` parameter is reserved for forward compat (codex / matchup
+// matrix may need archetype-specific tinting); currently unused beyond the
+// shared red pulse signature.
+export function fxBerserkerBloodtidePulse(_bossState, ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  try {
+    // Set the one-shot pending flag. Per spec §3.3 field 4 "one-shot buff,
+    // not stacking with itself": if a previous pulse is still pending (player
+    // hadn't been attacked yet), we leave the flag true — there's no scalar
+    // count of pulses, just a boolean. The new VFX still spawns to maintain
+    // the visual tempo signal.
+    _bloodtidePulsePending = true;
+
+    // Lazy pool init for DOM environments.
+    _ensureBloodtidePool();
+
+    if (_bloodtidePulseEl && typeof document !== 'undefined') {
+      // Resolve source (boss portrait) + target (grid) coords from ctx or
+      // DOM lookup. In Node-only test envs (no DOM), we skip the visual
+      // step but the module state flag is still set above.
+      const bossEl = (ctx && ctx.bossImgWrap) || document.getElementById('bossImgWrap');
+      const gridEl = (ctx && ctx.gridEl)
+        || document.querySelector('.grid')
+        || document.getElementById('grid');
+      let fromX = 0, fromY = 0, toX = 0, toY = 0;
+      if (bossEl && typeof bossEl.getBoundingClientRect === 'function') {
+        const r = bossEl.getBoundingClientRect();
+        fromX = r.left + r.width / 2;
+        fromY = r.top  + r.height / 2;
+      }
+      if (gridEl && typeof gridEl.getBoundingClientRect === 'function') {
+        const r = gridEl.getBoundingClientRect();
+        toX = r.left + r.width / 2;
+        toY = r.top  + r.height / 2;
+      }
+
+      try {
+        _bloodtidePulseEl.style.display = 'block';
+        spawnBloodtidePulse({
+          el:      _bloodtidePulseEl,
+          fromX,  fromY,
+          toX,    toY,
+          color:  BLOODTIDE_PULSE_COLOR,
+          decayMs: BLOODTIDE_PULSE_VFX_DURATION_MS,
+        });
+      } catch (e) { log.warn('Bloodtide pulse spawn failed:', e); }
+
+      // Hide pulse after VFX duration via single setTimeout. No setInterval,
+      // no requestAnimationFrame.
+      if (_bloodtidePulseDecayTimer) clearTimeout(_bloodtidePulseDecayTimer);
+      _bloodtidePulseDecayTimer = setTimeout(() => {
+        _bloodtidePulseDecayTimer = null;
+        if (_bloodtidePulseEl) {
+          try {
+            _bloodtidePulseEl.classList.remove('identity-bloodtide-pulse-sweep');
+            _bloodtidePulseEl.style.display = 'none';
+          } catch (_e) { /* swallow */ }
+        }
+      }, BLOODTIDE_PULSE_VFX_DURATION_MS + BLOODTIDE_PULSE_DECAY_MS);
+    }
+
+    // Activate HUD pending indicator. Static text "BLOODTIDE PULSE — +5%
+    // incoming"; CSS animation `identityBloodtidePulseHudPending` does the
+    // attention-grabbing pulse. Hidden by `consumeBloodtidePulse` on next
+    // boss attack.
+    if (_bloodtidePulseHudEl) {
+      try {
+        _bloodtidePulseHudEl.style.display = 'block';
+        // Force a reflow so the keyframe restarts cleanly on re-fire.
+        _bloodtidePulseHudEl.classList.remove('identity-bloodtide-pulse-hud-pending');
+        void _bloodtidePulseHudEl.offsetWidth;
+        _bloodtidePulseHudEl.classList.add('identity-bloodtide-pulse-hud-pending');
+      } catch (_e) { /* swallow */ }
+    }
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      if (dt > BLOODTIDE_INITIAL_BUDGET_MS) {
+        log.warn('Berserker Bloodtide Pulse initial trigger over budget:',
+                 dt.toFixed(2), 'ms (limit', BLOODTIDE_INITIAL_BUDGET_MS, 'ms)');
+      }
+    }
+  }
+}
+
+// Trigger gate (spec §3.3 field 3): line-clear count-based gate + Stagger
+// Loop READ-ONLY state check. Returns true iff Bloodtide should fire on the
+// CURRENT clear (after `incrementBloodtideClearCount` has been called).
+//
+// Two-source-of-truth invariant: `bloodtideGatePasses()` reads the same
+// internal state as `getBloodtideClearCount()` — there is no separate scalar
+// passed from the caller. The test passes staggerState explicitly so the
+// pure-function semantics hold without coupling to stagger-loop.js.
+export function bloodtideGatePasses(staggerState) {
+  return shouldBloodtidePulse(_bloodtideClearCount, staggerState);
+}
+
 // ─── Test-only escape hatches (NOT used in production) ─────────────────
 // Exposed under a `__identityFxTestables` named export so unit tests can
 // assert internal state without reaching into module privates via hacks.
@@ -2966,6 +3318,28 @@ export const __identityFxTestables = Object.freeze({
     while (_cursedTilesPoolAvailable.length) _cursedTilesPoolAvailable.pop();
     _cursedTilesPoolContainer = null;
     _cursedTilesPoolInitDone = false;
+  },
+  // T2.09 — Berserker / Frenzy Bloodtide Pulse testables. Module-state
+  // observers + pool resetter so tests can assert state transitions without
+  // reaching into module privates.
+  isBloodtidePoolInitDone: () => _bloodtidePoolInitDone,
+  getBloodtidePulseEl:    () => _bloodtidePulseEl,
+  getBloodtidePulseHudEl: () => _bloodtidePulseHudEl,
+  hasBloodtideDecayTimer: () => _bloodtidePulseDecayTimer !== null,
+  resetBloodtidePool: () => {
+    // First: drop all state via the public reset path.
+    resetBloodtide();
+    // Then: tear down DOM so the next test re-creates the pool fresh.
+    if (_bloodtidePoolContainer && _bloodtidePoolContainer.parentNode) {
+      _bloodtidePoolContainer.parentNode.removeChild(_bloodtidePoolContainer);
+    }
+    if (_bloodtidePulseHudEl && _bloodtidePulseHudEl.parentNode) {
+      _bloodtidePulseHudEl.parentNode.removeChild(_bloodtidePulseHudEl);
+    }
+    _bloodtidePulseEl       = null;
+    _bloodtidePulseHudEl    = null;
+    _bloodtidePoolContainer = null;
+    _bloodtidePoolInitDone  = false;
   },
   IDENTITY_FX_KEYS,
   IDENTITY_BOSS_FX_KEYS,

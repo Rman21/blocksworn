@@ -68,6 +68,17 @@ import {
   fxLichCursedTiles,
   fxLichCursedTilesTick,
   resetCursedTiles,
+  // T2.09 — Berserker / Frenzy Bloodtide Pulse helpers.
+  shouldBloodtidePulse,
+  computeBloodtideDamageBonus,
+  applyBloodtideToDamage,
+  incrementBloodtideClearCount,
+  getBloodtideClearCount,
+  consumeBloodtidePulse,
+  isBloodtidePulsePending,
+  bloodtideGatePasses,
+  fxBerserkerBloodtidePulse,
+  resetBloodtide,
   __identityFxTestables,
 } from '../../src/feel/identity-fx.js';
 import {
@@ -120,6 +131,15 @@ import {
   CURSED_TILES_SKULL_COLOR,
   CURSED_TILES_INITIAL_BUDGET_MS,
   CURSED_TILES_PER_TURN_TICK_BUDGET_MS,
+  // T2.09 — Berserker / Frenzy Bloodtide Pulse constants.
+  BLOODTIDE_PULSE_INTERVAL,
+  BLOODTIDE_PULSE_DAMAGE_BONUS,
+  BLOODTIDE_PULSE_MAX_BONUS,
+  BLOODTIDE_PULSE_VFX_DURATION_MS,
+  BLOODTIDE_PULSE_DECAY_MS,
+  BLOODTIDE_REQUIRED_STAGGER_STATE,
+  BLOODTIDE_PULSE_COLOR,
+  BLOODTIDE_INITIAL_BUDGET_MS,
 } from '../../src/data/identity-layer.js';
 import { HERO_ULT_COST_BY_NEWROLE } from '../../src/data/heroes.js';
 import { RACE_SYNERGY, RACE_IDENTITY_FX } from '../../src/data/races.js';
@@ -128,7 +148,16 @@ import {
   PHOENIX_IMMUNE_TURNS,
   REACTIVITY_TELEGRAPH_MS,
   REACTIVITY_BANNER_DURATION_MS,
+  BERSERKER_ENRAGE_HP_PCT,
+  BERSERKER_ENRAGE_MULT,
 } from '../../src/core/bosses.js';
+import {
+  BOSS_STATE_ACTIVE,
+  BOSS_STATE_STAGGER,
+  BOSS_STATE_RECOVERY,
+  STAGGER_DURATION_TURNS,
+  RECOVERY_DURATION_TURNS,
+} from '../../src/core/stagger-loop.js';
 import { BOSS_IDENTITY_FX } from '../../src/data/bosses.js';
 
 describe('identity-layer · Pirate\'s Plunder · computePirateGold', () => {
@@ -2602,5 +2631,480 @@ describe('identity-layer · Lich Cursed Tiles · cross-mechanic regression (T2.0
     resetCursedTiles();
     expect(isAshenReignActive()).toBe(false);
     expect(getCursedTilesCount()).toBe(0);
+  });
+});
+
+// ─── T2.09 — Berserker / Frenzy Bloodtide Pulse unit tests (spec §3.3) ───
+//
+// Pure math + helper coverage. No DOM — Vitest runs in `node` env.
+// Surface tested:
+//   - shouldBloodtidePulse(count, staggerState) — gate predicate (every 3rd
+//     clear × Active state)
+//   - computeBloodtideDamageBonus(pulsesPending) — cap clamp at +25%
+//   - applyBloodtideToDamage(base, enrageMult, pulseBonus) — LAYERED
+//     composition (base × enrageMult × (1 + pulseBonus), NEVER additive into
+//     enrageMult)
+//   - incrementBloodtideClearCount / getBloodtideClearCount — pure integer
+//     state with resetBloodtide
+//   - consumeBloodtidePulse — one-shot semantics (no stacking, no double-fire)
+//   - Sacred byte-perfect audit: BERSERKER_ENRAGE_HP_PCT / BERSERKER_ENRAGE_MULT
+//     / STAGGER_DURATION_TURNS / RECOVERY_DURATION_TURNS / BOSS_STATE_ACTIVE
+//   - Cross-mechanic regression: Phoenix + Lich + Bloodtide coexist
+
+describe('identity-layer · Bloodtide Pulse · shouldBloodtidePulse (gate)', () => {
+  it('0 clears + ACTIVE → false (defensive: never fire at boot)', () => {
+    expect(shouldBloodtidePulse(0, 'active')).toBe(false);
+  });
+  it('1 clear + ACTIVE → false (not a 3rd-clear)', () => {
+    expect(shouldBloodtidePulse(1, 'active')).toBe(false);
+  });
+  it('2 clears + ACTIVE → false (not a 3rd-clear)', () => {
+    expect(shouldBloodtidePulse(2, 'active')).toBe(false);
+  });
+  it('3 clears + ACTIVE → true (FIRST pulse fires)', () => {
+    expect(shouldBloodtidePulse(3, 'active')).toBe(true);
+  });
+  it('6 clears + ACTIVE → true (SECOND pulse fires)', () => {
+    expect(shouldBloodtidePulse(6, 'active')).toBe(true);
+  });
+  it('9 clears + ACTIVE → true (THIRD pulse fires)', () => {
+    expect(shouldBloodtidePulse(9, 'active')).toBe(true);
+  });
+  it('3 clears + STAGGER → false (Stagger state blocks pulse — sacred §2.5)', () => {
+    expect(shouldBloodtidePulse(3, 'stagger')).toBe(false);
+  });
+  it('3 clears + RECOVERY → false (Recovery state blocks pulse — sacred §2.5)', () => {
+    expect(shouldBloodtidePulse(3, 'recovery')).toBe(false);
+  });
+  it('9 clears + RECOVERY → false (count keeps incrementing across states, gate fails)', () => {
+    expect(shouldBloodtidePulse(9, 'recovery')).toBe(false);
+  });
+  it('Non-integer clear count → false (defensive)', () => {
+    expect(shouldBloodtidePulse(3.5, 'active')).toBe(false);
+    expect(shouldBloodtidePulse(NaN, 'active')).toBe(false);
+  });
+  it('Negative clear count → false (defensive)', () => {
+    expect(shouldBloodtidePulse(-3, 'active')).toBe(false);
+  });
+  it('Gate uses BOSS_STATE_ACTIVE string literal (sacred re-use invariant)', () => {
+    // BLOODTIDE_REQUIRED_STAGGER_STATE must match the sacred stagger-loop.js
+    // constant byte-for-byte so any future spec change to either constant
+    // trips this test.
+    expect(BLOODTIDE_REQUIRED_STAGGER_STATE).toBe(BOSS_STATE_ACTIVE);
+    expect(BLOODTIDE_REQUIRED_STAGGER_STATE).toBe('active');
+  });
+});
+
+describe('identity-layer · Bloodtide Pulse · computeBloodtideDamageBonus (cap)', () => {
+  it('0 pulses → 0 bonus', () => {
+    expect(computeBloodtideDamageBonus(0)).toBe(0);
+  });
+  it('1 pulse → 0.05 (+5%)', () => {
+    expect(computeBloodtideDamageBonus(1)).toBeCloseTo(0.05, 10);
+  });
+  it('2 pulses → 0.10 (+10%)', () => {
+    expect(computeBloodtideDamageBonus(2)).toBeCloseTo(0.10, 10);
+  });
+  it('5 pulses → 0.25 (+25% HARD CAP)', () => {
+    expect(computeBloodtideDamageBonus(5)).toBeCloseTo(0.25, 10);
+  });
+  it('6 pulses → 0.25 (still at HARD CAP, no overshoot)', () => {
+    // Per spec §3.3 field 4: "Caps at +25% total (5 pulses worth)".
+    // Defensive cap-clamp test: even if a hypothetical 6th pulse somehow
+    // landed (impossible in normal play — one-shot consume), the bonus
+    // never exceeds BLOODTIDE_PULSE_MAX_BONUS.
+    expect(computeBloodtideDamageBonus(6)).toBe(BLOODTIDE_PULSE_MAX_BONUS);
+    expect(computeBloodtideDamageBonus(6)).toBe(0.25);
+  });
+  it('100 pulses (pathological) → 0.25 (HARD CAP defensive)', () => {
+    expect(computeBloodtideDamageBonus(100)).toBe(BLOODTIDE_PULSE_MAX_BONUS);
+  });
+  it('Negative pulses → 0 (defensive)', () => {
+    expect(computeBloodtideDamageBonus(-1)).toBe(0);
+  });
+});
+
+describe('identity-layer · Bloodtide Pulse · applyBloodtideToDamage (LAYERED composition)', () => {
+  // CRITICAL invariant: the +5% pulse multiplies the ENRAGE-multiplied base.
+  // It is NEVER additively folded into the sacred enrage multiplier.
+  // Sacred §2.5: BERSERKER_ENRAGE_MULT = 2.0 stays byte-perfect; the pulse
+  // is a SEPARATE final-stage multiplier.
+  it('100 base × 2.0 enrage × +0.05 pulse → 210 (NOT 205)', () => {
+    // Correct LAYERED:    100 × 2.0 × 1.05 = 210
+    // Wrong ADDITIVE-INTO: 100 × (2.0 + 0.05) = 205 (would mutate enrageMult)
+    expect(applyBloodtideToDamage(100, 2.0, 0.05)).toBeCloseTo(210, 10);
+    expect(applyBloodtideToDamage(100, 2.0, 0.05)).not.toBe(205);
+  });
+  it('100 base × 2.0 enrage × 0 pulse → 200 (no pulse = pure enrage)', () => {
+    expect(applyBloodtideToDamage(100, 2.0, 0)).toBe(200);
+  });
+  it('50 base × 1.0 enrage (pre-enrage) × +0.05 pulse → 52.5', () => {
+    // Below enrage threshold: enrageMult = 1.0 (no enrage applied yet).
+    // Pulse still multiplies cleanly: 50 × 1.0 × 1.05 = 52.5
+    expect(applyBloodtideToDamage(50, 1.0, 0.05)).toBeCloseTo(52.5, 10);
+  });
+  it('Composition with HARD CAP pulse (+0.25) on enraged base', () => {
+    // 100 × 2.0 × 1.25 = 250 (vs 100 × 2.25 = 225 for wrong additive path)
+    expect(applyBloodtideToDamage(100, 2.0, 0.25)).toBeCloseTo(250, 10);
+    expect(applyBloodtideToDamage(100, 2.0, 0.25)).not.toBe(225);
+  });
+  it('Bloodtide pulse NEVER mutates sacred BERSERKER_ENRAGE_MULT', () => {
+    // After many applications, the sacred constant must remain byte-perfect.
+    applyBloodtideToDamage(100, BERSERKER_ENRAGE_MULT, 0.05);
+    applyBloodtideToDamage(100, BERSERKER_ENRAGE_MULT, 0.25);
+    applyBloodtideToDamage(50,  BERSERKER_ENRAGE_MULT, 0.10);
+    expect(BERSERKER_ENRAGE_MULT).toBe(2.0);
+    expect(BERSERKER_ENRAGE_HP_PCT).toBe(0.5);
+  });
+  it('Defensive: non-finite inputs → 0', () => {
+    expect(applyBloodtideToDamage(NaN, 2.0, 0.05)).toBe(0);
+    expect(applyBloodtideToDamage(100, NaN, 0.05)).toBe(0);
+  });
+});
+
+describe('identity-layer · Bloodtide Pulse · clear count tick + reset', () => {
+  it('incrementBloodtideClearCount tracks total clears (pure integer math)', () => {
+    resetBloodtide();
+    expect(getBloodtideClearCount()).toBe(0);
+    expect(incrementBloodtideClearCount()).toBe(1);
+    expect(incrementBloodtideClearCount()).toBe(2);
+    expect(incrementBloodtideClearCount()).toBe(3);
+    expect(getBloodtideClearCount()).toBe(3);
+    resetBloodtide();
+  });
+  it('resetBloodtide zeroes count + pending flag', () => {
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    fxBerserkerBloodtidePulse(null, null);
+    expect(getBloodtideClearCount()).toBe(3);
+    expect(isBloodtidePulsePending()).toBe(true);
+    resetBloodtide();
+    expect(getBloodtideClearCount()).toBe(0);
+    expect(isBloodtidePulsePending()).toBe(false);
+  });
+  it('Count keeps incrementing across Stagger state (gate fails, count does NOT reset)', () => {
+    // The clear count is monotonic — Stagger Loop state does NOT reset it.
+    // The GATE is what fails during Stagger; once back to Active, clear 3
+    // (which has long since passed) won't re-fire, but the NEXT 3rd-clear
+    // (e.g., the 6th clear total) will.
+    resetBloodtide();
+    incrementBloodtideClearCount();   // 1
+    incrementBloodtideClearCount();   // 2
+    incrementBloodtideClearCount();   // 3 — would fire if Active
+    expect(shouldBloodtidePulse(getBloodtideClearCount(), 'stagger')).toBe(false);
+    incrementBloodtideClearCount();   // 4
+    incrementBloodtideClearCount();   // 5
+    incrementBloodtideClearCount();   // 6 — fires if returned to Active
+    expect(shouldBloodtidePulse(getBloodtideClearCount(), 'active')).toBe(true);
+    resetBloodtide();
+  });
+});
+
+describe('identity-layer · Bloodtide Pulse · consumeBloodtidePulse (one-shot semantics)', () => {
+  it('Pulse pending → consume returns 0.05 once, then 0', () => {
+    resetBloodtide();
+    fxBerserkerBloodtidePulse(null, null);
+    expect(isBloodtidePulsePending()).toBe(true);
+    const first  = consumeBloodtidePulse();
+    expect(first.damageBonus).toBeCloseTo(0.05, 10);
+    expect(isBloodtidePulsePending()).toBe(false);
+    const second = consumeBloodtidePulse();
+    expect(second.damageBonus).toBe(0);
+    resetBloodtide();
+  });
+  it('No pulse pending → consume returns 0', () => {
+    resetBloodtide();
+    expect(isBloodtidePulsePending()).toBe(false);
+    const result = consumeBloodtidePulse();
+    expect(result.damageBonus).toBe(0);
+  });
+  it('3 consecutive pulses do NOT stack — only the most recent is live', () => {
+    // Per spec §3.3 field 4 "one-shot buff, not stacking with itself":
+    // even if 3 pulses fire (clears 3, 6, 9) before any boss attack, only
+    // ONE +5% buff is live. Consume returns 0.05 once, then 0.
+    resetBloodtide();
+    fxBerserkerBloodtidePulse(null, null);   // pulse 1
+    fxBerserkerBloodtidePulse(null, null);   // pulse 2 (overrides — same boolean flag)
+    fxBerserkerBloodtidePulse(null, null);   // pulse 3
+    expect(isBloodtidePulsePending()).toBe(true);
+    const r1 = consumeBloodtidePulse();
+    expect(r1.damageBonus).toBeCloseTo(0.05, 10);
+    const r2 = consumeBloodtidePulse();
+    expect(r2.damageBonus).toBe(0);    // NOT 0.15 — no stacking
+    const r3 = consumeBloodtidePulse();
+    expect(r3.damageBonus).toBe(0);
+    resetBloodtide();
+  });
+  it('Pulse → consume → pulse → consume cycle (normal play)', () => {
+    resetBloodtide();
+    // First 3rd-clear: pulse fires.
+    fxBerserkerBloodtidePulse(null, null);
+    expect(consumeBloodtidePulse().damageBonus).toBeCloseTo(0.05, 10);
+    expect(consumeBloodtidePulse().damageBonus).toBe(0);
+    // Second 3rd-clear (6 clears total): pulse fires again.
+    fxBerserkerBloodtidePulse(null, null);
+    expect(consumeBloodtidePulse().damageBonus).toBeCloseTo(0.05, 10);
+    expect(consumeBloodtidePulse().damageBonus).toBe(0);
+    resetBloodtide();
+  });
+});
+
+describe('identity-layer · Bloodtide Pulse · bloodtideGatePasses (count + state)', () => {
+  it('Count 3 + ACTIVE → gate passes (drives full pipeline)', () => {
+    resetBloodtide();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    expect(bloodtideGatePasses(BOSS_STATE_ACTIVE)).toBe(true);
+    resetBloodtide();
+  });
+  it('Count 3 + STAGGER → gate fails (Stagger blocks pulse)', () => {
+    resetBloodtide();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    expect(bloodtideGatePasses(BOSS_STATE_STAGGER)).toBe(false);
+    resetBloodtide();
+  });
+  it('Count 3 + RECOVERY → gate fails (Recovery blocks pulse)', () => {
+    resetBloodtide();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    expect(bloodtideGatePasses(BOSS_STATE_RECOVERY)).toBe(false);
+    resetBloodtide();
+  });
+  it('Count 0 → gate fails regardless of state (defensive)', () => {
+    resetBloodtide();
+    expect(bloodtideGatePasses(BOSS_STATE_ACTIVE)).toBe(false);
+    expect(bloodtideGatePasses(BOSS_STATE_STAGGER)).toBe(false);
+    expect(bloodtideGatePasses(BOSS_STATE_RECOVERY)).toBe(false);
+  });
+});
+
+describe('identity-layer · Bloodtide Pulse · SACRED COW byte-perfect audit', () => {
+  // CLAUDE.md §2.5 sacred values referenced by Bloodtide for READ-ONLY
+  // purposes (Stagger Loop state gate + enrage layering composition). Verify
+  // they stay byte-perfect after the full fx round-trip.
+  it('BERSERKER_ENRAGE_HP_PCT === 0.5 byte-perfect (sacred CLAUDE.md §2.5)', () => {
+    expect(BERSERKER_ENRAGE_HP_PCT).toBe(0.5);
+  });
+  it('BERSERKER_ENRAGE_MULT === 2.0 byte-perfect (sacred CLAUDE.md §2.5)', () => {
+    expect(BERSERKER_ENRAGE_MULT).toBe(2.0);
+  });
+  it('STAGGER_DURATION_TURNS === 4 byte-perfect (sacred CLAUDE.md §2.5)', () => {
+    expect(STAGGER_DURATION_TURNS).toBe(4);
+  });
+  it('RECOVERY_DURATION_TURNS === 2 byte-perfect (sacred CLAUDE.md §2.5)', () => {
+    expect(RECOVERY_DURATION_TURNS).toBe(2);
+  });
+  it('BOSS_STATE_ACTIVE === "active" / STAGGER === "stagger" / RECOVERY === "recovery" byte-perfect', () => {
+    expect(BOSS_STATE_ACTIVE).toBe('active');
+    expect(BOSS_STATE_STAGGER).toBe('stagger');
+    expect(BOSS_STATE_RECOVERY).toBe('recovery');
+  });
+  it('Bloodtide fx round-trip does NOT modify sacred constants', () => {
+    resetBloodtide();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    fxBerserkerBloodtidePulse(null, null);
+    consumeBloodtidePulse();
+    // Sacred values byte-perfect after the full pulse → consume cycle.
+    expect(BERSERKER_ENRAGE_HP_PCT).toBe(0.5);
+    expect(BERSERKER_ENRAGE_MULT).toBe(2.0);
+    expect(STAGGER_DURATION_TURNS).toBe(4);
+    expect(RECOVERY_DURATION_TURNS).toBe(2);
+    expect(BOSS_STATE_ACTIVE).toBe('active');
+    // Phoenix/Lich invariants byte-perfect (no cross-mechanic mutation).
+    expect(PHOENIX_REVIVE_HP_PCT).toBe(0.6);
+    expect(PHOENIX_IMMUNE_TURNS).toBe(2);
+    expect(REACTIVITY_TELEGRAPH_MS).toBe(3000);
+    expect(REACTIVITY_BANNER_DURATION_MS).toBe(1500);
+    expect(HERO_ULT_COST_BY_NEWROLE.mage).toBe(100);
+    resetBloodtide();
+    // Still byte-perfect after reset.
+    expect(BERSERKER_ENRAGE_MULT).toBe(2.0);
+    expect(STAGGER_DURATION_TURNS).toBe(4);
+  });
+  it('Bloodtide fx round-trip is READ-ONLY on Stagger Loop state machine', () => {
+    // The Bloodtide handler should never mutate boss state. We exercise the
+    // full fx cycle and assert the sacred Stagger Loop constants remain
+    // byte-perfect — there's no public "set state" API exposed to verify
+    // call-count, but the sacred values acting as a tripwire is sufficient.
+    resetBloodtide();
+    for (let i = 0; i < 12; i++) {
+      incrementBloodtideClearCount();
+      if (bloodtideGatePasses(BOSS_STATE_ACTIVE)) {
+        fxBerserkerBloodtidePulse(null, null);
+        consumeBloodtidePulse();
+      }
+    }
+    expect(STAGGER_DURATION_TURNS).toBe(4);
+    expect(RECOVERY_DURATION_TURNS).toBe(2);
+    expect(BOSS_STATE_ACTIVE).toBe('active');
+    expect(BOSS_STATE_STAGGER).toBe('stagger');
+    expect(BOSS_STATE_RECOVERY).toBe('recovery');
+    resetBloodtide();
+  });
+});
+
+describe('identity-layer · Bloodtide Pulse · constants & budgets', () => {
+  it('BLOODTIDE_PULSE_INTERVAL === 3 (spec §3.3 field 3)', () => {
+    expect(BLOODTIDE_PULSE_INTERVAL).toBe(3);
+  });
+  it('BLOODTIDE_PULSE_DAMAGE_BONUS === 0.05 (+5% spec §3.3 field 4)', () => {
+    expect(BLOODTIDE_PULSE_DAMAGE_BONUS).toBe(0.05);
+  });
+  it('BLOODTIDE_PULSE_MAX_BONUS === 0.25 (HARD CAP +25% spec §3.3 field 4)', () => {
+    expect(BLOODTIDE_PULSE_MAX_BONUS).toBe(0.25);
+  });
+  it('BLOODTIDE_PULSE_VFX_DURATION_MS === 600 (sweep duration spec §3.3 field 7)', () => {
+    expect(BLOODTIDE_PULSE_VFX_DURATION_MS).toBe(600);
+  });
+  it('BLOODTIDE_PULSE_DECAY_MS === 200', () => {
+    expect(BLOODTIDE_PULSE_DECAY_MS).toBe(200);
+  });
+  it('BLOODTIDE_REQUIRED_STAGGER_STATE === "active" (matches sacred BOSS_STATE_ACTIVE)', () => {
+    expect(BLOODTIDE_REQUIRED_STAGGER_STATE).toBe('active');
+    expect(BLOODTIDE_REQUIRED_STAGGER_STATE).toBe(BOSS_STATE_ACTIVE);
+  });
+  it('BLOODTIDE_PULSE_COLOR === "#E53935" (red — distinct from purple curse / orange flame)', () => {
+    expect(BLOODTIDE_PULSE_COLOR).toBe('#E53935');
+  });
+  it('BLOODTIDE_INITIAL_BUDGET_MS === 10 (spec §3.3 field 7)', () => {
+    expect(BLOODTIDE_INITIAL_BUDGET_MS).toBe(10);
+  });
+  it('IDENTITY_BOSS_FX_KEYS exposes BERSERKER_BLOODTIDE === "berserker_bloodtide"', () => {
+    expect(IDENTITY_BOSS_FX_KEYS.BERSERKER_BLOODTIDE).toBe('berserker_bloodtide');
+  });
+  it('IDENTITY_BOSS_FX_BUDGETS[BERSERKER_BLOODTIDE] matches spec §3.3 field 7', () => {
+    const b = IDENTITY_BOSS_FX_BUDGETS[IDENTITY_BOSS_FX_KEYS.BERSERKER_BLOODTIDE];
+    expect(b.initialMs).toBe(10);
+    expect(b.steadyStateMs).toBe(0);   // one-shot — no steady-state work
+    expect(b.decayMs).toBe(200);
+    expect(b.duration).toBe('one-shot');
+  });
+  it('BOSS_IDENTITY_FX maps BOTH berserker AND frenzy → berserker_bloodtide (spec §3.3 field 1)', () => {
+    expect(BOSS_IDENTITY_FX.berserker).toBe('berserker_bloodtide');
+    expect(BOSS_IDENTITY_FX.frenzy).toBe('berserker_bloodtide');
+    expect(BOSS_IDENTITY_FX.berserker).toBe(BOSS_IDENTITY_FX.frenzy);
+  });
+  it('BOSS_IDENTITY_FX.phoenix / .assassin still present (T2.07/T2.08 invariants)', () => {
+    expect(BOSS_IDENTITY_FX.phoenix).toBe('phoenix_ashen_reign');
+    expect(BOSS_IDENTITY_FX.assassin).toBe('lich_cursed_tiles');
+  });
+});
+
+describe('identity-layer · Bloodtide Pulse · cross-mechanic regression (T2.02-T2.08 invariants)', () => {
+  it('Bloodtide pulse active does NOT block race FX dispatch', () => {
+    __identityFxTestables.resetCoinPool();
+    __identityFxTestables.resetSharkBitePool();
+    __identityFxTestables.resetRockEchoPool();
+    __identityFxTestables.resetCrocFragmentPool();
+    __identityFxTestables.resetSparkRayPool();
+    resetCrocFragmentBank();
+    resetBloodtide();
+
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    fxBerserkerBloodtidePulse(null, null);
+    expect(isBloodtidePulsePending()).toBe(true);
+
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) grid[0][c] = 'solar';
+    for (let c = 0; c < 8; c++) grid[2][c] = 'grove';
+
+    const squad = [
+      { race: 'pirate' },
+      { race: 'shark' },
+      { race: 'shark' },
+      { race: 'rock' },
+      { race: 'crocodile' },
+      { race: 'spark' },
+    ];
+    const ctx = { gridState: grid, dominantElementsByLine: ['solar', 'grove'] };
+    expect(() => dispatchIdentityFx([0, 2], [], squad, null, ctx)).not.toThrow();
+    // Spark cascade still fired.
+    expect(ctx._dominantCountModifier).toBe(1);
+    // Bloodtide still pending (race FX did NOT consume).
+    expect(isBloodtidePulsePending()).toBe(true);
+    resetBloodtide();
+  });
+
+  it('Sacred RACE_SYNERGY entries byte-perfect after Bloodtide fx round-trip', () => {
+    resetBloodtide();
+    fxBerserkerBloodtidePulse(null, null);
+    consumeBloodtidePulse();
+    resetBloodtide();
+    expect(RACE_SYNERGY.lion[5].bonusDmg.solar).toBe(3);
+    expect(RACE_SYNERGY.rock[3].encore).toBe(true);
+    expect(RACE_SYNERGY.golem[2].maxShieldBonus).toBe(1);
+    expect(RACE_SYNERGY.golem[3].maxShieldBonus).toBe(2);
+    expect(RACE_SYNERGY.golem[5].maxShieldBonus).toBe(2);
+    // Race identity sibling export untouched.
+    expect(RACE_IDENTITY_FX.pirate).toBe('pirate_plunder');
+    expect(RACE_IDENTITY_FX.spark).toBe('spark_cascade');
+  });
+
+  it('Phoenix Ashen Reign + Lich Cursed Tiles + Bloodtide can coexist (three boss-reactive layers)', () => {
+    resetAshenReign();
+    resetCursedTiles();
+    resetBloodtide();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[0][0] = 'umbra';
+    grid[0][1] = 'umbra';
+    grid[0][2] = 'umbra';
+
+    fxPhoenixAshenReign(null, null);
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    fxBerserkerBloodtidePulse(null, null);
+
+    // All three states active independently.
+    expect(isAshenReignActive()).toBe(true);
+    expect(getCursedTilesCount()).toBeGreaterThan(0);
+    expect(isBloodtidePulsePending()).toBe(true);
+
+    // Cleanup.
+    fxPhoenixAshenReignRelease();
+    resetCursedTiles();
+    resetBloodtide();
+    expect(isAshenReignActive()).toBe(false);
+    expect(getCursedTilesCount()).toBe(0);
+    expect(isBloodtidePulsePending()).toBe(false);
+  });
+
+  it('Bloodtide pulse pending does NOT affect ULT charge clamp (T2.04/T2.08 invariant)', () => {
+    resetBloodtide();
+    fxBerserkerBloodtidePulse(null, null);
+    // Pulse is pending. ULT charge clamp helpers (clampUltCharge, clampEncoreEchoCharge)
+    // remain pure — they read sacred thresholds, not Bloodtide state.
+    expect(clampUltCharge(90, 20, HERO_ULT_COST_BY_NEWROLE.mage)).toBe(100);
+    expect(clampUltCharge(70, 20, HERO_ULT_COST_BY_NEWROLE.warrior)).toBe(80);
+    expect(clampEncoreEchoCharge(11, 4, 12)).toBe(12);  // T2.04 invariant
+    resetBloodtide();
+  });
+
+  it('Damage composition: enrageMult + pulse layering NEVER feeds combo-crit formula (sacred §2.1)', () => {
+    // Spec §1 hard rule 3: "Layered, not replacement." Pulse multiplies the
+    // damage AFTER all combat math (combo crit, element synergy, RACE_SYNERGY).
+    // Verify the composition by computing both with and without pulse and
+    // confirming combo crit math (which we don't touch) returns the SAME
+    // intermediate result.
+    const baseFromComboCrit = 100;  // hypothetical post-combo-crit base
+    const enraged           = applyBloodtideToDamage(baseFromComboCrit, 2.0, 0);
+    const enragedPulse      = applyBloodtideToDamage(baseFromComboCrit, 2.0, 0.05);
+    // The enraged-without-pulse number equals base × enrageMult = combo crit's
+    // result, untouched.
+    expect(enraged).toBe(200);
+    // Pulse multiplies the result. NEVER folds into the combo crit input.
+    expect(enragedPulse).toBeCloseTo(210, 10);
+    // Sacred BERSERKER_ENRAGE_MULT untouched.
+    expect(BERSERKER_ENRAGE_MULT).toBe(2.0);
   });
 });

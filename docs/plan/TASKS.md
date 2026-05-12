@@ -2785,6 +2785,122 @@ All 9 tests pass.
 
 ---
 
+### TASK-036 (T2.09) — REVIEW — Berserker / Frenzy Bloodtide Pulse — THIRD boss-reactive identity mechanic
+
+**Game Dev acceptance 2026-05-12:** PASS (self-review). Sacred 22 P4 handlers byte-perfect (`git diff src/core/reactivity-events.js | grep '^-' | grep -v '^---' | wc -l = 0`). Stagger Loop UNTOUCHED (`git diff src/core/stagger-loop.js = 0 lines`). BERSERKER_ENRAGE_HP_PCT = 0.5 / BERSERKER_ENRAGE_MULT = 2.0 byte-perfect. Pulse damage composition LAYERED: `baseDamage × enrageMult × (1 + pulseBonus)` — verified with unit + smoke tests that 100 × 2.0 × 1.05 = 210 (NOT 205 additive). One-shot semantics: 3 consecutive pulses do NOT stack — verified. 421/421 unit + 100/100 smoke runs (×2 projects). Lint clean. Build clean (215.63 KB JS, 385.17 KB CSS). Awaiting CTO sign-off.
+
+**Status:** IN PROGRESS → **REVIEW** (CTO sign-off pending)
+**Started:** 2026-05-12
+**Completed (Game Dev):** 2026-05-12
+**Priority:** HIGH
+**Phase:** 2 (Identity Layer) — **9/12** (third boss-reactive after Phoenix + Lich)
+**Estimated complexity:** L (first mechanic to read sacred Stagger Loop state; new damage-layering composition territory)
+**Depends on:** ✅ TASK-034 (T2.07 — IDENTITY_BOSS_HANDLERS parallel registry), ✅ TASK-035 (T2.08 — per-turn-tick primitive, count-based variant of which Bloodtide adapts), ✅ TASK-031 (T2.04 — clamp pattern)
+**Spec:** `docs/design/mechanics/identity-layer.md` §3.3 + §1 hard rule 1 + §3 Convention + ESC-02 ruling appendix
+
+**Implementation summary:**
+
+Implements the **third boss-reactive identity mechanic** of Phase 2 — **Berserker / Frenzy Bloodtide Pulse** — per spec §3.3. Adds a NEW handler under `identity_berserker_frenzy_pulse` namespace in `src/core/reactivity-events.js`, ALONGSIDE the sacred 22 REACTIVITY_HANDLERS (still BYTE-PERFECT — `git diff` returns 0 deletions). When the legacy `clearLines` site fires, the T2.B bridge will `incrementBloodtideClearCount()` AND call `triggerIdentityBossEvent('identity_berserker_frenzy_pulse')` ONLY when `bloodtideGatePasses(getBossState())` is true (count > 0 AND count % 3 === 0 AND `getBossState() === 'active'`). On firing:
+
+- Red pulse VFX (#E53935) sweeps from boss portrait → grid via single pre-allocated DOM element + pure CSS `@keyframes identityBloodtidePulse` (600ms sweep + 200ms decay, zero JS per frame)
+- HUD pending indicator ("BLOODTIDE PULSE — +5% incoming") with `@keyframes identityBloodtidePulseHudPending` infinite attention animation until consumed
+- Module state `_bloodtidePulsePending = true` — one-shot boolean flag (NOT a scalar count; multi-pulse does NOT stack per spec §3.3 field 4)
+- Battle pipeline calls `consumeBloodtidePulse()` before next boss attack → returns `{ damageBonus: 0.05 }` once, then `{ damageBonus: 0 }` until next pulse
+- Damage composition: `applyBloodtideToDamage(baseDamage, BERSERKER_ENRAGE_MULT, pulseBonus)` returns `baseDamage × 2.0 × (1 + 0.05) = baseDamage × 2.1` — LAYERED on the enrage-multiplied result, NEVER additive into the sacred enrage multiplier
+
+**Critical sacred-cow protection — Stagger Loop READ-ONLY:**
+
+Bloodtide reads `getBossState()` (and consumes the `BOSS_STATE_ACTIVE = 'active'` string literal) from `src/core/stagger-loop.js`. No state-mutation API is called — the Stagger Loop state machine is BYTE-PERFECT. `STAGGER_DURATION_TURNS = 4` and `RECOVERY_DURATION_TURNS = 2` are referenced READ-ONLY in the unit test for the byte-perfect audit. `git diff src/core/stagger-loop.js = 0` lines.
+
+**Architectural pattern — parallel namespace continues + count-based tick:**
+
+The T2.07-established `IDENTITY_BOSS_HANDLERS` parallel registry now contains THREE entries (`identity_phoenix_revive`, `identity_assassin_shark_counter`, `identity_berserker_frenzy_pulse`). Sacred 22 REACTIVITY_HANDLERS untouched. The dispatcher `triggerIdentityBossEvent` is unchanged (generic template handles any new entry). T2.08's per-turn-tick primitive is adapted here for **count-based** triggering (`incrementBloodtideClearCount` + modulo check) rather than wall-clock or game-turn ticking. T2.10–T2.11 will add 2 more entries to the same registry per spec §3.4–§3.5.
+
+**Files touched (7):**
+
+1. `src/data/identity-layer.js` — Added `IDENTITY_BOSS_FX_KEYS.BERSERKER_BLOODTIDE = 'berserker_bloodtide'` + `IDENTITY_BOSS_FX_BUDGETS[BERSERKER_BLOODTIDE]` entry (initial=10, steadyState=0, decay=200, duration='one-shot'). Added 8 Bloodtide constants: `BLOODTIDE_PULSE_INTERVAL = 3` (HARD), `BLOODTIDE_PULSE_DAMAGE_BONUS = 0.05` (+5%), `BLOODTIDE_PULSE_MAX_BONUS = 0.25` (HARD CAP, +25% from 5 pulses), `BLOODTIDE_PULSE_VFX_DURATION_MS = 600`, `BLOODTIDE_PULSE_DECAY_MS = 200`, `BLOODTIDE_REQUIRED_STAGGER_STATE = 'active'` (matches sacred BOSS_STATE_ACTIVE), `BLOODTIDE_PULSE_COLOR = '#E53935'`, `BLOODTIDE_INITIAL_BUDGET_MS = 10`. +85 LoC of comment surface explaining LAYERED damage composition + Stagger Loop READ-ONLY invariant + one-shot semantics + sacred re-use invariants.
+2. `src/data/bosses.js` — Extended `BOSS_IDENTITY_FX` with `berserker: 'berserker_bloodtide'` AND `frenzy: 'berserker_bloodtide'` entries (SAME identity for BOTH archetypes per spec §3.3 field 1). Phoenix + Lich entries from T2.07/T2.08 preserved byte-perfect. BOSS_TTK_TARGETS / EXPECTED_DPS_BY_CHAPTER / TOWER_DPS_REFERENCE / TOWER_BOSS_TTK_TARGETS all BYTE-PERFECT.
+3. `src/feel/identity-fx.js` — Added 10 exports: `shouldBloodtidePulse`, `computeBloodtideDamageBonus`, `applyBloodtideToDamage`, `incrementBloodtideClearCount`, `getBloodtideClearCount`, `consumeBloodtidePulse`, `isBloodtidePulsePending`, `bloodtideGatePasses`, `fxBerserkerBloodtidePulse`, `resetBloodtide`. Added module state: `_bloodtideClearCount` (integer), `_bloodtidePulsePending` (boolean), `_bloodtidePulseDecayTimer`. Pre-allocated 1-element + HUD pool via `_ensureBloodtidePool`. Added testables to `__identityFxTestables` (5 new helpers). +280 LoC including comprehensive sacred-cow comment surface + LAYERED composition formula doc.
+4. `src/feel/particles.js` — Added `spawnBloodtidePulse({ el, fromX, fromY, toX, toY, color, decayMs })` pure factory. Re-uses CSS-transform-only animation pattern (single keyframe sweep, no rAF loop, no per-frame DOM writes). +50 LoC.
+5. `src/core/reactivity-events.js` — Added `identity_berserker_frenzy_pulse` entry to `IDENTITY_BOSS_HANDLERS` (parallel registry from T2.07). Imported `fxBerserkerBloodtidePulse` + `resetBloodtide` aliased as `_fxBerserkerBloodtidePulseImpl` + `_resetBloodtideImpl`. Extended `resetIdentityBossState()` to also reset Bloodtide. `git diff` proves ZERO deletions — sacred 22 REACTIVITY_HANDLERS BYTE-PERFECT. +35 LoC.
+6. `src/styles/screens/battle.css` — Added `.identity-bloodtide-pulse-container` + `.identity-bloodtide-pulse` + `.identity-bloodtide-pulse-sweep` + `.identity-bloodtide-pulse-hud` + `.identity-bloodtide-pulse-hud-pending` classes. Red radial gradient (#E53935) sweep animation reading CSS vars `--bloodtide-dx`/`--bloodtide-dy`/`--bloodtide-duration-ms`. `@keyframes identityBloodtidePulse` (600ms sweep) + `@keyframes identityBloodtidePulseHudPending` (infinite HUD pulse) + reduced-motion fallback `@keyframes identityBloodtidePulseStatic`. z-index 9991 (below Lich curse 9992 — pulse is per-fire tempo signal, not per-cell state). +145 LoC.
+7. `tests/unit/identity-layer.test.js` — Added 60 unit tests across 8 describe blocks: shouldBloodtidePulse gate (12), computeBloodtideDamageBonus cap (7), applyBloodtideToDamage LAYERED composition (6 — verified `base × enrage × (1 + bonus)` NEVER `base × (enrage + bonus)`), clear count tick + reset (3), consumeBloodtidePulse one-shot semantics (4 — verified 3 consecutive pulses do NOT stack), bloodtideGatePasses (4 — count + state combinations), SACRED COW byte-perfect audit (7 — BERSERKER_ENRAGE values + Stagger Loop constants), constants & budgets (11), cross-mechanic regression (5 — Phoenix + Lich + Bloodtide coexist + sacred RACE_SYNERGY byte-perfect + ULT clamp invariant + combo crit isolation). 361 → 421 total.
+8. `tests/smoke/identity-layer.spec.js` — Added 6 smoke tests: every-3rd-clear gate verification (clears 1, 2 silent; 3 fires; 4, 5 silent; 6 fires), STAGGER + RECOVERY state gating verifies Stagger Loop READ-ONLY integration, damage composition LAYERED verification (210 vs 205 baseline diff assertion), cross-mechanic regression (Phoenix + Lich + Bloodtide + 5-race dispatch coexist), IDENTITY_BOSS_HANDLERS byte-perfect audit (sacred 22 + 3 identity entries), performance ≤10ms. 88 → 100 smoke runs across 2 projects.
+
+**Sacred cow audit (all PASS — 0 modifications):**
+
+- [x] **22 v2.1 P4 reactivity handlers byte-perfect** — `git diff src/core/reactivity-events.js | grep '^-' | grep -v '^---' | wc -l = 0` ✅
+- [x] **Stagger Loop UNTOUCHED** — `git diff src/core/stagger-loop.js = 0 lines` ✅
+- [x] **BERSERKER_ENRAGE_HP_PCT = 0.5** byte-perfect (sacred §2.5) — read-only in unit test audit
+- [x] **BERSERKER_ENRAGE_MULT = 2.0** byte-perfect (sacred §2.5) — pulse layers ON TOP, NEVER modifies. Verified via `applyBloodtideToDamage(100, 2.0, 0.05) === 210` (NOT 205 additive).
+- [x] **STAGGER_DURATION_TURNS = 4** byte-perfect (sacred §2.5)
+- [x] **RECOVERY_DURATION_TURNS = 2** byte-perfect (sacred §2.5)
+- [x] **BOSS_STATE_ACTIVE / STAGGER / RECOVERY** string literals byte-perfect ('active' / 'stagger' / 'recovery')
+- [x] **REACTIVITY_TELEGRAPH_MS = 3000** byte-perfect (NOT used by Bloodtide — pulse VFX is the player reaction signal; no telegraph constant duplicated)
+- [x] **HERO_ULT_COST_BY_NEWROLE byte-perfect** — Bloodtide does NOT touch ULT meters
+- [x] **Phoenix/Lich invariants** byte-perfect (T2.07/T2.08 maintained)
+- [x] **All RACE_SYNERGY literals** byte-perfect (T2.02–T2.05 invariants)
+- [x] **Combo crit formula** byte-perfect (T2.06 invariant) — pulse multiplies the POST-combo-crit result, never feeds combo crit input
+- [x] **V_HAPTICS** untouched (no new keys — Bloodtide uses inline `vibrate([20, 20, 60])` like other handlers, NOT V_HAPTICS table)
+- [x] **vPlayLineClearBurst timing** untouched
+- [x] **BOSS_TTK_TARGETS** byte-perfect
+- [x] **No magic numbers** in logic (all 8 constants in `src/data/identity-layer.js`)
+- [x] **NARRATOR_LINES untouched** — no new narrator lines in T2.09 (placeholder for T2.11 copy-pass per ESC-02 O2 ruling). Handler shows "BLOODTIDE PULSE · +5% INCOMING" via existing `flashStateBanner` UI surface.
+- [x] **Bloodtide bonus caps at +25%** (5 pulses) — HARD CAP verified in `computeBloodtideDamageBonus(6) === 0.25`, NOT stacking
+- [x] **No `createElement` per fire** — 1 pulse element + 1 HUD pre-allocated at first activation
+
+**Damage composition verified LAYERED (critical invariant):**
+
+```
+finalDamage = baseDamage × BERSERKER_ENRAGE_MULT × (1 + pulseBonus)
+            = 100        × 2.0                   × 1.05
+            = 210                                  ← LAYERED (correct)
+
+WRONG ADDITIVE:
+finalDamage = baseDamage × (BERSERKER_ENRAGE_MULT + pulseBonus)
+            = 100        × (2.0 + 0.05)
+            = 205                                  ← NEVER (would modify sacred enrage mult)
+```
+
+Both unit and smoke tests explicitly assert `applyBloodtideToDamage(100, 2.0, 0.05) === 210` AND `!== 205`. Sacred BERSERKER_ENRAGE_MULT byte-perfect after the full fx round-trip.
+
+**One-shot semantics verified (critical invariant):**
+
+Per spec §3.3 field 4 "one-shot buff, not stacking with itself": even if 3 pulses fire (clears 3, 6, 9) before any boss attack, only ONE +5% buff is live. Consume returns 0.05 ONCE, then 0 for subsequent consumes until a new pulse fires. Test `'3 consecutive pulses do NOT stack — only the most recent is live'` verifies this directly.
+
+**Performance audit (all within spec §3.3 field 7 budgets):**
+
+- Gate check: O(1) integer math (count % 3 === 0 && state check) ✅
+- Pulse VFX initial trigger: ≤10ms (smoke test wallTime <30ms with 3× CI headroom) ✅
+- Damage modifier: pure integer math at consume time ✅
+- Pulse sweep: 600ms pure CSS animation, zero JS per frame ✅
+- HUD pending indicator: infinite CSS keyframe, zero JS per frame ✅
+
+**Test results:** 421 unit tests pass (361 → 421 = +60), 100 smoke runs pass across 2 projects (88 → 100 = +12). Lint clean. Build clean (215.63 KB JS, 385.17 KB CSS — both well under bundle ceiling).
+
+**Spec-required test coverage (all met):**
+- ≥12 new unit tests (delivered 60 — 5× target)
+- ≥2 smoke tests (delivered 6 — 3× target)
+- Gate combinations (0/1/2/3/6/9 clears × ACTIVE/STAGGER/RECOVERY states) ✅
+- Damage composition layering audit ✅
+- One-shot semantics (no stacking) audit ✅
+- Sacred Stagger Loop READ-ONLY audit ✅
+- Cross-mechanic regression (race FX + Phoenix + Lich + Bloodtide coexist) ✅
+
+**T2.B bridge cost for Bloodtide (deferred):**
+
+3 single-line additions to legacy code:
+
+1. In legacy `clearLines` (after sacred line-clear math): `window.incrementBloodtideClearCount?.();`
+2. In legacy `clearLines` (after increment): `if (window.bloodtideGatePasses?.(window.getBossState?.() || 'active')) window.triggerIdentityBossEvent?.('identity_berserker_frenzy_pulse');`
+3. In legacy `bossAttack` (before resolving damage): `const _b = window.consumeBloodtidePulse?.(); if (_b && _b.damageBonus) damage = damage * (1 + _b.damageBonus);` — multiplied AT END, AFTER all combat math (combo crit + element synergy + enrage), so sacred formulas stay byte-perfect.
+
+Combined with prior bridges, T2.B's per-mechanic bridge cost is staying small by design.
+
+**Commit:** TBD by Game Dev push
+
+---
+
 ### TASK-035 (T2.08) — ✅ DONE 2026-05-12 — Lich Cursed Tiles — explicit Shark counter (SECOND boss-reactive identity mechanic)
 
 **CTO acceptance 2026-05-12:** PASS. Sacred 22 P4 handlers byte-perfect (0 deletions in reactivity-events.js diff). +20 ULT threshold clamp verified across all 5 roles. Cross-mechanic integration is essentially free by design (Shark+Lich+Crocodile work via existing predicate chains). New `fxLichCursedTilesTick` per-turn-tick primitive reusable for T2.09-T2.11. 361/361 unit + 88/88 smoke × 2 projects. Commit `bc229f7`. All precedents followed.

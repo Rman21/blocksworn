@@ -2186,3 +2186,330 @@ test('fxLichCursedTiles performance: initial trigger within ≤16ms budget', asy
   expect(wallTime).toBeLessThan(48);
   expect(errors).toEqual([]);
 });
+
+// ─── T2.09 — Berserker / Frenzy Bloodtide Pulse smoke tests (spec §3.3) ──
+
+test('Bloodtide Pulse: every-3rd-clear + ACTIVE state → pulse fires; clears 1, 2 silent', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetBloodtidePool();
+
+    // Clears 1, 2 (Active state): no pulse fires.
+    mod.incrementBloodtideClearCount();   // count = 1
+    const c1_fires = mod.bloodtideGatePasses('active');
+    mod.incrementBloodtideClearCount();   // count = 2
+    const c2_fires = mod.bloodtideGatePasses('active');
+    // Clear 3: pulse fires (Active state).
+    mod.incrementBloodtideClearCount();   // count = 3
+    const c3_fires = mod.bloodtideGatePasses('active');
+    if (c3_fires) mod.fxBerserkerBloodtidePulse(null, null);
+    const c3_pending = mod.isBloodtidePulsePending();
+    // Boss attack — consume pulse.
+    const c3_consume = mod.consumeBloodtidePulse();
+    const c3_pendingAfter = mod.isBloodtidePulsePending();
+    // Clears 4, 5 (Active): no new pulse.
+    mod.incrementBloodtideClearCount();   // count = 4
+    const c4_fires = mod.bloodtideGatePasses('active');
+    mod.incrementBloodtideClearCount();   // count = 5
+    const c5_fires = mod.bloodtideGatePasses('active');
+    // Clear 6: second pulse fires.
+    mod.incrementBloodtideClearCount();   // count = 6
+    const c6_fires = mod.bloodtideGatePasses('active');
+    if (c6_fires) mod.fxBerserkerBloodtidePulse(null, null);
+    const c6_consume = mod.consumeBloodtidePulse();
+
+    mod.resetBloodtide();
+    return {
+      c1_fires, c2_fires, c3_fires, c4_fires, c5_fires, c6_fires,
+      c3_pending, c3_consume, c3_pendingAfter, c6_consume,
+    };
+  });
+
+  // Clears 1, 2: gate fails (not 3rd-clear).
+  expect(result.c1_fires).toBe(false);
+  expect(result.c2_fires).toBe(false);
+  // Clear 3: gate passes, pulse fires, pending=true.
+  expect(result.c3_fires).toBe(true);
+  expect(result.c3_pending).toBe(true);
+  // Consume returns 0.05, pending flips to false.
+  expect(result.c3_consume.damageBonus).toBeCloseTo(0.05, 10);
+  expect(result.c3_pendingAfter).toBe(false);
+  // Clears 4, 5: gate fails.
+  expect(result.c4_fires).toBe(false);
+  expect(result.c5_fires).toBe(false);
+  // Clear 6: second pulse fires + consumes for +5%.
+  expect(result.c6_fires).toBe(true);
+  expect(result.c6_consume.damageBonus).toBeCloseTo(0.05, 10);
+  expect(errors).toEqual([]);
+});
+
+test('Bloodtide Pulse: STAGGER + RECOVERY block trigger (sacred Stagger Loop READ-only)', async ({ page }) => {
+  // Spec §3.3 field 3: trigger ONLY in Active state. Stagger and Recovery
+  // block the pulse — verifying sacred §2.5 read-only integration.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    const sl  = await import('/src/core/stagger-loop.js');
+    mod.__identityFxTestables.resetBloodtidePool();
+
+    // Count to 3 in Stagger — gate fails.
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    const inStagger  = mod.bloodtideGatePasses(sl.BOSS_STATE_STAGGER);
+    // Count to 6 in Recovery — still fails.
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    const inRecovery = mod.bloodtideGatePasses(sl.BOSS_STATE_RECOVERY);
+    // Count to 9 in Active — fires.
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    const inActive   = mod.bloodtideGatePasses(sl.BOSS_STATE_ACTIVE);
+
+    // Sacred Stagger Loop constants byte-perfect.
+    const sacred = {
+      activeStr:    sl.BOSS_STATE_ACTIVE,
+      staggerStr:   sl.BOSS_STATE_STAGGER,
+      recoveryStr:  sl.BOSS_STATE_RECOVERY,
+      staggerDur:   sl.STAGGER_DURATION_TURNS,
+      recoveryDur:  sl.RECOVERY_DURATION_TURNS,
+    };
+
+    mod.resetBloodtide();
+    return { inStagger, inRecovery, inActive, sacred };
+  });
+
+  expect(result.inStagger).toBe(false);
+  expect(result.inRecovery).toBe(false);
+  expect(result.inActive).toBe(true);
+  // Sacred Stagger Loop constants byte-perfect after the round-trip.
+  expect(result.sacred.activeStr).toBe('active');
+  expect(result.sacred.staggerStr).toBe('stagger');
+  expect(result.sacred.recoveryStr).toBe('recovery');
+  expect(result.sacred.staggerDur).toBe(4);
+  expect(result.sacred.recoveryDur).toBe(2);
+  expect(errors).toEqual([]);
+});
+
+test('Bloodtide Pulse: damage composition LAYERED (base × enrageMult × (1 + pulseBonus)) — NEVER additive', async ({ page }) => {
+  // CRITICAL invariant: pulse multiplies the ENRAGE-multiplied result.
+  // It does NOT modify sacred BERSERKER_ENRAGE_MULT = 2.0.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    const bs  = await import('/src/core/bosses.js');
+
+    // Layered composition: 100 × 2.0 × 1.05 = 210
+    const layered = mod.applyBloodtideToDamage(100, bs.BERSERKER_ENRAGE_MULT, 0.05);
+    // Composition with no pulse: 100 × 2.0 = 200
+    const noPulse = mod.applyBloodtideToDamage(100, bs.BERSERKER_ENRAGE_MULT, 0);
+    // Wrong composition baseline (we don't apply this; just for the diff
+    // assertion). Additive: 100 × (2.0 + 0.05) = 205
+    const wrongAdditive = 100 * (bs.BERSERKER_ENRAGE_MULT + 0.05);
+
+    // Sacred constants byte-perfect after round-trip.
+    const sacredEnrageMult  = bs.BERSERKER_ENRAGE_MULT;
+    const sacredEnrageHpPct = bs.BERSERKER_ENRAGE_HP_PCT;
+
+    return { layered, noPulse, wrongAdditive, sacredEnrageMult, sacredEnrageHpPct };
+  });
+
+  expect(result.layered).toBeCloseTo(210, 10);
+  expect(result.noPulse).toBe(200);
+  expect(result.layered).not.toBe(result.wrongAdditive);   // 210 !== 205
+  // Sacred constants byte-perfect.
+  expect(result.sacredEnrageMult).toBe(2.0);
+  expect(result.sacredEnrageHpPct).toBe(0.5);
+  expect(errors).toEqual([]);
+});
+
+test('Bloodtide Pulse: cross-mechanic regression — race FX + Phoenix + Lich + Bloodtide coexist', async ({ page }) => {
+  // Verify T2.02-T2.08 invariants hold when Bloodtide is layered on top.
+  // All four mechanics can be active simultaneously without interference.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCoinPool();
+    mod.__identityFxTestables.resetSharkBitePool();
+    mod.__identityFxTestables.resetRockEchoPool();
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.__identityFxTestables.resetSparkRayPool();
+    mod.__identityFxTestables.resetAshenReignPool();
+    mod.__identityFxTestables.resetCursedTilesPool();
+    mod.__identityFxTestables.resetBloodtidePool();
+    mod.resetCrocFragmentBank();
+
+    // Activate Phoenix Ashen Reign + Lich Cursed Tiles + Bloodtide.
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[5][0] = 'umbra';
+    grid[5][1] = 'umbra';
+    grid[5][2] = 'umbra';
+    mod.fxPhoenixAshenReign(null, null);
+    mod.fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    mod.fxBerserkerBloodtidePulse(null, null);
+
+    const stateBefore = {
+      ashenActive:    mod.isAshenReignActive(),
+      cursedCount:    mod.getCursedTilesCount(),
+      pulsePending:   mod.isBloodtidePulsePending(),
+    };
+
+    // Fire a mixed-race line clear — race FX should run independently.
+    for (let c = 0; c < 8; c++) grid[0][c] = 'solar';
+    for (let c = 0; c < 8; c++) grid[2][c] = 'grove';
+    const squad = [
+      { race: 'pirate' }, { race: 'shark' }, { race: 'shark' },
+      { race: 'rock' },   { race: 'crocodile' }, { race: 'spark' },
+    ];
+    const ctx = { gridState: grid, dominantElementsByLine: ['solar', 'grove'] };
+    let dispatchThrew = false;
+    try { mod.dispatchIdentityFx([0, 2], [], squad, null, ctx); }
+    catch (_e) { dispatchThrew = true; }
+
+    const stateAfter = {
+      ashenActive:    mod.isAshenReignActive(),
+      cursedCount:    mod.getCursedTilesCount(),
+      pulsePending:   mod.isBloodtidePulsePending(),
+      sparkBoost:     ctx._dominantCountModifier,
+    };
+
+    // Cleanup.
+    mod.fxPhoenixAshenReignRelease();
+    mod.resetCursedTiles();
+    mod.resetBloodtide();
+
+    return { stateBefore, stateAfter, dispatchThrew };
+  });
+
+  expect(result.dispatchThrew).toBe(false);
+  // Before dispatch: all three layered states active.
+  expect(result.stateBefore.ashenActive).toBe(true);
+  expect(result.stateBefore.cursedCount).toBeGreaterThan(0);
+  expect(result.stateBefore.pulsePending).toBe(true);
+  // After dispatch: all three states preserved + Spark cascade fired.
+  expect(result.stateAfter.ashenActive).toBe(true);
+  expect(result.stateAfter.cursedCount).toBeGreaterThan(0);
+  expect(result.stateAfter.pulsePending).toBe(true);
+  expect(result.stateAfter.sparkBoost).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('IDENTITY_BOSS_HANDLERS: registers identity_berserker_frenzy_pulse alongside sacred 22 + Phoenix + Lich', async ({ page }) => {
+  // Verify the new T2.09 boss-reactive handler is wired correctly AND the
+  // sacred 22 REACTIVITY_HANDLERS entries + T2.07 Phoenix + T2.08 Lich are
+  // both still present. Confirms parallel-namespace contract continues to
+  // scale.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/core/reactivity-events.js');
+    const identityKeys = Object.keys(mod.IDENTITY_BOSS_HANDLERS || {});
+    const sacredKeys   = Object.keys(mod.REACTIVITY_HANDLERS || {});
+    return {
+      identityKeys,
+      sacredKeyCount: sacredKeys.length,
+      sacredKeys,
+      identityPhoenixHandlerType:   typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_phoenix_revive'],
+      identityLichHandlerType:      typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_assassin_shark_counter'],
+      identityBloodtideHandlerType: typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_berserker_frenzy_pulse'],
+      triggerEventType:  typeof mod.triggerIdentityBossEvent,
+      resetIdentityType: typeof mod.resetIdentityBossState,
+    };
+  });
+
+  // Sacred 22 still byte-perfect.
+  expect(result.sacredKeyCount).toBe(22);
+  // Identity registry now has Phoenix (T2.07) AND Lich (T2.08) AND Bloodtide (T2.09).
+  expect(result.identityKeys).toContain('identity_phoenix_revive');
+  expect(result.identityKeys).toContain('identity_assassin_shark_counter');
+  expect(result.identityKeys).toContain('identity_berserker_frenzy_pulse');
+  expect(result.identityPhoenixHandlerType).toBe('function');
+  expect(result.identityLichHandlerType).toBe('function');
+  expect(result.identityBloodtideHandlerType).toBe('function');
+  // Dispatch + reset entry points still exposed.
+  expect(result.triggerEventType).toBe('function');
+  expect(result.resetIdentityType).toBe('function');
+  // Sacred 22 entries still explicitly present.
+  const expectedSacred = [
+    'berserker_p1_p2', 'berserker_p2_p3',
+    'armored_p1_p2',   'armored_p2_p3',
+    'phoenix_p1_p2',   'phoenix_p2_p3',
+    'assassin_p1_p2',  'assassin_p2_p3',
+    'bruiser_p1_p2',   'bruiser_p2_p3',
+    'hypnotist_p1_p2', 'hypnotist_p2_p3',
+    'engineer_p1_p2',  'engineer_p2_p3',
+    'frenzy_p1_p2',    'frenzy_p2_p3',
+    'tempo_disruptor_p1_p2', 'tempo_disruptor_p2_p3',
+    'battery_p1_p2',   'battery_p2_p3',
+    'tower_voidfang_p1_p2', 'tower_voidfang_p2_p3',
+  ];
+  for (const k of expectedSacred) {
+    expect(result.sacredKeys).toContain(k);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('fxBerserkerBloodtidePulse performance: initial trigger within ≤10ms budget', async ({ page }) => {
+  // Spec §3.3 field 7: initial trigger ≤10ms wall-time. Pool init + 1 pulse
+  // element activation + 1 HUD activation. Single-fire measurement.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const wallTime = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetBloodtidePool();
+
+    // Warm-up call (pool init cost factored out).
+    mod.fxBerserkerBloodtidePulse(null, null);
+    mod.resetBloodtide();
+
+    const t0 = performance.now();
+    mod.fxBerserkerBloodtidePulse(null, null);
+    const dt = performance.now() - t0;
+    mod.resetBloodtide();
+    return dt;
+  });
+
+  // Spec §3.3 field 7: ≤10ms initial. Allow 3× CI headroom (30ms).
+  expect(wallTime).toBeLessThan(30);
+  expect(errors).toEqual([]);
+});

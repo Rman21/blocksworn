@@ -186,6 +186,8 @@ import {
   resetAshenReign      as _resetAshenReignImpl,
   fxLichCursedTiles    as _fxLichCursedTilesImpl,
   resetCursedTiles     as _resetCursedTilesImpl,
+  fxBerserkerBloodtidePulse as _fxBerserkerBloodtidePulseImpl,
+  resetBloodtide            as _resetBloodtideImpl,
 } from '../feel/identity-fx.js';
 
 // Feel layer (residual legacy-owned):
@@ -1431,6 +1433,39 @@ export const IDENTITY_BOSS_HANDLERS = {
     }
     try { if (typeof showReactivityFX === 'function') showReactivityFX('assassin', 'cursed_tiles'); } catch (e) {}
   },
+  // ── BERSERKER / FRENZY BLOODTIDE PULSE (spec §3.3) ───────────────────
+  // Layered ALONGSIDE the sacred berserker/frenzy handlers (`berserker_p1_p2`
+  // enrage banner + 1.2× boss damage, `berserker_p2_p3` stagger immunity,
+  // `frenzy_p1_p2` raise frenzyMaxStacks, `frenzy_p2_p3` forced 3-turn maul —
+  // ALL UNTOUCHED). Bloodtide is the SHARED tempo identity for both
+  // `berserker` (Ch1 Boss 1 PYREDRAKE) and `frenzy` (Ch2 Boss 8 URSARO)
+  // archetypes per spec §3.3 field 1.
+  //
+  // Trigger: every 3rd line clear the player resolves while the boss is in
+  // Active state (NOT Stagger, NOT Recovery — read-only via getBossState()
+  // from src/core/stagger-loop.js). The T2.B legacy bridge will call
+  // `triggerIdentityBossEvent('identity_berserker_frenzy_pulse')` from the
+  // line-clear pipeline AFTER bumping `incrementBloodtideClearCount()` AND
+  // confirming `bloodtideGatePasses(getBossState())`.
+  //
+  // Damage modifier: the +5% next-attack damage bonus is held in a one-shot
+  // boolean flag (_bloodtidePulsePending in identity-fx.js). The battle
+  // pipeline calls `consumeBloodtidePulse()` before resolving the next boss
+  // attack — that returns 0.05 once, then 0 until a new pulse fires.
+  // The pulse multiplies the ENRAGE-multiplied damage (NEVER modifies the
+  // sacred BERSERKER_ENRAGE_MULT = 2.0 value itself — see
+  // `applyBloodtideToDamage` in identity-fx.js for the composition rule).
+  //
+  // Banner color matches the berserker palette (#FF4D1F) consistent with the
+  // sacred `berserker_p1_p2` entry banner color.
+  identity_berserker_frenzy_pulse: function() {
+    try { flashStateBanner('BLOODTIDE PULSE · +5% INCOMING', '#E53935'); } catch (e) {}
+    try { vibrate([20, 20, 60]); } catch (e) {}
+    try { _fxBerserkerBloodtidePulseImpl(null, null); } catch (e) {
+      log.error('[T2.09] Berserker Bloodtide Pulse fx threw:', e);
+    }
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('berserker', 'bloodtide'); } catch (e) {}
+  },
 };
 
 // Dispatch entry point — mirrors `triggerReactivityEvent` shape so the
@@ -1481,6 +1516,9 @@ export function resetIdentityBossState() {
   }
   try { _resetCursedTilesImpl(); } catch (e) {
     log.warn('[T2.08] resetCursedTiles threw:', e);
+  }
+  try { _resetBloodtideImpl(); } catch (e) {
+    log.warn('[T2.09] resetBloodtide threw:', e);
   }
 }
 

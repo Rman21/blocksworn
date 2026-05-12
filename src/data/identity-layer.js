@@ -43,7 +43,11 @@ export const IDENTITY_BOSS_FX_KEYS = Object.freeze({
   PHOENIX_ASHEN_REIGN:   'phoenix_ashen_reign',
   // T2.08 — Lich Cursed Tiles (Assassin archetype, Shark-counter mechanism).
   LICH_CURSED_TILES:     'lich_cursed_tiles',
-  // Stubs for T2.09–T2.11 — added in subsequent tasks per spec §7.1 schedule.
+  // T2.09 — Berserker / Frenzy Bloodtide Pulse (every-3rd-clear tempo mech).
+  // SAME identity key for BOTH `berserker` and `frenzy` archetypes (spec §3.3
+  // field 1 — both are "build aggression over time" archetypes; same hook).
+  BERSERKER_BLOODTIDE:   'berserker_bloodtide',
+  // Stubs for T2.10–T2.11 — added in subsequent tasks per spec §7.1 schedule.
 });
 
 // ─── Per-effect performance budgets (spec §5) ───────────────────────────
@@ -91,6 +95,21 @@ export const IDENTITY_BOSS_FX_BUDGETS = Object.freeze({
     steadyStateMs: 3,
     decayMs:       300,
     duration:      '3 turns',
+  }),
+  // Berserker Bloodtide Pulse (spec §3.3 field 7):
+  //   - Initial trigger ≤10ms (one DOM pulse element + CSS sweep)
+  //   - Steady-state: 0ms — Bloodtide is a ONE-SHOT BUFF, not a windowed state.
+  //     After the pulse VFX completes, the +5% damage bonus is held in a pure
+  //     integer flag (_bloodtidePulsePending) consumed on the next boss attack.
+  //     Zero per-frame work between activation and consumption.
+  //   - Decay: 200ms pulse decay (CSS-only fade after the 600ms sweep)
+  //   - Duration: 'one-shot' — pulse buff consumed on next boss attack; not
+  //     a wall-clock window like Phoenix's 5000ms or Lich's 3-turn windows.
+  [IDENTITY_BOSS_FX_KEYS.BERSERKER_BLOODTIDE]: Object.freeze({
+    initialMs:     10,
+    steadyStateMs: 0,
+    decayMs:       200,
+    duration:      'one-shot',
   }),
 });
 
@@ -481,3 +500,89 @@ export const CURSED_TILES_INITIAL_BUDGET_MS           = 16;
 export const CURSED_TILES_TELEGRAPH_BUDGET_MS         = 8;
 export const CURSED_TILES_PER_OVERLAY_BUDGET_MS       = 2;
 export const CURSED_TILES_PER_TURN_TICK_BUDGET_MS     = 3;
+
+// ─── Berserker Bloodtide Pulse constants (spec §3.3) ─────────────────────
+// THIRD boss-reactive identity mechanic — T2.09. Tempo / aggression-over-time
+// mechanic shared by BOTH `berserker` (Ch1 Boss 1 PYREDRAKE) and `frenzy`
+// (Ch2 Boss 8 URSARO) archetypes per spec §3.3 field 1. Every 3rd line clear
+// the player resolves while the boss is in Active state (NOT Stagger, NOT
+// Recovery — gated via `getBossState() === BOSS_STATE_ACTIVE` from
+// `src/core/stagger-loop.js`, READ-ONLY) triggers a red pulse VFX from the
+// boss portrait toward the grid. On arrival, the boss's next attack deals
+// +5% damage (one-shot buff, consumed on next attack — NOT stacking with
+// itself).
+//
+// Mechanical contract (spec §3.3 fields 3-4):
+//   - Trigger gate: clearCount > 0 && clearCount % BLOODTIDE_PULSE_INTERVAL
+//     (3) === 0 && bossState === BLOODTIDE_REQUIRED_STAGGER_STATE ('active').
+//     During Stagger / Recovery the gate fails silently (no pulse, no
+//     count reset — clearCount keeps incrementing; pulse fires on the first
+//     qualifying 3rd-clear after returning to Active).
+//   - Damage layering: the +BLOODTIDE_PULSE_DAMAGE_BONUS (0.05 = +5%) bonus
+//     is applied AS A FINAL MULTIPLIER on the enrage-multiplied base damage:
+//       finalDamage = baseDamage × BERSERKER_ENRAGE_MULT (2.0) × (1 + pulseBonus)
+//                   = baseDamage × 2.0 × 1.05
+//                   = baseDamage × 2.1
+//     NEVER `baseDamage × (BERSERKER_ENRAGE_MULT + pulseBonus)` (which would
+//     mutate the sacred enrage multiplier). The pulse multiplies the result;
+//     it does NOT modify sacred BERSERKER_ENRAGE_MULT = 2.0.
+//   - One-shot buff: each pulse marks _bloodtidePulsePending = true. The
+//     consumeBloodtidePulse() call (invoked by battle pipeline before a boss
+//     attack) returns 0.05 once and resets the flag to false. Subsequent
+//     consumes return 0 until a new pulse fires.
+//   - Caps: BLOODTIDE_PULSE_MAX_BONUS = 0.25 (+25%) covers the case where the
+//     `computeBloodtideDamageBonus(pulsesPending)` helper is called with a
+//     hypothetical multi-pulse scalar. In practice only one pulse is live at
+//     a time (one-shot semantics), so this cap is defensive against future
+//     extensions that might stack pulses.
+//
+// Sacred-cow safety (CLAUDE.md §2.5 + spec §3.3 field 8):
+//   - BERSERKER_ENRAGE_HP_PCT = 0.5 UNTOUCHED (sacred §2.5).
+//   - BERSERKER_ENRAGE_MULT = 2.0 UNTOUCHED (sacred §2.5). Pulse multiplies
+//     the enrage-multiplied result; never modifies the multiplier itself.
+//   - Stagger Loop state machine UNTOUCHED — `getBossState()` is called
+//     READ-ONLY; no transition function invoked. STAGGER_DURATION_TURNS = 4
+//     and RECOVERY_DURATION_TURNS = 2 byte-perfect.
+//   - 22 v2.1 P4 reactivity handlers UNTOUCHED — Bloodtide adds a NEW
+//     handler under namespace `identity_berserker_frenzy_pulse` in
+//     `src/core/reactivity-events.js`, separate from the sacred 22 and
+//     from the sacred `berserker_p1_p2` / `berserker_p2_p3` /
+//     `frenzy_p1_p2` / `frenzy_p2_p3` entries.
+//   - REACTIVITY_TELEGRAPH_MS = 3000 UNTOUCHED — Bloodtide does NOT use the
+//     wind-up telegraph (it's reactive to clear-count tempo, not phase-gate),
+//     so no telegraph constant is duplicated. If a future spec change wires
+//     a telegraph, it MUST re-use REACTIVITY_TELEGRAPH_MS by import (same
+//     T2.07/T2.08 invariant pattern).
+//   - Phoenix / Lich invariants UNTOUCHED — Bloodtide adds alongside.
+//
+// Performance budget (spec §3.3 field 7):
+//   - Gate check: O(1) pure integer math (count % 3 === 0 && stagger === 'active').
+//   - Pulse VFX: ≤BLOODTIDE_PULSE_VFX_DURATION_MS (600ms) CSS sweep.
+//   - Initial trigger: ≤10ms (1 DOM pulse element activation + CSS swap).
+//   - Damage modifier: pure integer math at consume time.
+//
+// Player counterplay (spec §3.3 field 5):
+//   - Time Tank ULT (AEGIS) during pulse telegraphs.
+//   - Burst-clear in groups of 2 to avoid the 3rd-clear trigger.
+//   - Crocodile Bedrock Bastion shields pre-absorb pulse damage.
+//
+// Architectural pattern (spec §1 hard rule 1): Identity Layer EXTENDS, never
+// MODIFIES, v2.1 P4. The sacred `berserker_p1_p2` / `berserker_p2_p3` /
+// `frenzy_p1_p2` / `frenzy_p2_p3` handlers stay byte-perfect; the new
+// `identity_berserker_frenzy_pulse` handler runs IN PARALLEL via the T2.07-
+// established `IDENTITY_BOSS_HANDLERS` registry + `triggerIdentityBossEvent`
+// dispatcher. NO modification to the sacred 22 REACTIVITY_HANDLERS entries.
+export const BLOODTIDE_PULSE_INTERVAL                 = 3;     // every 3rd clear (spec §3.3 field 3)
+export const BLOODTIDE_PULSE_DAMAGE_BONUS             = 0.05;  // +5% next-attack damage (spec §3.3 field 4)
+export const BLOODTIDE_PULSE_MAX_BONUS                = 0.25;  // HARD CAP — +25% from 5 pulses (spec §3.3 field 4)
+export const BLOODTIDE_PULSE_VFX_DURATION_MS          = 600;   // red pulse sweep duration
+export const BLOODTIDE_PULSE_DECAY_MS                 = 200;   // pulse fade-out tail
+// Required Stagger Loop state for Bloodtide to fire. Spec §3.3 field 3:
+// "while boss is in Active state (NOT Stagger, NOT Recovery)". Matches the
+// `BOSS_STATE_ACTIVE = 'active'` constant exported from
+// `src/core/stagger-loop.js:210` — READ-ONLY; the constant itself is sacred.
+export const BLOODTIDE_REQUIRED_STAGGER_STATE         = 'active';
+export const BLOODTIDE_PULSE_COLOR                    = '#E53935';  // red — distinct from purple curse / cyan bite
+// Performance ceilings (spec §3.3 field 7) — mirrored from IDENTITY_BOSS_FX_BUDGETS
+// for direct named import in fx + tests.
+export const BLOODTIDE_INITIAL_BUDGET_MS              = 10;

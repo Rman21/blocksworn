@@ -6598,3 +6598,164 @@ button, .menu-btn, .btn, .hero-card, .piece, .cell, .roster-card, .tier-btn, .ba
   0%   { opacity: 0.9; }
   100% { opacity: 0; }
 }
+
+/* ───────────────────────────────────────────────────────────────────────
+ * 2026-05-12 — TASK-036 (T2.09): Berserker / Frenzy Bloodtide Pulse styles.
+ *
+ * Spec: docs/design/mechanics/identity-layer.md §3.3.
+ * THIRD boss-reactive identity mechanic. Shared by BOTH `berserker` and
+ * `frenzy` archetypes per spec §3.3 field 1. Every 3rd line clear the
+ * player resolves while the boss is in Active state (from Stagger Loop
+ * `getBossState()` READ-ONLY) fires a red pulse VFX that sweeps from the
+ * boss portrait toward the grid. On arrival, the boss's NEXT attack deals
+ * +5% damage (one-shot buff, consumed on next attack).
+ *
+ * Architecture:
+ *   - `.identity-bloodtide-pulse-container` — fixed overlay layer, pointer-events
+ *     none, z-index between Lich curse (9992) and Crocodile fragments (9996).
+ *     Picked at 9991 so the pulse renders BELOW the Lich skull overlay (the
+ *     skull is per-cell state; the pulse is per-fire tempo signal).
+ *   - `.identity-bloodtide-pulse` — base pulse element (single pool element,
+ *     reused across fires — only one pulse is ever live at a time per spec
+ *     §3.3 field 4 "one-shot buff, not stacking").
+ *   - `.identity-bloodtide-pulse-sweep` — entry animation; reads CSS vars
+ *     `--bloodtide-dx`, `--bloodtide-dy`, `--bloodtide-duration-ms` (set by
+ *     `spawnBloodtidePulse` in `src/feel/particles.js`).
+ *   - `.identity-bloodtide-pulse-hud` — HUD indicator ("BLOODTIDE PULSE —
+ *     +5% incoming") shown while _bloodtidePulsePending is true.
+ *   - `.identity-bloodtide-pulse-hud-pending` — pulsing animation for the
+ *     HUD indicator.
+ *
+ * Sacred safety:
+ *   - No existing CSS class modified. Pure addition.
+ *   - All 22 v2.1 P4 reactivity handlers untouched (parallel-namespace
+ *     mechanic, see CLAUDE.md §2.5 + spec §1 hard rule 1).
+ *   - BERSERKER_ENRAGE_MULT = 2.0 untouched — pulse is a visual tempo signal
+ *     only; the +5% damage modifier is computed at consume time in JS
+ *     (`consumeBloodtidePulse` in `src/feel/identity-fx.js`), layered on top
+ *     of the sacred 2.0× enrage multiplier (NEVER modifies it).
+ *   - Stagger Loop CSS untouched — Bloodtide reads boss state via
+ *     `getBossState()` JS API, no CSS coupling.
+ *   - Color #E53935 is intentionally distinct from purple curse (#7e3fb8) /
+ *     orange flame (#E8B84A) so each boss-reactive mechanic has its own
+ *     visual signature per spec §3 convention.
+ * ─────────────────────────────────────────────────────────────────────── */
+.identity-bloodtide-pulse-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9991;
+}
+.identity-bloodtide-pulse {
+  position: absolute;
+  /* Centered on the boss portrait via JS-set left/top (spawnBloodtidePulse). */
+  width:  60px;
+  height: 60px;
+  margin-left: -30px;
+  margin-top:  -30px;
+  pointer-events: none;
+  z-index: 9991;
+  /* Red radial glow — sweeps from boss portrait → grid via translate.
+   * The skull-style ::after pseudo-element is dropped (Bloodtide is a
+   * pulse signal, not a per-cell glyph). */
+  background: radial-gradient(
+    circle at center,
+    rgba(229, 57, 53, 0.85) 0%,
+    rgba(229, 57, 53, 0.55) 30%,
+    rgba(229, 57, 53, 0.25) 60%,
+    rgba(229, 57, 53, 0)    100%
+  );
+  border-radius: 50%;
+  opacity: 0;
+  will-change: opacity, transform;
+  filter: blur(1px);
+}
+/* Pulse sweep — fires once when the pulse is spawned. Reads CSS vars
+ * `--bloodtide-dx` / `--bloodtide-dy` (sweep delta toward grid center) and
+ * `--bloodtide-duration-ms` (defaults to 600ms). Single keyframe — no
+ * setInterval, no requestAnimationFrame. Pure CSS. */
+.identity-bloodtide-pulse.identity-bloodtide-pulse-sweep {
+  animation: identityBloodtidePulse var(--bloodtide-duration-ms, 600ms) ease-out forwards;
+}
+@keyframes identityBloodtidePulse {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  15% {
+    opacity: 0.9;
+    transform: translate(calc(var(--bloodtide-dx, 0px) * 0.15), calc(var(--bloodtide-dy, 0px) * 0.15)) scale(1.0);
+  }
+  70% {
+    opacity: 0.7;
+    transform: translate(calc(var(--bloodtide-dx, 0px) * 0.85), calc(var(--bloodtide-dy, 0px) * 0.85)) scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--bloodtide-dx, 0px), var(--bloodtide-dy, 0px)) scale(1.8);
+  }
+}
+
+/* HUD pending indicator — shown while _bloodtidePulsePending = true. Lives
+ * in the top-right of the battle HUD so it doesn't compete with the Ashen
+ * Reign or Cursed Tiles HUD text. Static layout; only the inner background
+ * pulses to draw attention. */
+.identity-bloodtide-pulse-hud {
+  position: fixed;
+  top: 80px;
+  right: 16px;
+  pointer-events: none;
+  z-index: 9991;
+  padding: 6px 12px;
+  background: rgba(229, 57, 53, 0.75);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  border-radius: 4px;
+  border: 1px solid rgba(229, 57, 53, 0.9);
+  box-shadow:
+    0 0 12px rgba(229, 57, 53, 0.65),
+    0 1px 2px rgba(0, 0, 0, 0.6);
+  display: none;
+  opacity: 0;
+}
+.identity-bloodtide-pulse-hud.identity-bloodtide-pulse-hud-pending {
+  display: block;
+  animation: identityBloodtidePulseHudPending var(--bloodtide-pending-duration-ms, 1200ms) ease-in-out infinite;
+}
+@keyframes identityBloodtidePulseHudPending {
+  0%, 100% {
+    opacity: 0.7;
+    box-shadow:
+      0 0 8px rgba(229, 57, 53, 0.4),
+      0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+  50% {
+    opacity: 1.0;
+    box-shadow:
+      0 0 18px rgba(229, 57, 53, 0.85),
+      0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+}
+/* Reduced-motion: static red indicator (no pulse animation), but the
+ * mechanical effect (+5% damage on next attack) is preserved. The HUD
+ * box still renders — only the kinetic energy is dialed back. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-bloodtide-pulse.identity-bloodtide-pulse-sweep {
+    animation: identityBloodtidePulseStatic var(--bloodtide-duration-ms, 600ms) linear forwards;
+  }
+  .identity-bloodtide-pulse-hud.identity-bloodtide-pulse-hud-pending {
+    animation: none;
+    opacity: 1;
+    box-shadow:
+      0 0 8px rgba(229, 57, 53, 0.5),
+      0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+}
+@keyframes identityBloodtidePulseStatic {
+  0%   { opacity: 0; transform: translate(0, 0); }
+  50%  { opacity: 0.9; transform: translate(calc(var(--bloodtide-dx, 0px) * 0.5), calc(var(--bloodtide-dy, 0px) * 0.5)); }
+  100% { opacity: 0; transform: translate(var(--bloodtide-dx, 0px), var(--bloodtide-dy, 0px)); }
+}
