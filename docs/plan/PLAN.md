@@ -3,21 +3,14 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 12 / 20 done + T1.12 structural + T1.13.1/.2/.3 wire-up + asset pipeline
-- **Overall progress:** ~68% (Phase 1 — bundle compliant; FTUE-layer wire-up gap remaining)
-- **Bundle:** ✅ **4.5 MB total** (160KB JS + 368KB CSS + 3.4MB public/images files served separately) — UNDER AAA+ 5MB cap
-- **Next milestone:** **T1.13.4** — extract remaining FTUE-layer dependencies (playDialogScript + dialog system, SQUAD_MAX) → then T1.13 main verify (Lighthouse + manual playthrough)
-- **⚠️ Outstanding for T1.13:**
-  - `playDialogScript` not defined → dialog system extraction needed
-  - `SQUAD_MAX` legacy-only constant — needs named export
-  - Cross-boundary deferrals (placePiece return, ~600 LoC dead hero code, getSquadMitigation ownership)
-  - Future quality upgrade: re-import parent-dir PNG originals + re-capture baselines (currently using legacy JPEG-compressed `sips -Z 1024 q85`)
-- **CI status:** ✅ ALL GREEN (PR #158, 6 iterations to fix Node/lockfile/vitest/threshold/visual)
-- **Architectural decision (ADR-004):** Phase 1 closes at INFRASTRUCTURE level, not "new shell plays game". Legacy stays primary runtime; src/ modules retire naturally via Phase 2-4 feature work. Approved by Roman 2026-05-12.
-- **T1.13 redefined:** "infrastructure verify" (CI green + bundle + smoke + visual + boot chain) — ✅ DONE. NOT "new shell full playthrough". That goal deferred to optional future switchover sprint.
-- **Active task:** T1.14 — DONE (REVIEW); next is T1.15 — DELETE Cosmic Memorial
-- **Phase 1 endgame:** T1.15-T1.20 cleanup over legacy + Roman merge PR #158 → Phase 2 starts
-- **Last updated:** 2026-05-12 by Game Developer (T1.14 REVIEW handoff)
+- **Phase progress:** 14 / 20 done (T1.01-T1.14)
+- **Overall progress:** ~75% (Phase 1 endgame cleanup phase)
+- **Bundle:** ✅ **4.5 MB total** (203KB JS + 368KB CSS + 3.4MB public/images) — UNDER AAA+ 5MB cap
+- **Architectural decision (ADR-004):** Phase 1 closes at INFRASTRUCTURE level. Legacy stays primary runtime; new shell ships as foundation. Approved 2026-05-12.
+- **CI status:** ✅ ALL GREEN (PR #158, 100+ commits)
+- **Active task:** T1.15 — DELETE Cosmic Memorial (v2.1 P5 §7 completion)
+- **Phase 1 endgame:** T1.15-T1.20 cleanup over legacy → Roman merge PR #158 → Phase 2 Identity Layer starts
+- **Last updated:** 2026-05-12 by CTO (after T1.14 review — legacy already 80% gutted, T1.14 finished cleanup)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -67,16 +60,9 @@
 - [x] T1.12 — Wire `src/main.js` entry point — **STRUCTURAL DONE 2026-05-11** (commits `b87a57e`, `4b9c790`; index.html 113 LoC scaffold + src/main.js 94 LoC boot + migration shim first-boot active; bundle 400KB)
 - [x] T1.13 — Verify (INFRASTRUCTURE only per ADR-004) — **DONE 2026-05-12** (commits `c49bbce`, `52c3999`; Lighthouse Perf 99/100; CI green; smoke 4/4 on Linux; visual 11/11 chromium; bundle 4.5MB under cap; cross-boundary deferrals audited; **NEW shell full-playthrough goal moved to optional future switchover sprint per ADR-004 Hybrid Coexistence**)
 
-**Week 4-5: Logic + UI extraction**
-- [ ] T1.09 — Extract feel layer (haptics, animations, particles, narrator) — TODO
-- [ ] T1.10 — Extract core game logic to `src/core/` — TODO
-- [ ] T1.11 — Extract UI screens to `src/ui/` — TODO
-- [ ] T1.12 — Wire `main.js` entry point — TODO
-- [ ] T1.13 — Verify game runs identically + visual regression pass — TODO
-
 **Week 6: Cleanup**
-- [x] T1.14 — DELETE artifact subsystem (v2.1 P1 §4 completion) — **REVIEW 2026-05-12** (Game Dev; legacy −7.5KB; src/ stubs + window bridges removed; migrateRemoveArtifacts() shim + 4 unit tests; FTUE drops Pyredrake 50g+2 cards, Grunt 75g+3 cards; lint/unit 15/15/smoke 2/2/visual 22/22 all green; see REPORT-17)
-- [ ] T1.15 — DELETE Cosmic Memorial (v2.1 P5 §7 completion) — TODO
+- [x] T1.14 — DELETE artifact subsystem (v2.1 P1 §4 completion) — **DONE 2026-05-12** (commits `aed0cc6`, `eeea459`; legacy −7.5KB; 19 fns + 13 consts/state deleted; migrateRemoveArtifacts shim + 4 unit tests; legacy was already 80% gutted by v2.1 P1 PR #1.E + P5 §7)
+- [ ] T1.15 — DELETE Cosmic Memorial (v2.1 P5 §7 completion) — IN PROGRESS (Game Dev Agent)
 - [ ] T1.16 — DELETE legacy `--v-*` CSS tokens — TODO
 - [ ] T1.17 — Replace 100-hearts UI in combat top bar — TODO
 - [ ] T1.18 — Consolidate shop pack systems — TODO
