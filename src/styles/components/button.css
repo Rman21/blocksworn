@@ -1,0 +1,146 @@
+/* Button component.
+ * Pure relocation (T1.06).
+ */
+
+/* --- Buttons --- */
+.a-btn-cta {
+  background: linear-gradient(180deg, var(--a-fire-300) 0%, var(--a-fire-700) 100%);
+  border: 2px solid var(--a-fire-100);
+  border-radius: var(--a-radius-btn);
+  padding: 14px 28px;
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: #2a0808;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+  box-shadow: var(--a-shadow-cta);
+  cursor: pointer;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+  text-transform: uppercase;
+  width: 100%;
+}
+.a-btn-cta:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--a-fire-900), 0 0 10px rgba(255,138,74,0.3);
+}
+.a-btn-ghost {
+  background: rgba(26, 16, 40, 0.6);
+  border: 1px solid var(--a-gold-700);
+  border-radius: var(--a-radius-btn);
+  padding: 10px 20px;
+  font-family: var(--a-font-body);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--a-gold-300);
+  cursor: pointer;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.a-btn-ghost:active {
+  background: rgba(255, 184, 74, 0.1);
+  border-color: var(--a-gold-300);
+}
+.a-btn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(180deg, rgba(58,42,24,0.9), rgba(26,15,8,0.9));
+  border: 1px solid var(--a-gold-700);
+  border-radius: var(--a-radius-chip);
+  padding: 4px 10px;
+  font-family: var(--a-font-num);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--a-gold-300);
+  box-shadow: inset 0 1px 0 rgba(255,184,74,0.15), 0 1px 2px rgba(0,0,0,0.5);
+}
+
+/* --- Icon button (Arena header/iconic buttons) --- */
+.a-icon-btn {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: rgba(26,16,40,0.7);
+  border: 1px solid var(--a-gold-700);
+  color: var(--a-gold-300);
+  font-size: 16px;
+  font-weight: 900;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+  flex-shrink: 0;
+}
+.a-icon-btn:active {
+  background: rgba(255,184,74,0.12);
+  border-color: var(--a-gold-300);
+  transform: scale(0.94);
+}
+/* V3.0 Phase 10 cleanup: removed ~200 lines of legacy Main-Hub / Select CSS
+   whose DOM was replaced in Phases 2-3 (.menu-logo-img, .menu-tagline,
+   .menu-progress*, .boss-progress-emblem*, .menu-section-label, .essence-*,
+   .menu-squad-*, .menu-equip-*, .menu-team-power*, .menu-btns/.menu-btn*,
+   .select-wrap, .select-header, .select-title). All render functions that
+   wrote to these nodes are null-guarded, so deletion is side-effect-free. */
+.back-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  color: #E4E1F0; font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.back-btn:hover, .back-btn:active { background: rgba(255,255,255,0.14); }
+.btn.btn-reset {
+  background: rgba(232,93,74,0.15); color: #FF8A68;
+  border: 1px solid rgba(232,93,74,0.4);
+  font-size: 11px; padding: 10px 16px; letter-spacing: 1.5px;
+}
+.btn.btn-reset:active { background: rgba(232,93,74,0.25); }
+/* 2026-04-29 — T3 + Mythic ascension buttons + badges. T3 uses an amber→
+   violet gradient that visually progresses from T2's purple-only. Mythic
+   uses tri-stop violet→ember→gold + 20px halo + slow glow pulse so it
+   reads as the endgame commitment moment. Both buttons sit on their own
+   rows below the T2 button (HTML order). */
+.btn-ascend-t3 {
+  background: linear-gradient(135deg, #FFB84A 0%, #BB60FF 100%);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.4);
+  font-weight: 800;
+  letter-spacing: 1px;
+  box-shadow: 0 0 14px rgba(187,96,255,0.45);
+  transition: filter 0.15s, transform 0.12s;
+}
+.btn-ascend-t3:hover  { filter: brightness(1.12); }
+.btn-ascend-t3:active { transform: scale(0.97); }
+.btn-ascend-t3:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(0.4); }
+.btn-ascend-mythic {
+  background: linear-gradient(135deg, #BB60FF 0%, #FF5A3A 50%, #FFD53D 100%);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.5);
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  box-shadow: 0 0 22px rgba(255,90,58,0.55), 0 0 8px rgba(255,213,61,0.65);
+  transition: filter 0.15s, transform 0.12s;
+  animation: mythicBtnPulse 2.6s ease-in-out infinite;
+}
+.btn-ascend-mythic:hover  { filter: brightness(1.10); }
+.btn-ascend-mythic:active { transform: scale(0.96); }
+.btn-ascend-mythic:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+  animation: none;
+}
+
+/* ===== POLISH v1 · PHASE 2 · CHIP COUNT-UP PULSE ===== */
+.a-btn-chip { position: relative; } /* для ::after ring-flash нужно */
+.a-btn-chip.v-countup-pulse {
+  animation: pBump 320ms var(--a-ease-out, ease-out);
+}
+/* Золотой flash-ring на chip при увеличении */
+.a-btn-chip.v-countup-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid var(--a-gold-300);
+  pointer-events: none;
+  animation: pChipRing 320ms ease-out forwards;
+}

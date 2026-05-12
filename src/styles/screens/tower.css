@@ -1,0 +1,1175 @@
+/* Endless tower / daily gauntlet / weekly gauntlet.
+ * Pure relocation (T1.06).
+ */
+
+/* ----- Tower tab (P3) ----- */
+.tower-run-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 8px; align-items: center;
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.15);
+  border-radius: 6px;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.tower-run-row .tr-floor {
+  font-family: var(--a-font-num);
+  font-weight: 800;
+  color: var(--a-gold-300);
+  font-size: 13px;
+}
+.tower-run-row .tr-points { color: #FFFFFF; font-variant-numeric: tabular-nums; }
+.tower-run-row .tr-date   { color: #8A88A0; font-size: 10px; }
+.tower-ach-list { display: flex; flex-direction: column; gap: 6px; }
+.tower-ach-row {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  gap: 10px; align-items: center;
+  padding: 10px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.15);
+  border-radius: 8px;
+}
+.tower-ach-row.locked { opacity: 0.55; filter: grayscale(0.5); }
+.tower-ach-row.unlocked.ach-bronze { border-color: rgba(205,127,50,0.50); background: rgba(205,127,50,0.06); }
+.tower-ach-row.unlocked.ach-silver { border-color: rgba(192,192,192,0.55); background: rgba(192,192,192,0.06); }
+.tower-ach-row.unlocked.ach-gold   { border-color: rgba(255,213,61,0.60); background: rgba(255,213,61,0.10); box-shadow: 0 0 10px rgba(255,213,61,0.18); }
+.tower-ach-row.unlocked.ach-mythic { border-color: rgba(187,96,255,0.65); background: rgba(187,96,255,0.10); box-shadow: 0 0 12px rgba(187,96,255,0.25); }
+.tower-ach-row .ta-status { text-align: center; font-size: 18px; }
+.tower-ach-row .ta-name {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  color: #FFFFFF;
+  font-weight: 800;
+}
+.tower-ach-row .ta-desc {
+  font-size: 10px;
+  color: #B8B5C4;
+  margin-top: 2px;
+}
+.tower-ach-row .ta-title {
+  font-size: 9px;
+  color: var(--a-gold-300);
+  font-style: italic;
+  margin-top: 2px;
+  letter-spacing: 0.4px;
+}
+.tower-ach-row .ta-rarity {
+  font-family: var(--a-font-display);
+  font-size: 8px;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.45);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.tower-ach-row.ach-bronze .ta-rarity { color: #CD7F32; }
+.tower-ach-row.ach-silver .ta-rarity { color: #C0C0C0; }
+.tower-ach-row.ach-gold   .ta-rarity { color: var(--a-gold-300); }
+.tower-ach-row.ach-mythic .ta-rarity { color: #BB60FF; }
+
+/* .v-splash-card display gating CSS removed 2026-04-28 with splash HTML/JS. */
+
+/* Task #1.8: TOWER nav-button lock state on the Hub. Driven by `.locked` class
+   from updateTowerNavButton(). Other screens' Tower buttons don't carry the
+   lock visual — by design (only menu has id="navTowerBtn"). */
+#navTowerBtn.locked {
+  opacity: 0.5;
+  position: relative;
+}
+#navTowerBtn.locked::after {
+  content: "🔒";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 10px;
+  pointer-events: none;
+}
+/* 2026-04-29 — DEBT-002 close: removed `.ach-wrap`, `.codex-wrap`,
+   `.arena-wrap` selectors — no DOM elements with those classes exist
+   after Phase 1 reduction. The `> div[class$="-wrap"]` attribute
+   selector still catches any future *-wrap container, so the explicit
+   trio was pure noise. */
+.v-secondary > div[class$="-wrap"],
+.v-secondary .dailies-wrap,
+.v-secondary .tower-wrap,
+.v-secondary .event-wrap,
+.v-secondary .awaken-wrap,
+.v-secondary .season-wrap {
+  flex: 1;
+  padding: 56px 14px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  overflow-y: auto;
+}
+.v-secondary .ach-header,
+.v-secondary .codex-header,
+.v-secondary .awaken-header,
+.v-secondary .tower-header,
+.v-secondary .arena-header,
+.v-secondary .event-header,
+.v-secondary .season-header,
+.v-secondary .dailies-header {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px;
+  padding: 4px 0 6px;
+}
+
+/* Stat grids: tower-stats / arena-stats / event-stats / awaken-stats / season */
+.v-secondary .tower-stats,
+.v-secondary .arena-stats,
+.v-secondary .event-stats,
+.v-secondary .awaken-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 6px;
+  padding: 10px;
+}
+.v-secondary .tower-stat,
+.v-secondary .arena-stat,
+.v-secondary .event-stat,
+.v-secondary .awaken-stat {
+  padding: 8px 4px;
+  background: linear-gradient(180deg, rgba(58,42,24,0.7), rgba(26,15,8,0.7));
+  border: 1px solid var(--a-gold-700);
+  border-radius: 10px;
+  text-align: center;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.v-secondary .tower-stat-label,
+.v-secondary .arena-stat-label,
+.v-secondary .event-stat-label,
+.v-secondary .awaken-stat-label {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--a-text-muted);
+  text-transform: uppercase;
+}
+.v-secondary .tower-stat-value,
+.v-secondary .arena-stat-value,
+.v-secondary .event-stat-value,
+.v-secondary .awaken-stat-value {
+  font-family: var(--a-font-num);
+  font-weight: 900;
+  font-size: 16px;
+  color: var(--a-text-gold);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+  line-height: 1.1;
+}
+
+/* Primary CTAs on secondary screens */
+.v-secondary .claim-streak-btn,
+.v-secondary .tower-enter-btn,
+.v-secondary .arena-find-btn,
+.v-secondary .event-shop-btn,
+.v-secondary .season-premium-btn {
+  background: linear-gradient(180deg, var(--a-fire-300) 0%, var(--a-fire-700) 100%);
+  border: 2px solid var(--a-fire-100);
+  border-radius: var(--a-radius-btn);
+  padding: 14px 20px;
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: #2a0808;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  box-shadow: var(--a-shadow-cta);
+  cursor: pointer;
+  width: 100%;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.v-secondary .claim-streak-btn:active,
+.v-secondary .tower-enter-btn:active,
+.v-secondary .arena-find-btn:active,
+.v-secondary .event-shop-btn:active,
+.v-secondary .season-premium-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--a-fire-900);
+}
+.v-secondary .claim-streak-btn:disabled,
+.v-secondary .tower-enter-btn:disabled,
+.v-secondary .arena-find-btn:disabled,
+.v-secondary .event-shop-btn:disabled,
+.v-secondary .season-premium-btn:disabled {
+  background: rgba(58,42,24,0.6);
+  border-color: var(--a-gold-700);
+  color: var(--a-text-muted);
+  text-shadow: none;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Secondary/ghost buttons */
+.v-secondary .tower-shop-btn {
+  background: rgba(26,16,40,0.7);
+  border: 1px solid var(--a-gold-700);
+  border-radius: var(--a-radius-btn);
+  padding: 10px 16px;
+  font-family: var(--a-font-body);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--a-gold-300);
+  cursor: pointer;
+  width: 100%;
+  text-transform: uppercase;
+}
+
+/* Tower current floor display */
+.v-secondary .tower-current {
+  text-align: center;
+  padding: 14px 12px;
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 18px;
+  color: var(--a-text-gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: radial-gradient(ellipse at center, rgba(255,184,74,0.15), var(--a-bg-deepest));
+  border: 1px solid var(--a-gold-300);
+  box-shadow: 0 0 18px rgba(255,184,74,0.2);
+}
+
+/* Tower floor clear modal */
+.tower-floor-clear-modal {
+  position: fixed; inset: 0;
+  z-index: 10002;
+  background: rgba(5,3,8,0.88);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center; justify-content: center;
+  padding: 16px;
+}
+.tower-floor-clear-modal.hidden { display: none; }
+
+/* ===== 2026-04-27 — Block T.6 — 24h Buff picker modal ===== */
+.tower-buff-modal {
+  position: fixed; inset: 0;
+  z-index: 10003;
+  background: rgba(5, 3, 8, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center; justify-content: center;
+  padding: 16px;
+  animation: introFadeIn 0.3s ease-out;
+}
+.tower-buff-modal.hidden { display: none; }
+.tower-buff-modal .tbm-card-wrap {
+  width: 100%; max-width: 380px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.tower-buff-modal .tbm-header { text-align: center; }
+.tower-buff-modal .tbm-tag {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: #5DCA79;
+  margin-bottom: 4px;
+}
+.tower-buff-modal .tbm-title {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  text-shadow: 0 0 14px rgba(255, 213, 61, 0.4);
+}
+.tower-buff-modal .tbm-sub {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--a-text-secondary, #A8A5B8);
+  margin-top: 3px;
+}
+.tower-buff-modal .tbm-buffs {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.tower-buff-modal .tbm-buff-card {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(58, 42, 24, 0.6), rgba(20, 12, 6, 0.85));
+  border: 1.5px solid rgba(255, 184, 74, 0.5);
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--a-text-primary, #E8E6DF);
+  text-align: left;
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.tower-buff-modal .tbm-buff-card:hover {
+  border-color: var(--a-gold-300, #FFD53D);
+  box-shadow: 0 0 12px rgba(255, 213, 61, 0.3);
+  transform: translateY(-2px);
+}
+.tower-buff-modal .tbm-buff-card:active { transform: scale(0.97); }
+.tower-buff-modal .tbm-buff-card.rare {
+  background: linear-gradient(180deg, rgba(155, 89, 214, 0.30), rgba(40, 18, 56, 0.7));
+  border-color: rgba(192, 106, 223, 0.7);
+}
+.tower-buff-modal .tbm-buff-card.rare:hover {
+  border-color: #C06ADF;
+  box-shadow: 0 0 16px rgba(192, 106, 223, 0.45);
+}
+.tower-buff-modal .tbm-name {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 14px;
+  letter-spacing: 1.4px;
+  color: var(--a-gold-300, #FFD53D);
+}
+.tower-buff-modal .tbm-buff-card.rare .tbm-name { color: #E0B8FF; }
+.tower-buff-modal .tbm-desc {
+  font-size: 10.5px;
+  letter-spacing: 0.4px;
+  color: var(--a-text-secondary, #A8A5B8);
+  line-height: 1.4;
+}
+.tower-buff-modal .tbm-select {
+  margin-top: 4px;
+  padding: 5px 8px;
+  background: linear-gradient(180deg, #FFD53D, #FF8B3D);
+  color: #1A0F08;
+  font-weight: 800;
+  font-size: 9.5px;
+  letter-spacing: 1.5px;
+  text-align: center;
+  border-radius: 5px;
+  align-self: flex-end;
+  width: 70px;
+}
+
+/* ===== 2026-04-27 — Block T.2 — Pact picker modal ===== */
+.tower-pact-modal {
+  position: fixed; inset: 0;
+  z-index: 10003;
+  background: rgba(5, 3, 8, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center; justify-content: center;
+  padding: 16px;
+  animation: introFadeIn 0.3s ease-out;
+}
+.tower-pact-modal.hidden { display: none; }
+.tower-pact-modal .tpm-card-wrap {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.tower-pact-modal .tpm-header {
+  text-align: center;
+}
+.tower-pact-modal .tpm-floor-label {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--a-gold-300, #FFD53D);
+  opacity: 0.7;
+}
+.tower-pact-modal .tpm-title {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  text-shadow: 0 0 14px rgba(255, 213, 61, 0.4);
+  margin-top: 4px;
+}
+.tower-pact-modal .tpm-pacts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tower-pact-modal .tpm-pact-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: linear-gradient(180deg, rgba(58, 42, 24, 0.7), rgba(20, 12, 6, 0.85));
+  border: 1.5px solid rgba(255, 184, 74, 0.55);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--a-text-primary, #E8E6DF);
+  transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+.tower-pact-modal .tpm-pact-card:hover {
+  border-color: var(--a-gold-300, #FFD53D);
+  box-shadow: 0 0 14px rgba(255, 213, 61, 0.35);
+  transform: translateY(-2px);
+}
+.tower-pact-modal .tpm-pact-card:active { transform: scale(0.97); }
+.tower-pact-modal .tpm-name {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300, #FFD53D);
+}
+.tower-pact-modal .tpm-effect {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.tower-pact-modal .tpm-effect .tpm-glyph {
+  font-weight: 800;
+  font-size: 13px;
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+}
+.tower-pact-modal .tpm-power .tpm-glyph { color: #5DCA79; }
+.tower-pact-modal .tpm-power      { color: #B8E5C0; }
+.tower-pact-modal .tpm-cost .tpm-glyph  { color: #E85D4A; }
+.tower-pact-modal .tpm-cost       { color: #E0B0A8; }
+.tower-pact-modal .tpm-accept {
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, #FFD53D, #FF8B3D);
+  color: #1A0F08;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  font-size: 10px;
+  text-align: center;
+  border-radius: 6px;
+}
+.tower-pact-modal .tpm-skip {
+  margin: 4px auto 0;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid rgba(168, 165, 184, 0.4);
+  border-radius: 8px;
+  color: var(--a-text-secondary, #A8A5B8);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+.tower-pact-modal .tpm-skip:hover {
+  border-color: var(--a-text-primary, #E8E6DF);
+  color: var(--a-text-primary, #E8E6DF);
+}
+
+#screenTower {
+  padding: 40px 14px 24px;
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.tower-wrap {
+  display: flex; flex-direction: column; gap: 14px;
+  max-width: 560px; width: 100%; margin: 0 auto;
+}
+.tower-header {
+  text-align: center;
+  padding: 6px 0;
+}
+.tower-header h2 {
+  margin: 0; font-size: 22px; letter-spacing: 5px;
+  color: #F5F3EC; font-weight: 800;
+  text-shadow: 0 0 18px rgba(255, 213, 61, 0.45);
+}
+/* 2026-04-29 polish v0.1 Track E: stats demoted from three big cards to a
+ * single chip-row at the top. Plain numbers were fighting for hierarchy with
+ * the actual CTA — now they're informational chips, not focal data.
+ * Selector includes `.v-secondary` to outrank the legacy stat-grid rules
+ * defined elsewhere in the .v-secondary cascade. */
+.v-secondary .tower-stats {
+  display: flex !important;
+  grid-template-columns: none !important;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.28);
+  border-radius: 999px;
+  border: 1px solid rgba(61,63,94,0.5);
+}
+.v-secondary .tower-stat {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+.v-secondary .tower-stat-label {
+  font-size: 9px !important;
+  letter-spacing: 1.2px !important;
+  color: #8A88A0 !important;
+  font-weight: 600 !important;
+}
+.v-secondary .tower-stat-value {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: var(--a-gold-300, #FFD53D) !important;
+  font-variant-numeric: tabular-nums;
+  text-shadow: none !important;
+}
+.tower-current {
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 8px;
+  border: 1px solid #3D3F5E;
+  text-align: center;
+}
+.tower-hint {
+  font-size: 11px; color: #A8A5B8; letter-spacing: 0.4px;
+  line-height: 1.4;
+}
+.tower-run-active {
+  color: #FFD53D; font-weight: 800; font-size: 12px;
+  letter-spacing: 1.5px;
+}
+/* 2026-04-27 — Block T.1 Daily Gauntlet status pills (streak / attempts /
+ * currency counters). Compact row, wraps on narrow screens. */
+.tower-daily-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.tower-daily-status .t-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  background: linear-gradient(180deg, rgba(58, 42, 24, 0.55), rgba(26, 15, 8, 0.55));
+  border: 1px solid rgba(255, 184, 74, 0.45);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  color: #FFD53D;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+}
+.tower-enter-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+/* 2026-04-27 — Block T.9 — Title banner + Achievements modal */
+.tower-title-banner {
+  margin: 0 auto 6px;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, rgba(255, 213, 61, 0.10), rgba(40, 25, 8, 0.45));
+  border: 1px solid rgba(255, 213, 61, 0.40);
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.tower-title-banner:hover {
+  background: linear-gradient(180deg, rgba(255, 213, 61, 0.18), rgba(60, 35, 12, 0.5));
+  border-color: var(--a-gold-300, #FFD53D);
+}
+.tower-title-banner .ttitle-name {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 2px;
+}
+.tower-title-banner .ttitle-name.ttitle-empty {
+  color: var(--a-text-secondary, #A8A5B8);
+  font-weight: 600;
+  font-style: italic;
+}
+.tower-title-banner .ttitle-meta {
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  color: var(--a-text-secondary, #A8A5B8);
+}
+
+.tower-ach-modal {
+  position: fixed; inset: 0;
+  z-index: 10003;
+  background: rgba(5, 3, 8, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  animation: introFadeIn 0.3s ease-out;
+}
+.tower-ach-modal.hidden { display: none; }
+.tower-ach-modal .tam-card-wrap {
+  width: 100%; max-width: 440px; max-height: 88vh;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, rgba(20, 12, 6, 0.95), rgba(8, 5, 3, 0.97));
+  border: 1.5px solid var(--a-gold-700, #B0832D);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.tower-ach-modal .tam-header {
+  position: relative;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(255, 213, 61, 0.20);
+  text-align: center;
+}
+.tower-ach-modal .tam-close {
+  position: absolute;
+  top: 8px; right: 10px;
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid rgba(168, 165, 184, 0.4);
+  color: #A8A5B8;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.tower-ach-modal .tam-title {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  text-shadow: 0 0 12px rgba(255, 213, 61, 0.4);
+}
+.tower-ach-modal .tam-progress {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--a-text-secondary, #A8A5B8);
+  margin-top: 4px;
+}
+.tower-ach-modal .tam-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.tower-ach-modal .tam-row {
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 184, 74, 0.15);
+  border-left: 3px solid #B07840;
+  border-radius: 6px;
+}
+.tower-ach-modal .tam-row.owned {
+  background: rgba(255, 213, 61, 0.05);
+  border-color: rgba(255, 184, 74, 0.40);
+}
+.tower-ach-modal .tam-row.active {
+  background: rgba(255, 213, 61, 0.12);
+  border-color: rgba(255, 213, 61, 0.7);
+  box-shadow: 0 0 10px rgba(255, 213, 61, 0.25);
+}
+.tower-ach-modal .tam-row.locked { opacity: 0.55; }
+.tower-ach-modal .tam-row-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.tower-ach-modal .tam-rarity {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  font-weight: 800;
+}
+.tower-ach-modal .tam-name {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 13px;
+  letter-spacing: 1.2px;
+  color: var(--a-text-primary, #E8E6DF);
+  font-weight: 700;
+}
+.tower-ach-modal .tam-desc {
+  font-size: 11px;
+  color: var(--a-text-secondary, #A8A5B8);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+.tower-ach-modal .tam-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tower-ach-modal .tam-title-label {
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 0.5px;
+}
+.tower-ach-modal .tam-title-btn {
+  padding: 5px 10px;
+  background: linear-gradient(180deg, #FFD53D, #FF8B3D);
+  color: #1A0F08;
+  border: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+}
+.tower-ach-modal .tam-title-btn:hover { filter: brightness(1.1); }
+.tower-ach-modal .tam-title-btn.active {
+  background: rgba(255, 213, 61, 0.20);
+  color: var(--a-gold-300, #FFD53D);
+  border: 1px solid var(--a-gold-300, #FFD53D);
+}
+.tower-ach-modal .tam-title-locked {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #A8A5B8;
+  padding: 5px 10px;
+  border: 1px solid rgba(168, 165, 184, 0.3);
+  border-radius: 5px;
+}
+
+/* 2026-04-27 — Block T.6 — Active buff indicator banner. Green palette
+ * (positive ongoing effect); rare variant uses purple. */
+.tower-buff-banner {
+  margin: 0 auto 6px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(93, 202, 121, 0.18), rgba(20, 40, 25, 0.45));
+  border: 1px solid rgba(93, 202, 121, 0.50);
+  border-radius: 8px;
+  text-align: center;
+}
+.tower-buff-banner.rare {
+  background: linear-gradient(180deg, rgba(192, 106, 223, 0.22), rgba(40, 18, 56, 0.55));
+  border-color: rgba(192, 106, 223, 0.55);
+}
+.tower-buff-banner .tbb-label {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: #5DCA79;
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+.tower-buff-banner.rare .tbb-label { color: #C0A6DF; }
+.tower-buff-banner .tbb-name {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 2px;
+}
+.tower-buff-banner .tbb-desc {
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: var(--a-text-secondary, #A8A5B8);
+}
+
+/* 2026-04-27 — Block T.7 — Weekly Element Theme banner. Gold-tinted info
+ * palette (positive vibe, distinct from red-violet curse warning). */
+.tower-theme-banner {
+  margin: 0 auto 6px;
+  padding: 7px 12px;
+  background: linear-gradient(180deg, rgba(255, 213, 61, 0.15), rgba(58, 42, 24, 0.4));
+  border: 1px solid rgba(255, 213, 61, 0.45);
+  border-radius: 8px;
+  text-align: center;
+}
+.tower-theme-banner .ttb-label {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+.tower-theme-banner .ttb-effects {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+.tower-theme-banner .ttb-dom { color: #5DCA79; }
+.tower-theme-banner .ttb-sup { color: #E85D4A; }
+/* 2026-04-29 polish v0.1 Track E: actionable tip below the bonus lines. */
+.tower-theme-banner .ttb-tip {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 213, 61, 0.20);
+  font-size: 11px;
+  color: var(--a-gold-300, #FFD53D);
+  letter-spacing: 0.4px;
+  opacity: 0.95;
+}
+/* 2026-04-29 polish v0.1 Track E: How-it-works bulleted block (replaces the
+ * dense one-line F5/F10/250💰/💎❤ shorthand for first-time tower players). */
+.tower-howto {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, rgba(255, 213, 61, 0.06), rgba(0, 0, 0, 0.20));
+  border: 1px solid rgba(255, 213, 61, 0.20);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #C8C5D4;
+  line-height: 1.4;
+  text-align: left;
+}
+.tower-howto .th-row { letter-spacing: 0.2px; }
+
+/* 2026-04-27 — Block T.3 — Daily curse banner. Red-violet warning palette
+ * to feel ominous; sits at the top of the tower entry screen above status. */
+.tower-curse-banner {
+  margin: 0 auto 8px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(155, 89, 214, 0.20), rgba(40, 18, 56, 0.45));
+  border: 1px solid rgba(155, 89, 214, 0.55);
+  border-radius: 8px;
+  text-align: center;
+}
+.tower-curse-banner .tcb-label {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: #C0A6DF;
+  margin-bottom: 3px;
+}
+.tower-curse-banner .tcb-names {
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  color: #E0B8FF;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.tower-enter-btn {
+  padding: 14px;
+  background: linear-gradient(180deg, #FFD53D, #FF8B3D);
+  color: #1A1A2E;
+  border: none; border-radius: 10px;
+  font-weight: 800; font-size: 15px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.12s, filter 0.12s;
+}
+.tower-enter-btn:hover,
+.tower-enter-btn:active { transform: translateY(-1px); filter: brightness(1.08); }
+/* 2026-04-29 polish v0.1 Track E: Tower Shop + Upgrades demoted from
+ * primary-style buttons to compact text links. They were competing with the
+ * actual gauntlet CTAs for attention; players who want shop/upgrades go
+ * looking — not pulled in by visual prominence. */
+.tower-shop-btn,
+.tower-upgrades-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 4px 0;
+  padding: 6px 12px;
+  background: transparent;
+  color: #A8A5B8;
+  border: 1px solid rgba(106, 88, 64, 0.45);
+  border-radius: 999px;
+  font-weight: 600; font-size: 10.5px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.tower-shop-btn:hover,
+.tower-upgrades-btn:hover {
+  color: var(--a-gold-300, #FFD53D);
+  border-color: var(--a-gold-300, #FFD53D);
+  background: rgba(255, 213, 61, 0.08);
+}
+
+/* 2026-04-27 HOTFIX — Abandon Run button (only when run in progress).
+ * Red-tinted ghost button to feel destructive — player must confirm
+ * before clicking. Below the run-in-progress label. */
+.tower-abandon-btn {
+  display: block;
+  margin: 8px auto 0;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid rgba(232, 93, 74, 0.45);
+  border-radius: 6px;
+  color: #E85D4A;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.tower-abandon-btn:hover {
+  background: rgba(232, 93, 74, 0.10);
+  border-color: #E85D4A;
+}
+
+/* 2026-04-27 — Block T.4 — Weekly + Seasonal Gauntlet entry buttons.
+ * Distinct palettes so player visually differentiates the 3 modes:
+ *   Daily — gold (existing)
+ *   Weekly — purple (premium tone, prestige)
+ *   Seasonal — cyan/teal (rare/legendary tone) */
+.tower-weekly-btn {
+  margin-top: 6px;
+  padding: 11px;
+  background: linear-gradient(180deg, rgba(155, 89, 214, 0.30), rgba(50, 25, 70, 0.65));
+  color: #E0B8FF;
+  border: 1.5px solid rgba(192, 106, 223, 0.65);
+  border-radius: 8px;
+  font-weight: 800; font-size: 12px;
+  letter-spacing: 1.8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.15s, transform 0.12s;
+  box-shadow: 0 0 10px rgba(155, 89, 214, 0.25);
+}
+.tower-weekly-btn:hover  { filter: brightness(1.12); }
+.tower-weekly-btn:active { transform: scale(0.97); }
+.tower-weekly-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.tower-seasonal-btn {
+  margin-top: 6px;
+  padding: 11px;
+  background: linear-gradient(180deg, rgba(74, 219, 255, 0.25), rgba(15, 50, 70, 0.7));
+  color: #B0E8FF;
+  border: 1.5px solid rgba(74, 219, 255, 0.7);
+  border-radius: 8px;
+  font-weight: 800; font-size: 12px;
+  letter-spacing: 1.8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter 0.15s, transform 0.12s;
+  box-shadow: 0 0 12px rgba(74, 219, 255, 0.30);
+}
+.tower-seasonal-btn:hover  { filter: brightness(1.12); }
+.tower-seasonal-btn:active { transform: scale(0.97); }
+.tower-seasonal-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 2026-04-29 polish v0.1 Track E: removed the dedicated `.tower-upgrades-btn`
+   block here (was a prominent red CTA competing with the gauntlet button).
+   The compact chip-link styling lives in the consolidated rule with
+   `.tower-shop-btn` above. */
+.tower-shop-btn:active,
+.tower-upgrades-btn:active { transform: scale(0.97); }
+.tower-secondary-links {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.tower-heart-modal {
+  position: fixed; inset: 0;
+  z-index: 10003;
+  background: rgba(5, 3, 8, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center; justify-content: center;
+  padding: 16px;
+  animation: introFadeIn 0.3s ease-out;
+}
+.tower-heart-modal.hidden { display: none; }
+.tower-heart-modal .thm-card-wrap {
+  width: 100%; max-width: 440px; max-height: 88vh;
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, rgba(20, 12, 6, 0.95), rgba(8, 5, 3, 0.97));
+  border: 1.5px solid var(--a-gold-700, #B0832D);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.tower-heart-modal .thm-header {
+  position: relative;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(255, 213, 61, 0.20);
+  text-align: center;
+}
+.tower-heart-modal .thm-close {
+  position: absolute;
+  top: 8px; right: 10px;
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid rgba(168, 165, 184, 0.4);
+  color: #A8A5B8;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.tower-heart-modal .thm-title {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--a-gold-300, #FFD53D);
+  text-shadow: 0 0 12px rgba(255, 213, 61, 0.4);
+}
+.tower-heart-modal .thm-balance {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #FFB8A8;
+  margin-top: 4px;
+}
+.tower-heart-modal .thm-balance #thmHeartCount {
+  color: var(--a-gold-300, #FFD53D);
+  font-weight: 800;
+}
+.tower-heart-modal .thm-branches {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.tower-heart-modal .thm-branch-head {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 12px;
+  letter-spacing: 1.8px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 4px;
+  padding: 4px 8px;
+  background: rgba(255, 213, 61, 0.08);
+  border-radius: 6px;
+  border-left: 3px solid var(--a-gold-300, #FFD53D);
+}
+.tower-heart-modal .thm-branch-tiers {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.tower-heart-modal .thm-tier {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 184, 74, 0.25);
+  border-radius: 8px;
+  font-family: inherit;
+}
+.tower-heart-modal .thm-tier.owned {
+  border-color: rgba(93, 202, 121, 0.55);
+  background: rgba(93, 202, 121, 0.08);
+}
+.tower-heart-modal .thm-tier.buyable {
+  border-color: rgba(255, 213, 61, 0.55);
+}
+.tower-heart-modal .thm-tier.locked {
+  opacity: 0.55;
+}
+.tower-heart-modal .thm-tier-row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.tower-heart-modal .thm-tier-num {
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 10px;
+  background: rgba(255, 184, 74, 0.18);
+  color: var(--a-gold-300, #FFD53D);
+  padding: 2px 5px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+.tower-heart-modal .thm-tier-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--a-text-primary, #E8E6DF);
+  letter-spacing: 0.5px;
+}
+.tower-heart-modal .thm-tier-cost {
+  font-size: 11px;
+  font-weight: 800;
+  color: #FFB8A8;
+  letter-spacing: 0.5px;
+}
+.tower-heart-modal .thm-tier-desc {
+  font-size: 10.5px;
+  color: var(--a-text-secondary, #A8A5B8);
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+.tower-heart-modal .thm-tier-buy {
+  width: 100%;
+  padding: 6px 10px;
+  background: linear-gradient(180deg, #FFD53D, #FF8B3D);
+  color: #1A0F08;
+  border: none;
+  border-radius: 5px;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 10.5px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.tower-heart-modal .thm-tier-buy:hover { filter: brightness(1.08); }
+.tower-heart-modal .thm-tier-buy:active { transform: scale(0.97); }
+.tower-heart-modal .thm-tier-state {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  padding: 5px;
+  border-radius: 5px;
+}
+.tower-heart-modal .thm-state-owned {
+  color: #5DCA79;
+  background: rgba(93, 202, 121, 0.10);
+}
+.tower-heart-modal .thm-state-locked {
+  color: #A8A5B8;
+  background: rgba(168, 165, 184, 0.08);
+}
+.tower-history {
+  background: rgba(0,0,0,0.3);
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid #3D3F5E;
+}
+.tower-history h3 {
+  margin: 0 0 8px 0;
+  font-size: 11px; color: #A8A5B8;
+  letter-spacing: 2.5px; font-weight: 700;
+}
+.tower-history-list {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.tower-history-row {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: #F5F3EC;
+  padding: 5px 8px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 5px;
+  letter-spacing: 0.3px;
+  font-variant-numeric: tabular-nums;
+}
+.tower-history-floor {
+  color: #FFD53D; font-weight: 700;
+}
+.tower-history-empty {
+  font-size: 10px; color: #6D6B7D;
+  text-align: center; padding: 8px 0;
+  font-style: italic;
+}
+
+/* Tower floor-clear modal — custom DOM (not native confirm) */
+.tower-floor-clear-modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.78);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 9500;
+  padding: 20px;
+}
+.tower-floor-clear-modal.active { display: flex; }
+.tower-floor-clear-modal.hidden { display: none; }

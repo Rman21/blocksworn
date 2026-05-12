@@ -1,0 +1,1586 @@
+/* Modal / overlay / hero-detail / info-modal patterns.
+ * Pure relocation (T1.06).
+ */
+
+/* --- Hero Detail Modal (Arena skin) --- */
+.a-hero-detail {
+  /* Full-screen overlay */
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(5,3,8,0.85);
+  backdrop-filter: blur(6px);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+}
+.a-hero-detail.active { display: flex; }
+.a-hero-detail .modal-box {
+  width: 100%;
+  max-width: 448px;
+  max-height: 92vh;
+  max-height: 92dvh;
+  overflow-y: auto;
+  background: var(--a-bg-elevated);
+  border: var(--a-border-medium);
+  border-bottom: none;
+  border-radius: var(--a-radius-modal) var(--a-radius-modal) 0 0;
+  box-shadow: 0 -8px 32px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,184,74,0.15);
+  padding: 12px 16px 24px;
+  position: relative;
+  font-family: var(--a-font-body);
+  color: var(--a-text-primary);
+}
+.a-hero-detail .v-hero-sheet-handle {
+  width: 48px; height: 4px;
+  background: var(--a-gold-700);
+  border-radius: 2px;
+  margin: 0 auto 8px;
+  opacity: 0.8;
+}
+.a-hero-detail .detail-close {
+  position: absolute;
+  top: 10px; right: 12px;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: rgba(26,16,40,0.8);
+  border: 1px solid var(--a-gold-700);
+  color: var(--a-gold-300);
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.a-hero-detail .detail-close:active {
+  background: rgba(255,90,58,0.2);
+  border-color: var(--a-fire-500);
+  color: var(--a-fire-300);
+}
+
+/* Header: name/meta above, portrait on pedestal below */
+.a-hero-detail .detail-header {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px;
+  padding: 8px 0 12px;
+  margin: 0 0 10px;
+  border-bottom: 1px solid rgba(138,74,32,0.3);
+}
+.a-hero-detail .detail-info {
+  order: 1;
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.a-hero-detail .detail-name {
+  font-family: var(--a-font-display);
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--a-text-gold);
+  letter-spacing: 0.8px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9), 0 0 12px rgba(255,184,74,0.3);
+  text-transform: uppercase;
+}
+.a-hero-detail .detail-meta {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 2.5px;
+  color: var(--a-text-secondary);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.a-hero-detail .detail-tier-badge {
+  font-family: var(--a-font-num);
+  font-weight: 900;
+  font-size: 10px;
+  color: var(--a-gold-300);
+  padding: 2px 10px;
+  background: linear-gradient(180deg, rgba(58,42,24,0.9), rgba(26,15,8,0.9));
+  border: 1px solid var(--a-gold-700);
+  border-radius: 8px;
+  margin-top: 2px;
+  letter-spacing: 1.5px;
+}
+
+/* Portrait + pedestal */
+/* 2026-04-27 — Spec §1.1 portrait — clean rectangle 280×373 ratio, race-themed glow.
+   Larger size so the hero subject reads as "full-fledged" per spec image.
+   Source images frequently have padding around the subject — we scale the
+   container up + zoom slightly via transform so the hero fills the frame. */
+.a-hero-detail .detail-portrait {
+  position: relative;
+  width: min(280px, 78vw);
+  aspect-ratio: 280 / 373;  /* spec: 280×373 */
+  margin: 14px auto 12px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px solid var(--detail-glow, var(--a-gold-500));
+  box-shadow:
+    0 0 28px var(--detail-glow, rgba(255,184,74,0.5)),
+    0 8px 24px rgba(0,0,0,0.7);
+  background: linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.45));
+}
+.a-hero-detail .detail-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 30%;  /* anchor near upper-third where most subject art sits */
+  display: block;
+  transform: scale(1.15);  /* mild zoom to fill empty source padding around the subject */
+  transform-origin: center 35%;
+}
+
+/* Hero tabs */
+.a-hero-detail .v-hero-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--a-bg-well);
+  border: 1px solid var(--a-gold-900);
+  border-radius: var(--a-radius-btn);
+  margin-bottom: 12px;
+}
+.a-hero-detail .v-hero-tab {
+  flex: 1;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  font-family: var(--a-font-display);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--a-text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.a-hero-detail .v-hero-tab.active {
+  background: linear-gradient(180deg, var(--a-gold-300), var(--a-fire-700));
+  color: #1a0f08;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+  box-shadow: 0 0 10px rgba(255,184,74,0.45);
+}
+
+.a-hero-detail .v-hero-tab-body {
+  display: block;
+}
+.a-hero-detail .v-hero-tab-pane {
+  display: none;
+}
+.a-hero-detail .v-hero-tab-pane[data-active="true"],
+.a-hero-detail[data-tab="stats"]  .v-hero-tab-pane[data-tab="stats"],
+.a-hero-detail[data-tab="ult"]    .v-hero-tab-pane[data-tab="ult"],
+.a-hero-detail[data-tab="awaken"] .v-hero-tab-pane[data-tab="awaken"],
+.a-hero-detail[data-tab="equip"]  .v-hero-tab-pane[data-tab="equip"],
+.a-hero-detail[data-tab="lore"]   .v-hero-tab-pane[data-tab="lore"] {
+  display: block;
+}
+
+/* 2026-04-27 — Block H.3 — LORE pane styling (HERO_COMPENDIUM §1.1). */
+.detail-lore-section {
+  padding: 4px 2px 12px;
+}
+.detail-lore-tagline {
+  font-family: var(--a-font-display);
+  font-size: 14px;
+  font-style: italic;
+  color: var(--a-gold-300);
+  text-align: center;
+  margin: 6px 0 14px;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+.detail-lore-bio {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #D6D3DE;
+  background: rgba(0,0,0,0.25);
+  border-left: 3px solid var(--a-gold-500);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+.detail-lore-voice-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.15), rgba(255,213,61,0.05));
+  border: 1px solid var(--a-gold-500);
+  border-radius: 8px;
+  color: var(--a-gold-300);
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  margin-bottom: 12px;
+  transition: background 0.2s;
+}
+.detail-lore-voice-btn:active { transform: scale(0.97); }
+.detail-lore-voice-btn:hover { background: rgba(255,213,61,0.25); }
+/* 2026-04-27 — Spec §1.1 single-scroll layout — section headers + spacing. */
+.a-hero-detail--spec .detail-name {
+  text-align: center;
+  font-family: var(--a-font-display);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8), 0 0 12px rgba(255,184,74,0.4);
+  margin: 4px 0 4px;
+}
+.a-hero-detail--spec .detail-meta {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #C8C5D4;
+  margin-bottom: 6px;
+}
+/* Tier I badge hidden in spec layout — TIER is already in the meta line.
+   T2 badge stays as the prestige marker for ascended heroes. */
+.a-hero-detail--spec .detail-tier-badge {
+  display: none !important;
+}
+.a-hero-detail--spec .detail-t2-badge {
+  display: inline-block;
+  margin: 0 auto 6px;
+  text-align: center;
+}
+.detail-section {
+  margin: 14px 0;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255,213,61,0.18);
+}
+.detail-section:first-of-type { border-top: none; padding-top: 4px; }
+.detail-section-header {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--a-gold-300);
+  text-align: center;
+  margin-bottom: 10px;
+  text-shadow: 0 0 4px rgba(255,213,61,0.4);
+}
+.detail-section-header::before { content: '──── '; color: rgba(255,213,61,0.4); }
+.detail-section-header::after  { content: ' ────'; color: rgba(255,213,61,0.4); }
+
+/* STATS bars (HP / DMG / Charge per spec §1.1) */
+.detail-stats-bars {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.detail-stat-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.detail-stat-row .label {
+  color: #9A98A4;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+.detail-stat-row .bar {
+  height: 12px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255,213,61,0.18);
+}
+.detail-stat-row .bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--a-gold-700), var(--a-gold-300));
+  transition: width 0.3s;
+}
+.detail-stat-row .value {
+  color: var(--a-gold-300);
+  font-weight: 700;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Inline level section (no big card around it; just bar + cost text) */
+.detail-level-section--inline {
+  background: transparent !important;
+  border: none !important;
+  padding: 4px 0 0 !important;
+  margin: 0 !important;
+}
+.detail-level-section--inline .detail-level-hint { display: none; }
+/* DMG/HP/ULT chip strip duplicates the STATS bars above — hide in spec layout. */
+.a-hero-detail--spec .detail-level-stats { display: none !important; }
+
+/* TIER PROGRESSION text block (per spec §1.1) */
+.detail-tier-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #D6D3DE;
+  background: rgba(0,0,0,0.25);
+  border-left: 3px solid var(--a-gold-500);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.detail-tier-text-line {
+  margin-bottom: 4px;
+}
+.detail-tier-text-line:last-child { margin-bottom: 0; }
+.detail-tier-text-line .tt-label {
+  color: var(--a-gold-300);
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+/* ASCEND TO T2 separate row (cost chips below action row) */
+.detail-ascend-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+}
+.detail-upgrade-btn {
+  flex: 1;
+}
+
+.detail-tier-progression {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(255,213,61,0.18);
+  padding-top: 12px;
+}
+.detail-tier-slot {
+  flex: 1;
+  text-align: center;
+  padding: 6px 4px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  position: relative;
+}
+.detail-tier-slot--current {
+  border-color: var(--a-gold-500);
+  box-shadow: 0 0 6px rgba(255,213,61,0.4);
+}
+.detail-tier-slot--locked {
+  opacity: 0.5;
+  filter: grayscale(0.8);
+}
+.detail-tier-slot-label {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--a-gold-300);
+  display: block;
+  margin-bottom: 4px;
+}
+.detail-tier-slot-icon {
+  font-size: 18px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.detail-tier-slot-cost {
+  font-size: 8px;
+  color: #9A98A4;
+  display: block;
+}
+.cosmetic-name {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  color: #FFD53D;
+}
+.cosmetic-desc {
+  grid-column: 1;
+  font-size: 9px;
+  color: #B8B5C4;
+}
+.cosmetic-state {
+  grid-row: span 2;
+  align-self: center;
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+/* 2026-04-27 — Block H.4 — Captain Cinematic Mode (HERO_COMPENDIUM §1.2).
+   Triggered by .is-captain class on the modal + data-captain-race attribute.
+   Each captain race gets its own animated gradient bg. Pure cosmetic — never
+   affects gameplay; all captain mechanics already wired in §captainDual_*. */
+.a-hero-detail.is-captain .detail-portrait {
+  width: 90px !important;
+  height: 90px !important;
+  box-shadow: 0 0 18px rgba(255,213,61,0.55), inset 0 0 12px rgba(255,213,61,0.2);
+  border-color: var(--a-gold-300) !important;
+  position: relative;
+}
+.a-hero-detail.is-captain .detail-portrait::before {
+  content: '👑';
+  position: absolute;
+  top: -16px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 22px;
+  text-shadow: 0 0 8px rgba(255,213,61,0.95), 0 2px 4px rgba(0,0,0,0.7);
+  z-index: 5;
+  animation: captainCrownFloat 2.8s ease-in-out infinite;
+}
+.a-hero-detail.is-captain .modal-box {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,213,61,0.08), transparent 60%),
+    var(--a-bg-radial, #14091F);
+  border-color: rgba(255,213,61,0.5);
+  animation: captainBgPulse 5s ease-in-out infinite;
+}
+/* Per-race tinted bg accents for the 5 captains. */
+.a-hero-detail.is-captain[data-captain-race="pirate"]    .modal-box { background-image: radial-gradient(ellipse at 50% 0%, rgba(232,93,74,0.18), transparent 60%); }
+.a-hero-detail.is-captain[data-captain-race="rock"]      .modal-box { background-image: radial-gradient(ellipse at 50% 0%, rgba(192,106,223,0.18), transparent 60%); }
+.a-hero-detail.is-captain[data-captain-race="shark"]     .modal-box { background-image: radial-gradient(ellipse at 50% 0%, rgba(74,219,255,0.18), transparent 60%); }
+.a-hero-detail.is-captain[data-captain-race="crocodile"] .modal-box { background-image: radial-gradient(ellipse at 50% 0%, rgba(122,236,74,0.18), transparent 60%); }
+.a-hero-detail.is-captain[data-captain-race="spark"]     .modal-box { background-image: radial-gradient(ellipse at 50% 0%, rgba(255,225,74,0.18), transparent 60%); }
+
+/* Captain power box — race buff + element drop visualization. */
+.detail-captain-power {
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(0,0,0,0.30));
+  border: 1px solid var(--a-gold-500);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 8px 0 14px;
+  text-align: left;
+  position: relative;
+}
+
+/* Race lore box — only rendered for captains in cinematic mode. */
+.detail-race-lore {
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,213,61,0.2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 6px 0 14px;
+  text-align: left;
+}
+
+/* LEVEL section */
+.a-hero-detail .detail-level-section {
+  background: var(--a-bg-well);
+  border: 1px solid var(--a-gold-900);
+  border-radius: var(--a-radius-btn);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.a-hero-detail .detail-level-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 6px;
+}
+.a-hero-detail .detail-level-label {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--a-text-muted);
+}
+.a-hero-detail .detail-level-value {
+  font-family: var(--a-font-num);
+  font-weight: 900;
+  font-size: 22px;
+  color: var(--a-text-gold);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+.a-hero-detail .detail-level-bar {
+  height: 10px;
+  background: var(--a-bg-deepest);
+  border: 1px solid var(--a-gold-900);
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.7);
+  margin-bottom: 10px;
+}
+.a-hero-detail .detail-level-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--a-fire-700), var(--a-fire-300), var(--a-gold-300));
+  box-shadow: 0 0 8px rgba(255,184,74,0.5);
+  transition: width 400ms var(--a-ease-out);
+}
+
+/* Stats grid (HP/ATK/Role chips) */
+.a-hero-detail .detail-level-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.a-hero-detail .detail-level-stats > * {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 8px 6px;
+  background: linear-gradient(180deg, rgba(58,42,24,0.6), rgba(26,15,8,0.7));
+  border: 1px solid var(--a-gold-700);
+  border-radius: 8px;
+  font-family: var(--a-font-num);
+  font-weight: 900;
+  font-size: 14px;
+  color: var(--a-text-gold);
+  text-align: center;
+  line-height: 1.1;
+}
+.a-hero-detail .detail-level-stats .label,
+.a-hero-detail .detail-level-stats small {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--a-text-muted);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* LEVEL UP button */
+.a-hero-detail .detail-levelup-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%;
+  background: linear-gradient(180deg, var(--a-fire-300) 0%, var(--a-fire-700) 100%);
+  border: 2px solid var(--a-fire-100);
+  border-radius: var(--a-radius-btn);
+  padding: 12px 16px;
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: #2a0808;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3);
+  text-transform: uppercase;
+  box-shadow: var(--a-shadow-cta);
+  cursor: pointer;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.a-hero-detail .detail-levelup-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--a-fire-900);
+}
+.a-hero-detail .detail-levelup-btn:disabled,
+.a-hero-detail .detail-levelup-btn[disabled] {
+  background: rgba(58,42,24,0.6);
+  border-color: var(--a-gold-700);
+  color: var(--a-text-muted);
+  text-shadow: none;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.a-hero-detail .detail-levelup-cost {
+  font-family: var(--a-font-num);
+  font-size: 12px;
+  background: rgba(0,0,0,0.35);
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: #fff4de;
+}
+
+/* Ability cards (Fire/Ultimate) */
+.a-hero-detail .ability-card,
+.a-hero-detail .detail-skill,
+.a-hero-detail .detail-ult,
+.a-hero-detail .detail-fire {
+  background: var(--a-bg-well);
+  border: 1px solid var(--a-gold-900);
+  border-radius: var(--a-radius-btn);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.a-hero-detail .ability-card .title,
+.a-hero-detail .detail-skill-title,
+.a-hero-detail .detail-ult-title,
+.a-hero-detail .detail-fire-title {
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--a-text-gold);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 8px;
+}
+.a-hero-detail .ability-card .desc,
+.a-hero-detail .detail-skill-desc,
+.a-hero-detail .detail-ult-desc,
+.a-hero-detail .detail-fire-desc {
+  font-family: var(--a-font-body);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--a-text-primary);
+}
+.a-hero-detail button.detail-secondary,
+.a-hero-detail .detail-remove-squad,
+.a-hero-detail .tier-btn {
+  background: rgba(26,16,40,0.6);
+  border: 1px solid var(--a-gold-700);
+  border-radius: var(--a-radius-btn);
+  padding: 10px 16px;
+  font-family: var(--a-font-body);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--a-gold-300);
+  cursor: pointer;
+  width: 100%;
+}
+.a-hero-detail button.detail-secondary:active,
+.a-hero-detail .detail-remove-squad:active,
+.a-hero-detail .tier-btn:active {
+  background: rgba(255,184,74,0.1);
+  border-color: var(--a-gold-300);
+}
+
+/* Action row at bottom of modal (UPGRADE/SELECT) */
+.a-hero-detail .detail-actions,
+.a-hero-detail .detail-action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(138,74,32,0.3);
+}
+
+/* Awaken star pips, codex list items, etc — generic reskin */
+.a-hero-detail .awaken-star,
+.a-hero-detail .awaken-pip {
+  color: var(--a-gold-300);
+  filter: drop-shadow(0 0 4px rgba(255,184,74,0.5));
+}
+
+/* Scrollbar */
+.a-hero-detail .modal-box::-webkit-scrollbar { width: 4px; }
+.a-hero-detail .modal-box::-webkit-scrollbar-thumb {
+  background: var(--a-gold-700);
+  border-radius: 2px;
+}
+
+/* --- Secondary screens (Dailies / Ach / Codex / Tower / Arena / Event / Awaken / Season) --- */
+.v-secondary {
+  background: var(--a-bg-radial) !important;
+  color: var(--a-text-primary) !important;
+  font-family: var(--a-font-body) !important;
+  padding-top: max(12px, env(safe-area-inset-top, 0px) + 4px) !important;
+  flex-direction: column !important;
+}
+/* Task #1.5.5 hotfix: visibility gated on .active — previous build had an
+   unconditional `display: flex !important` above which kept every v-secondary
+   screen painted simultaneously (Roman observed Tower stack underneath Dailies).
+   The .active selectors below carry !important to beat any leftover overrides. */
+.v-secondary:not(.active) { display: none !important; }
+.v-secondary.active       { display: flex !important; }
+.v-secondary.active {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+.v-secondary.active > [class$="-wrap"] {
+  min-height: 0;
+}
+.v-secondary > .back-btn,
+.v-secondary > .back-btn.v-btn-icon {
+  position: absolute !important;
+  top: max(14px, env(safe-area-inset-top, 0px) + 6px) !important;
+  left: 12px !important;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  background: rgba(26,16,40,0.8) !important;
+  border: 1px solid var(--a-gold-700) !important;
+  color: var(--a-gold-300) !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+  box-shadow: none !important;
+}
+.v-secondary > .back-btn:active,
+.v-secondary > .back-btn.v-btn-icon:active {
+  background: rgba(255,184,74,0.12) !important;
+  border-color: var(--a-gold-300) !important;
+}
+.v-secondary h2 {
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 22px;
+  color: var(--a-text-gold);
+  letter-spacing: 3px;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8), 0 0 16px rgba(255,184,74,0.3);
+  text-transform: uppercase;
+  margin: 0;
+}
+.v-secondary h3 {
+  font-family: var(--a-font-display);
+  font-weight: 800;
+  font-size: 12px;
+  color: var(--a-gold-300);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin: 8px 0 6px;
+}
+
+/* Filter tabs inside secondary screens (ach, etc.) */
+.v-secondary .ach-tabs {
+  display: flex; gap: 4px;
+  overflow-x: auto;
+  padding: 2px 0;
+  scrollbar-width: none;
+}
+.v-secondary .ach-tabs::-webkit-scrollbar { display: none; }
+.v-secondary .ach-tab {
+  padding: 6px 10px;
+  background: linear-gradient(180deg, rgba(58,42,24,0.5), rgba(26,15,8,0.7));
+  border: 1px solid var(--a-gold-700);
+  border-radius: var(--a-radius-chip);
+  font-family: var(--a-font-display);
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--a-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--a-dur-tap) var(--a-ease-out);
+}
+.v-secondary .ach-tab.active {
+  background: linear-gradient(180deg, var(--a-gold-300), var(--a-fire-700));
+  color: #1a0f08;
+  border-color: var(--a-gold-100);
+  box-shadow: 0 0 8px rgba(255,184,74,0.4);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+}
+
+/* Arena tier card */
+.v-secondary .arena-tier-card {
+  text-align: center;
+  padding: 16px 12px;
+  background: radial-gradient(ellipse at center top, rgba(255,184,74,0.12), var(--a-bg-surface) 60%);
+  border: var(--a-border-medium);
+}
+.v-secondary .arena-tier-label {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--a-text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.v-secondary .arena-tier-name {
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 26px;
+  color: var(--a-text-gold);
+  letter-spacing: 3px;
+  margin: 4px 0;
+  text-shadow: 0 2px 2px rgba(0,0,0,0.8), 0 0 16px rgba(255,184,74,0.4);
+}
+.v-secondary .arena-tier-points {
+  font-family: var(--a-font-num);
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--a-gold-300);
+  margin-bottom: 10px;
+}
+.v-secondary .arena-prog-bar {
+  height: 8px;
+  background: var(--a-bg-well);
+  border: 1px solid var(--a-gold-900);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.v-secondary .arena-prog-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--a-fire-700), var(--a-gold-300));
+  box-shadow: 0 0 8px rgba(255,184,74,0.5);
+  transition: width 400ms var(--a-ease-out);
+}
+
+/* Event card */
+.v-secondary .event-card {
+  text-align: center;
+  padding: 16px 12px;
+  background: radial-gradient(ellipse at center top, rgba(255,184,74,0.1), var(--a-bg-surface) 60%);
+  border: var(--a-border-medium);
+}
+.v-secondary .event-card-icon {
+  font-size: 40px;
+  margin-bottom: 4px;
+  filter: drop-shadow(0 0 14px rgba(255,184,74,0.6));
+}
+.v-secondary .event-card-name {
+  font-family: var(--a-font-display);
+  font-weight: 900;
+  font-size: 18px;
+  color: var(--a-text-gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin: 4px 0;
+}
+.v-secondary .event-card-desc {
+  font-family: var(--a-font-body);
+  font-size: 12px;
+  color: var(--a-text-secondary);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+.v-secondary .event-card-timer {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  background: var(--a-bg-well);
+  border: 1px solid var(--a-gold-700);
+  border-radius: 10px;
+}
+.v-secondary .event-card-timer-label {
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--a-text-muted);
+  font-weight: 700;
+}
+.v-secondary .event-card-timer-value {
+  font-family: var(--a-font-num);
+  font-weight: 900;
+  font-size: 14px;
+  color: var(--a-fire-300);
+  text-shadow: 0 0 8px rgba(255,138,74,0.6);
+}
+
+/* Bottom-nav skin on secondary screens */
+.v-secondary .v-bottom-nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(10,6,18,0.4), rgba(10,6,18,0.95));
+  border-top: 1px solid rgba(138,74,32,0.3);
+  margin-top: auto;
+}
+.v-secondary .v-bottom-nav .v-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  font-family: var(--a-font-display);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--a-text-muted);
+  cursor: pointer;
+  border-radius: 8px;
+  background: none;
+  border: none;
+}
+.v-secondary .v-bottom-nav .v-nav-item.active {
+  color: var(--a-gold-300);
+  background: rgba(255, 184, 74, 0.08);
+}
+.v-secondary .v-bottom-nav .v-nav-item .icn {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* Info modal (reference) — Arena skin overriding old cream look */
+#infoModal {
+  position: fixed; inset: 0;
+  z-index: 10001;
+  background: rgba(5,3,8,0.85) !important;
+  backdrop-filter: blur(6px);
+  display: none; align-items: center; justify-content: center;
+  padding: 16px;
+}
+#infoModal.active { display: flex; }
+#infoModal .modal-box {
+  width: 100%; max-width: 420px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--a-bg-elevated) !important;
+  border: var(--a-border-medium) !important;
+  border-radius: var(--a-radius-modal) !important;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.8), 0 0 32px rgba(255,184,74,0.15) !important;
+  color: var(--a-text-primary) !important;
+  padding: 20px 18px !important;
+  font-family: var(--a-font-body) !important;
+}
+#infoModal .modal-title {
+  font-family: var(--a-font-display) !important;
+  font-weight: 900 !important;
+  font-size: 20px !important;
+  color: var(--a-text-gold) !important;
+  letter-spacing: 3px !important;
+  text-align: center;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8), 0 0 14px rgba(255,184,74,0.3) !important;
+}
+#infoModal .info-modal-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--a-text-secondary);
+  margin-bottom: 10px;
+}
+/* 2026-04-27 — Block H.7 — Info Tab strip. */
+#infoModal .info-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255,213,61,0.2);
+  padding-bottom: 4px;
+  overflow-x: auto;
+}
+#infoModal .info-tab {
+  flex: 1;
+  min-width: 56px;
+  padding: 7px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  color: #9A98A4;
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+#infoModal .info-tab:hover { color: var(--a-gold-300); }
+#infoModal .info-tab.active {
+  color: var(--a-gold-300);
+  background: linear-gradient(180deg, rgba(255,213,61,0.18), rgba(0,0,0,0));
+  border-color: rgba(255,213,61,0.4);
+  text-shadow: 0 0 4px rgba(255,213,61,0.6);
+}
+.info-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255,213,61,0.10), rgba(0,0,0,0.30));
+  border: 1px solid var(--a-gold-500);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.info-profile-avatar {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--a-gold-500);
+  overflow: hidden;
+  background: rgba(0,0,0,0.4);
+  flex: 0 0 56px;
+}
+.info-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.info-profile-name { font-family: var(--a-font-display); font-size: 14px; color: var(--a-gold-300); letter-spacing: 1px; }
+.info-profile-title { font-size: 10px; color: #C8C5D4; font-style: italic; margin-top: 2px; }
+.info-profile-level { font-size: 11px; color: #9A98A4; margin-top: 4px; }
+.info-section-title {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300);
+  margin: 14px 0 6px;
+  border-top: 1px dashed rgba(255,213,61,0.18);
+  padding-top: 10px;
+}
+.info-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px 10px;
+}
+.info-stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: rgba(0,0,0,0.20);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.info-stat-row .label { color: #9A98A4; }
+.info-stat-row .value { color: #FFD700; font-weight: 700; }
+.info-currency-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 10px;
+  font-size: 11px;
+}
+.info-currency-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 8px;
+}
+.info-currency-row .label { color: #9A98A4; }
+.info-currency-row .value { color: #FFD700; font-weight: 700; }
+
+/* 2026-05-02 — SPRINT 4 B3: Account actions + legal footer (Profile screen).
+   Restore Purchases is the spec-required recovery path; Delete Account is
+   the GDPR erasure path. Legal links satisfy Apple/Google submission. */
+.info-account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 8px 12px;
+}
+.info-action-btn {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--a-text-primary, #F5F3EC);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.info-action-btn:hover { background: rgba(255, 255, 255, 0.10); border-color: rgba(255, 255, 255, 0.28); }
+.info-action-btn:active { transform: scale(0.98); }
+.info-action-danger {
+  color: #F0AAAA;
+  border-color: rgba(232, 93, 74, 0.40);
+}
+.info-action-danger:hover { background: rgba(232, 93, 74, 0.10); border-color: rgba(232, 93, 74, 0.60); }
+.info-legal-footer {
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: #6E6B7A;
+  padding: 10px 8px 4px;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.info-legal-footer a { color: #9A98A4; text-decoration: none; }
+.info-legal-footer a:hover { color: var(--a-gold-300, #FFD53D); text-decoration: underline; }
+.info-legal-sep { margin: 0 6px; color: #4E4B5A; }
+
+.info-lore-chapter {
+  background: rgba(0,0,0,0.18);
+  border-left: 3px solid var(--a-gold-500);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.info-lore-chapter-title {
+  font-family: var(--a-font-display);
+  font-size: 11px;
+  color: var(--a-gold-300);
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.info-lore-chapter-desc {
+  font-size: 11px;
+  color: #B8B5C4;
+  line-height: 1.4;
+}
+.info-tier-breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.info-tier-cell {
+  text-align: center;
+  padding: 8px 6px;
+  background: rgba(0,0,0,0.30);
+  border: 1px solid rgba(255,213,61,0.18);
+  border-radius: 6px;
+}
+.info-tier-cell .tier-label {
+  font-family: var(--a-font-display);
+  font-size: 10px;
+  color: var(--a-gold-300);
+  letter-spacing: 1px;
+}
+.info-tier-cell .tier-count {
+  font-size: 16px;
+  color: #FFD700;
+  font-weight: 800;
+  margin-top: 4px;
+}
+#infoModal .btn {
+  background: linear-gradient(180deg, var(--a-fire-300) 0%, var(--a-fire-700) 100%) !important;
+  border: 2px solid var(--a-fire-100) !important;
+  border-radius: var(--a-radius-btn) !important;
+  padding: 12px 16px !important;
+  font-family: var(--a-font-display) !important;
+  font-weight: 900 !important;
+  font-size: 13px !important;
+  letter-spacing: 2px !important;
+  color: #2a0808 !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.3) !important;
+  text-transform: uppercase !important;
+  box-shadow: var(--a-shadow-cta) !important;
+  width: 100%;
+  margin-top: 8px !important;
+}
+#infoModal .btn-reset {
+  background: rgba(26,16,40,0.7) !important;
+  border: 1px solid var(--a-fire-500) !important;
+  color: var(--a-fire-300) !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+}
+
+/* 2026-04-27 — Audio A.3 settings UI (per BLOCKSWORN_AUDIO_SOUND.md §11.1). */
+.info-audio-section {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,213,61,0.2);
+  border-radius: 10px;
+}
+.info-audio-section-header {
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--a-gold-300, #FFD53D);
+  margin-bottom: 10px;
+  text-shadow: 0 0 4px rgba(255,213,61,0.4);
+}
+.info-audio-row { margin-bottom: 12px; }
+.info-audio-row:last-child { margin-bottom: 0; }
+.info-audio-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.info-audio-row-label {
+  font-size: 11px;
+  color: #B8B5C4;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+.info-audio-row-value {
+  font-size: 11px;
+  color: var(--a-gold-300, #FFD53D);
+  font-weight: 800;
+}
+.info-audio-slider {
+  width: 100%;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255,213,61,0.15);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.info-audio-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--slider-fill, #FFD53D);
+  border: 2px solid #1A1429;
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--slider-fill, #FFD53D);
+}
+.info-audio-slider::-moz-range-thumb {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--slider-fill, #FFD53D);
+  border: 2px solid #1A1429;
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--slider-fill, #FFD53D);
+}
+.info-audio-mute-btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, rgba(232,93,74,0.18), rgba(0,0,0,0.4));
+  border: 1.5px solid #E85D4A;
+  border-radius: 8px;
+  color: #FF8B6F;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 12px;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.info-audio-mute-btn:active { transform: scale(0.97); }
+.info-audio-radio {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  cursor: pointer;
+  font-size: 11px;
+  color: #B8B5C4;
+  gap: 10px;
+}
+.info-audio-radio input { margin: 0; }
+.info-audio-radio-name {
+  font-family: var(--a-font-display, sans-serif);
+  font-weight: 800;
+  color: var(--a-gold-300, #FFD53D);
+  min-width: 70px;
+}
+.info-audio-radio-hint {
+  font-size: 10px;
+  color: #9A98A4;
+  font-style: italic;
+}
+.info-audio-checkbox {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+  cursor: pointer;
+  font-size: 11px;
+  color: #B8B5C4;
+  gap: 10px;
+}
+.info-audio-checkbox input { margin: 0; }
+.info-audio-test-btn,
+.info-audio-restore-btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-family: var(--a-font-display, sans-serif);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s;
+}
+.info-audio-test-btn {
+  background: linear-gradient(180deg, rgba(93,202,121,0.18), rgba(0,0,0,0.4));
+  border: 1.5px solid #5DCA79;
+  color: #5DCA79;
+}
+.info-audio-restore-btn {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid rgba(255,213,61,0.4);
+  color: var(--a-gold-300, #FFD53D);
+}
+.info-audio-test-btn:active,
+.info-audio-restore-btn:active { transform: scale(0.97); }
+.info-modal-body { text-align: left; font-size: 12px; line-height: 1.5; color: #D0CDE0; max-height: 70vh; overflow-y: auto; padding-right: 6px; }
+.info-modal-body h3 { color: #E8B84A; font-size: 13px; margin: 14px 0 6px 0; letter-spacing: 0.5px; border-bottom: 1px solid rgba(232,184,74,0.15); padding-bottom: 3px; }
+.info-modal-body h3:first-child { margin-top: 0; }
+.info-modal-body .row { display: flex; gap: 6px; align-items: flex-start; margin: 3px 0; }
+.info-modal-body .row .icon { flex: 0 0 20px; text-align: center; font-weight: 700; }
+.info-modal-body .row .label { flex: 0 0 80px; font-weight: 700; color: #E4E1F0; }
+.info-modal-body .row .desc { flex: 1; color: #A8A5B8; font-size: 11px; }
+.info-modal-body strong { color: #E4E1F0; }
+/* V18.18: emblem-row — image aligned with label+desc */
+.info-modal-body .info-row-emblem { align-items: center; }
+.info-modal-body .info-row-emblem img { margin-right: 2px; }
+/* V18.18: race info cards — grouped tier bonuses per race */
+.info-modal-body .info-race-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-left-width: 3px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 6px 0;
+}
+.info-modal-body .info-race-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11px; letter-spacing: 0.6px;
+}
+.info-modal-body .info-race-header img { border: 1px solid rgba(255,255,255,0.15); }
+.info-modal-body .info-race-tiers {
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: 10.5px; color: #C0BDD0; line-height: 1.4;
+}
+.info-modal-body .info-race-tiers b { color: #E8B84A; font-weight: 700; margin-right: 5px; letter-spacing: 0.3px; }
+
+
+/* ===== MODAL ===== */
+.modal { position: fixed; inset: 0; background: rgba(15,15,31,0.94); display: none; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(10px); padding: 20px; }
+.modal.active { display: flex; }
+.modal-box {
+  background: linear-gradient(135deg, #1A1B2E, #0F0F1F);
+  border: 1px solid var(--modal-accent, #3D3F5E);
+  border-radius: 16px;
+  padding: 28px 24px;
+  text-align: center;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 0 40px var(--modal-accent, #3D3F5E);
+  position: relative; /* so absolute-positioned close button stays inside */
+}
+.modal-title { font-size: 24px; font-weight: 800; color: var(--modal-accent, #F5F3EC); letter-spacing: 2px; }
+.modal-boss-emblem {
+  width: 100px; height: 100px; margin: 0 auto 14px;
+  border-radius: 50%;
+  background-size: cover; background-position: center;
+  display: none; /* hidden by default, shown when emblem set */
+}
+.modal-boss-emblem.visible {
+  display: block;
+  animation: modalEmblemEntry 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+             modalEmblemPulse 2.4s ease-in-out 0.6s infinite;
+}
+.modal-boss-emblem.victory {
+  filter: drop-shadow(0 0 12px rgba(255,213,61,0.8));
+}
+.modal-boss-emblem.defeat {
+  filter: grayscale(0.3) drop-shadow(0 0 10px rgba(232,93,74,0.5));
+}
+.modal-label { font-size: 10px; color: #A8A5B8; letter-spacing: 2px; text-transform: uppercase; margin-top: 12px; }
+.modal-stats { font-size: 12px; color: #A8A5B8; margin: 16px 0; line-height: 1.7; }
+.modal-stats b { color: #F5F3EC; font-weight: 700; }
+.modal-next-boss { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 10px; margin: 12px 0; }
+.modal-next-boss img { width: 50px; height: 64px; border-radius: 6px; object-fit: cover; border: 1px solid #3D3F5E; }
+.modal-next-boss .next-info { text-align: left; }
+.modal-next-boss .next-name { font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+.modal-next-boss .next-label { font-size: 9px; letter-spacing: 2px; color: #A8A5B8; }
+.detail-close {
+  position: absolute; top: 10px; right: 10px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #E8E6DF;
+  font-size: 22px; cursor: pointer; padding: 0;
+  line-height: 1; border-radius: 50%;
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2;
+}
+.detail-close:hover, .detail-close:active { background: rgba(232,93,74,0.25); color: #fff; }
+.detail-header {
+  display: flex; gap: 14px; align-items: center;
+  padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.detail-portrait {
+  width: 74px; height: 84px; border-radius: 8px; overflow: hidden;
+  background: #1a1b2e; border: 2px solid var(--detail-glow, #3D3F5E);
+  flex-shrink: 0;
+}
+.detail-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.detail-info { flex: 1; min-width: 0; }
+.detail-name {
+  font-size: 19px; font-weight: 800; letter-spacing: 1.5px;
+  color: #E8E6DF;
+}
+.detail-meta {
+  font-size: 11px; color: #A8A5B8; letter-spacing: 1.5px;
+  margin-top: 4px;
+}
+.detail-tier-badge {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  padding: 2px 8px; border-radius: 8px; margin-top: 6px;
+  background: rgba(255,213,61,0.15); color: #FFD53D;
+  border: 1px solid rgba(255,213,61,0.3);
+  letter-spacing: 1px;
+}
+.detail-tier-badge.t0 { display: none; }
+/* 2026-04-27 — Block 6.4 — Tier 2 Ascension badge in detail modal. */
+.detail-t2-badge {
+  display: inline-block;
+  font-family: var(--a-font-display, 'Anton', sans-serif);
+  font-size: 11px; font-weight: 800;
+  padding: 3px 9px; border-radius: 10px; margin-top: 6px; margin-left: 6px;
+  background: linear-gradient(135deg, #C0A6DF 0%, #6B4A99 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  letter-spacing: 1.2px;
+  box-shadow: 0 0 10px rgba(192, 166, 223, 0.55);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+}
+/* ASCEND button — cosmic purple gradient, distinct from squad action. */
+.detail-actions .btn-ascend {
+  background: linear-gradient(180deg, #C0A6DF 0%, #6B4A99 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  font-weight: 800;
+  letter-spacing: 1px;
+  box-shadow: 0 0 12px rgba(192, 166, 223, 0.45);
+  transition: filter 0.15s, transform 0.12s;
+}
+.detail-actions .btn-ascend:hover  { filter: brightness(1.12); }
+.detail-actions .btn-ascend:active { transform: scale(0.97); }
+.detail-actions .btn-ascend:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+.detail-t3-badge {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 4px 12px;
+  background: linear-gradient(135deg, rgba(255,184,74,0.25), rgba(187,96,255,0.30));
+  border: 1px solid rgba(187,96,255,0.7);
+  border-radius: 14px;
+  color: #F0E0FF;
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-shadow: 0 0 8px rgba(187,96,255,0.6);
+}
+.detail-mythic-badge {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 4px 14px;
+  background: linear-gradient(135deg, rgba(187,96,255,0.30), rgba(255,90,58,0.35), rgba(255,213,61,0.30));
+  border: 1.5px solid rgba(255,90,58,0.8);
+  border-radius: 14px;
+  color: #FFE9D0;
+  font-family: var(--a-font-display, 'Cinzel', serif);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(255,90,58,0.85), 0 0 18px rgba(255,213,61,0.5);
+  animation: mythicBadgePulse 3s ease-in-out infinite;
+}
+.detail-abilities {
+  margin: 12px 0;
+  font-size: 11px; line-height: 1.55; color: #A8A5B8;
+}
+/* 2026-04-27 — bullet rows for ROLE / ELEMENT / PASSIVE / ULT / RACE.
+ * Each row uses a left bullet rule to mark it as a discrete bullet
+ * (vs a paragraph). Visual rhythm matches the existing detail card. */
+.detail-abilities .ab-row {
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid rgba(255, 213, 61, 0.35);
+  border-radius: 0 4px 4px 0;
+}
+.detail-abilities .ab-label {
+  display: inline-block;
+  min-width: 78px;
+  color: #E8E6DF;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-right: 8px;
+  font-size: 10px;
+}
+.detail-tiers-header {
+  font-size: 11px; font-weight: 700; color: #E8E6DF;
+  letter-spacing: 2px; margin: 10px 0 8px;
+  padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);
+}
+.detail-tiers {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.detail-actions { margin-top: 12px; text-align: center; }
+.detail-actions .btn { width: 100%; padding: 10px; font-size: 13px; margin-top: 0; }
+
+/* ===== V3.0 PHASE 4 BLOCK 4.2 — LEVEL SECTION IN DETAIL MODAL ===== */
+.detail-level-section {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(255,213,61,0.05);
+  border: 1px solid rgba(255,213,61,0.25);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.detail-level-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 2px;
+}
+.detail-level-label {
+  font-size: 10px;
+  color: #A8A5B8;
+  letter-spacing: 3px;
+  font-weight: 700;
+}
+.detail-level-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #FFD53D;
+  letter-spacing: 1.5px;
+  font-variant-numeric: tabular-nums;
+}
+.detail-level-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.detail-level-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #FFD53D 0%, #FF7340 100%);
+  transition: width 0.4s ease-out;
+  width: 0%;
+}
+.detail-level-stats {
+  display: flex;
+  gap: 10px;
+  justify-content: space-around;
+  padding: 6px 2px;
+  font-size: 11px;
+  color: #A8A5B8;
+  letter-spacing: 0.3px;
+}
+.detail-level-stats .stat-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.detail-level-stats .stat-chip-label {
+  font-size: 9px;
+  color: #6E6C80;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+}
+.detail-level-stats .stat-chip-value {
+  font-size: 12px;
+  color: #F5F3EC;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.detail-level-stats .stat-chip-value.zero { color: #6E6C80; }
+.detail-levelup-btn {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #FFD53D;
+  background: linear-gradient(180deg, #FFD53D 0%, #E89D1F 100%);
+  color: #1A1B2E;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  transition: filter 0.12s, transform 0.12s;
+}
+.detail-levelup-btn:hover:not([disabled]),
+.detail-levelup-btn:active:not([disabled]) {
+  filter: brightness(1.12);
+  transform: scale(1.02);
+}
+.detail-levelup-btn[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: #3D3F5E;
+  color: #A8A5B8;
+  border-color: #3D3F5E;
+  filter: grayscale(0.3);
+}
+.detail-levelup-cost {
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.detail-level-hint {
+  font-size: 9px;
+  color: #8A88A0;
+  text-align: center;
+  font-style: italic;
+  letter-spacing: 0.2px;
+}
+
+@media (max-height: 720px) {
+  .detail-level-section { padding: 10px; gap: 6px; }
+  .detail-level-value { font-size: 16px; }
+  .detail-level-stats { font-size: 10px; }
+  .detail-level-stats .stat-chip-value { font-size: 11px; }
+  .detail-levelup-btn { padding: 8px 10px; font-size: 11px; }
+}

@@ -1,0 +1,115 @@
+# 2026-05-11 — TASK-005 (T1.05): CI pipeline for Blocksworn Phase 1.
+# 2026-05-11 — TASK-009 (T1.08): + unit job (Vitest) between lint and build.
+# Spec: docs/plan/00_EXECUTION_PLAN.md §12 + §13 T1.05 § E + T1.08.
+#
+# Jobs (sequential gate chain):
+#   lint    — ESLint flat config on src/, tests/, root configs
+#   unit    — Vitest unit tests (T1.08+; currently storage abstraction)
+#   build   — Vite build + enforce dist/ < 5MB (CLAUDE.md §3.2)
+#   smoke   — Playwright smoke on all 4 projects (Linux runners have no WebKit
+#             host constraint — uses test:smoke:full)
+#   visual  — Playwright regression spec on chromium + mobile-chrome only
+#             (T1.04 only captured baselines for those two projects).
+#             On failure: tests/visual/diff/ uploaded as artifact.
+#
+# Gate order: build (and therefore smoke + visual) `needs: unit` so a
+# unit-test regression in service abstractions fails fast before the
+# heavier Playwright runs spin up — saves runner minutes.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+
+  unit:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:unit
+
+  build:
+    runs-on: ubuntu-latest
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - name: Enforce bundle <5MB
+        run: |
+          BUNDLE_KB=$(du -sk dist | cut -f1)
+          echo "Bundle size: ${BUNDLE_KB} KB"
+          if [ "$BUNDLE_KB" -gt 5120 ]; then
+            echo "Bundle exceeds 5MB limit (5120 KB)"
+            exit 1
+          fi
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
+      - run: npm run test:smoke:full
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  visual:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      # CI uses test:visual:ci (chromium only) — mobile-chrome on Linux
+      # produces consistent 5-8% diffs vs macOS-captured baselines due to
+      # mobile viewport (Pixel 7) DPR + font rendering platform differences.
+      # Local devs keep `npm run test:visual` for both projects.
+      - run: npm run test:visual:ci
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: |
+            tests/visual/diff/
+            tests/visual/current/
+          retention-days: 7

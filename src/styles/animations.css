@@ -1,0 +1,1067 @@
+/* @keyframes — all animation declarations.
+ * Extracted from legacy `<style>`. Pure relocation (T1.06).
+ * Includes prefers-reduced-motion overrides.
+ */
+
+@keyframes rotationPromptSpin {
+  0%, 100% { transform: rotate(-15deg); }
+  50%      { transform: rotate(15deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rotation-prompt-icon { animation: none !important; }
+}
+@keyframes pwaPromptFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pwa-prompt { animation: none !important; }
+}
+@keyframes bossDetailsFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1.0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boss-details-modal,
+  .boss-details-modal > .boss-details-card { animation: none !important; }
+}
+
+@keyframes buffModalSlideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buff-modal-card { animation: none !important; }
+}
+@keyframes pressurePulse {
+  from { box-shadow: 0 0 4px rgba(255, 215, 0, 0.55); }
+  to   { box-shadow: 0 0 18px rgba(255, 215, 0, 0.95), 0 0 28px rgba(255, 165, 0, 0.65); }
+}
+@keyframes bsbStaggerPulse {
+  from { box-shadow: 0 0 4px rgba(255, 215, 0, 0.45); }
+  to   { box-shadow: 0 0 14px rgba(255, 215, 0, 0.85); }
+}
+@keyframes staggerFlash {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes bossStaggeredPulse {
+  from { box-shadow: 0 0 12px rgba(255, 215, 0, 0.50), inset 0 0 10px rgba(255, 165, 0, 0.30); }
+  to   { box-shadow: 0 0 22px rgba(255, 215, 0, 0.90), inset 0 0 18px rgba(255, 165, 0, 0.55); }
+}
+@keyframes bossRecoveringPulse {
+  from { box-shadow: 0 0 8px rgba(255, 69, 0, 0.45); }
+  to   { box-shadow: 0 0 22px rgba(255, 69, 0, 0.90); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-menu,
+  .settings-menu-overlay {
+    transition: none !important;
+  }
+}
+
+@keyframes settingsStubFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .audio-settings-modal-card,
+  .coming-soon-modal-card { animation: none !important; }
+}
+@keyframes heroTierMythicShimmer {
+  0%   { background-position:   0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-card .hero-tier-badge.tier-m { animation: none !important; }
+}
+@keyframes heroChargeReadyPulse {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.6) saturate(1.2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-slot.ult-ready .hero-charge-segment.filled { animation: none !important; }
+}
+@keyframes bossPortraitPhase2 {
+  from { box-shadow: 0 0 12px rgba(255, 215, 0, 0.4), inset 0 -4px 8px rgba(0, 0, 0, 0.5); }
+  to   { box-shadow: 0 0 22px rgba(255, 215, 0, 0.85), inset 0 -4px 8px rgba(0, 0, 0, 0.5); }
+}
+@keyframes bossPortraitPhase3 {
+  from { box-shadow: 0 0 16px rgba(255, 20, 147, 0.5), inset 0 -4px 8px rgba(0, 0, 0, 0.5); transform: scale(1.0); }
+  to   { box-shadow: 0 0 26px rgba(255, 20, 147, 0.95), inset 0 -4px 8px rgba(0, 0, 0, 0.5); transform: scale(1.02); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .a-battle .v-battle-boss-portrait.phase-2,
+  .a-battle .v-battle-boss-portrait.phase-3 { animation: none !important; transform: none !important; }
+}
+
+@keyframes bossBuffDangerPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.7; transform: scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .a-battle .v-battle-boss-buffs .v-battle-boss-buff,
+  .a-battle .v-battle-boss-buffs .v-battle-boss-buff.danger {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .combat-top-bar-element { transition: none !important; }
+}
+@keyframes t2BadgePulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(192, 166, 223, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+  50%      { box-shadow: 0 0 14px rgba(192, 166, 223, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+}
+@keyframes aCardCraftable {
+  0%, 100% { box-shadow: 0 0 14px rgba(255,184,74,0.4), 0 4px 10px rgba(0,0,0,0.5); }
+  50%      { box-shadow: 0 0 22px rgba(255,184,74,0.9), 0 4px 10px rgba(0,0,0,0.5); }
+}
+@keyframes aCardAwakened {
+  0%, 100% { box-shadow: 0 0 14px var(--stihiya-glow), 0 4px 10px rgba(0,0,0,0.5); }
+  50%      { box-shadow: 0 0 24px rgba(255,255,255,0.5), 0 0 32px var(--stihiya-glow), 0 4px 10px rgba(0,0,0,0.5); }
+}
+@keyframes ascend-glow {
+  0%, 100% { box-shadow: 0 0 0 0   rgba(168, 138, 200, 0.4); }
+  50%      { box-shadow: 0 0 16px 4px rgba(168, 138, 200, 0.8); }
+}
+@keyframes solarHaloPulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255,213,61,0.5), 0 0 12px rgba(255,184,74,0.4); }
+  50%      { box-shadow: 0 0 0 2px rgba(255,213,61,0.9), 0 0 22px rgba(255,184,74,0.7); }
+}
+@keyframes emberAuraFlicker {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1.0; }
+}
+@keyframes mythicAuraShift {
+  0%   { background-position: 0% 50%; filter: hue-rotate(0deg); }
+  100% { background-position: 100% 50%; filter: hue-rotate(360deg); }
+}
+@keyframes wg-fade-out {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+@keyframes tcp-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(77, 208, 225, 0.5); }
+  50%      { box-shadow: 0 0 24px 6px rgba(77, 208, 225, 0.7); }
+}
+@keyframes nav-pulse {
+  0%, 100% { box-shadow: 0 0 0 0   rgba(255, 213, 61, 0.4); }
+  50%      { box-shadow: 0 0 12px 3px rgba(255, 213, 61, 0.7); }
+}
+@keyframes fpBannerPulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(255,213,61,0.25); }
+  50%      { box-shadow: 0 0 24px rgba(255,213,61,0.45); }
+}
+@keyframes buffPulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(255,170,0,0.30); }
+  50%      { box-shadow: 0 0 22px rgba(255,170,0,0.55); }
+}
+@keyframes afoFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes afoSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes bonusFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes packChestShake {
+  0%, 100% { transform: scale(1.4) rotate(0); }
+  25%      { transform: scale(1.4) rotate(-6deg); }
+  75%      { transform: scale(1.4) rotate(6deg); }
+}
+@keyframes packChestPremiumPulse {
+  0%, 100% { transform: scale(1);    filter: drop-shadow(0 0 14px currentColor) drop-shadow(0 0 28px rgba(255,213,61,0.4)); }
+  50%      { transform: scale(1.06); filter: drop-shadow(0 0 24px currentColor) drop-shadow(0 0 42px rgba(255,213,61,0.6)); }
+}
+@keyframes packChestUltimatePulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 22px #BB60FF) drop-shadow(0 0 44px rgba(255,213,61,0.55));
+  }
+  50% {
+    transform: scale(1.10);
+    filter: drop-shadow(0 0 38px #BB60FF) drop-shadow(0 0 68px rgba(255,213,61,0.85));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pack-chest.kind-premium,
+  .pack-chest.kind-ultimate { animation: none; }
+}
+@keyframes packCardFlip {
+  0%   { opacity: 0; transform: rotateY(180deg) scale(0.6); }
+  60%  { opacity: 1; transform: rotateY(0deg) scale(1.08); }
+  100% { opacity: 1; transform: rotateY(0deg) scale(1); }
+}
+@keyframes captainCrownFloat {
+  0%, 100% { transform: translateX(-50%) translateY(0px); }
+  50%      { transform: translateX(-50%) translateY(-3px); }
+}
+@keyframes captainBgPulse {
+  0%, 100% { box-shadow: 0 0 30px rgba(255,213,61,0.18); }
+  50%      { box-shadow: 0 0 50px rgba(255,213,61,0.35); }
+}
+@keyframes pPlayerHpHit {
+  0%   { background-color: transparent; }
+  20%  { background-color: rgba(255, 60, 60, 0.35); }
+  100% { background-color: transparent; }
+}
+@keyframes aUltReadyPulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(255,138,74,0.6), inset 0 -3px 6px rgba(0,0,0,0.4); }
+  50%      { box-shadow: 0 0 24px rgba(255,184,74,0.95), inset 0 -3px 6px rgba(0,0,0,0.4); }
+}
+@keyframes aResultPop {
+  0%   { opacity: 0; transform: scale(0.85) translateY(20px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+/* T1.15 (2026-05-12): memorialDust / memorialAura / memorialFloat keyframes
+   deleted with the Cosmic Memorial Ch3 hub strip (Block 6.5 DEBT-9). Only
+   .a-hub-memorial-ghost referenced these; that selector + the strip are
+   gone now too. */
+@keyframes forgottenNamesBreathe {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 213, 61, 0.75),
+      0 0 0 3px rgba(192, 106, 223, 0.55),
+      0 0 0 4px rgba(255, 213, 61, 0.20),
+      0 0 16px rgba(192, 106, 223, 0.55),
+      0 0 30px rgba(255, 213, 61, 0.14),
+      inset 0 0 14px rgba(192, 106, 223, 0.16);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 213, 61, 1.0),
+      0 0 0 3px rgba(192, 106, 223, 0.85),
+      0 0 0 4px rgba(255, 213, 61, 0.40),
+      0 0 24px rgba(192, 106, 223, 0.95),
+      0 0 48px rgba(255, 213, 61, 0.26),
+      inset 0 0 20px rgba(192, 106, 223, 0.30);
+  }
+}
+@keyframes forgottenNamesShimmer {
+  0%, 100% { opacity: 0.7; transform: scale(1.0); }
+  50%      { opacity: 1.0; transform: scale(1.18); }
+}
+@keyframes emergencyChargePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 93, 74, 0); transform: scale(1); }
+  50%      { box-shadow: 0 0 24px 6px rgba(232, 93, 74, 0.85); transform: scale(1.06); }
+}
+@keyframes emergencyUltPulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(255,184,74,0.6), 0 0 20px rgba(255,213,61,0.5); }
+  50%      { box-shadow: 0 4px 22px rgba(255,184,74,0.9), 0 0 32px rgba(255,213,61,0.8); }
+}
+
+/* ===== POLISH v1 · PHASE 0 · SHARED KEYFRAMES ===== */
+
+/* Мягкое дыхание — scale + brightness. GPU-cheap (только transform + filter) */
+@keyframes pIdleBreathe {
+  0%, 100% { transform: scale(1.00); filter: brightness(1.00); }
+  50%      { transform: scale(1.015); filter: brightness(1.06); }
+}
+
+/* Пульс аур — для ready/urgent состояний */
+@keyframes pAuraPulse {
+  0%, 100% { box-shadow: 0 0 12px var(--p-current-aura, rgba(255,184,74,0.4)); }
+  50%      { box-shadow: 0 0 24px var(--p-current-aura, rgba(255,184,74,0.7)); }
+}
+
+/* Быстрый bump (для chip count-up, button press confirm) */
+@keyframes pBump {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* Shimmer — движущийся блик для progress bars и rewards */
+@keyframes pShimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+/* Hit-flash — белый overlay на 120ms */
+@keyframes pHitFlash {
+  0%, 100% { background-color: transparent; }
+  50%      { background-color: rgba(255, 255, 255, 0.75); }
+}
+@keyframes bossAuraPulse {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1.0; }
+}
+@keyframes bossAuraSpin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .boss-img-wrap.boss-aura-light::before,
+  .boss-img-wrap.boss-aura-dark::before,
+  .boss-img-wrap.boss-aura-both::before { animation: none !important; }
+}
+@keyframes bossHit {
+  0%   { transform: translateX(0); filter: brightness(1); }
+  15%  { transform: translateX(-5px); filter: brightness(2.2) hue-rotate(-30deg); }
+  30%  { transform: translateX(5px); filter: brightness(2); }
+  55%  { transform: translateX(-3px); filter: brightness(1.4); }
+  75%  { transform: translateX(3px); }
+  100% { transform: translateX(0); filter: brightness(1); }
+}
+@keyframes bossHitCrit {
+  0%   { transform: translateX(0) scale(1); filter: brightness(1); }
+  10%  { transform: translateX(-8px) scale(1.08); filter: brightness(3) saturate(1.8) hue-rotate(20deg); }
+  25%  { transform: translateX(8px) scale(1.05); filter: brightness(2.5) saturate(1.4); }
+  45%  { transform: translateX(-5px) scale(1.02); filter: brightness(1.8); }
+  70%  { transform: translateX(4px); filter: brightness(1.3); }
+  100% { transform: translateX(0) scale(1); filter: brightness(1); }
+}
+@keyframes bossDefeat {
+  0%   { transform: scale(1); filter: brightness(1); opacity: 1; }
+  30%  { transform: scale(1.1); filter: brightness(3); }
+  100% { transform: scale(0.3) rotate(20deg); filter: brightness(0); opacity: 0; }
+}
+@keyframes pBossDeathPause {
+  0%, 100% { filter: brightness(1) saturate(1); }
+  50%      { filter: brightness(0.4) saturate(0.3); }
+}
+@keyframes pBossDeathFlash {
+  0%   { opacity: 0; }
+  30%  { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+@keyframes pBossDissolve {
+  0%   { transform: scale(1); filter: brightness(1) blur(0); opacity: 1; }
+  15%  { transform: scale(1.08); filter: brightness(2.2) blur(0); opacity: 1; }
+  40%  { transform: scale(1.02); filter: brightness(1.5) blur(1px); opacity: 0.85; }
+  100% { transform: scale(0.6) rotate(-12deg); filter: brightness(0) blur(6px); opacity: 0; }
+}
+@keyframes pBossParticle {
+  0%   { transform: translate(-50%, -50%) rotate(var(--pangle)) translateX(0)           scale(0.3); opacity: 0; }
+  15%  { transform: translate(-50%, -50%) rotate(var(--pangle)) translateX(20px)        scale(1.4); opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(var(--pangle)) translateX(var(--pdist)) scale(0.4); opacity: 0; }
+}
+@keyframes pBossDeathZoom {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.06); }
+}
+@keyframes warnPulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; text-shadow: 0 0 8px #E85D4A; } }
+@keyframes slotReadyBounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+@keyframes fired {
+  0%   { transform: scale(1); box-shadow: none; }
+  20%  { transform: scale(1.15) translateY(-3px); box-shadow: 0 0 20px var(--glow); }
+  60%  { transform: scale(1.05); box-shadow: 0 0 12px var(--glow); }
+  100% { transform: scale(1); box-shadow: none; }
+}
+@keyframes hpDigitalPulse {
+  0%, 100% { text-shadow: 0 0 6px rgba(255, 77, 61, 0.55), 0 1px 2px rgba(0, 0, 0, 0.6); }
+  50%      { text-shadow: 0 0 12px rgba(255, 77, 61, 1.0),  0 1px 2px rgba(0, 0, 0, 0.6); }
+}
+@keyframes shieldPulse {
+  0%,100% { box-shadow:
+    inset 0 -2px 3px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.4),
+    0 0 7px rgba(155,89,214,0.55),
+    0 1px 2px rgba(0,0,0,0.4); }
+  50%     { box-shadow:
+    inset 0 -2px 3px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.5),
+    0 0 14px rgba(155,89,214,0.95),
+    0 1px 2px rgba(0,0,0,0.4); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp .shield { animation: none; }
+}
+@keyframes ultFillShimmer {
+  0%, 100% { filter: brightness(1.7) saturate(1.3); }
+  50%      { filter: brightness(2.1) saturate(1.5); }
+}
+@keyframes ultReadyPulse {
+  0%, 100% { box-shadow: 0 0 0 1px var(--glow), 0 0 10px var(--glow); transform: translateY(0); }
+  50%      { box-shadow: 0 0 0 2px var(--glow), 0 0 18px var(--glow); transform: translateY(-2px); }
+}
+@keyframes ultFireFlash {
+  0% { transform: scale(1); filter: brightness(1); }
+  40% { transform: scale(1.15); filter: brightness(2); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+@keyframes pHeroUltFlash {
+  0%   { opacity: 0; }
+  15%  { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+@keyframes pieceRotate {
+  0%   { transform: rotate(-90deg) scale(0.85); }
+  60%  { transform: rotate(5deg) scale(1.05); }
+  100% { transform: rotate(0) scale(1); }
+}
+@keyframes threatBannerPulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 90, 74, 0.25); }
+  50%      { box-shadow: 0 0 18px rgba(255, 90, 74, 0.55); }
+}
+@keyframes stateBannerPulse {
+  0%, 100% { box-shadow: 0 0 10px color-mix(in srgb, var(--state-color) 25%, transparent); }
+  50%      { box-shadow: 0 0 18px color-mix(in srgb, var(--state-color) 55%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .state-banner { animation: none !important; }
+}
+@keyframes boardParticleDrift {
+  0%   { transform: translateY(0);     opacity: 0;   }
+  10%  {                                opacity: 0.6; }
+  90%  {                                opacity: 0.6; }
+  100% { transform: translateY(-110%); opacity: 0;   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grid-wrap { transition: none !important; }
+  .board-particle { display: none !important; }
+}
+@keyframes voidEmberPulse {
+  0%,100% { box-shadow: inset 0 0 6px rgba(255,140,60,0.5), 0 0 6px rgba(232,93,74,0.4); filter: brightness(1); }
+  50%     { box-shadow: inset 0 0 12px rgba(255,180,90,1), 0 0 16px rgba(232,93,74,0.9); filter: brightness(1.3); }
+}
+@keyframes voidTidePulse {
+  0%,100% { box-shadow: inset 0 0 6px rgba(140,220,255,0.5), 0 0 6px rgba(59,139,212,0.4); filter: brightness(1); }
+  50%     { box-shadow: inset 0 0 12px rgba(180,235,255,1), 0 0 16px rgba(59,139,212,0.9); filter: brightness(1.25); }
+}
+@keyframes voidGrovePulse {
+  0%,100% { box-shadow: inset 0 0 6px rgba(170,255,130,0.5), 0 0 6px rgba(93,202,121,0.4); filter: brightness(1); }
+  50%     { box-shadow: inset 0 0 12px rgba(200,255,160,1), 0 0 16px rgba(93,202,121,0.9); filter: brightness(1.25); }
+}
+@keyframes voidSolarPulse {
+  0%,100% { box-shadow: inset 0 0 6px rgba(255,210,110,0.5), 0 0 6px rgba(232,184,74,0.4); filter: brightness(1); }
+  50%     { box-shadow: inset 0 0 12px rgba(255,240,150,1), 0 0 16px rgba(232,184,74,0.9); filter: brightness(1.3); }
+}
+@keyframes voidUmbraPulse {
+  0%,100% { box-shadow: inset 0 0 6px rgba(200,120,255,0.5), 0 0 6px rgba(155,89,214,0.4); filter: brightness(1); }
+  50%     { box-shadow: inset 0 0 14px rgba(220,150,255,1), 0 0 18px rgba(155,89,214,0.95); filter: brightness(1.35); }
+}
+@keyframes stormTurnsPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(255,90,74,0.55); transform: scale(1); }
+  50%      { box-shadow: 0 0 8px rgba(255,140,110,0.95); transform: scale(1.12); }
+}
+@keyframes clearFlash {
+  0% { filter: brightness(1); transform: scale(1); }
+  30% { filter: brightness(3); transform: scale(1.25); }
+  100% { filter: brightness(0); transform: scale(0); opacity: 0; }
+}
+@keyframes burnFlash {
+  0%   { filter: brightness(1); transform: scale(1); }
+  40%  { filter: brightness(4); transform: scale(1.35); box-shadow: 0 0 24px currentColor; }
+  100% { filter: brightness(0); transform: scale(0); opacity: 0; }
+}
+@keyframes voidSpawn {
+  0% { transform: scale(0) rotate(-30deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+@keyframes cinderblastWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.45) saturate(1.15); }
+}
+@keyframes cinderblastHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(255,80,40,0); }
+  20%  { filter: brightness(2.6) saturate(1.4); transform: scale(1.18); box-shadow: 0 0 28px rgba(255,80,40,0.9), 0 0 12px rgba(255,180,80,0.6) inset; }
+  60%  { filter: brightness(1.6) saturate(1.2); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(255,80,40,0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cell.cinderblast-warn { animation: none !important; }
+  .cell.cinderblast-warn::after { animation: none !important; }
+  .cell.cinderblast-hit { animation: none !important; }
+}
+@keyframes rowStrikeWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.45) saturate(1.15); }
+}
+@keyframes rowStrikeHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(60,140,220,0); }
+  20%  { filter: brightness(2.4) saturate(1.5); transform: scale(1.16); box-shadow: 0 0 24px rgba(60,140,220,0.9), 0 0 12px rgba(140,210,240,0.6) inset; }
+  60%  { filter: brightness(1.5) saturate(1.2); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(60,140,220,0); }
+}
+@keyframes maelstromWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.3) saturate(1.2); }
+}
+@keyframes maelstromSwirl {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes crushWarnPulse {
+  0%, 100% { outline-color: rgba(80, 170, 230, 0.4); }
+  50%      { outline-color: rgba(140, 210, 240, 0.95); }
+}
+@keyframes crushLockBob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cell.row-strike-warn,
+  .cell.row-strike-warn::after,
+  .cell.row-strike-hit,
+  .cell.maelstrom-warn,
+  .cell.maelstrom-warn::after,
+  .hero-card--crush-spire-warn,
+  .hero-card--crush-spire-locked::after { animation: none !important; }
+}
+@keyframes bloomStrikeWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.4) saturate(1.2); }
+}
+@keyframes bloomStrikeHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(60,180,90,0); }
+  20%  { filter: brightness(2.4) saturate(1.5); transform: scale(1.18); box-shadow: 0 0 26px rgba(60,180,90,0.9), 0 0 12px rgba(140,240,170,0.6) inset; }
+  60%  { filter: brightness(1.5) saturate(1.2); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(60,180,90,0); }
+}
+@keyframes rootBindBreathe {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.2) saturate(1.15); }
+}
+@keyframes forestWrathWarn {
+  0%, 100% { filter: brightness(1.05) saturate(1.1); }
+  50%      { filter: brightness(1.6) saturate(1.4); }
+}
+@keyframes forestWrathHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(50,170,80,0); }
+  18%  { filter: brightness(2.8) saturate(1.6); transform: scale(1.22); box-shadow: 0 0 32px rgba(50,170,80,1.0), 0 0 14px rgba(160,240,180,0.7) inset; }
+  60%  { filter: brightness(1.7) saturate(1.3); transform: scale(1.08); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(50,170,80,0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell.bloom-strike-warn,
+  .cell.bloom-strike-warn::after,
+  .cell.bloom-strike-hit,
+  .cell.root-bind::after,
+  .cell.forest-wrath-warn,
+  .cell.forest-wrath-warn::after,
+  .cell.forest-wrath-hit { animation: none !important; }
+}
+@keyframes solarLineWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.45) saturate(1.2); }
+}
+@keyframes solarLineHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(232,184,74,0); }
+  20%  { filter: brightness(2.5) saturate(1.5); transform: scale(1.18); box-shadow: 0 0 26px rgba(232,184,74,1.0), 0 0 12px rgba(255,220,110,0.7) inset; }
+  60%  { filter: brightness(1.6) saturate(1.2); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(232,184,74,0); }
+}
+@keyframes solarStormWarn {
+  0%, 100% { filter: brightness(1.05) saturate(1.1); }
+  50%      { filter: brightness(1.7) saturate(1.5); }
+}
+@keyframes solarStormHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(255,210,0,0); }
+  18%  { filter: brightness(3.0) saturate(1.6); transform: scale(1.22); box-shadow: 0 0 32px rgba(255,210,0,1.0), 0 0 14px rgba(255,240,130,0.7) inset; }
+  60%  { filter: brightness(1.8) saturate(1.3); transform: scale(1.08); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(255,210,0,0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell.solar-line-warn,
+  .cell.solar-line-warn::after,
+  .cell.solar-line-hit,
+  .cell.solar-storm-warn,
+  .cell.solar-storm-warn::after,
+  .cell.solar-storm-hit { animation: none !important; }
+}
+@keyframes darkGeometryWarn {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.45) saturate(1.25); }
+}
+@keyframes darkGeometryHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(155,89,214,0); }
+  20%  { filter: brightness(2.6) saturate(1.6); transform: scale(1.18); box-shadow: 0 0 28px rgba(155,89,214,1.0), 0 0 12px rgba(192,130,255,0.7) inset; }
+  60%  { filter: brightness(1.6) saturate(1.3); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(155,89,214,0); }
+}
+@keyframes necropulseCharged {
+  0%, 100% { filter: brightness(1.0); box-shadow: 0 0 6px rgba(155, 89, 214, 0.3); }
+  50%      { filter: brightness(1.35) saturate(1.2); box-shadow: 0 0 16px rgba(155, 89, 214, 0.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell.dark-geometry-warn,
+  .cell.dark-geometry-warn::after,
+  .cell.dark-geometry-hit,
+  .cell.necropulse-charged { animation: none !important; }
+}
+@keyframes stormFrozenBreathe {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.2); }
+}
+@keyframes stormImmovableBreathe {
+  0%, 100% { filter: brightness(1.0); }
+  50%      { filter: brightness(1.15) saturate(1.1); }
+}
+@keyframes lightningRowHit {
+  0%   { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(255,213,61,0); }
+  18%  { filter: brightness(2.8) saturate(1.5); transform: scale(1.18); box-shadow: 0 0 28px rgba(255,213,61,1.0), 0 0 12px rgba(255,240,160,0.7) inset; }
+  60%  { filter: brightness(1.6) saturate(1.2); transform: scale(1.06); }
+  100% { filter: brightness(1) saturate(1); transform: scale(1); box-shadow: 0 0 0 rgba(255,213,61,0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell.storm-frozen,
+  .cell.storm-immovable,
+  .cell.lightning-row-hit { animation: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tray, .tray::before { transition: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .piece { transition: opacity 0.2s !important; }
+}
+@keyframes heroFlashBig {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  35%  { opacity: 1; transform: translate(-50%, -50%) scale(1.18); }
+  55%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-flash.big.active { animation: heroFlash 0.42s ease-out forwards !important; }
+}
+@keyframes procShake {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(-2px, 1px); }
+  50%  { transform: translate(2px, -1px); }
+  75%  { transform: translate(-1px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .proc-shake { animation: none !important; }
+}
+@keyframes sigBgFade {
+  0%   { opacity: 0; }
+  18%  { opacity: 0.9; }
+  72%  { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+@keyframes sigCardEntry {
+  0%   { opacity: 0; transform: scale(0.5) translateY(12px); }
+  18%  { opacity: 1; transform: scale(1.08) translateY(-2px); }
+  30%  {              transform: scale(1.0) translateY(0); }
+  72%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+/* Reduced-motion: snap-show + snap-hide, no scale bounce */
+@media (prefers-reduced-motion: reduce) {
+  .sig-cinema-bg, .sig-cinema-card {
+    animation-duration: 1.6s !important;
+    animation-timing-function: linear !important;
+  }
+}
+@keyframes clutchVignette {
+  0%   { opacity: 0; }
+  18%  { opacity: 1; }
+  78%  { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+@keyframes clutchTint {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+@keyframes clutchCardEntry {
+  0%   { opacity: 0; transform: scale(0.55) translateY(15px); }
+  18%  { opacity: 1; transform: scale(1.10) translateY(-2px); }
+  30%  {              transform: scale(1.0) translateY(0); }
+  78%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+@keyframes clutchNamePulse {
+  0%, 100% { text-shadow: 0 2px 4px rgba(0,0,0,0.85), 0 0 22px rgba(255,77,77,0.95), 0 0 40px rgba(255,77,77,0.55); }
+  50%      { text-shadow: 0 2px 4px rgba(0,0,0,0.85), 0 0 32px rgba(255,77,77,1.00), 0 0 56px rgba(255,77,77,0.85); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .clutch-vignette, .clutch-tint, .clutch-card {
+    animation-duration: 1.6s !important;
+    animation-timing-function: linear !important;
+  }
+  .clutch-name { animation: none !important; }
+}
+@keyframes dfBgFade        { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes dfContentEntry  {
+  0%   { opacity: 0; transform: scale(0.85) translateY(10px); }
+  100% { opacity: 1; transform: scale(1.0)  translateY(0); }
+}
+@keyframes dfEventEntry    {
+  0%   { opacity: 0; transform: translateX(-12px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .df-bg, .df-content, .df-event { animation-duration: 0.3s !important; animation-timing-function: linear !important; }
+}
+@keyframes chronoPulse {
+  0%, 100% { transform: scale(1.00); opacity: 0.85; }
+  50%      { transform: scale(1.04); opacity: 1.00; }
+}
+@keyframes chronoCardEntry {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chrono-overlay { transition: opacity 0.3s linear; }
+  .chrono-pulse   { animation: none; }
+  .chrono-tip-card { animation: chronoCardEntry 0.3s linear both; }
+}
+@keyframes sigPillGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,184,74,0.45); }
+  50%      { box-shadow: 0 0 14px rgba(255,184,74,0.85); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .synergy-bar .syn-pill.signature { animation: none !important; }
+}
+/* 2026-04-30 — Polish v0.2 Track H: 240ms in / 180ms out (0.42s total),
+   no sustained hold. Was 0.325s in + ~0.65s hold + 0.325s out (1.3s) — too
+   long, occluded grid during cascade resolutions. */
+@keyframes heroFlash {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  57%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  100% { opacity: 0; transform: translate(-50%, -65%) scale(1.0); }
+}
+@keyframes comboFlash {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.25); }
+  100% { opacity: 0; transform: translate(-50%, -180%) scale(1); }
+}
+@keyframes damageFloat {
+  0%   { opacity: 0; transform: translate(-50%, 5px) scale(0.4); }
+  15%  { opacity: 1; transform: translate(-50%, -5px) scale(1.3); }
+  100% { opacity: 0; transform: translate(-50%, -65px) scale(1); }
+}
+@keyframes damageFloatCrit {
+  0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.2) rotate(-6deg); }
+  12%  { opacity: 1; transform: translate(-50%, -8px) scale(1.8) rotate(3deg); }
+  25%  {              transform: translate(-50%, -12px) scale(1.3) rotate(-2deg); }
+  40%  {              transform: translate(-50%, -18px) scale(1.5) rotate(1deg); }
+  100% { opacity: 0; transform: translate(-50%, -80px) scale(1.1) rotate(0); }
+}
+@keyframes critBadge {
+  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.3); }
+  15%  { opacity: 1; transform: translate(-50%, -4px) scale(1.2); }
+  30%  {              transform: translate(-50%, -6px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -40px) scale(0.9); }
+}
+@keyframes critBurst {
+  0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(0.2); border-width: 6px; }
+  60%  { opacity: 0.5; transform: translate(-50%, -50%) scale(1.8); border-width: 2px; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(2.6); border-width: 1px; }
+}
+@keyframes damageFloatHeal {
+  0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.5); }
+  20%  { opacity: 1; transform: translate(-50%, -2px) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -60px) scale(1); }
+}
+@keyframes damageFloatMiss {
+  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.7); }
+  15%  { opacity: 1; transform: translate(-50%, -4px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -24px) scale(1); }
+}
+@keyframes craftPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(61,214,110,0); transform: scale(1); }
+  50%      { box-shadow: 0 0 18px rgba(61,214,110,0.65); transform: scale(1.03); }
+}
+@keyframes introFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dialogFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+/* §G.4 step 5: ±10% breathing pulse, replacing the prior 1.0 ↔ 0.32 strobe
+   that made the hint disappear half the time. */
+@keyframes tapPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.9; }
+}
+@keyframes ctaPulse {
+  0%, 100% { box-shadow: 0 0 22px rgba(255,184,0,0.50), 0 4px 0 rgba(0,0,0,0.4); }
+  50%      { box-shadow: 0 0 30px rgba(255,184,0,0.72), 0 4px 0 rgba(0,0,0,0.4); }
+}
+@keyframes phaseFlash {
+  0%   { opacity: 0; transform: scale(0.85); }
+  30%  { opacity: 0.55; }
+  70%  { opacity: 0.35; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+@keyframes pPhaseShock {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.2); border-width: 6px; }
+  60%  { opacity: 0.7; transform: translate(-50%, -50%) scale(14); border-width: 2px; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(24); border-width: 1px; }
+}
+@keyframes pPhaseHpPulse {
+  0%, 100% { box-shadow: inset 0 1px 3px rgba(0,0,0,0.7); }
+  50%      { box-shadow: inset 0 1px 3px rgba(0,0,0,0.7), 0 0 16px rgba(255, 60, 60, 0.9); }
+}
+@keyframes pPhaseCard {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  25%  {              transform: translate(-50%, -50%) scale(1); }
+  80%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -55%) scale(1); }
+}
+@keyframes pPhaseRoar {
+  0%   { transform: scale(1); filter: brightness(1); }
+  25%  { transform: scale(1.15); filter: brightness(1.8) saturate(1.5); }
+  50%  { transform: scale(1.05); filter: brightness(1.4); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+@keyframes pAttackTelegraph {
+  0%   { opacity: 0.3; }
+  50%  { opacity: 0.9; }
+  100% { opacity: 0.5; }
+}
+@keyframes bossArchBerserkerPulse {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(232, 93, 74, 0.55), inset 0 0 10px rgba(232, 93, 74, 0.30); }
+  50%      { box-shadow: 0 0 22px 4px rgba(232, 93, 74, 0.85), inset 0 0 14px rgba(232, 93, 74, 0.50); }
+}
+@keyframes bossArchArmoredSheen {
+  0%, 100% { box-shadow: 0 0 12px 2px rgba(59, 139, 212, 0.55), inset 0 0 8px  rgba(180, 220, 255, 0.30); }
+  50%      { box-shadow: 0 0 18px 3px rgba(59, 139, 212, 0.75), inset 0 0 14px rgba(220, 240, 255, 0.55); }
+}
+@keyframes bossArchBruiserBreath {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(93, 202, 121, 0.50), inset 0 0 10px rgba(93, 202, 121, 0.25); }
+  50%      { box-shadow: 0 0 20px 3px rgba(93, 202, 121, 0.75), inset 0 0 14px rgba(140, 230, 160, 0.45); }
+}
+@keyframes bossArchPhoenixGlow {
+  0%, 100% { box-shadow: 0 0 16px 2px rgba(232, 184, 74, 0.65), inset 0 0 12px rgba(255, 180, 60, 0.35); }
+  50%      { box-shadow: 0 0 28px 5px rgba(255, 200, 80, 0.90), inset 0 0 18px rgba(255, 220, 120, 0.55); }
+}
+@keyframes bossArchAssassinShadow {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(155, 89, 214, 0.55), inset 0 0 10px rgba(155, 89, 214, 0.30); }
+  50%      { box-shadow: 0 0 22px 4px rgba(155, 89, 214, 0.85), inset 0 0 14px rgba(190, 130, 240, 0.50); }
+}
+@keyframes hypnoSuggestPulse {
+  0%, 100% { box-shadow: 0 0 16px 3px rgba(155, 89, 214, 0.85), 0 0 28px rgba(190, 130, 240, 0.55); }
+  50%      { box-shadow: 0 0 24px 5px rgba(190, 130, 240, 1.00), 0 0 40px rgba(220, 170, 255, 0.80); }
+}
+
+/* Reduced-motion fallback — kill suggestion pulse, keep static glow + emoji */
+@media (prefers-reduced-motion: reduce) {
+  .hero-card.hero-card--hypno-suggested,
+  .hero-card.hero-card--hypno-suggested::after { animation: none !important; }
+}
+@keyframes engineerWeldPulse {
+  0%, 100% { box-shadow: inset 0 0 12px rgba(74, 50, 20, 0.85); }
+  50%      { box-shadow: inset 0 0 20px rgba(110, 70, 30, 1.00); }
+}
+@keyframes engineerElectrifyPulse {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(91, 255, 128, 0.65), inset 0 0 10px rgba(140, 220, 140, 0.55); }
+  50%      { box-shadow: 0 0 22px 4px rgba(140, 255, 160, 0.95), inset 0 0 16px rgba(180, 255, 200, 0.75); }
+}
+
+/* Reduced-motion: kill weld + electrify pulses */
+@media (prefers-reduced-motion: reduce) {
+  .grid .cell.cell--engineer-welded,
+  .grid .cell.cell--engineer-electrified { animation: none !important; }
+}
+@keyframes claBgFade {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes claLineEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes claBannerEnter {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes claRegionSlide {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes claRegionPulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(187, 96, 255, 0); }
+  50%      { box-shadow: 0 0 24px rgba(187, 96, 255, 0.45); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crypt-aftermath { transition: opacity 0.3s linear; }
+  .crypt-aftermath .cla-bg,
+  .crypt-aftermath .cla-line-1,
+  .crypt-aftermath .cla-line-2,
+  .crypt-aftermath .cla-line-3,
+  .crypt-aftermath .cla-banner,
+  .crypt-aftermath .cla-regions,
+  .crypt-aftermath .cla-region,
+  .crypt-aftermath .cla-cta {
+    animation-duration: 0.4s !important;
+    animation-timing-function: linear !important;
+  }
+  .crypt-aftermath .cla-region.is-new::after { animation: none !important; }
+}
+@keyframes bcmCriticalPulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(255, 70, 70, 0.65); }
+  50%      { box-shadow: 0 0 28px rgba(255, 110, 70, 0.95); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .battery-charge-meter.bcm-critical { animation: none !important; }
+  .battery-charge-meter .bcm-fill { transition: none !important; }
+}
+@keyframes tempoSlowTint {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* Reduced-motion: shorter duration, no easing fade — just on/off */
+@media (prefers-reduced-motion: reduce) {
+  body.tempo-slow-tint::after { animation: tempoSlowTint 0.4s linear forwards; }
+}
+@keyframes bossArchHypnotistShimmer {
+  0%, 100% { box-shadow: 0 0 16px 3px rgba(155, 89, 214, 0.65), inset 0 0 14px rgba(190, 130, 240, 0.40); }
+  35%      { box-shadow: 0 0 28px 6px rgba(190, 130, 240, 0.85), inset 0 0 20px rgba(220, 170, 255, 0.55); }
+  70%      { box-shadow: 0 0 22px 4px rgba(120, 60, 180, 0.80), inset 0 0 16px rgba(155, 89, 214, 0.50); }
+}
+@keyframes bossArchEngineerSteam {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(184, 115, 51, 0.60), inset 0 0 10px rgba(220, 170, 90, 0.35); }
+  50%      { box-shadow: 0 0 22px 5px rgba(140, 220, 100, 0.55), inset 0 0 16px rgba(184, 115, 51, 0.65); }
+}
+@keyframes bossArchFrenzyHeat {
+  0%, 100% { box-shadow: 0 0 16px 3px rgba(255, 110, 40, 0.70), inset 0 0 12px rgba(255, 160, 80, 0.40); }
+  50%      { box-shadow: 0 0 26px 6px rgba(255, 80, 30, 0.95), inset 0 0 18px rgba(255, 200, 100, 0.65); }
+}
+@keyframes bossArchTempoSwell {
+  0%, 100% { box-shadow: 0 0 14px 2px rgba(120, 200, 255, 0.55), inset 0 0 10px rgba(200, 235, 255, 0.40); }
+  50%      { box-shadow: 0 0 26px 5px rgba(180, 230, 255, 0.85), inset 0 0 18px rgba(140, 215, 255, 0.65); }
+}
+@keyframes bossArchBatterySpark {
+  0%, 100% { box-shadow: 0 0 16px 3px rgba(255, 215, 90, 0.75), inset 0 0 12px rgba(255, 240, 150, 0.50); }
+  30%      { box-shadow: 0 0 24px 5px rgba(255, 235, 120, 0.95), inset 0 0 18px rgba(255, 250, 200, 0.70); }
+  60%      { box-shadow: 0 0 18px 3px rgba(220, 180, 60, 0.80), inset 0 0 14px rgba(255, 220, 100, 0.55); }
+}
+
+/* Reduced-motion fallback — kill the pulse, keep the static glow so the archetype
+   is still visually identifiable but doesn't strobe. */
+@media (prefers-reduced-motion: reduce) {
+  .boss-archetype-berserker,
+  .boss-archetype-armored,
+  .boss-archetype-bruiser,
+  .boss-archetype-phoenix,
+  .boss-archetype-assassin,
+  .boss-archetype-hypnotist,
+  .boss-archetype-engineer,
+  .boss-archetype-frenzy,
+  .boss-archetype-tempo-disruptor,
+  .boss-archetype-battery { animation: none !important; }
+}
+@keyframes pAttackArrow {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(4px); }
+}
+@keyframes shroudPulse {
+  0%, 100% {
+    box-shadow: inset 0 0 60px rgba(187, 96, 255, 0.5),
+                0 0 30px rgba(187, 96, 255, 0.3);
+  }
+  50% {
+    box-shadow: inset 0 0 85px rgba(187, 96, 255, 0.7),
+                0 0 48px rgba(187, 96, 255, 0.5);
+  }
+}
+@keyframes modalEmblemEntry {
+  0% { transform: scale(0.3) rotate(-20deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+@keyframes modalEmblemPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+@keyframes mythicBtnPulse {
+  0%, 100% { box-shadow: 0 0 22px rgba(255,90,58,0.55), 0 0 8px rgba(255,213,61,0.65); }
+  50%      { box-shadow: 0 0 32px rgba(255,90,58,0.85), 0 0 14px rgba(255,213,61,0.95); }
+}
+@keyframes mythicBadgePulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-ascend-mythic, .detail-mythic-badge { animation: none; }
+}
+
+
+/* ============================================================
+   V17 — HERO & BOSS ANIMATIONS, CHAPTER BADGE STYLING
+   ============================================================ */
+
+/* --- Stihiya glow animation (V17.3 — visibly lit) ---
+   Strategy: constant base glow that's ALWAYS visible, amplified by a gentle pulse.
+   Uses both inset (interior halo) and outer shadow (radiating aura) for a proper
+   "the hero is lit" effect on both small battle cards and large album cards. */
+@keyframes stihiyaEmberPulse {
+  0%, 100% { box-shadow: inset 0 0 14px 3px rgba(255,120,50,0.35), 0 0 8px 1px rgba(255,100,40,0.40); }
+  50%      { box-shadow: inset 0 0 28px 6px rgba(255,150,70,0.65), 0 0 20px 4px rgba(255,120,50,0.75); }
+}
+@keyframes stihiyaTideShimmer {
+  0%, 100% { box-shadow: inset 0 0 12px 2px rgba(80,170,255,0.32), 0 0 7px 1px rgba(60,140,255,0.35); filter: brightness(1.02); }
+  50%      { box-shadow: inset 0 0 26px 5px rgba(100,190,255,0.60), 0 0 18px 3px rgba(80,170,255,0.65); filter: brightness(1.14); }
+}
+@keyframes stihiyaGroveBreath {
+  0%, 100% { box-shadow: inset 0 0 12px 2px rgba(100,220,130,0.28), 0 0 6px 1px rgba(80,200,110,0.32); }
+  50%      { box-shadow: inset 0 0 26px 5px rgba(130,240,150,0.58), 0 0 16px 3px rgba(100,220,130,0.60); }
+}
+@keyframes stihiyaSolarRadiate {
+  0%, 100% { box-shadow: inset 0 0 14px 3px rgba(255,215,100,0.40), 0 0 10px 2px rgba(255,200,60,0.45); filter: brightness(1.04); }
+  50%      { box-shadow: inset 0 0 30px 6px rgba(255,230,120,0.70), 0 0 24px 5px rgba(255,200,60,0.80); filter: brightness(1.18); }
+}
+@keyframes stihiyaUmbraVeil {
+  0%, 100% { box-shadow: inset 0 0 14px 3px rgba(170,90,230,0.32), 0 0 7px 1px rgba(140,60,210,0.35); filter: brightness(0.98); }
+  50%      { box-shadow: inset 0 0 28px 6px rgba(190,110,240,0.65), 0 0 18px 3px rgba(170,90,230,0.70); filter: brightness(0.92); }
+}
+
+/* --- Boss idle breathing animation (battle) ---
+   Very subtle scale + glow pulse. Does NOT override .hit or .defeated (those set their own animation). */
+@keyframes bossIdle {
+  0%, 100% { transform: scale(1.000); box-shadow: 0 0 10px var(--boss-color, #E85D4A), inset 0 0 12px rgba(0,0,0,0.4); }
+  50%      { transform: scale(1.022); box-shadow: 0 0 22px var(--boss-color, #E85D4A), inset 0 0 14px rgba(0,0,0,0.35); }
+}
+
+/* Respect users who prefer reduced motion — disable all idle animations */
+@media (prefers-reduced-motion: reduce) {
+  .hero-card, .menu-squad-card, .roster-card, .boss-img-wrap { animation: none !important; }
+  /* V2.0 motif visuals also respect reduced-motion */
+  .cell.charged, .cell.tide.chain-active, .cell.radiant, .bloom-overlay, .cell.umbra-trail { animation: none !important; }
+}
+@keyframes emberPulse {
+  0%, 100% { transform: scale(1);    filter: brightness(1); }
+  50%      { transform: scale(1.08); filter: brightness(1.4); }
+}
+@keyframes infernoFlash {
+  0%   { background-color: #FF6600 !important; }
+  100% { background-color: inherit; }
+}
+@keyframes tideShimmer {
+  0%, 100% { box-shadow: 0 0 8px #1FA3FF88; }
+  50%      { box-shadow: 0 0 14px #1FA3FF, inset 0 0 6px rgba(255,255,255,0.3); }
+}
+@keyframes bloomPulse {
+  0%, 100% { transform: scale(0.85); opacity: 0.7; }
+  50%      { transform: scale(1.05); opacity: 1.0; }
+}
+@keyframes radiantShimmer {
+  0%, 100% { filter: brightness(1.0) saturate(1.0); }
+  50%      { filter: brightness(1.5) saturate(1.4); }
+}
+@keyframes umbraPulse {
+  0%   { transform: scale(0.7); filter: brightness(2.5); }
+  60%  { transform: scale(1.1); }
+  100% { transform: scale(1);   filter: brightness(1); }
+}
+@keyframes pChipRing {
+  0%   { opacity: 0.9; transform: scale(0.95); }
+  100% { opacity: 0; transform: scale(1.25); }
+}

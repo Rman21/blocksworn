@@ -1,0 +1,38 @@
+/* Top-level CSS aggregator. Imported by src/main.js.
+ *
+ * Cascade order matters: tokens → reset → typography → animations →
+ * components → screens. The legacy single-HTML inline `<style>` was one
+ * giant cascade — T1.06 split it into modules preserving the relative
+ * order of rules within each bucket.
+ *
+ * Pure relocation (T1.06): no values changed; legacy deprecated vivid
+ * tokens were dropped (already absent from source). The legacy HTML
+ * keeps its own inline CSS — these files are for the new modular shell.
+ */
+
+@import './tokens.css';
+@import './reset.css';
+@import './typography.css';
+@import './animations.css';
+
+/* Components — reusable patterns shared across screens. */
+@import './components/button.css';
+@import './components/nav.css';
+@import './components/icon.css';
+@import './components/hero-card.css';
+@import './components/modal.css';
+
+/* Utilities — generic helpers / cross-cutting rules that don't belong
+ * to a single component or screen. */
+@import './utilities.css';
+
+/* Screens — ordered roughly by initial visibility / FTUE flow:
+ * menu → select → battle → shop / tower / season / profile / dailies. */
+@import './screens/menu.css';
+@import './screens/select.css';
+@import './screens/battle.css';
+@import './screens/shop.css';
+@import './screens/tower.css';
+@import './screens/season.css';
+@import './screens/profile.css';
+@import './screens/dailies.css';
