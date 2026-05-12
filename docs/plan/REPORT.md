@@ -2205,6 +2205,116 @@ Per spec §3.4 field 6, the "TETRIS!" celebration banner IS the reaction signal 
 
 ---
 
+## REPORT-29: 🎯 T2.11 Grovewarden Root Surge — boss-reactive portion COMPLETE 5/5 (recovered after API failure mid-commit)
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Dev agent `adec4496a2faf1589` produced full implementation; API connection refused during final `git commit` step. CTO completed commit on agent's behalf (`f47bff6`) after independently validating all gates pass.
+
+### Summary
+
+T2.11 lands clean — last boss-reactive identity mechanic, **boss-reactive scoreboard COMPLETE 5/5**. +2292 / -3 LoC across 8 files, +60 unit tests (475 → 535), +14 smoke (114 → 128 × 2 projects), 0 sacred-cow modifications. Commit `f47bff6`. CTO acceptance PASS.
+
+### Recovery story (transparent)
+
+Game Dev agent's API connection refused at the final commit step after ~18 minutes of work. Working tree had 8 modified files (+2292/-3 LoC), but no new commit. CTO independently validated all gates before committing on agent's behalf:
+
+- `npm run lint` → 0 errors / 0 warnings
+- `npm run test:unit` → **535/535 pass** (475 → 535, +60)
+- `npm run test:smoke` → **128/128 pass** (114 → 128, +14 = 7 new × 2 projects)
+- `npm run build` → 223.90 KB JS / 389.06 KB CSS (under 5MB AAA+ ceiling)
+- Sacred-diff audits passed (no deletions in reactivity-events.js; stagger-loop.js / narrator-lines.js / elements.js / races.js not in diff)
+
+Implementation matches all spec §3.5 mechanical contracts. The recovery validates the **harness's resilience** — agent failure during commit doesn't lose work because (1) tests are deterministic and (2) sacred-cow audits are run-anytime gates.
+
+### Sacred cow audit — explicit central proofs
+
+| Sacred system | Status | Verification |
+|---|---|---|
+| 22 v2.1 P4 reactivity handlers | byte-perfect ✅ | `git diff src/core/reactivity-events.js \| grep '^-' \| wc -l = 0` |
+| **NARRATOR_LINES sacred table** | **UNTOUCHED** ✅ | `src/feel/narrator-lines.js` not in diff |
+| Placeholder narrator location | isolated ✅ | Lives in `src/data/identity-layer.js:858` with `FINAL COPY: pending Roman approval` comment marker per ESC-02 O2 |
+| **Element Synergy grove 3x** | byte-perfect ✅ | `src/data/elements.js` not in diff |
+| **RACE_SYNERGY troll/golem grove tiers** | byte-perfect ✅ | `src/data/races.js` not in diff (T2.05 invariant + new troll constraint maintained) |
+| Stagger Loop | UNTOUCHED ✅ | `src/core/stagger-loop.js` not in diff (T2.09 invariant) |
+| Phoenix/Lich/Berserker/Engineer invariants | byte-perfect ✅ | T2.07–T2.10 invariants maintained |
+| Combo crit / V_HAPTICS / HERO_ULT_COST / BOSS_TTK_TARGETS | byte-perfect ✅ | All untouched |
+
+### Mechanical contract verified
+
+- **Sliding-window trigger:** last 3 line clears all NON-grove → fire
+- **3 random empty cells** get moss root overlays (HARD CAP per spec)
+- **5-turn lifecycle** with auto-clear timeout (re-uses T2.08 per-turn-tick primitive)
+- **+10 gold per rooted-cell clear** via existing `addGold` (cross-layer Pirate Plunder integration — first LIVE cross-layer wiring in Phase 2)
+- **No double-count:** rooted cell isn't a normal line-clear → Pirate Plunder math doesn't fire on same event
+- **Placeholder narrator string "Where you would not bloom, I will."** wires via narrator surface from isolated constant; sacred NARRATOR_LINES untouched
+
+### NEW architectural primitive — sliding-window trigger
+
+T2.11 introduces the 6th Phase 2 architectural primitive:
+
+| # | Primitive | Origin | Pattern |
+|---|---|---|---|
+| 1 | Sibling export | T2.02 | `RACE_IDENTITY_FX = { ... }` parallel to RACE_SYNERGY literal |
+| 2 | Ctx side-channel | T2.03 | `_lastBittenCells`, `_dominantCountModifier` |
+| 3 | Sacred-clamp | T2.04 | `Math.min(threshold, current + delta)` |
+| 4 | Parallel-registry | T2.07 | `IDENTITY_BOSS_HANDLERS` alongside sacred 22 |
+| 5 | Per-turn-tick | T2.08 | `fx*Tick(ctx)` per-turn lifecycle |
+| 6 | **Sliding-window** | **T2.11** | Circular buffer of last N actions + gate predicate |
+
+Sliding-window primitive: `_grovewardenRecentClears` = circular FIFO buffer of last 3 line clears' dominant elements. `pushRecentClear(element)` enqueues; `shouldRootSurgeFire(buffer, 'grove')` is the gate predicate.
+
+### Cross-layer integration — first LIVE wire
+
+T2.11 is the FIRST Phase 2 task to wire a cross-layer interaction LIVE (not deferred to T2.B):
+
+- Rooted cell cleared during 5-turn window → `+10 gold` via existing `addGold` API (T2.02 Pirate Plunder uses the same path)
+- Independent path — no double-count, no Pirate Plunder math invocation
+- Verified via cross-mechanic smoke test (race FX + all 5 boss-reactive coexist)
+
+Other cross-layer interactions (Shark↔Lich predicate chain, Crocodile↔Lich shields) remain deferred to T2.B per the original architecture.
+
+### Phase 2 boss-reactive scoreboard COMPLETE 5/5 🎯
+
+| # | Boss/archetype | Identity | Status | Commit |
+|---|---|---|---|---|
+| 1 | Phoenix | Ashen Reign | ✅ | T2.07 `060fbcc` |
+| 2 | Lich (assassin) | Cursed Tiles | ✅ | T2.08 `bc229f7` |
+| 3 | Berserker / Frenzy | Bloodtide Pulse | ✅ | T2.09 `e471099` |
+| 4 | Engineer | Lockdown Protocol | ✅ | T2.10 `72bd903` |
+| 5 | **Grovewarden (bruiser)** | **Root Surge** | ✅ | **T2.11 `f47bff6`** |
+
+### Quality bar trajectory — Phase 2
+
+| Metric | Phase 1 | T2.02 | T2.06 | T2.10 | **T2.11** | AAA+ |
+|---|---|---|---|---|---|---|
+| Unit tests | 37 | 65 | 224 | 475 | **535** | growing ✅ |
+| Smoke runs (× 2 projects) | 2 | 12 | 62 | 114 | **128** | green ✅ |
+| Sacred audit | 0 mods | 0 mods | 0 mods | 0 mods | **0 mods** | always 0 ✅ |
+| Bundle JS | 4.5 MB | 205.87 kB | 205.87 kB | 220.50 kB | **223.90 kB** | <5 MB ✅ |
+| Bundle CSS | 368 kB | 369.41 | 376.96 | 387.38 | **389.06** | reasonable ✅ |
+
+### Phase 2 task scoreboard (11/13)
+
+| Task | Status |
+|---|---|
+| T2.01 Design spec | ✅ |
+| T2.02–T2.06 Race flavors | ✅ 5/5 |
+| T2.07–T2.11 Boss-reactive | ✅ 5/5 🎯 |
+| T2.12 Codex screen | 🟡 next |
+| T2.B Legacy Bridge (batched) | queued |
+
+### Engineering wins
+
+- Boss-reactive portion COMPLETE 5/5 with **zero sacred-cow modifications** across all 5 mechanics
+- 6 architectural primitives now established (sibling, ctx, clamp, registry, tick, **sliding-window**)
+- Phase 2 narrative architecture is fully scaffolded — T2.12 Codex screen will aggregate all 5 race + 5 boss flavors into the collection surface, then T2.B integrates everything LIVE in legacy runtime
+- API failure recovery validates harness resilience — work doesn't get lost when agent dies mid-commit; CTO can independently validate + commit on agent's behalf
+
+🎯 **T2.11 DONE. Boss-reactive portion COMPLETE 5/5. Phase 2: 11/13 done. Next: T2.12 Codex screen — the collection surface aggregating everything.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)

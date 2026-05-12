@@ -2785,6 +2785,34 @@ All 9 tests pass.
 
 ---
 
+### TASK-038 (T2.11) — ✅ DONE 2026-05-12 — Grovewarden Root Surge — FIFTH (LAST) boss-reactive identity mechanic
+
+**CTO acceptance 2026-05-12:** PASS. Game Dev agent `adec4496a2faf1589` produced full implementation; API connection refused during final `git commit` step. CTO independently validated all gates (lint clean / unit 535/535 / smoke 128/128 / build 223.90 kB JS / 389.06 kB CSS / sacred audits clean) before committing on agent's behalf via `f47bff6`.
+
+**Implementation matches spec §3.5:**
+- Sliding-window trigger (last 3 line clears all NON-grove) — NEW architectural primitive
+- 3 random empty cells get moss root overlays (HARD CAP)
+- 5-turn lifecycle with auto-clear (re-uses T2.08 per-turn-tick primitive)
+- +10 gold per rooted-cell clear via existing `addGold` (FIRST LIVE cross-layer Pirate Plunder integration; no double-count)
+- Placeholder narrator line per ESC-02 O2 — `ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER` isolated in `src/data/identity-layer.js:858` with `// FINAL COPY: pending Roman approval at Phase 2 PR merge` marker; sacred `src/feel/narrator-lines.js` table UNTOUCHED
+
+**Sacred audit 0 findings:**
+- 22 v2.1 P4 reactivity handlers byte-perfect (`git diff src/core/reactivity-events.js | grep '^-' | wc -l = 0`)
+- Stagger Loop / NARRATOR_LINES sacred table / Element Synergy / RACE_SYNERGY troll/golem grove tiers all NOT in diff (T2.05/T2.07/T2.08/T2.09 invariants maintained)
+- Combo crit / V_HAPTICS / HERO_ULT_COST / BOSS_TTK_TARGETS byte-perfect
+
+**Test counts:** 475 → 535 unit (+60); 114 → 128 smoke runs × 2 projects (+14). Bundle delta negligible.
+
+**Recovery transparency:** API failure during commit recovery validates harness resilience. Work wasn't lost — CTO commit on agent's behalf is a documented pattern when:
+1. Working tree contains all expected file modifications
+2. Sacred-cow audits pass independently
+3. Test gates pass independently
+4. Implementation matches spec contract (no improvisation)
+
+**Status:** IN PROGRESS → REVIEW → **DONE** (CTO sign-off + commit on agent's behalf 2026-05-12)
+
+---
+
 ### TASK-037 (T2.10) — ✅ DONE 2026-05-12 — Engineer Lockdown Protocol — FOURTH boss-reactive identity mechanic (anti-Tetris 4-line crit counter)
 
 **CTO acceptance 2026-05-12:** PASS. 4 sacred RE-USE invariants verified byte-perfect: 40T duration / 4-cell shape / `#B87333` banner color / `.cell--engineer-welded` CSS class — none duplicated. Sacred `engineer_p1_p2` handler UNTOUCHED. 22 P4 handlers byte-perfect. Stagger Loop/Phoenix/Lich/Berserker invariants maintained. Anti-Tetris gate verified for all 4 cases (3+crit/4+no-crit/4+crit/5+crit). Existing `engineerLockedCells` Map predicate path correctly used as live runtime owner; module-side `_engineerLockdowns` mirror is for headless tests + T2.B bridge predicate only. 475/475 unit + 114/114 smoke. Commit `72bd903`.
