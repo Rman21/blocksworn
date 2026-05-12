@@ -2981,3 +2981,471 @@ test('fxEngineerLockdownProtocol performance: initial trigger within ≤10ms bud
   expect(wallTime).toBeLessThan(30);
   expect(errors).toEqual([]);
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-038 (T2.11): Grovewarden Root Surge smoke tests.
+// Spec: docs/design/mechanics/identity-layer.md §3.5. FIFTH and FINAL
+// boss-reactive identity mechanic — sliding-window non-grove trigger.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+test('Grovewarden Root Surge: trigger gate fires only when last 3 clears are all non-grove', async ({ page }) => {
+  // Spec §3.5 field 3 boundary: 3 non-grove clears → fire. Any grove
+  // entry in the sliding window OR <3 history → silent no-op.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.resetGrovewardenRootSurge();
+
+    // Empty buffer — gate false.
+    const empty = mod.rootSurgeGatePasses();
+
+    // 2 non-grove (insufficient history) — gate false.
+    mod.pushRecentClear('ember');
+    mod.pushRecentClear('tide');
+    const insufficient = mod.rootSurgeGatePasses();
+
+    // 3 non-grove (qualifying sliding window) — gate true.
+    mod.pushRecentClear('umbra');
+    const qualifying = mod.rootSurgeGatePasses();
+
+    // 4th push (grove) shifts oldest out (ember); buffer = [tide, umbra,
+    // grove] — gate flips false (grove contaminated the buffer).
+    mod.pushRecentClear('grove');
+    const contaminated = mod.rootSurgeGatePasses();
+
+    // 5th push (non-grove) shifts oldest out (tide); buffer = [umbra,
+    // grove, solar] — gate still false (grove still in window).
+    mod.pushRecentClear('solar');
+    const stillFalse = mod.rootSurgeGatePasses();
+
+    // 6th push (non-grove) shifts oldest out (umbra); buffer = [grove,
+    // solar, ember] — gate still false (grove just at the front).
+    mod.pushRecentClear('ember');
+    const stillFalseAgain = mod.rootSurgeGatePasses();
+
+    // 7th push (non-grove) finally shifts the contaminating grove out;
+    // buffer = [solar, ember, tide] — gate flips true (recovered).
+    mod.pushRecentClear('tide');
+    const recoveredTrue = mod.rootSurgeGatePasses();
+
+    mod.resetGrovewardenRootSurge();
+    return { empty, insufficient, qualifying, contaminated, stillFalse, stillFalseAgain, recoveredTrue };
+  });
+
+  expect(result.empty).toBe(false);
+  expect(result.insufficient).toBe(false);
+  expect(result.qualifying).toBe(true);
+  expect(result.contaminated).toBe(false);
+  expect(result.stillFalse).toBe(false);
+  expect(result.stillFalseAgain).toBe(false);
+  expect(result.recoveredTrue).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('Grovewarden Root Surge: 3 non-grove clears → 3 roots placed, 5-turn lifecycle, +10 gold per cleared root', async ({ page }) => {
+  // Spec §3.5 field 4: 3 random empty cells gain moss root overlays. Cells
+  // block placement for 5 turns. Each cleared during window grants +10
+  // gold via existing addGold (cross-layer Pirate Plunder integration).
+  // Auto-clear at 5-turn timeout (silent, no gold).
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetRootSurgePool();
+    mod.resetGrovewardenRootSurge();
+
+    // Stub the addGold API for the +10 gold cross-layer verification.
+    let goldDelta = 0;
+    window.addGold = (n) => { goldDelta += Number(n) || 0; };
+
+    // Build a stub grid with 64 cell DOM elements (mirroring the legacy
+    // `.grid .cell` selector). This is how the live runtime layout
+    // exposes individual cell elements; smoke verifies the overlay
+    // placement path against this canonical surface.
+    const gridEl = document.createElement('div');
+    gridEl.className = 'grid';
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.setAttribute('data-row', String(r));
+        cell.setAttribute('data-col', String(c));
+        gridEl.appendChild(cell);
+      }
+    }
+    document.body.appendChild(gridEl);
+
+    // Build empty grid state.
+    const gridState = Array(8).fill(null).map(() => Array(8).fill(null));
+
+    // Populate buffer: 3 non-grove → trigger.
+    mod.pushRecentClear('ember');
+    mod.pushRecentClear('tide');
+    mod.pushRecentClear('umbra');
+
+    // Fire Root Surge at turn 3 → expires at turn 8.
+    mod.fxGrovewardenRootSurge(null, { gridState, currentTurn: 3 });
+
+    const snap0 = mod.getActiveRootCellsSnapshot();
+    const placedCount = snap0.length;
+    const expiresTurn = snap0[0] ? snap0[0].expiresTurn : null;
+
+    // Clear ONE rooted cell → grants +10 gold via existing addGold.
+    const rooted = snap0[0];
+    const clearResult = mod.onRootCellCleared(rooted.row, rooted.col);
+    const goldAfterClear = goldDelta;
+    const afterClearCount = mod.getActiveRootCellsCount();
+
+    // Tick at turn 7 — remaining 2 still active.
+    const t7 = mod.fxGrovewardenRootSurgeTick({ currentTurn: 7 });
+
+    // Tick at turn 8 — remaining 2 auto-clear (silent, no gold).
+    const t8 = mod.fxGrovewardenRootSurgeTick({ currentTurn: 8 });
+    const goldAfterTimeout = goldDelta;
+    const finalCount = mod.getActiveRootCellsCount();
+
+    mod.resetGrovewardenRootSurge();
+    gridEl.remove();
+    delete window.addGold;
+
+    return {
+      placedCount,
+      expiresTurn,
+      clearResult,
+      goldAfterClear,
+      afterClearCount,
+      t7,
+      t8,
+      goldAfterTimeout,
+      finalCount,
+    };
+  });
+
+  // 3 roots placed, all expire turn 8 (placed 3 + 5).
+  expect(result.placedCount).toBe(3);
+  expect(result.expiresTurn).toBe(8);
+  // Clearing 1 rooted cell → +10 gold via existing addGold (cross-layer).
+  expect(result.clearResult.goldGranted).toBe(10);
+  expect(result.clearResult.cellRemoved).toBe(true);
+  expect(result.goldAfterClear).toBe(10);
+  expect(result.afterClearCount).toBe(2);
+  // Tick at turn 7 — 2 still active.
+  expect(result.t7.activeCount).toBe(2);
+  expect(result.t7.expiredCount).toBe(0);
+  // Tick at turn 8 — both auto-clear silently (no additional gold).
+  expect(result.t8.activeCount).toBe(0);
+  expect(result.t8.expiredCount).toBe(2);
+  expect(result.goldAfterTimeout).toBe(10);   // unchanged — timeout is silent
+  expect(result.finalCount).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('Grovewarden Root Surge: 3rd clear is grove-dominant → no trigger (sliding window resets)', async ({ page }) => {
+  // Spec §3.5 field 3: counterplay — running grove squad / grove-dominant
+  // clears keep the sliding-window buffer mixed, preventing surge trigger.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.resetGrovewardenRootSurge();
+
+    // 2 non-grove + 1 grove clears → gate fails.
+    mod.pushRecentClear('ember');
+    mod.pushRecentClear('tide');
+    mod.pushRecentClear('grove');
+    const gateAfterMixed = mod.rootSurgeGatePasses();
+
+    // Fire WOULD trigger if gate true — but gate is false, so no roots.
+    const gridState = Array(8).fill(null).map(() => Array(8).fill(null));
+    mod.fxGrovewardenRootSurge(null, { gridState, currentTurn: 0 });
+    const rootsAfterMixed = mod.getActiveRootCellsCount();
+
+    // 3 grove in a row → also gate false.
+    mod.resetGrovewardenRootSurge();
+    mod.pushRecentClear('grove');
+    mod.pushRecentClear('grove');
+    mod.pushRecentClear('grove');
+    const gateAllGrove = mod.rootSurgeGatePasses();
+
+    mod.fxGrovewardenRootSurge(null, { gridState, currentTurn: 0 });
+    const rootsAllGrove = mod.getActiveRootCellsCount();
+
+    mod.resetGrovewardenRootSurge();
+    return { gateAfterMixed, rootsAfterMixed, gateAllGrove, rootsAllGrove };
+  });
+
+  expect(result.gateAfterMixed).toBe(false);
+  expect(result.rootsAfterMixed).toBe(0);
+  expect(result.gateAllGrove).toBe(false);
+  expect(result.rootsAllGrove).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('Grovewarden Root Surge: cross-mechanic regression — race FX + all 5 boss-reactive layers coexist', async ({ page }) => {
+  // Critical regression: activating Root Surge must NOT break the 5-race
+  // identity layer dispatch OR any of the 4 prior boss-reactive layers.
+  // All are independent layers per spec §1 hard rule 3.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    // Stub all five race-layer APIs.
+    let goldDelta = 0;
+    window.addGold = (n) => { goldDelta += Number(n) || 0; };
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.shieldCount = 0;
+    window.MAX_SHIELD = 3;
+    window.maxShieldBonus = 2;
+
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) grid[0][c] = 'solar';
+    for (let c = 0; c < 8; c++) grid[2][c] = 'grove';
+    grid[5][0] = 'umbra';
+    grid[5][1] = 'umbra';
+    grid[5][2] = 'umbra';
+    window.grid = grid;
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCoinPool();
+    mod.__identityFxTestables.resetSharkBitePool();
+    mod.__identityFxTestables.resetRockEchoPool();
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.__identityFxTestables.resetSparkRayPool();
+    mod.__identityFxTestables.resetAshenReignPool();
+    mod.__identityFxTestables.resetCursedTilesPool();
+    mod.__identityFxTestables.resetBloodtidePool();
+    mod.__identityFxTestables.resetEngineerLockdownPool();
+    mod.__identityFxTestables.resetRootSurgePool();
+    mod.resetCrocFragmentBank();
+    mod.resetAshenReign();
+    mod.resetCursedTiles();
+    mod.resetBloodtide();
+    mod.resetEngineerLockdowns();
+    mod.resetGrovewardenRootSurge();
+
+    // Activate ALL FIVE boss-reactive layers.
+    mod.fxPhoenixAshenReign(null, null);
+    mod.fxLichCursedTiles(null, { gridState: window.grid, currentTurn: 0 });
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    mod.fxBerserkerBloodtidePulse(null, null);
+    mod.fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    // Empty grid for Root Surge (avoids overlap with filled cells).
+    const emptyGrid = Array(8).fill(null).map(() => Array(8).fill(null));
+    mod.pushRecentClear('ember');
+    mod.pushRecentClear('tide');
+    mod.pushRecentClear('umbra');
+    mod.fxGrovewardenRootSurge(null, { gridState: emptyGrid, currentTurn: 0 });
+
+    // Race-layer dispatch (all 5 races alive) must still fire.
+    const squad = [
+      { race: 'pirate' },
+      { race: 'shark' }, { race: 'shark' },
+      { race: 'rock' },
+      { race: 'crocodile' },
+      { race: 'spark' },
+    ];
+    const ctx = { gridState: window.grid, dominantElementsByLine: ['solar', 'grove'] };
+    let dispatchThrew = false;
+    try {
+      mod.dispatchIdentityFx([0, 2], [], squad, null, ctx);
+    } catch (_e) { dispatchThrew = true; }
+
+    const snapshot = {
+      ashenReignActive:   mod.isAshenReignActive(),
+      cursedTilesCount:   mod.getCursedTilesCount(),
+      bloodtidePending:   mod.isBloodtidePulsePending(),
+      lockdownsCount:     mod.getEngineerLockdownsCount(),
+      rootCellsCount:     mod.getActiveRootCellsCount(),
+      sparkModifier:      ctx._dominantCountModifier,
+      goldDelta,
+      dispatchThrew,
+    };
+
+    // Cleanup.
+    mod.fxPhoenixAshenReignRelease();
+    mod.resetCursedTiles();
+    mod.resetBloodtide();
+    mod.resetEngineerLockdowns();
+    mod.resetGrovewardenRootSurge();
+    return snapshot;
+  });
+
+  // All FIVE boss-reactive layers active independently.
+  expect(result.ashenReignActive).toBe(true);
+  expect(result.cursedTilesCount).toBeGreaterThan(0);
+  expect(result.bloodtidePending).toBe(true);
+  expect(result.lockdownsCount).toBe(1);
+  expect(result.rootCellsCount).toBe(3);
+  // Spark cascade still fired (+1 dominantCount).
+  expect(result.sparkModifier).toBe(1);
+  // Pirate Plunder still awarded gold (NOT from Root Surge — those gold
+  // events come via onRootCellCleared, which wasn't invoked here).
+  expect(result.goldDelta).toBeGreaterThan(0);
+  expect(result.dispatchThrew).toBe(false);
+
+  expect(errors).toEqual([]);
+});
+
+test('IDENTITY_BOSS_HANDLERS: registers identity_bruiser_grove_surge alongside sacred 22 + all 4 prior identity handlers', async ({ page }) => {
+  // Verify the new T2.11 boss-reactive handler is wired correctly AND the
+  // sacred 22 REACTIVITY_HANDLERS + T2.07/T2.08/T2.09/T2.10 entries are
+  // both still present. Confirms the parallel-namespace contract from
+  // spec §1 hard rule 1 continues to scale across all 5 boss-reactive
+  // mechanics.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/core/reactivity-events.js');
+    const identityKeys = Object.keys(mod.IDENTITY_BOSS_HANDLERS || {});
+    const sacredKeys   = Object.keys(mod.REACTIVITY_HANDLERS || {});
+    return {
+      identityKeys,
+      sacredKeyCount: sacredKeys.length,
+      sacredKeys,
+      identityPhoenixType:    typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_phoenix_revive'],
+      identityLichType:       typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_assassin_shark_counter'],
+      identityBloodtideType:  typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_berserker_frenzy_pulse'],
+      identityLockdownType:   typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_engineer_tetris_counter'],
+      identityGroveSurgeType: typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_bruiser_grove_surge'],
+      triggerEventType:  typeof mod.triggerIdentityBossEvent,
+      resetIdentityType: typeof mod.resetIdentityBossState,
+      // Sacred bruiser_p1_p2 / bruiser_p2_p3 handlers exist + are functions.
+      bruiserP1P2Type:  typeof (mod.REACTIVITY_HANDLERS || {})['bruiser_p1_p2'],
+      bruiserP2P3Type:  typeof (mod.REACTIVITY_HANDLERS || {})['bruiser_p2_p3'],
+    };
+  });
+
+  // Sacred 22 still byte-perfect.
+  expect(result.sacredKeyCount).toBe(22);
+  // Identity registry now has all 5 boss-reactive entries.
+  expect(result.identityKeys).toContain('identity_phoenix_revive');
+  expect(result.identityKeys).toContain('identity_assassin_shark_counter');
+  expect(result.identityKeys).toContain('identity_berserker_frenzy_pulse');
+  expect(result.identityKeys).toContain('identity_engineer_tetris_counter');
+  expect(result.identityKeys).toContain('identity_bruiser_grove_surge');
+  expect(result.identityPhoenixType).toBe('function');
+  expect(result.identityLichType).toBe('function');
+  expect(result.identityBloodtideType).toBe('function');
+  expect(result.identityLockdownType).toBe('function');
+  expect(result.identityGroveSurgeType).toBe('function');
+  expect(result.triggerEventType).toBe('function');
+  expect(result.resetIdentityType).toBe('function');
+  // SACRED bruiser_p1_p2 + bruiser_p2_p3 handlers still exist + untouched.
+  expect(result.bruiserP1P2Type).toBe('function');
+  expect(result.bruiserP2P3Type).toBe('function');
+  // Sacred 22 entries still explicitly present.
+  const expectedSacred = [
+    'berserker_p1_p2', 'berserker_p2_p3',
+    'armored_p1_p2',   'armored_p2_p3',
+    'phoenix_p1_p2',   'phoenix_p2_p3',
+    'assassin_p1_p2',  'assassin_p2_p3',
+    'bruiser_p1_p2',   'bruiser_p2_p3',
+    'hypnotist_p1_p2', 'hypnotist_p2_p3',
+    'engineer_p1_p2',  'engineer_p2_p3',
+    'frenzy_p1_p2',    'frenzy_p2_p3',
+    'tempo_disruptor_p1_p2', 'tempo_disruptor_p2_p3',
+    'battery_p1_p2',   'battery_p2_p3',
+    'tower_voidfang_p1_p2', 'tower_voidfang_p2_p3',
+  ];
+  for (const k of expectedSacred) {
+    expect(result.sacredKeys).toContain(k);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('Grovewarden Root Surge: PLACEHOLDER narrator string accessible per ESC-02 O2 (Roman copy-pass pending)', async ({ page }) => {
+  // Per ESC-02 O2 ruling, the new narrator line "Where you would not bloom,
+  // I will." is a PLACEHOLDER pending Roman's copy-pass at Phase 2 PR merge.
+  // The placeholder lives in src/data/identity-layer.js as an isolated
+  // constant (NOT in the sacred NARRATOR_LINES table — that infrastructure
+  // stays byte-perfect).
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const dataMod = await import('/src/data/identity-layer.js');
+    return {
+      placeholderString: dataMod.ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER,
+    };
+  });
+
+  // PLACEHOLDER text from spec §3.5 field 6. FINAL COPY: pending Roman
+  // approval at Phase 2 PR merge.
+  expect(result.placeholderString).toBe('Where you would not bloom, I will.');
+  expect(errors).toEqual([]);
+});
+
+test('fxGrovewardenRootSurge performance: initial trigger within ≤14ms budget', async ({ page }) => {
+  // Spec §3.5 field 7: initial trigger ≤14ms wall-time. Pool init + 3-cell
+  // placement + narrator banner. Single-fire measurement.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const wallTime = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetRootSurgePool();
+    mod.resetGrovewardenRootSurge();
+
+    const gridState = Array(8).fill(null).map(() => Array(8).fill(null));
+    mod.pushRecentClear('ember');
+    mod.pushRecentClear('tide');
+    mod.pushRecentClear('umbra');
+
+    // Warm-up call (pool init cost factored out).
+    mod.fxGrovewardenRootSurge(null, { gridState, currentTurn: 0 });
+    mod.resetGrovewardenRootSurge();
+    mod.pushRecentClear('ember');
+    mod.pushRecentClear('tide');
+    mod.pushRecentClear('umbra');
+
+    const t0 = performance.now();
+    mod.fxGrovewardenRootSurge(null, { gridState, currentTurn: 0 });
+    const dt = performance.now() - t0;
+    mod.resetGrovewardenRootSurge();
+    return dt;
+  });
+
+  // Spec §3.5 field 7: ≤14ms initial. Allow 3× CI headroom (42ms).
+  expect(wallTime).toBeLessThan(42);
+  expect(errors).toEqual([]);
+});

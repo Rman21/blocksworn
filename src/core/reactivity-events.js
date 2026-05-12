@@ -191,6 +191,10 @@ import {
   // T2.10 — Engineer Lockdown Protocol (anti-Tetris 4-line crit counter).
   fxEngineerLockdownProtocol as _fxEngineerLockdownProtocolImpl,
   resetEngineerLockdowns     as _resetEngineerLockdownsImpl,
+  // T2.11 — Grovewarden Root Surge (sliding-window non-grove trigger, FIFTH
+  // and FINAL boss-reactive identity mechanic).
+  fxGrovewardenRootSurge       as _fxGrovewardenRootSurgeImpl,
+  resetGrovewardenRootSurge    as _resetGrovewardenRootSurgeImpl,
 } from '../feel/identity-fx.js';
 
 // Feel layer (residual legacy-owned):
@@ -1502,6 +1506,43 @@ export const IDENTITY_BOSS_HANDLERS = {
     }
     try { if (typeof showReactivityFX === 'function') showReactivityFX('engineer', 'lockdown_protocol'); } catch (e) {}
   },
+  // ── GROVEWARDEN ROOT SURGE (spec §3.5) ───────────────────────────────
+  // Layered ALONGSIDE the sacred bruiser handlers (`bruiser_p1_p2`,
+  // `bruiser_p2_p3` — BOTH UNTOUCHED). Root Surge is the FIFTH and FINAL
+  // boss-reactive identity mechanic — sliding-window non-grove trigger
+  // (player's last 3 line clears all NOT grove-dominant → boss "patient"
+  // reaction).
+  //
+  // Trigger gate (managed in identity-fx.js via `shouldRootSurgeFire` +
+  // the `_grovewardenRecentClears` circular buffer): every line clear
+  // pushes its dominant element into the buffer (FIFO, size 3). When the
+  // buffer is full AND every entry !== 'grove', `triggerIdentityBossEvent(
+  // 'identity_bruiser_grove_surge')` fires. The T2.B legacy bridge will
+  // wire `pushRecentClear` into the line-clear pipeline AND consult the
+  // gate before dispatching.
+  //
+  // Boss reaction (handler body): 3 random empty cells gain moss root
+  // overlays. Cells block placement for 5 turns. When player clears a
+  // rooted cell during the window, `onRootCellCleared` grants +10 gold
+  // via existing `addGold` (cross-layer Pirate Plunder integration —
+  // FIRST live cross-layer interaction in Phase 2). Roots auto-clear at
+  // 5-turn timeout (silent, no damage).
+  //
+  // Banner color matches the bruiser/grove palette (#2D8659 mossy green)
+  // — distinct from copper Engineer lockdown / purple Lich curse / red
+  // Berserker pulse / cyan Shark bite / orange Phoenix flame. Telegraph
+  // text uses the PLACEHOLDER narrator copy "Where you would not bloom, I
+  // will." (PLACEHOLDER per ESC-02 O2 — Roman copy-pass at Phase 2 PR
+  // merge will confirm or replace).
+  identity_bruiser_grove_surge: function() {
+    // FINAL COPY: pending Roman approval at Phase 2 PR merge (ESC-02 O2).
+    try { flashStateBanner('ROOT SURGE · 3 ROOTS · 5 TURNS', '#2D8659'); } catch (e) {}
+    try { vibrate([30, 20, 30, 20, 60]); } catch (e) {}
+    try { _fxGrovewardenRootSurgeImpl(null, null); } catch (e) {
+      log.error('[T2.11] Grovewarden Root Surge fx threw:', e);
+    }
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('bruiser', 'root_surge'); } catch (e) {}
+  },
 };
 
 // Dispatch entry point — mirrors `triggerReactivityEvent` shape so the
@@ -1558,6 +1599,9 @@ export function resetIdentityBossState() {
   }
   try { _resetEngineerLockdownsImpl(); } catch (e) {
     log.warn('[T2.10] resetEngineerLockdowns threw:', e);
+  }
+  try { _resetGrovewardenRootSurgeImpl(); } catch (e) {
+    log.warn('[T2.11] resetGrovewardenRootSurge threw:', e);
   }
 }
 

@@ -105,5 +105,14 @@ export const BOSS_IDENTITY_FX = Object.freeze({
   // TOP of sacred `engineer_p1_p2` phase-gate lockdown (UNTOUCHED) via
   // parallel handler in `IDENTITY_BOSS_HANDLERS`.
   engineer:   'engineer_lockdown',
-  // T2.11: grovewarden / void / uroboros
+  // T2.11 — Grovewarden Root Surge (Bruiser archetype, Ch1 Boss 3
+  // GROVEWARDEN + Tower bruisers). Sliding-window non-grove trigger: when
+  // player's last 3 line clears were all NOT grove-dominant, boss reacts by
+  // placing 3 root overlays on random empty cells (5-turn block + +10 gold
+  // per cleared root via existing addGold cross-layer Pirate Plunder
+  // integration). Layered ON TOP of sacred `bruiser_p1_p2` / `bruiser_p2_p3`
+  // phase-gate handlers (UNTOUCHED) via parallel handler in
+  // `IDENTITY_BOSS_HANDLERS`.
+  bruiser:    'grovewarden_root_surge',
+  // T2.11+: void / uroboros (optional spotlight, deferred per spec §7.1)
 });

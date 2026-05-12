@@ -41,7 +41,7 @@
 
 /* global addGold, HERO_DECK, ultCharges, ULT_THRESHOLD, currentUltThreshold,
           MAX_SHIELD, maxShieldBonus, grid, HERO_ULT_COST_BY_NEWROLE,
-          engineerLockedCells */
+          engineerLockedCells, flashStateBanner */
 
 import {
   IDENTITY_FX_KEYS,
@@ -107,6 +107,17 @@ import {
   ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS,
   ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS,
   ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS,
+  // T2.11 — Grovewarden Root Surge constants.
+  ROOT_SURGE_CELL_COUNT,
+  ROOT_SURGE_TURNS_UNTIL_AUTO_CLEAR,
+  ROOT_SURGE_GOLD_PER_CLEAR,
+  ROOT_SURGE_TRIGGER_NON_GROVE_COUNT,
+  ROOT_SURGE_GROVE_ELEMENT,
+  ROOT_SURGE_OVERLAY_DECAY_MS,
+  ROOT_SURGE_OVERLAY_COLOR,
+  ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER,
+  ROOT_SURGE_INITIAL_BUDGET_MS,
+  ROOT_SURGE_PER_TURN_TICK_BUDGET_MS,
 } from '../data/identity-layer.js';
 import { RACE_SYNERGY } from '../data/races.js';
 import {
@@ -118,6 +129,7 @@ import {
   spawnSkullOverlay,
   spawnBloodtidePulse,
   spawnEngineerRatchet,
+  spawnMossRootOverlay,
 } from './particles.js';
 import { vHaptic } from './haptics.js';
 import { log } from '../services/logger.js';
@@ -3785,6 +3797,707 @@ export function engineerLockdownGatePasses(linesCleared, comboTriggered) {
   return isTetrisCrit(linesCleared, comboTriggered);
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-038 (T2.11): Grovewarden Root Surge (FIFTH and FINAL
+// boss-reactive identity mechanic — sliding-window non-grove trigger per
+// spec §3.5).
+//
+// Spec: docs/design/mechanics/identity-layer.md §3.5.
+// Architecture (spec §1 hard rule 1): Identity Layer EXTENDS, never MODIFIES,
+// v2.1 P4 reactivity. Sacred bruiser handlers (`bruiser_p1_p2`,
+// `bruiser_p2_p3`) + 22 reactivity handlers are BYTE-PERFECT. Root Surge
+// is a NEW handler under namespace `identity_bruiser_grove_surge` in
+// `src/core/reactivity-events.js`, fired ALONGSIDE the sacred bruiser path
+// via the T2.07-established `IDENTITY_BOSS_HANDLERS` parallel registry.
+//
+// Mechanical contract (spec §3.5):
+//   - Trigger: Player's last ROOT_SURGE_TRIGGER_NON_GROVE_COUNT (3) line
+//     clears were all NOT grove-dominant (sliding-window — circular buffer
+//     of size 3 stores dominant elements). Gate passes iff buffer.length
+//     === 3 AND every entry !== 'grove'. Implemented as
+//     `shouldRootSurgeFire(buffer, sacredElement)` pure helper.
+//   - `pushRecentClear(dominantElement)`: append to circular buffer (FIFO,
+//     keep last 3). Called by battle pipeline on every line clear.
+//   - `fxGrovewardenRootSurge(bossState, ctx)`: when gate passes, pick
+//     ROOT_SURGE_CELL_COUNT (3) random EMPTY cells (vs T2.08's non-empty
+//     pattern — roots grow on empty space). Add to `_activeRootCells`
+//     array with `placedTurn = ctx.currentTurn`, `expiresTurn = placedTurn
+//     + 5`. Spawn 3 moss root overlays via pool (≤6ms). Show placeholder
+//     narrator line "Where you would not bloom, I will." (PLACEHOLDER per
+//     ESC-02 O2 — Roman copy-pass at Phase 2 PR merge).
+//   - Per-turn tick (`fxGrovewardenRootSurgeTick`): each turn, for any root
+//     whose `currentTurn >= expiresTurn`, remove it from `_activeRootCells`
+//     + remove CSS overlay (fade ≤300ms). Pure integer comparison;
+//     ≤1ms per-turn cost.
+//   - `onRootCellCleared(row, col)`: called when player clears a rooted
+//     cell during the 5-turn window. Grants ROOT_SURGE_GOLD_PER_CLEAR (10)
+//     gold via existing `addGold` API (cross-layer Pirate Plunder
+//     integration — FIRST live cross-layer interaction in Phase 2; same
+//     path as T2.02 Pirate's Plunder gold writes). Removes the root from
+//     `_activeRootCells` + CSS overlay.
+//   - `isCellRooted(row, col)`: read-only predicate exposed for T2.B bridge
+//     to wire into legacy `pieceCanBePlaced` (rooted cells block placement
+//     for 5 turns).
+//
+// Sacred-cow safety (CLAUDE.md §2.1 + §2.5 + spec §3.5 field 8):
+//   - **Element Synergy UNTOUCHED** — grove 3x (−4 grove ULT + +20%
+//     passive dmg) sacred values are read-only references. Root Surge
+//     writes ONLY to board state + gold.
+//   - **RACE_SYNERGY.troll.* + .golem.* UNTOUCHED** — grove-themed sacred
+//     tier kits read-only (T2.05 invariant).
+//   - **All 22 v2.1 P4 reactivity handlers UNTOUCHED** — Root Surge adds a
+//     NEW handler under namespace `identity_bruiser_grove_surge` in
+//     `src/core/reactivity-events.js`. Sacred `bruiser_p1_p2` /
+//     `bruiser_p2_p3` byte-perfect.
+//   - **NARRATOR_LINES UNTOUCHED** — new narrator line lives in isolated
+//     ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER constant per ESC-02 O2 ruling.
+//     The sacred NARRATOR_LINES infrastructure stays byte-perfect.
+//   - **REACTIVITY_TELEGRAPH_MS = 3000 UNTOUCHED** — Root Surge uses the
+//     telegraph→execute pattern via the T2.07-established dispatcher (the
+//     constant is RE-USED, never modified).
+//   - **HERO_ULT_COST_BY_NEWROLE UNTOUCHED** — Root Surge does not write
+//     to ULT charges.
+//   - **Stagger Loop UNTOUCHED** — T2.09 invariant maintained.
+//   - **Combo Crit formula UNTOUCHED** — Root Surge never feeds combo crit.
+//   - **V_HAPTICS UNTOUCHED** — handler-side `vibrate(...)` only.
+//   - **Phoenix/Lich/Berserker/Engineer invariants UNTOUCHED** — T2.07
+//     through T2.10 module state independent.
+//
+// Performance budget (spec §3.5 field 7):
+//   - 3 cell overlay activations ≤6ms (3 × ≤2ms each via pool).
+//   - Mossy bloom particle ≤8ms.
+//   - Per-turn tick ≤1ms — integer comparison over ≤3-element array.
+//   - Total per-fire wall-time ≤ROOT_SURGE_INITIAL_BUDGET_MS (14ms).
+//
+// Cross-layer Pirate Plunder integration:
+//   - Root cleared by player → +10 gold via `addGold(10)` global call.
+//     Same path T2.02 Pirate's Plunder uses (legacy addGold infrastructure).
+//   - NO double-count: a rooted-cell clear is a DISTINCT event from a
+//     normal line-clear cell. Pirate Plunder fires on `clearLines` rows∪cols
+//     via `fxPirateLineClear`; Root Surge gold fires on
+//     `onRootCellCleared(row, col)` event. The two paths never read the
+//     same cleared cell because rooted cells are EXCLUDED from Pirate
+//     Plunder's `cellsCleared` count (a rooted cell can't be in a normal
+//     line-clear because placement was BLOCKED for 5 turns — the only way
+//     to "clear" it is via the rooted-cell-clear event, which the T2.B
+//     bridge will invoke via `onRootCellCleared`).
+//
+// Architectural pattern (NEW — sliding-window trigger):
+//   - First Phase 2 mechanic using a circular buffer of recent actions.
+//     Sibling to:
+//       * T2.07 phase-gate trigger (Phoenix revive)
+//       * T2.08 condition + per-turn-tick (Lich shark gate + 3T lifecycle)
+//       * T2.09 count-based trigger (every 3rd clear + Stagger Loop state)
+//       * T2.10 action-based trigger (4-line crit detection)
+//       * T2.11 sliding-window trigger (last 3 clears all non-grove) ← NEW
+//   - Buffer is FIFO size 3, populated via `pushRecentClear(dominantElement)`.
+//     Old entries shift out as new ones come in (`shift()` + `push()`).
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Pre-allocated DOM elements (object pool: 3 moss root overlays). Sized at
+// the hard spec cap ROOT_SURGE_CELL_COUNT (3) — never exceeded. Created
+// lazily on first fxGrovewardenRootSurge invocation.
+const _rootSurgePool          = [];
+const _rootSurgePoolAvailable = [];   // stack of element indices not currently in use
+let   _rootSurgePoolContainer = null;
+let   _rootSurgePoolInitDone  = false;
+
+// Module state — circular buffer (FIFO size 3) of recent line-clear
+// dominant elements. Pushed via `pushRecentClear`. When buffer is full AND
+// every entry !== 'grove', `shouldRootSurgeFire` returns true → triggers
+// the Root Surge boss reaction.
+let _grovewardenRecentClears = [];
+
+// Module state — array of active roots. Each entry shape:
+//   { row, col, placedTurn, expiresTurn, el } where `el` is the moss root
+// overlay DOM element backing the visual (null in unit-test envs without
+// a DOM). Max length = ROOT_SURGE_CELL_COUNT (3) by construction —
+// fxGrovewardenRootSurge caps the placement at the spec value.
+let _activeRootCells = [];
+
+// Ensures the 3-element DOM pool exists. Idempotent — calling again is a
+// no-op. In Node-only unit-test environments (no `document`), the pool stays
+// empty and helpers work on the array-only state path.
+function _ensureRootSurgePool() {
+  if (_rootSurgePoolInitDone) return;
+  if (typeof document === 'undefined') return;          // unit-test guard
+  _rootSurgePoolContainer = document.createElement('div');
+  _rootSurgePoolContainer.className = 'identity-grovewarden-root-container';
+  _rootSurgePoolContainer.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(_rootSurgePoolContainer);
+  for (let i = 0; i < ROOT_SURGE_CELL_COUNT; i++) {
+    const el = document.createElement('div');
+    el.className = 'identity-grovewarden-root-overlay';
+    el.style.display = 'none';
+    _rootSurgePoolContainer.appendChild(el);
+    _rootSurgePool.push(el);
+    _rootSurgePoolAvailable.push(i);
+  }
+  _rootSurgePoolInitDone = true;
+}
+
+// ─── Pure helpers (unit-testable, no DOM) ──────────────────────────────
+//
+// Pure predicate: should Root Surge fire given the current sliding-window
+// state? Spec §3.5 field 3: "Player's last 3 line clears were all NOT
+// grove-dominant." Returns true iff buffer is full (length === 3) AND every
+// entry is strictly !== sacredGroveElement ('grove').
+//
+// `recentClearsBuffer` is the module-state circular buffer
+// (`_grovewardenRecentClears`) — an array of dominant-element strings.
+// `sacredGroveElement` defaults to ROOT_SURGE_GROVE_ELEMENT ('grove') — pass
+// as parameter for testability + sacred-cow audit (the constant is sacred
+// per CLAUDE.md §2.1 grove element name).
+//
+// Returns: boolean. True → fire `triggerIdentityBossEvent(
+// 'identity_bruiser_grove_surge')`; false → silent no-op (no DOM, no state
+// mutation, no log).
+//
+// Edge cases:
+//   - Buffer length < 3 (early-battle state with fewer than 3 clears yet) →
+//     false. Sliding-window requires full history.
+//   - Buffer contains 'grove' entry → false (boss is patient; if you played
+//     grove recently, it doesn't react).
+//   - Buffer mixed non-grove (ember + tide + umbra) → TRUE (all non-grove
+//     even though they differ).
+//   - null/non-array input → false (defensive).
+export function shouldRootSurgeFire(recentClearsBuffer, sacredGroveElement) {
+  const _grove = (typeof sacredGroveElement === 'string' && sacredGroveElement.length)
+    ? sacredGroveElement
+    : ROOT_SURGE_GROVE_ELEMENT;
+  if (!Array.isArray(recentClearsBuffer)) return false;
+  if (recentClearsBuffer.length !== ROOT_SURGE_TRIGGER_NON_GROVE_COUNT) return false;
+  for (const e of recentClearsBuffer) {
+    if (e === _grove) return false;
+  }
+  return true;
+}
+
+// Pure helper: push a dominant element onto the circular buffer (FIFO,
+// keep last ROOT_SURGE_TRIGGER_NON_GROVE_COUNT = 3 entries). Returns the
+// resulting buffer (the module-state `_grovewardenRecentClears` reference,
+// for caller convenience). Pure mutation of the module state — single
+// source of truth.
+//
+// `dominantElement` is the string element name of the just-cleared line's
+// dominant element (e.g., 'ember', 'tide', 'grove', 'solar', 'umbra'). If
+// undefined or non-string, the push is silently skipped (defensive).
+//
+// Buffer is FIFO: when length === 3 and a new push arrives, the oldest
+// entry is shifted out before the new entry is appended. This keeps the
+// buffer "sliding" — always representing the player's MOST RECENT
+// ROOT_SURGE_TRIGGER_NON_GROVE_COUNT clears.
+export function pushRecentClear(dominantElement) {
+  if (typeof dominantElement !== 'string' || dominantElement.length === 0) {
+    return _grovewardenRecentClears;
+  }
+  if (_grovewardenRecentClears.length >= ROOT_SURGE_TRIGGER_NON_GROVE_COUNT) {
+    _grovewardenRecentClears.shift();   // drop oldest
+  }
+  _grovewardenRecentClears.push(dominantElement);
+  return _grovewardenRecentClears;
+}
+
+// Pure helper: returns array of {row, col} for up to `count` random EMPTY
+// cells on the board. Pure function — given a stable `gridState`, the
+// result depends only on the random selection. Cells already rooted (in
+// `_activeRootCells`) are EXCLUDED from re-selection so a single fire
+// never double-roots a cell.
+//
+// Adapted from T2.08 `pickRandomNonEmptyCells` — same algorithm, flipped
+// predicate: this picks EMPTY cells (where readCell returns null /
+// undefined / 0 / ''). Roots grow on empty space per spec §3.5 field 4.
+//
+// `gridState` may be:
+//   - 2D array [row][col] with truthy values for non-empty cells (legacy
+//     `grid` shape — strings like 'ember' / 'tide' / null)
+//   - { getElementAt(r, c): string|null } module-style API
+//   - null/undefined → returns [] (defensive)
+//
+// `count` defaults to ROOT_SURGE_CELL_COUNT (3). The returned array length
+// is `min(count, available empty cells, ROOT_SURGE_CELL_COUNT)`.
+//
+// Selection algorithm: collect candidate empty cells (excluding already-
+// rooted ones), Fisher-Yates partial shuffle, return first N. This is
+// O(64) on an 8×8 board — well under 1ms wall-time.
+export function pickRandomEmptyCells(gridState, count, gridCols = BOARD_COLS, gridRows = BOARD_ROWS) {
+  const n = (typeof count === 'number' && count > 0) ? Math.floor(count) : ROOT_SURGE_CELL_COUNT;
+  if (!gridState) return [];
+
+  // Helper: read cell at (r, c) from whatever shape gridState carries.
+  const readCell = (r, c) => {
+    if (typeof gridState.getElementAt === 'function') {
+      return gridState.getElementAt(r, c);
+    }
+    if (Array.isArray(gridState) && Array.isArray(gridState[r])) {
+      return gridState[r][c];
+    }
+    return null;
+  };
+
+  // Collect candidate EMPTY cells, excluding already-rooted ones.
+  const rootedKey = new Set(_activeRootCells.map(t => t.row + '_' + t.col));
+  const candidates = [];
+  for (let r = 0; r < gridRows; r++) {
+    for (let c = 0; c < gridCols; c++) {
+      const v = readCell(r, c);
+      if (v) continue;                                   // non-empty = skip
+      const key = r + '_' + c;
+      if (rootedKey.has(key)) continue;                  // exclude already-rooted cells
+      candidates.push({ row: r, col: c });
+    }
+  }
+  if (candidates.length === 0) return [];
+
+  // Fisher-Yates partial shuffle — only shuffle the first `min(n, len)`
+  // positions, since we don't need the full random ordering.
+  const take = Math.min(n, candidates.length);
+  for (let i = 0; i < take; i++) {
+    const j = i + Math.floor(Math.random() * (candidates.length - i));
+    if (j !== i) {
+      const tmp = candidates[i];
+      candidates[i] = candidates[j];
+      candidates[j] = tmp;
+    }
+  }
+  return candidates.slice(0, take);
+}
+
+// Pure helper: compute the cells where roots will appear. Pass-through to
+// `pickRandomEmptyCells(gridState, ROOT_SURGE_CELL_COUNT)` — exposed as a
+// named helper so tests have a documented seam matching the gate-naming
+// convention of other identity mechanics (`computeBittenCells` /
+// `compute2x2LockdownCells`).
+export function computeRootSurgeCells(gridState) {
+  return pickRandomEmptyCells(gridState, ROOT_SURGE_CELL_COUNT);
+}
+
+// Pure helper: compute the gold reward granted when a player clears a
+// rooted cell during the 5-turn window. Per spec §3.5 field 4: "+10 player
+// gold per cleared rooted cell." Returns rootCellCount × 10 — caller
+// typically passes 1 (single rooted-cell-clear event), but defensive
+// support for batch clears is provided (e.g., a Shark Feeding Frenzy
+// chain that incidentally clears multiple rooted cells in one event).
+//
+// `rootCellCount` defaults to 1. Defensive: non-finite / negative inputs
+// are clamped to 0 (no negative gold).
+export function computeRootClearGoldReward(rootCellCount = 1) {
+  const _n = Math.max(0, Math.floor(Number(rootCellCount) || 0));
+  return _n * ROOT_SURGE_GOLD_PER_CLEAR;
+}
+
+// Pure helper: per-turn tick result for a single root entry. Returns:
+//   - `active: false, shouldExpire: true` → root has expired (currentTurn
+//     >= expiresTurn) and should be removed. `goldGrantOnClear: 0`
+//     because the timeout path grants NO gold per spec §3.5 field 4
+//     ("auto-clear at 5-turn timeout — no damage, only the placement
+//     blocker").
+//   - `active: true, shouldExpire: false` → root is still ticking; no
+//     mutation needed.
+//
+// Mirrors T2.08 `computeCurseTickResult` pattern — pure function over
+// (root, currentTurn). The caller (`fxGrovewardenRootSurgeTick`) drives
+// the active-array mutation.
+//
+// `root` must have `{ placedTurn, expiresTurn }`. `currentTurn` is the
+// game's current turn counter at the moment of the tick.
+//
+// `goldGrantOnClear` is the reward THIS root would grant IF cleared by
+// the player (not by timeout). For auto-clear (timeout), gold is 0; for
+// player-clear (onRootCellCleared), the caller uses
+// `computeRootClearGoldReward` directly. This field is included for
+// symmetry with the T2.08 tick result shape and for documentation.
+export function computeRootSurgeTickResult(root, currentTurn) {
+  const _t = Number(currentTurn);
+  if (!root || typeof root !== 'object') {
+    return { active: false, shouldExpire: false, goldGrantOnClear: ROOT_SURGE_GOLD_PER_CLEAR };
+  }
+  const _expires = Number(root.expiresTurn);
+  if (!Number.isFinite(_t) || !Number.isFinite(_expires)) {
+    return { active: true, shouldExpire: false, goldGrantOnClear: ROOT_SURGE_GOLD_PER_CLEAR };
+  }
+  if (_t >= _expires) {
+    return { active: false, shouldExpire: true, goldGrantOnClear: ROOT_SURGE_GOLD_PER_CLEAR };
+  }
+  return { active: true, shouldExpire: false, goldGrantOnClear: ROOT_SURGE_GOLD_PER_CLEAR };
+}
+
+// Read-only predicate: is the cell at (row, col) currently rooted?
+// Exposed for the T2.B legacy bridge to wire into `pieceCanBePlaced` so
+// rooted cells block placement for 5 turns. Pure read of the
+// `_activeRootCells` array — no allocation.
+//
+// Returns false for any non-finite or non-rooted input. Mirrors T2.08
+// `isCellCursed` + T2.10 `isCellLockedByLockdownProtocol` predicate
+// pattern.
+export function isCellRooted(row, col) {
+  const _r = Number(row);
+  const _c = Number(col);
+  if (!Number.isFinite(_r) || !Number.isFinite(_c)) return false;
+  for (const t of _activeRootCells) {
+    if (t.row === _r && t.col === _c) return true;
+  }
+  return false;
+}
+
+// Read-only accessor: how many roots are currently active? Used by the
+// per-turn tick + tests to confirm placement / expiration accounting.
+export function getActiveRootCellsCount() {
+  return _activeRootCells.length;
+}
+
+// Read-only snapshot of active roots (defensive copy). Used by tests and
+// by the T2.B legacy bridge for grid rendering integration. Production
+// callers should prefer `isCellRooted` / `getActiveRootCellsCount` to
+// avoid the allocation.
+export function getActiveRootCellsSnapshot() {
+  return _activeRootCells.map(t => ({
+    row: t.row,
+    col: t.col,
+    placedTurn:  t.placedTurn,
+    expiresTurn: t.expiresTurn,
+  }));
+}
+
+// Read-only accessor: snapshot of the sliding-window recent-clears buffer.
+// Used by tests + T2.B legacy bridge for debug visibility. Returns a
+// defensive copy.
+export function getRecentClearsSnapshot() {
+  return _grovewardenRecentClears.slice();
+}
+
+// Reset hook for battle pipeline (battle start / battle end). Clears all
+// state + hides DOM. Mirrors `resetCursedTiles` / `resetBloodtide` /
+// `resetEngineerLockdowns` / `resetAshenReign` precedents. Idempotent —
+// safe to call when no roots are active.
+export function resetGrovewardenRootSurge() {
+  // Hide all root overlays + return them to the available pool.
+  for (const t of _activeRootCells) {
+    if (t.el) {
+      try {
+        t.el.classList.remove('identity-grovewarden-root-bloom');
+        t.el.classList.remove('identity-grovewarden-root-fade');
+        t.el.style.display = 'none';
+      } catch (_e) { /* swallow */ }
+    }
+  }
+  _activeRootCells.length = 0;
+  _grovewardenRecentClears.length = 0;
+  // Restore all pool indices to available.
+  _rootSurgePoolAvailable.length = 0;
+  for (let i = 0; i < _rootSurgePool.length; i++) {
+    _rootSurgePoolAvailable.push(i);
+  }
+}
+
+// ─── Activate / tick / clear-event (module state mutations) ────────────
+//
+// `fxGrovewardenRootSurge(bossState, ctx)` — place ROOT_SURGE_CELL_COUNT
+// (3) root overlays on random empty cells. Spec §3.5 field 4.
+//
+// Gate (spec §3.5 field 3): silent no-op unless
+// `shouldRootSurgeFire(_grovewardenRecentClears, ROOT_SURGE_GROVE_ELEMENT)`
+// returns true. The caller (boss-reactive handler dispatcher) is expected
+// to gate via `rootSurgeGatePasses` BEFORE invoking — this function also
+// double-gates defensively.
+//
+// Initial-trigger wall-time budget: ≤ROOT_SURGE_INITIAL_BUDGET_MS (14ms).
+//   - shouldRootSurgeFire: O(3) pure integer math ≤0.1ms
+//   - pickRandomEmptyCells: O(64) over 8×8 board → ≤1ms
+//   - 3 × _rootSurgePool element activation (class swap + position): ≤6ms
+//   - module state array push × 3: ≤1ms
+//   - narrator banner: ≤2ms
+//   Total: ≤10ms typical, 14ms ceiling with CI headroom.
+//
+// `ctx` is the dispatch context (may carry):
+//   - `ctx.gridState`: the 2D grid array used to pick empty cells
+//     (defaults to legacy `grid` global)
+//   - `ctx.currentTurn`: the game's current turn counter (placedTurn /
+//     expiresTurn anchor; defaults to 0)
+//   - `ctx.narratorApi`: optional `{ show(text) }` API for the narrator
+//     surface. If absent, `flashStateBanner` (legacy global) is the
+//     fallback. The narrator line is the PLACEHOLDER per ESC-02 O2
+//     (FINAL COPY: pending Roman approval at Phase 2 PR merge).
+//
+// `bossState` parameter is reserved for forward compat (codex / matchup
+// matrix may need archetype-specific tinting); currently unused.
+export function fxGrovewardenRootSurge(_bossState, ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  try {
+    // Defensive double-gate: silent no-op if buffer state doesn't qualify.
+    // Production callers should gate via `rootSurgeGatePasses` first; this
+    // is the safety net for direct invocations (FTUE / codex preview).
+    if (!shouldRootSurgeFire(_grovewardenRecentClears, ROOT_SURGE_GROVE_ELEMENT)) return;
+
+    // Resolve grid + current turn from ctx (preferred) or legacy globals.
+    const _gridState = (ctx && ctx.gridState !== undefined)
+      ? ctx.gridState
+      : (typeof grid !== 'undefined' ? grid : null);
+    const _currentTurn = (ctx && typeof ctx.currentTurn === 'number')
+      ? ctx.currentTurn
+      : 0;
+
+    // Pick up to ROOT_SURGE_CELL_COUNT random empty cells (already-rooted
+    // excluded by pickRandomEmptyCells). If the board has fewer empty
+    // cells than ROOT_SURGE_CELL_COUNT, place whatever is available —
+    // silent partial-fire is OK per spec §3.5 field 4 ("3 random empty
+    // cells").
+    const picks = pickRandomEmptyCells(_gridState, ROOT_SURGE_CELL_COUNT);
+    if (picks.length === 0) return;
+
+    // Lazy pool init for DOM environments.
+    _ensureRootSurgePool();
+
+    // Resolve screen coords for each picked cell. In Node-only test envs
+    // (no DOM), `cells` is empty and we skip the DOM activation step.
+    const cells = (typeof document !== 'undefined')
+      ? document.querySelectorAll('.grid .cell')
+      : null;
+
+    for (const pick of picks) {
+      // Pop a pool index. Cap is ROOT_SURGE_CELL_COUNT — if exhausted
+      // (e.g., re-fire before resetGrovewardenRootSurge), silently skip
+      // the DOM allocation for this root (state still tracked in
+      // _activeRootCells array).
+      let el = null;
+      if (_rootSurgePoolAvailable.length > 0) {
+        const idx = _rootSurgePoolAvailable.pop();
+        el = _rootSurgePool[idx];
+      }
+      // Configure overlay via spawnMossRootOverlay factory (CSS animation-
+      // driven). In headless test envs, el is null — state-only path.
+      if (el && cells && cells.length) {
+        const cellIdx = pick.row * BOARD_COLS + pick.col;
+        const cellEl  = cells[cellIdx];
+        if (cellEl && typeof cellEl.getBoundingClientRect === 'function') {
+          const r = cellEl.getBoundingClientRect();
+          const cx = r.left + r.width / 2;
+          const cy = r.top  + r.height / 2;
+          try {
+            el.style.display = 'block';
+            spawnMossRootOverlay({
+              el,
+              x: cx,
+              y: cy,
+              color: ROOT_SURGE_OVERLAY_COLOR,
+              decayMs: ROOT_SURGE_OVERLAY_DECAY_MS,
+            });
+          } catch (e) { log.warn('Grovewarden Root overlay spawn failed:', e); }
+        }
+      }
+      // Add to active-roots array. Even in headless test envs (no DOM),
+      // this is the source of truth for isCellRooted / per-turn tick.
+      _activeRootCells.push({
+        row: pick.row,
+        col: pick.col,
+        placedTurn:  _currentTurn,
+        expiresTurn: _currentTurn + ROOT_SURGE_TURNS_UNTIL_AUTO_CLEAR,
+        el,
+      });
+    }
+
+    // PLACEHOLDER narrator line per ESC-02 O2 ruling. FINAL COPY: pending
+    // Roman approval at Phase 2 PR merge. Wired via ctx.narratorApi (if
+    // provided by T2.B bridge) OR via legacy `flashStateBanner` global.
+    // The line lives in the isolated ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER
+    // constant — NOT in the sacred NARRATOR_LINES table.
+    try {
+      if (ctx && ctx.narratorApi && typeof ctx.narratorApi.show === 'function') {
+        ctx.narratorApi.show(ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER);
+      } else if (typeof flashStateBanner !== 'undefined' && typeof flashStateBanner === 'function') {
+        // Re-use the existing flashStateBanner surface — same path the
+        // boss-reactive handler in reactivity-events.js uses for its
+        // dispatcher-driven banner. The placeholder line is shown
+        // alongside (not replacing) the handler's "ROOT SURGE · 3 ROOTS
+        // · 5 TURNS" mechanical banner.
+        flashStateBanner(ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER, ROOT_SURGE_OVERLAY_COLOR);
+      }
+    } catch (_e) { /* swallow — narrator is non-essential to gameplay */ }
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      if (dt > ROOT_SURGE_INITIAL_BUDGET_MS) {
+        log.warn('Grovewarden Root Surge initial trigger over budget:',
+                 dt.toFixed(2), 'ms (limit', ROOT_SURGE_INITIAL_BUDGET_MS, 'ms)');
+      }
+    }
+  }
+}
+
+// `fxGrovewardenRootSurgeTick(ctx)` — per-turn tick. Spec §3.5 field 4
+// bullet 3 (auto-clear at 5-turn timeout). Called by the battle pipeline
+// at the START of each player turn (T2.B bridge wires this). For each
+// active root in `_activeRootCells`:
+//   - If `currentTurn >= expiresTurn`: remove the root from the array,
+//     fade the overlay over ROOT_SURGE_OVERLAY_DECAY_MS (300ms), return
+//     the pool index to the available stack.
+//
+// Per-turn wall-time budget: ≤ROOT_SURGE_PER_TURN_TICK_BUDGET_MS (1ms).
+// Worst case: 3 roots all expire on the same turn = 3 integer comparisons +
+// 3 class swaps. Pure integer math.
+//
+// `ctx` carries the per-turn snapshot:
+//   - `ctx.currentTurn`: integer turn counter (REQUIRED — falls back to 0
+//     defensively).
+//
+// Returns: result object `{ expiredCount, activeCount }` for caller
+// telemetry + unit-test assertion.
+export function fxGrovewardenRootSurgeTick(ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  const result = { expiredCount: 0, activeCount: 0 };
+  try {
+    if (_activeRootCells.length === 0) return result;
+
+    const _currentTurn = (ctx && typeof ctx.currentTurn === 'number')
+      ? ctx.currentTurn
+      : 0;
+
+    // Iterate backwards so splice doesn't shift indices.
+    for (let i = _activeRootCells.length - 1; i >= 0; i--) {
+      const root = _activeRootCells[i];
+      const tick = computeRootSurgeTickResult(root, _currentTurn);
+      if (tick.shouldExpire) {
+        // Fade overlay over ROOT_SURGE_OVERLAY_DECAY_MS (300ms) — CSS-driven.
+        if (root.el) {
+          try {
+            root.el.classList.remove('identity-grovewarden-root-bloom');
+            root.el.classList.add('identity-grovewarden-root-fade');
+            const _el = root.el;
+            setTimeout(() => {
+              try {
+                _el.style.display = 'none';
+                _el.classList.remove('identity-grovewarden-root-fade');
+              } catch (_e) { /* swallow */ }
+            }, ROOT_SURGE_OVERLAY_DECAY_MS);
+          } catch (_e) { /* swallow */ }
+          // Return pool index to available stack (find by reference).
+          for (let pi = 0; pi < _rootSurgePool.length; pi++) {
+            if (_rootSurgePool[pi] === root.el) {
+              _rootSurgePoolAvailable.push(pi);
+              break;
+            }
+          }
+        }
+        _activeRootCells.splice(i, 1);
+        result.expiredCount += 1;
+      }
+    }
+    result.activeCount = _activeRootCells.length;
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      if (dt > ROOT_SURGE_PER_TURN_TICK_BUDGET_MS) {
+        log.warn('Grovewarden Root Surge tick over budget:',
+                 dt.toFixed(2), 'ms (limit', ROOT_SURGE_PER_TURN_TICK_BUDGET_MS, 'ms)');
+      }
+    }
+  }
+  return result;
+}
+
+// `onRootCellCleared(row, col)` — called when player clears a rooted cell
+// during the 5-turn window. Spec §3.5 field 4 bullet 2: "When cleared
+// during the 5 turns, grant +10 player gold."
+//
+// Cross-layer Pirate Plunder integration (FIRST live cross-layer
+// interaction in Phase 2): uses the existing `addGold(n)` legacy
+// infrastructure — same path T2.02 Pirate's Plunder uses. The +10 gold
+// reward fires INDEPENDENT of Pirate Plunder's `+5g/cell × pirateCount`
+// — no double-count because:
+//   - Pirate Plunder fires on `clearLines` rows∪cols via `fxPirateLineClear`,
+//     iterating over the cleared cells from the normal line-clear flow.
+//   - Root Surge gold fires on `onRootCellCleared(row, col)` event,
+//     which the T2.B bridge invokes EXPLICITLY when a rooted cell is
+//     cleared. A rooted cell CAN'T be in a normal line-clear because
+//     placement was BLOCKED for 5 turns — the only way to "clear" it is
+//     via the rooted-cell-clear event.
+//
+// Returns: `{ goldGranted, cellRemoved }` for caller telemetry + tests.
+//   - `goldGranted`: integer gold granted (ROOT_SURGE_GOLD_PER_CLEAR = 10,
+//     or 0 if the cell wasn't actually rooted).
+//   - `cellRemoved`: boolean — true if the cell was found and removed
+//     from `_activeRootCells`; false if no root existed at (row, col).
+//
+// Edge cases:
+//   - (row, col) not rooted → no gold granted (defensive against double-
+//     clear events from buggy callers).
+//   - addGold global not defined (early-boot / test env) → gold reward
+//     silently dropped; the cell is still removed from the active array.
+//
+// `ctx` (optional) for testability:
+//   - `ctx.addGoldApi`: optional `{ add(n) }` API. If present, gold writes
+//     go through it (lets tests assert the +10 path); else falls back to
+//     legacy `addGold` global.
+export function onRootCellCleared(row, col, ctx) {
+  const _r = Number(row);
+  const _c = Number(col);
+  if (!Number.isFinite(_r) || !Number.isFinite(_c)) {
+    return { goldGranted: 0, cellRemoved: false };
+  }
+  // Find the rooted cell (linear scan over ≤3 entries).
+  let foundIdx = -1;
+  for (let i = 0; i < _activeRootCells.length; i++) {
+    const t = _activeRootCells[i];
+    if (t.row === _r && t.col === _c) {
+      foundIdx = i;
+      break;
+    }
+  }
+  if (foundIdx === -1) {
+    return { goldGranted: 0, cellRemoved: false };
+  }
+  // Grant gold via existing addGold path (cross-layer Pirate Plunder).
+  const goldDelta = computeRootClearGoldReward(1);
+  try {
+    if (ctx && ctx.addGoldApi && typeof ctx.addGoldApi.add === 'function') {
+      ctx.addGoldApi.add(goldDelta);
+    } else if (typeof addGold !== 'undefined' && typeof addGold === 'function') {
+      addGold(goldDelta);
+    }
+  } catch (_e) { /* swallow — gold writes are best-effort */ }
+
+  // Fade the overlay (same path as auto-clear, only difference is the
+  // timeout-vs-player-clear branch — the visual treatment is identical
+  // per spec §3.5 field 4: both events use the 300ms fade).
+  const root = _activeRootCells[foundIdx];
+  if (root && root.el) {
+    try {
+      root.el.classList.remove('identity-grovewarden-root-bloom');
+      root.el.classList.add('identity-grovewarden-root-fade');
+      const _el = root.el;
+      setTimeout(() => {
+        try {
+          _el.style.display = 'none';
+          _el.classList.remove('identity-grovewarden-root-fade');
+        } catch (_e) { /* swallow */ }
+      }, ROOT_SURGE_OVERLAY_DECAY_MS);
+    } catch (_e) { /* swallow */ }
+    // Return pool index to available stack.
+    for (let pi = 0; pi < _rootSurgePool.length; pi++) {
+      if (_rootSurgePool[pi] === root.el) {
+        _rootSurgePoolAvailable.push(pi);
+        break;
+      }
+    }
+  }
+  _activeRootCells.splice(foundIdx, 1);
+  return { goldGranted: goldDelta, cellRemoved: true };
+}
+
+// Trigger gate (spec §3.5 field 3): the boss reacts ONLY when the player's
+// last ROOT_SURGE_TRIGGER_NON_GROVE_COUNT (3) line clears were all NOT
+// grove-dominant. Pure pass-through over `shouldRootSurgeFire` so the
+// T2.B bridge has a single import surface AND tests have an explicit
+// named helper matching the gate-naming convention of other identity
+// mechanics (`cursedTilesGatePasses`, `bloodtideGatePasses`,
+// `engineerLockdownGatePasses`).
+//
+// Returns: boolean. True → fire `triggerIdentityBossEvent(
+// 'identity_bruiser_grove_surge')`; false → silent no-op.
+export function rootSurgeGatePasses() {
+  return shouldRootSurgeFire(_grovewardenRecentClears, ROOT_SURGE_GROVE_ELEMENT);
+}
+
 // ─── Test-only escape hatches (NOT used in production) ─────────────────
 // Exposed under a `__identityFxTestables` named export so unit tests can
 // assert internal state without reaching into module privates via hacks.
@@ -3946,6 +4659,28 @@ export const __identityFxTestables = Object.freeze({
     _engineerLockdownBannerEl      = null;
     _engineerLockdownPoolContainer = null;
     _engineerLockdownPoolInitDone  = false;
+  },
+  // T2.11 — Grovewarden Root Surge testables. Module-state observers +
+  // pool resetter so tests can assert sliding-window state transitions
+  // and lifecycle accounting without reaching into module privates.
+  getRootSurgePoolSize:        () => _rootSurgePool.length,
+  getRootSurgePoolAvailable:   () => _rootSurgePoolAvailable.length,
+  isRootSurgePoolInitDone:     () => _rootSurgePoolInitDone,
+  // Read-only view into the sliding-window circular buffer. Pure
+  // observation — no mutation. Used by tests + T2.B legacy bridge debug
+  // panels.
+  getRecentClearsBuffer:       () => _grovewardenRecentClears.slice(),
+  resetRootSurgePool: () => {
+    // First: drop all state via the public reset path.
+    resetGrovewardenRootSurge();
+    // Then: tear down DOM so the next test re-creates the pool fresh.
+    if (_rootSurgePoolContainer && _rootSurgePoolContainer.parentNode) {
+      _rootSurgePoolContainer.parentNode.removeChild(_rootSurgePoolContainer);
+    }
+    while (_rootSurgePool.length) _rootSurgePool.pop();
+    while (_rootSurgePoolAvailable.length) _rootSurgePoolAvailable.pop();
+    _rootSurgePoolContainer = null;
+    _rootSurgePoolInitDone  = false;
   },
   IDENTITY_FX_KEYS,
   IDENTITY_BOSS_FX_KEYS,

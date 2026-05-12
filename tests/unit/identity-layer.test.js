@@ -90,6 +90,22 @@ import {
   fxEngineerLockdownProtocol,
   fxEngineerLockdownTick,
   resetEngineerLockdowns,
+  // T2.11 — Grovewarden Root Surge helpers.
+  shouldRootSurgeFire,
+  pushRecentClear,
+  pickRandomEmptyCells,
+  computeRootSurgeCells,
+  computeRootClearGoldReward,
+  computeRootSurgeTickResult,
+  isCellRooted,
+  getActiveRootCellsCount,
+  getActiveRootCellsSnapshot,
+  getRecentClearsSnapshot,
+  rootSurgeGatePasses,
+  fxGrovewardenRootSurge,
+  fxGrovewardenRootSurgeTick,
+  onRootCellCleared,
+  resetGrovewardenRootSurge,
   __identityFxTestables,
 } from '../../src/feel/identity-fx.js';
 import {
@@ -162,6 +178,18 @@ import {
   ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS,
   ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS,
   ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS,
+  // T2.11 — Grovewarden Root Surge constants.
+  ROOT_SURGE_CELL_COUNT,
+  ROOT_SURGE_TURNS_UNTIL_AUTO_CLEAR,
+  ROOT_SURGE_GOLD_PER_CLEAR,
+  ROOT_SURGE_TRIGGER_NON_GROVE_COUNT,
+  ROOT_SURGE_GROVE_ELEMENT,
+  ROOT_SURGE_TELEGRAPH_MS,
+  ROOT_SURGE_OVERLAY_DECAY_MS,
+  ROOT_SURGE_OVERLAY_COLOR,
+  ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER,
+  ROOT_SURGE_INITIAL_BUDGET_MS,
+  ROOT_SURGE_PER_TURN_TICK_BUDGET_MS,
 } from '../../src/data/identity-layer.js';
 import { HERO_ULT_COST_BY_NEWROLE } from '../../src/data/heroes.js';
 import { RACE_SYNERGY, RACE_IDENTITY_FX } from '../../src/data/races.js';
@@ -3712,5 +3740,681 @@ describe('identity-layer · Engineer Lockdown Protocol · cross-mechanic regress
     expect(BOSS_IDENTITY_FX.berserker).toBe('berserker_bloodtide');
     expect(BOSS_IDENTITY_FX.frenzy).toBe('berserker_bloodtide');
     expect(BOSS_IDENTITY_FX.engineer).toBe('engineer_lockdown');
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-038 (T2.11): Grovewarden Root Surge unit tests.
+// Spec: docs/design/mechanics/identity-layer.md §3.5. FIFTH and FINAL
+// boss-reactive identity mechanic — sliding-window non-grove trigger.
+// Pure math + helper coverage. No DOM — Vitest runs in `node` env.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('identity-layer · Grovewarden Root Surge · shouldRootSurgeFire (sliding-window trigger gate)', () => {
+  it('buffer of 3 non-grove (ember, tide, umbra) → true', () => {
+    expect(shouldRootSurgeFire(['ember', 'tide', 'umbra'], 'grove')).toBe(true);
+  });
+
+  it('buffer of 3 mixed non-grove (solar, ember, umbra) → true', () => {
+    expect(shouldRootSurgeFire(['solar', 'ember', 'umbra'], 'grove')).toBe(true);
+  });
+
+  it('buffer of 3 with 1 grove (ember, grove, umbra) → false', () => {
+    expect(shouldRootSurgeFire(['ember', 'grove', 'umbra'], 'grove')).toBe(false);
+  });
+
+  it('buffer of 3 all grove (grove, grove, grove) → false', () => {
+    expect(shouldRootSurgeFire(['grove', 'grove', 'grove'], 'grove')).toBe(false);
+  });
+
+  it('buffer of 2 (insufficient sliding-window history) → false', () => {
+    expect(shouldRootSurgeFire(['ember', 'tide'], 'grove')).toBe(false);
+  });
+
+  it('empty buffer → false (early-battle state)', () => {
+    expect(shouldRootSurgeFire([], 'grove')).toBe(false);
+  });
+
+  it('buffer with grove at end (ember, tide, grove) → false', () => {
+    expect(shouldRootSurgeFire(['ember', 'tide', 'grove'], 'grove')).toBe(false);
+  });
+
+  it('defensive: non-array input → false', () => {
+    expect(shouldRootSurgeFire(null, 'grove')).toBe(false);
+    expect(shouldRootSurgeFire(undefined, 'grove')).toBe(false);
+    expect(shouldRootSurgeFire('not-an-array', 'grove')).toBe(false);
+    expect(shouldRootSurgeFire({}, 'grove')).toBe(false);
+  });
+
+  it('rootSurgeGatePasses reads module-state buffer (default grove element)', () => {
+    resetGrovewardenRootSurge();
+    expect(rootSurgeGatePasses()).toBe(false);
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    expect(rootSurgeGatePasses()).toBe(true);
+    resetGrovewardenRootSurge();
+  });
+});
+
+describe('identity-layer · Grovewarden Root Surge · pushRecentClear (circular buffer)', () => {
+  it('first 3 pushes → buffer retains all 3 (FIFO grows)', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    expect(getRecentClearsSnapshot()).toEqual(['ember', 'tide', 'umbra']);
+    resetGrovewardenRootSurge();
+  });
+
+  it('4th push drops oldest entry (FIFO size 3)', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    pushRecentClear('solar');
+    expect(getRecentClearsSnapshot()).toEqual(['tide', 'umbra', 'solar']);
+    resetGrovewardenRootSurge();
+  });
+
+  it('5+ pushes → buffer stays size 3 (FIFO order maintained)', () => {
+    resetGrovewardenRootSurge();
+    for (const e of ['ember', 'tide', 'umbra', 'solar', 'ember']) {
+      pushRecentClear(e);
+    }
+    expect(getRecentClearsSnapshot()).toEqual(['umbra', 'solar', 'ember']);
+    resetGrovewardenRootSurge();
+  });
+
+  it('grove push after 2 non-grove → gate fails (sliding window contaminated)', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('grove');   // contaminates buffer
+    expect(rootSurgeGatePasses()).toBe(false);
+    resetGrovewardenRootSurge();
+  });
+
+  it('defensive: non-string / empty input → silent skip (no buffer mutation)', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear(null);
+    pushRecentClear(undefined);
+    pushRecentClear('');
+    pushRecentClear(123);
+    pushRecentClear('tide');
+    // Only the two valid pushes should be in the buffer.
+    expect(getRecentClearsSnapshot()).toEqual(['ember', 'tide']);
+    resetGrovewardenRootSurge();
+  });
+
+  it('sliding window pattern: non-grove, grove, non-grove, non-grove, non-grove → gate flips false→true', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('grove');   // buffer: [ember, grove]
+    pushRecentClear('tide');    // buffer: [ember, grove, tide] — grove present, false
+    expect(rootSurgeGatePasses()).toBe(false);
+    pushRecentClear('umbra');   // buffer: [grove, tide, umbra] — grove present, false
+    expect(rootSurgeGatePasses()).toBe(false);
+    pushRecentClear('solar');   // buffer: [tide, umbra, solar] — all non-grove, TRUE
+    expect(rootSurgeGatePasses()).toBe(true);
+    resetGrovewardenRootSurge();
+  });
+});
+
+describe('identity-layer · Grovewarden Root Surge · pickRandomEmptyCells', () => {
+  it('0 empty cells (fully filled grid) → returns empty array', () => {
+    resetGrovewardenRootSurge();
+    const grid = Array(8).fill(null).map(() => Array(8).fill('ember'));
+    const result = pickRandomEmptyCells(grid, 3);
+    expect(result).toEqual([]);
+    resetGrovewardenRootSurge();
+  });
+
+  it('many empty cells → returns exactly 3 unique cells', () => {
+    resetGrovewardenRootSurge();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));  // all empty
+    const result = pickRandomEmptyCells(grid, 3);
+    expect(result.length).toBe(3);
+    // Verify uniqueness.
+    const keys = result.map(c => c.row + '_' + c.col);
+    expect(new Set(keys).size).toBe(3);
+    resetGrovewardenRootSurge();
+  });
+
+  it('exactly 2 empty cells → returns 2 (partial fill OK per spec §3.5 field 4)', () => {
+    resetGrovewardenRootSurge();
+    const grid = Array(8).fill(null).map(() => Array(8).fill('ember'));
+    grid[0][0] = null;
+    grid[3][5] = null;
+    const result = pickRandomEmptyCells(grid, 3);
+    expect(result.length).toBe(2);
+    resetGrovewardenRootSurge();
+  });
+
+  it('only counts EMPTY cells (excludes non-empty ones, opposite of pickRandomNonEmptyCells)', () => {
+    resetGrovewardenRootSurge();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    // Fill some cells; pickRandomEmptyCells should NOT return these.
+    grid[2][2] = 'ember';
+    grid[2][3] = 'tide';
+    grid[2][4] = 'grove';
+    const result = pickRandomEmptyCells(grid, 3);
+    expect(result.length).toBe(3);
+    for (const cell of result) {
+      expect(grid[cell.row][cell.col]).toBeFalsy();
+    }
+    resetGrovewardenRootSurge();
+  });
+
+  it('null/undefined gridState → returns empty array (defensive)', () => {
+    expect(pickRandomEmptyCells(null, 3)).toEqual([]);
+    expect(pickRandomEmptyCells(undefined, 3)).toEqual([]);
+  });
+
+  it('computeRootSurgeCells passes through to pickRandomEmptyCells with hard cap 3', () => {
+    resetGrovewardenRootSurge();
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    const result = computeRootSurgeCells(grid);
+    expect(result.length).toBe(ROOT_SURGE_CELL_COUNT);
+    expect(result.length).toBe(3);
+    resetGrovewardenRootSurge();
+  });
+});
+
+describe('identity-layer · Grovewarden Root Surge · computeRootClearGoldReward (cross-layer Pirate Plunder)', () => {
+  it('1 rooted cell cleared → 10 gold (HARD spec value)', () => {
+    expect(computeRootClearGoldReward(1)).toBe(10);
+    expect(computeRootClearGoldReward(1)).toBe(ROOT_SURGE_GOLD_PER_CLEAR);
+  });
+
+  it('3 rooted cells cleared (batch event) → 30 gold', () => {
+    expect(computeRootClearGoldReward(3)).toBe(30);
+  });
+
+  it('0 rooted cells → 0 gold (no negative gold)', () => {
+    expect(computeRootClearGoldReward(0)).toBe(0);
+  });
+
+  it('default arg (no input) → 10 gold (single-clear convention)', () => {
+    expect(computeRootClearGoldReward()).toBe(10);
+  });
+
+  it('defensive: negative / non-finite → 0 gold (clamp)', () => {
+    expect(computeRootClearGoldReward(-5)).toBe(0);
+    expect(computeRootClearGoldReward(NaN)).toBe(0);
+    expect(computeRootClearGoldReward('not-a-number')).toBe(0);
+  });
+});
+
+describe('identity-layer · Grovewarden Root Surge · 5-turn lifecycle (computeRootSurgeTickResult)', () => {
+  it('root placed turn 5 / expires turn 10 / tick at turn 10 → shouldExpire=true', () => {
+    const root = { row: 0, col: 0, placedTurn: 5, expiresTurn: 10 };
+    const r = computeRootSurgeTickResult(root, 10);
+    expect(r.shouldExpire).toBe(true);
+    expect(r.active).toBe(false);
+  });
+
+  it('root placed turn 5 / tick at turn 9 → still active', () => {
+    const root = { row: 0, col: 0, placedTurn: 5, expiresTurn: 10 };
+    const r = computeRootSurgeTickResult(root, 9);
+    expect(r.shouldExpire).toBe(false);
+    expect(r.active).toBe(true);
+  });
+
+  it('root placed turn 5 / tick at turn 11 → shouldExpire=true (past expiration)', () => {
+    const root = { row: 0, col: 0, placedTurn: 5, expiresTurn: 10 };
+    const r = computeRootSurgeTickResult(root, 11);
+    expect(r.shouldExpire).toBe(true);
+  });
+
+  it('defensive: null root → inactive, no expiration', () => {
+    const r = computeRootSurgeTickResult(null, 10);
+    expect(r.shouldExpire).toBe(false);
+    expect(r.active).toBe(false);
+  });
+
+  it('defensive: non-finite turn → active, no expiration', () => {
+    const root = { row: 0, col: 0, placedTurn: 5, expiresTurn: 10 };
+    const r = computeRootSurgeTickResult(root, NaN);
+    expect(r.shouldExpire).toBe(false);
+  });
+
+  it('goldGrantOnClear field always = ROOT_SURGE_GOLD_PER_CLEAR (10) for documentation parity', () => {
+    const root = { row: 0, col: 0, placedTurn: 5, expiresTurn: 10 };
+    expect(computeRootSurgeTickResult(root, 9).goldGrantOnClear).toBe(10);
+    expect(computeRootSurgeTickResult(root, 10).goldGrantOnClear).toBe(10);
+  });
+});
+
+describe('identity-layer · Grovewarden Root Surge · fxGrovewardenRootSurge gate behavior', () => {
+  it('buffer of 3 non-grove → 3 roots placed in mirror state', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 0 });
+    expect(getActiveRootCellsCount()).toBe(3);
+    const snap = getActiveRootCellsSnapshot();
+    expect(snap.length).toBe(3);
+    for (const r of snap) {
+      expect(r.placedTurn).toBe(0);
+      expect(r.expiresTurn).toBe(5);
+    }
+    resetGrovewardenRootSurge();
+  });
+
+  it('buffer of 2 (insufficient) → silent no-op (no roots placed)', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 0 });
+    expect(getActiveRootCellsCount()).toBe(0);
+    resetGrovewardenRootSurge();
+  });
+
+  it('buffer of 3 with grove entry → silent no-op (gate fails)', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('grove');
+    pushRecentClear('umbra');
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 0 });
+    expect(getActiveRootCellsCount()).toBe(0);
+    resetGrovewardenRootSurge();
+  });
+
+  it('null ctx → silent no-op (defensive guard)', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    expect(() => fxGrovewardenRootSurge(null, null)).not.toThrow();
+    // Without gridState, no roots placed (grid defaults to undefined global).
+    expect(getActiveRootCellsCount()).toBe(0);
+    resetGrovewardenRootSurge();
+  });
+
+  it('5-turn expiration lifecycle: placed turn 7 / expires turn 12', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 7 });
+    const snap0 = getActiveRootCellsSnapshot();
+    expect(snap0[0].placedTurn).toBe(7);
+    expect(snap0[0].expiresTurn).toBe(12);  // 7 + 5
+
+    // Tick at turn 11 → still active.
+    const t11 = fxGrovewardenRootSurgeTick({ currentTurn: 11 });
+    expect(t11.activeCount).toBe(3);
+    expect(t11.expiredCount).toBe(0);
+
+    // Tick at turn 12 → all 3 expire.
+    const t12 = fxGrovewardenRootSurgeTick({ currentTurn: 12 });
+    expect(t12.activeCount).toBe(0);
+    expect(t12.expiredCount).toBe(3);
+    expect(getActiveRootCellsCount()).toBe(0);
+    resetGrovewardenRootSurge();
+  });
+
+  it('empty state tick → 0 expired, 0 active (no-op)', () => {
+    resetGrovewardenRootSurge();
+    const r = fxGrovewardenRootSurgeTick({ currentTurn: 99 });
+    expect(r.expiredCount).toBe(0);
+    expect(r.activeCount).toBe(0);
+  });
+});
+
+describe('identity-layer · Grovewarden Root Surge · isCellRooted predicate', () => {
+  it('after fire → roots at picked cells return true; others return false', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    // Single empty cell so pick is deterministic.
+    const grid = Array(8).fill(null).map(() => Array(8).fill('ember'));
+    grid[4][4] = null;
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 0 });
+    expect(isCellRooted(4, 4)).toBe(true);
+    // Other cells (no root) → false.
+    expect(isCellRooted(0, 0)).toBe(false);
+    expect(isCellRooted(7, 7)).toBe(false);
+    resetGrovewardenRootSurge();
+  });
+
+  it('after resetGrovewardenRootSurge → all cells return false', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    const grid = Array(8).fill(null).map(() => Array(8).fill('ember'));
+    grid[2][3] = null;
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 0 });
+    expect(isCellRooted(2, 3)).toBe(true);
+    resetGrovewardenRootSurge();
+    expect(isCellRooted(2, 3)).toBe(false);
+    expect(getActiveRootCellsCount()).toBe(0);
+  });
+
+  it('defensive: non-finite inputs return false', () => {
+    expect(isCellRooted(null, 0)).toBe(false);
+    expect(isCellRooted(0, undefined)).toBe(false);
+    expect(isCellRooted('a', 'b')).toBe(false);
+  });
+});
+
+describe('identity-layer · Grovewarden Root Surge · onRootCellCleared (cross-layer Pirate Plunder)', () => {
+  it('clearing a rooted cell → grants 10 gold via addGoldApi + removes root', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    const grid = Array(8).fill(null).map(() => Array(8).fill('ember'));
+    grid[3][3] = null;
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 0 });
+    expect(isCellRooted(3, 3)).toBe(true);
+
+    let goldDelta = 0;
+    const ctx = { addGoldApi: { add: (n) => { goldDelta += n; } } };
+    const result = onRootCellCleared(3, 3, ctx);
+
+    expect(result.goldGranted).toBe(10);
+    expect(result.cellRemoved).toBe(true);
+    expect(goldDelta).toBe(10);
+    expect(isCellRooted(3, 3)).toBe(false);
+    expect(getActiveRootCellsCount()).toBe(0);
+    resetGrovewardenRootSurge();
+  });
+
+  it('clearing a non-rooted cell → 0 gold + no mutation (defensive)', () => {
+    resetGrovewardenRootSurge();
+    let goldDelta = 0;
+    const ctx = { addGoldApi: { add: (n) => { goldDelta += n; } } };
+    const result = onRootCellCleared(5, 5, ctx);
+    expect(result.goldGranted).toBe(0);
+    expect(result.cellRemoved).toBe(false);
+    expect(goldDelta).toBe(0);
+  });
+
+  it('clearing 3 separate rooted cells → 3 × 10 = 30 gold total', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 0 });
+    const rooted = getActiveRootCellsSnapshot();
+    expect(rooted.length).toBe(3);
+
+    let goldDelta = 0;
+    const ctx = { addGoldApi: { add: (n) => { goldDelta += n; } } };
+    for (const r of rooted) {
+      onRootCellCleared(r.row, r.col, ctx);
+    }
+    expect(goldDelta).toBe(30);
+    expect(getActiveRootCellsCount()).toBe(0);
+    resetGrovewardenRootSurge();
+  });
+
+  it('defensive: non-finite (row, col) → 0 gold, no mutation', () => {
+    resetGrovewardenRootSurge();
+    const result = onRootCellCleared(null, 0, {});
+    expect(result.goldGranted).toBe(0);
+    expect(result.cellRemoved).toBe(false);
+  });
+});
+
+describe('identity-layer · Grovewarden Root Surge · constants + budgets', () => {
+  it('IDENTITY_BOSS_FX_KEYS.GROVEWARDEN_ROOT_SURGE registered', () => {
+    expect(IDENTITY_BOSS_FX_KEYS.GROVEWARDEN_ROOT_SURGE).toBe('grovewarden_root_surge');
+  });
+
+  it('BOSS_IDENTITY_FX.bruiser → grovewarden_root_surge', () => {
+    expect(BOSS_IDENTITY_FX.bruiser).toBe('grovewarden_root_surge');
+  });
+
+  it('IDENTITY_BOSS_FX_BUDGETS.grovewarden_root_surge has correct budget shape', () => {
+    const b = IDENTITY_BOSS_FX_BUDGETS[IDENTITY_BOSS_FX_KEYS.GROVEWARDEN_ROOT_SURGE];
+    expect(b).toBeDefined();
+    expect(b.initialMs).toBe(14);
+    expect(b.steadyStateMs).toBe(1);
+    expect(b.decayMs).toBe(300);
+    expect(b.duration).toBe('5 turns');
+  });
+
+  it('Hard spec values byte-perfect (spec §3.5 field 4)', () => {
+    expect(ROOT_SURGE_CELL_COUNT).toBe(3);
+    expect(ROOT_SURGE_TURNS_UNTIL_AUTO_CLEAR).toBe(5);
+    expect(ROOT_SURGE_GOLD_PER_CLEAR).toBe(10);
+    expect(ROOT_SURGE_TRIGGER_NON_GROVE_COUNT).toBe(3);
+    expect(ROOT_SURGE_GROVE_ELEMENT).toBe('grove');
+  });
+
+  it('Telegraph constant RE-USES sacred REACTIVITY_TELEGRAPH_MS (3000)', () => {
+    expect(ROOT_SURGE_TELEGRAPH_MS).toBe(3000);
+    expect(ROOT_SURGE_TELEGRAPH_MS).toBe(REACTIVITY_TELEGRAPH_MS);
+  });
+
+  it('Overlay decay + color byte-perfect (spec §3.5 field 4 + field 6)', () => {
+    expect(ROOT_SURGE_OVERLAY_DECAY_MS).toBe(300);
+    expect(ROOT_SURGE_OVERLAY_COLOR).toBe('#2D8659');
+  });
+
+  it('ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER carries spec §3.5 field 6 string', () => {
+    // PLACEHOLDER per ESC-02 O2 ruling. FINAL COPY: pending Roman approval
+    // at Phase 2 PR merge. The string lives in the isolated constant —
+    // sacred NARRATOR_LINES table stays byte-perfect.
+    expect(ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER).toBe('Where you would not bloom, I will.');
+  });
+
+  it('Performance ceilings positive integers + ≤14ms initial', () => {
+    expect(ROOT_SURGE_INITIAL_BUDGET_MS).toBe(14);
+    expect(ROOT_SURGE_PER_TURN_TICK_BUDGET_MS).toBe(1);
+  });
+});
+
+describe('identity-layer · Grovewarden Root Surge · SACRED COW byte-perfect audit', () => {
+  it('Element Synergy sacred — grove RACE_SYNERGY troll/golem tiers BYTE-PERFECT after Root Surge round-trip', () => {
+    // Drive a full Root Surge lifecycle.
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 0 });
+    fxGrovewardenRootSurgeTick({ currentTurn: 5 });
+    resetGrovewardenRootSurge();
+
+    // RACE_SYNERGY troll grove tier kit BYTE-PERFECT (CLAUDE.md §2.1 sacred).
+    expect(RACE_SYNERGY.troll[2].hp).toBe(2);
+    expect(RACE_SYNERGY.troll[2].regrowth).toBe(true);
+    expect(RACE_SYNERGY.troll[3].hp).toBe(2);
+    expect(RACE_SYNERGY.troll[3].dmgMult).toBe(0.10);
+    expect(RACE_SYNERGY.troll[3].stoneblood).toBe(true);
+    expect(RACE_SYNERGY.troll[5].hp).toBe(3);
+    expect(RACE_SYNERGY.troll[5].shields).toBe(2);
+    expect(RACE_SYNERGY.troll[5].dmgMult).toBe(0.15);
+    expect(RACE_SYNERGY.troll[5].mossArmor).toBe(true);
+    expect(RACE_SYNERGY.troll[5].heartwood).toBe(true);
+
+    // RACE_SYNERGY golem grove+shield tier kit BYTE-PERFECT (T2.05 invariant).
+    expect(RACE_SYNERGY.golem[2].maxShieldBonus).toBe(1);
+    expect(RACE_SYNERGY.golem[3].maxShieldBonus).toBe(2);
+    expect(RACE_SYNERGY.golem[5].maxShieldBonus).toBe(2);
+    expect(RACE_SYNERGY.golem[3].shieldFury).toBe(true);
+    expect(RACE_SYNERGY.golem[5].aegis).toBe(true);
+  });
+
+  it('NARRATOR_LINES sacred table UNTOUCHED — placeholder lives in isolated constant', () => {
+    // The placeholder line is the only Root Surge narrator surface. It
+    // lives in `src/data/identity-layer.js` as an isolated constant —
+    // NOT in `src/feel/narrator-lines.js` (the sacred NARRATOR_LINES
+    // table). The sacred infrastructure stays byte-perfect per ESC-02 O2.
+    expect(typeof ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER).toBe('string');
+    expect(ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER.length).toBeGreaterThan(0);
+    // Designer-drafted string with Darkest-Dungeon-voice cadence.
+    expect(ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER).toContain('bloom');
+  });
+
+  it('Sacred 5-role HERO_ULT_COST_BY_NEWROLE byte-perfect after Root Surge round-trip', () => {
+    resetGrovewardenRootSurge();
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 0 });
+    fxGrovewardenRootSurgeTick({ currentTurn: 5 });
+    resetGrovewardenRootSurge();
+    // ULT thresholds untouched (Root Surge never writes to ULT).
+    expect(HERO_ULT_COST_BY_NEWROLE.warrior).toBe(80);
+    expect(HERO_ULT_COST_BY_NEWROLE.mage).toBe(100);
+    expect(HERO_ULT_COST_BY_NEWROLE.hunter).toBe(120);
+    expect(HERO_ULT_COST_BY_NEWROLE.tank).toBe(80);
+    expect(HERO_ULT_COST_BY_NEWROLE.captain).toBe(100);
+  });
+
+  it('Sacred PHOENIX / BERSERKER / STAGGER LOOP invariants byte-perfect (T2.07-T2.10 maintained)', () => {
+    resetGrovewardenRootSurge();
+    expect(PHOENIX_REVIVE_HP_PCT).toBe(0.6);
+    expect(PHOENIX_IMMUNE_TURNS).toBe(2);
+    expect(BERSERKER_ENRAGE_HP_PCT).toBe(0.5);
+    expect(BERSERKER_ENRAGE_MULT).toBe(2.0);
+    expect(REACTIVITY_TELEGRAPH_MS).toBe(3000);
+    expect(REACTIVITY_BANNER_DURATION_MS).toBe(1500);
+    expect(BOSS_STATE_ACTIVE).toBe('active');
+    expect(BOSS_STATE_STAGGER).toBe('stagger');
+    expect(BOSS_STATE_RECOVERY).toBe('recovery');
+    expect(STAGGER_DURATION_TURNS).toBe(4);
+    expect(RECOVERY_DURATION_TURNS).toBe(2);
+  });
+});
+
+describe('identity-layer · Grovewarden Root Surge · cross-mechanic regression (T2.02-T2.10 invariants)', () => {
+  it('Root Surge active does NOT break Phoenix / Lich / Bloodtide / Engineer coexistence', () => {
+    resetAshenReign();
+    resetCursedTiles();
+    resetBloodtide();
+    resetEngineerLockdowns();
+    resetGrovewardenRootSurge();
+
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[0][0] = 'umbra';
+    grid[0][1] = 'umbra';
+    grid[0][2] = 'umbra';
+
+    // Activate ALL FIVE boss-reactive layers.
+    fxPhoenixAshenReign(null, null);
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    fxBerserkerBloodtidePulse(null, null);
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    // For Root Surge, use a grid that has empty cells in row 5 (avoid
+    // overlapping the umbra-filled cells row 0).
+    const emptyGrid = Array(8).fill(null).map(() => Array(8).fill(null));
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    fxGrovewardenRootSurge(null, { gridState: emptyGrid, currentTurn: 0 });
+
+    // All FIVE boss-reactive states active independently.
+    expect(isAshenReignActive()).toBe(true);
+    expect(getCursedTilesCount()).toBeGreaterThan(0);
+    expect(isBloodtidePulsePending()).toBe(true);
+    expect(getEngineerLockdownsCount()).toBe(1);
+    expect(getActiveRootCellsCount()).toBe(3);
+
+    // Cleanup.
+    fxPhoenixAshenReignRelease();
+    resetCursedTiles();
+    resetBloodtide();
+    resetEngineerLockdowns();
+    resetGrovewardenRootSurge();
+    expect(isAshenReignActive()).toBe(false);
+    expect(getCursedTilesCount()).toBe(0);
+    expect(isBloodtidePulsePending()).toBe(false);
+    expect(getEngineerLockdownsCount()).toBe(0);
+    expect(getActiveRootCellsCount()).toBe(0);
+  });
+
+  it('Root Surge does NOT block race FX dispatch (T2.02-T2.06 invariant)', () => {
+    __identityFxTestables.resetCoinPool();
+    __identityFxTestables.resetSharkBitePool();
+    __identityFxTestables.resetRockEchoPool();
+    __identityFxTestables.resetCrocFragmentPool();
+    __identityFxTestables.resetSparkRayPool();
+    resetCrocFragmentBank();
+    resetGrovewardenRootSurge();
+
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    const emptyGrid = Array(8).fill(null).map(() => Array(8).fill(null));
+    fxGrovewardenRootSurge(null, { gridState: emptyGrid, currentTurn: 0 });
+    expect(getActiveRootCellsCount()).toBe(3);
+
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) grid[0][c] = 'solar';
+    for (let c = 0; c < 8; c++) grid[2][c] = 'grove';
+
+    const squad = [
+      { race: 'pirate' },
+      { race: 'shark' },
+      { race: 'shark' },
+      { race: 'rock' },
+      { race: 'crocodile' },
+      { race: 'spark' },
+    ];
+    const ctx = { gridState: grid, dominantElementsByLine: ['solar', 'grove'] };
+    expect(() => dispatchIdentityFx([0, 2], [], squad, null, ctx)).not.toThrow();
+    // Spark cascade still fired.
+    expect(ctx._dominantCountModifier).toBe(1);
+    resetGrovewardenRootSurge();
+  });
+
+  it('Pirate Plunder gold path still works alongside Root Surge cross-layer gold (no double-count interference)', () => {
+    // Verify: Pirate Plunder's gold path is INDEPENDENT of Root Surge's
+    // gold path. Both write via addGold, but they consume different
+    // events (line-clear cells vs rooted-cell-clear events) — no
+    // double-count.
+    resetGrovewardenRootSurge();
+    __identityFxTestables.resetCoinPool();
+
+    let goldDelta = 0;
+    const addGoldApi = { add: (n) => { goldDelta += n; } };
+
+    // Fire Root Surge: trigger + 3 roots placed + 1 root cleared = +10 gold.
+    pushRecentClear('ember');
+    pushRecentClear('tide');
+    pushRecentClear('umbra');
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    fxGrovewardenRootSurge(null, { gridState: grid, currentTurn: 0 });
+    const roots = getActiveRootCellsSnapshot();
+    expect(roots.length).toBe(3);
+
+    // Clear ONE rooted cell → +10 gold via cross-layer.
+    onRootCellCleared(roots[0].row, roots[0].col, { addGoldApi });
+    expect(goldDelta).toBe(10);
+
+    // Verify: the just-cleared rooted cell is GONE from _activeRootCells
+    // — it CANNOT be in Pirate Plunder's line-clear count because
+    // placement was BLOCKED for 5 turns. No double-count.
+    expect(isCellRooted(roots[0].row, roots[0].col)).toBe(false);
+
+    // Remaining 2 roots still active — auto-clear at turn 5 grants NO gold
+    // (timeout path, per spec §3.5 field 4).
+    fxGrovewardenRootSurgeTick({ currentTurn: 5 });
+    expect(getActiveRootCellsCount()).toBe(0);
+    expect(goldDelta).toBe(10);  // unchanged — auto-clear is silent
+    resetGrovewardenRootSurge();
   });
 });

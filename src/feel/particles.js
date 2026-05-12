@@ -466,6 +466,57 @@ export function spawnEngineerRatchet({ el, durationMs, color }) {
   return el;
 }
 
+// 2026-05-12 — TASK-038 (T2.11): Grovewarden Root Surge overlay factory.
+// FIFTH and FINAL boss-reactive identity mechanic — a mossy green root
+// overlay placed on 3 random empty cells when the player's last 3 line
+// clears were all NOT grove-dominant. The overlay BLOCKS placement for
+// 5 turns; cells cleared during the window grant +10 gold via existing
+// addGold (cross-layer Pirate Plunder integration per spec §3.5 field 4).
+//
+// Architecture (spec §5 — object-pool requirement, no createElement per fire):
+// Pool of ROOT_SURGE_CELL_COUNT (3) pre-allocated overlay elements re-used
+// per fire. Each overlay is positioned at a rooted cell's screen coords and
+// animated via the `@keyframes identityGroveBloomEntry` (300ms entry pulse)
+// + persistent steady-state visual. Exit animation
+// (`@keyframes identityGroveBloomFade`, 300ms) fires when a root auto-
+// clears at 5-turn timeout OR is cleared by the player.
+//
+// Visual reference (spec §3.5 field 6): "Mossy roots crawl up empty cells"
+// — mossy green (#2D8659) overlay with subtle pulse during the 5-turn
+// window. Distinct from purple curse (Lich) / cyan bite (Shark) / red
+// pulse (Berserker) / copper lockdown (Engineer) / orange flame (Phoenix)
+// — each boss-reactive mechanic has its own color signature.
+//
+// SACRED-COW SAFETY: This factory ONLY configures the overlay element and
+// its CSS variables. It does NOT modify combat math, sacred Element
+// Synergy values, RACE_SYNERGY troll/golem grove tiers, or any sacred
+// constant. The placement-block predicate is owned by the JS module
+// (`src/feel/identity-fx.js#isCellRooted`); this visual is purely a board-
+// state marker. The +10 gold reward is owned by
+// `src/feel/identity-fx.js#onRootCellCleared` via existing addGold path —
+// this factory does NOT touch gold or addGold.
+export function spawnMossRootOverlay({ el, x, y, color, decayMs }) {
+  if (!el) return null;
+  // Position at the rooted cell center, expose decay duration as CSS
+  // variable so the `.identity-grovewarden-root-bloom` /
+  // `.identity-grovewarden-root-fade` keyframes can read it.
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  el.style.setProperty('--root-surge-decay-ms', (decayMs || 300) + 'ms');
+  if (color) {
+    el.style.setProperty('--root-surge-color', color);
+  }
+  // Restart the entry animation deterministically (re-trigger CSS keyframes
+  // on re-used pool elements). Toggle class off then on by forcing a layout
+  // read. Also clear any prior fade-out state.
+  el.classList.remove('identity-grovewarden-root-bloom');
+  el.classList.remove('identity-grovewarden-root-fade');
+  // Force a synchronous reflow so the keyframe restarts cleanly.
+  void el.offsetWidth;
+  el.classList.add('identity-grovewarden-root-bloom');
+  return el;
+}
+
 // Spawns the 16-particle radial burst at the boss portrait centerpoint.
 // Returns nothing; the container auto-removes itself after 1600ms.
 // `wrap` is the #bossImgWrap element (caller passes its getBoundingClientRect

@@ -6929,3 +6929,133 @@ button, .menu-btn, .btn, .hero-card, .piece, .cell, .roster-card, .tier-btn, .ba
   0%   { opacity: 0; }
   100% { opacity: 0.85; }
 }
+
+/* ───────────────────────────────────────────────────────────────────────
+ * 2026-05-12 — TASK-038 (T2.11): Grovewarden Root Surge visual surface.
+ * FIFTH and FINAL boss-reactive identity mechanic — moss root overlays
+ * placed on 3 random empty cells when the player's last 3 line clears
+ * were all NOT grove-dominant (sliding-window non-grove trigger). Each
+ * overlay BLOCKS placement for 5 turns and grants +10 gold when cleared
+ * during the window (cross-layer Pirate Plunder integration).
+ *
+ * Architecture:
+ *   - `.identity-grovewarden-root-container` — fixed overlay layer,
+ *     pointer-events none, z-index 9992 (above Bloodtide pulse 9991,
+ *     below Engineer lockdown 9993, below Phoenix flame border 9994).
+ *     Holds the 3-element pool.
+ *   - `.identity-grovewarden-root-overlay` — base overlay element (one
+ *     per pool slot; ROOT_SURGE_CELL_COUNT = 3 total). Mossy green
+ *     (#2D8659) circular overlay centered on a rooted grid cell.
+ *   - `.identity-grovewarden-root-bloom` — active entry-animation state
+ *     (300ms scale-up pulse, sticky 0.85 opacity for the 5-turn window).
+ *   - `.identity-grovewarden-root-fade` — exit-animation state (300ms
+ *     fade-out; fires when a root auto-clears at 5-turn timeout OR when
+ *     player clears it via onRootCellCleared).
+ *
+ * Sacred safety:
+ *   - All NEW classes here are `identity-grovewarden-*` prefixed
+ *     (parallel namespace per CLAUDE.md §2.5 + spec §1 hard rule 1).
+ *   - All 22 v2.1 P4 reactivity handlers untouched.
+ *   - Element Synergy + RACE_SYNERGY troll/golem grove tiers untouched.
+ *   - The mossy green color (#2D8659) is part of the grove element palette
+ *     family (matches RACE_SYNERGY troll grove flavor) — no new color
+ *     invented.
+ * ─────────────────────────────────────────────────────────────────────── */
+.identity-grovewarden-root-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9992;
+}
+.identity-grovewarden-root-overlay {
+  position: fixed;
+  /* Anchor at rooted cell center via inline left/top from spawnMossRootOverlay.
+   * Width/height match a single grid cell visually (radial center, fades
+   * to edges). */
+  width: 48px;
+  height: 48px;
+  /* Translate so left/top become the CENTER of the overlay. */
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 9992;
+  /* Mossy radial gradient — denser in the center, fading to a soft
+   * green outline. Visually distinct from purple curse (Lich) / cyan
+   * bite (Shark) / red pulse (Berserker) / copper ratchet (Engineer) /
+   * orange flame (Phoenix). The CSS variable --root-surge-color allows
+   * the JS factory to tint per archetype if needed (currently always
+   * #2D8659 mossy green). */
+  background: radial-gradient(
+    circle at center,
+    var(--root-surge-color, #2D8659) 10%,
+    rgba(45, 134, 89, 0.7) 40%,
+    rgba(45, 134, 89, 0.3) 70%,
+    rgba(45, 134, 89, 0) 100%
+  );
+  border: 2px solid rgba(45, 134, 89, 0.85);
+  border-radius: 50%;
+  box-shadow:
+    0 0 12px rgba(45, 134, 89, 0.75),
+    inset 0 0 8px rgba(20, 80, 50, 0.7);
+  opacity: 0;
+  will-change: opacity, transform;
+}
+.identity-grovewarden-root-overlay.identity-grovewarden-root-bloom {
+  /* Entry animation: 300ms scale-up pulse, sticky 0.85 opacity for the
+   * full 5-turn window. The animation runs once on entry; the persistent
+   * visual is held by the steady-state `forwards` fill-mode. */
+  animation: identityGroveBloomEntry var(--root-surge-decay-ms, 300ms) ease-out forwards;
+}
+.identity-grovewarden-root-overlay.identity-grovewarden-root-fade {
+  /* Exit animation: 300ms fade-out. Fires when a root auto-clears at
+   * 5-turn timeout OR when player clears it via onRootCellCleared. */
+  animation: identityGroveBloomFade var(--root-surge-decay-ms, 300ms) ease-in forwards;
+}
+/* Entry keyframe — 300ms scale-up pulse evoking a root bloom unfurling
+ * from the cell. Sticky end state (opacity 0.85) holds the visual for
+ * the 5-turn window via CSS `forwards` fill-mode. */
+@keyframes identityGroveBloomEntry {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  100% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+/* Exit keyframe — 300ms fade-out evoking the root receding back into
+ * the empty cell. */
+@keyframes identityGroveBloomFade {
+  0% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+}
+
+/* Reduced-motion: static mossy green overlay (no pulse / scale animation),
+ * but the mechanical effect (5-turn placement block + +10 gold per cleared
+ * root) is preserved. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-grovewarden-root-overlay.identity-grovewarden-root-bloom {
+    animation: identityGroveBloomEntryStatic var(--root-surge-decay-ms, 300ms) linear forwards;
+  }
+  .identity-grovewarden-root-overlay.identity-grovewarden-root-fade {
+    animation: identityGroveBloomFadeStatic var(--root-surge-decay-ms, 300ms) linear forwards;
+  }
+}
+@keyframes identityGroveBloomEntryStatic {
+  0%   { opacity: 0; }
+  100% { opacity: 0.85; }
+}
+@keyframes identityGroveBloomFadeStatic {
+  0%   { opacity: 0.85; }
+  100% { opacity: 0; }
+}

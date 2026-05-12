@@ -52,7 +52,12 @@ export const IDENTITY_BOSS_FX_KEYS = Object.freeze({
   // lockdown (40T, 4-cell — UNTOUCHED). On-crit handler ADDS a new 2×2
   // lockdown instance via the same `engineerLockedCells` state.
   ENGINEER_LOCKDOWN:     'engineer_lockdown',
-  // Stubs for T2.11 — added in subsequent task per spec §7.1 schedule.
+  // T2.11 — Grovewarden Root Surge (Bruiser archetype, sliding-window
+  // non-grove trigger, spec §3.5). FIFTH and FINAL boss-reactive mechanic.
+  // 3 random empty cells gain "root" overlays that block placement for
+  // 5 turns and grant +10 gold per cleared root (cross-layer Pirate Plunder
+  // interaction).
+  GROVEWARDEN_ROOT_SURGE: 'grovewarden_root_surge',
 });
 
 // ─── Per-effect performance budgets (spec §5) ───────────────────────────
@@ -130,6 +135,21 @@ export const IDENTITY_BOSS_FX_BUDGETS = Object.freeze({
     steadyStateMs: 1,
     decayMs:       600,
     duration:      '40 turns',
+  }),
+  // Grovewarden Root Surge (spec §3.5 field 7):
+  //   - Initial trigger ≤14ms (3 root overlay activations + bloom particle).
+  //     = 3 overlays @ ≤2ms each (≤6ms) + 1 bloom particle ≤8ms = ≤14ms.
+  //   - Per-turn tick ≤1ms (≤3 root cells × lifecycle check, integer math).
+  //   - Decay: 300ms fade-out when a root auto-clears at 5-turn timeout OR
+  //     when player clears it during the window.
+  //   - Duration: 5 turns (player-paced — NOT a wall-clock window).
+  //     Documented as literal string '5 turns' so codex / tooling can branch
+  //     by namespace (mirrors T2.08 '3 turns' + T2.10 '40 turns' precedent).
+  [IDENTITY_BOSS_FX_KEYS.GROVEWARDEN_ROOT_SURGE]: Object.freeze({
+    initialMs:     14,
+    steadyStateMs: 1,
+    decayMs:       300,
+    duration:      '5 turns',
   }),
 });
 
@@ -716,3 +736,131 @@ export const ENGINEER_LOCKDOWN_INITIAL_BUDGET_MS      = 10;
 export const ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS    = 4;
 export const ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS      = 6;
 export const ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS = 1;
+
+// ─── Grovewarden Root Surge constants (spec §3.5) ───────────────────────
+// FIFTH and FINAL boss-reactive identity mechanic — T2.11. Sliding-window
+// non-grove trigger: when the player's last 3 line clears were all NOT
+// grove-dominant (boss is "patient"; if you ignore its element, it acts),
+// the Grovewarden boss reacts by placing 3 "root" overlays on random empty
+// cells. Roots block placement for 5 turns. Each root cleared during the
+// 5-turn window grants +10 gold via the existing addGold legacy
+// infrastructure (cross-layer Pirate Plunder interaction per spec §3.5
+// field 4). Roots auto-clear at the 5-turn timeout with no penalty.
+//
+// Mechanical contract (spec §3.5 fields 3-4):
+//   - Trigger: Player's last ROOT_SURGE_TRIGGER_NON_GROVE_COUNT (3) line
+//     clears were all NOT grove-dominant. Tracked via a circular buffer of
+//     size 3 (_grovewardenRecentClears in identity-fx.js) that records the
+//     dominant element of each clear. Gate is true iff buffer.length === 3
+//     AND every entry !== ROOT_SURGE_GROVE_ELEMENT ('grove').
+//   - Boss reaction: pick ROOT_SURGE_CELL_COUNT (3) random EMPTY cells on
+//     the board (vs T2.08's "non-empty cells" pattern — roots grow on
+//     empty space). Place mossy green SVG overlay on each.
+//   - During the ROOT_SURGE_TURNS_UNTIL_AUTO_CLEAR (5)-turn window:
+//     * Rooted cells BLOCK placement (T2.B bridge wires `isCellRooted`
+//       predicate into legacy `pieceCanBePlaced`).
+//     * When player CLEARS a rooted cell (via `onRootCellCleared`), grant
+//       ROOT_SURGE_GOLD_PER_CLEAR (10) gold via existing `addGold` path.
+//       Independent of Pirate Plunder's +5g/cell × pirateCount — no
+//       double-count (rooted cell clear is a distinct event from a normal
+//       line-clear cell).
+//   - Auto-clear at 5-turn timeout: roots removed silently (no damage, no
+//     compensation). The 5-turn block is the cost; the gold is the
+//     opportunity.
+//
+// Sacred-cow safety (CLAUDE.md §2.1 + §2.5 + spec §3.5 field 8):
+//   - **Element Synergy values UNTOUCHED** — especially grove 3x (−4 grove
+//     ULT + +20% passive dmg) per spec §2.5 / CLAUDE.md §2.1. Root Surge
+//     does NOT modify the synergy table; it modifies BOARD STATE only.
+//   - **RACE_SYNERGY.troll.* UNTOUCHED** (grove-themed sacred tier kit:
+//     hp 2/2/3, dmgMult 0/0.10/0.15, regrowth/stoneblood/mossArmor/heartwood).
+//   - **RACE_SYNERGY.golem.* UNTOUCHED** (grove + shield sacred tier kit:
+//     maxShieldBonus 1/2/2 from T2.05 invariant).
+//   - **All 22 v2.1 P4 reactivity handlers UNTOUCHED** — Root Surge adds a
+//     NEW handler in `src/core/reactivity-events.js` under namespace
+//     `identity_bruiser_grove_surge`, separate from the sacred 22 and
+//     from the sacred `bruiser_p1_p2` / `bruiser_p2_p3` entries.
+//   - **NARRATOR_LINES sacred table UNTOUCHED** — the new narrator line
+//     "Where you would not bloom, I will." lives in this module as
+//     ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER (an isolated string constant per
+//     ESC-02 O2 ruling). Roman's copy-pass at Phase 2 PR merge will either
+//     approve as-is or replace; the sacred NARRATOR_LINES infrastructure
+//     stays byte-perfect regardless.
+//   - **Chronicler dialog UNTOUCHED** — Root Surge banner uses
+//     `flashStateBanner` UI surface only.
+//   - **REACTIVITY_TELEGRAPH_MS = 3000 UNTOUCHED** — Root Surge uses the
+//     telegraph→execute pattern via the T2.07-established dispatcher; the
+//     constant is RE-USED (read, never written).
+//   - **HERO_ULT_COST_BY_NEWROLE UNTOUCHED** — Root Surge does not write
+//     to ULT charges (unlike T2.08 Lich Cursed Tiles' +20 compensation).
+//   - **V_HAPTICS UNTOUCHED** — uses inline `vibrate(...)` like other
+//     boss-reactive handlers.
+//   - **Phoenix / Lich / Berserker / Engineer invariants UNTOUCHED** —
+//     T2.07–T2.10 module state independent.
+//   - **Stagger Loop UNTOUCHED** — T2.09 invariant maintained.
+//   - **Combo Crit formula UNTOUCHED** — Root Surge never feeds combo crit
+//     input. It only writes to board state + gold.
+//
+// Performance budget (spec §3.5 field 7):
+//   - 3 cell overlays ≤ROOT_SURGE_PER_OVERLAY_BUDGET_MS × 3 (6ms total).
+//   - Per-turn tick handled by existing per-turn flow ≤1ms — re-uses T2.08
+//     per-turn lifecycle primitive pattern.
+//   - 1 mossy bloom particle per overlay ≤8ms.
+//   - Total per-fire ≤ROOT_SURGE_INITIAL_BUDGET_MS (14ms peak).
+//
+// Player counterplay (spec §3.5 field 5):
+//   - Run grove squad (Troll/Golem/Crocodile) → grove clears keep the
+//     sliding-window buffer mixed, preventing surge trigger.
+//   - Accept temporary block, deliberately farm +10 gold per cleared root
+//     for econ runs (cross-layer Pirate Plunder synergy).
+//   - Element Synergy 3x grove (sacred −4 grove ULT + +20% passive dmg)
+//     — Grovewarden is intentionally STRONG-VS-GROVE, the design tension
+//     is "play your boss's element."
+//
+// Architectural pattern (spec §1 hard rule 1):
+//   - Identity Layer EXTENDS, never MODIFIES, v2.1 P4. The sacred
+//     `bruiser_p1_p2` / `bruiser_p2_p3` handlers stay byte-perfect; the
+//     new `identity_bruiser_grove_surge` handler runs IN PARALLEL via the
+//     T2.07-established `IDENTITY_BOSS_HANDLERS` registry +
+//     `triggerIdentityBossEvent` dispatcher.
+//   - **NEW sliding-window primitive** — circular buffer of size 3 tracks
+//     the dominant element of the player's last 3 line clears. New trigger
+//     archetype alongside:
+//       * T2.07 phase-gate trigger (Phoenix revive)
+//       * T2.08 condition + per-turn-tick (Lich shark gate + 3T lifecycle)
+//       * T2.09 count-based trigger (every 3rd clear + Stagger Loop state)
+//       * T2.10 action-based trigger (4-line crit detection)
+//       * T2.11 sliding-window trigger (last 3 clears all non-grove) ← NEW
+//   - **Cross-layer Pirate Plunder integration** — FIRST live cross-layer
+//     interaction in Phase 2. Root cleared by player → +10 gold via
+//     existing `addGold` API (same path T2.02 Pirate's Plunder uses). No
+//     double-count: the rooted cell clear is a DISTINCT event from a
+//     regular line-clear cell; Pirate Plunder fires on `clearLines` rows∪cols,
+//     Root Surge gold fires on `onRootCellCleared(row, col)` event.
+export const ROOT_SURGE_CELL_COUNT                  = 3;   // HARD spec — 3 root overlays per fire (spec §3.5 field 4)
+export const ROOT_SURGE_TURNS_UNTIL_AUTO_CLEAR      = 5;   // HARD spec — 5-turn block + opportunity window (spec §3.5 field 4)
+export const ROOT_SURGE_GOLD_PER_CLEAR              = 10;  // HARD spec — +10 gold per cleared rooted cell (spec §3.5 field 4, cross-layer Pirate Plunder)
+export const ROOT_SURGE_TRIGGER_NON_GROVE_COUNT     = 3;   // HARD spec — last 3 clears all non-grove (spec §3.5 field 3, sliding-window size)
+export const ROOT_SURGE_GROVE_ELEMENT               = 'grove';  // sacred element name (matches RACE_TO_STIHIYA + grove RACE_SYNERGY tier kit)
+// Telegraph duration. Spec §3.5 + spec §3 "Convention": RE-USES the sacred
+// REACTIVITY_TELEGRAPH_MS = 3000 value. The unit-tested invariant
+// `ROOT_SURGE_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS` ensures both stay
+// in lock-step. Documented as 3000 here (single source of truth in this
+// module per CLAUDE.md §7.8) AND imported separately in tests for the
+// equality assertion (sacred re-use audit).
+export const ROOT_SURGE_TELEGRAPH_MS                = 3000;
+export const ROOT_SURGE_OVERLAY_DECAY_MS            = 300;  // fade-out when root auto-clears or cleared by player
+export const ROOT_SURGE_OVERLAY_COLOR               = '#2D8659';  // mossy green — distinct from purple curse (Lich) / cyan bite (Shark) / red pulse (Berserker) / copper lockdown (Engineer) / orange flame (Phoenix); matches grove RACE_SYNERGY element color family
+// PLACEHOLDER narrator line per ESC-02 O2 ruling. Designer-drafted Darkest-
+// Dungeon-voice line. Lives in this isolated constant (NOT in the sacred
+// NARRATOR_LINES table) so the sacred infrastructure stays byte-perfect.
+// FINAL COPY: pending Roman approval at Phase 2 PR merge.
+export const ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER   = 'Where you would not bloom, I will.';
+// Performance ceilings (spec §3.5 field 7) — mirrored from IDENTITY_BOSS_FX_BUDGETS
+// for direct named import in fx + tests. The budget object remains the
+// single-source-of-truth aggregate; these named exports avoid the indirection
+// when a single number is needed inline.
+export const ROOT_SURGE_INITIAL_BUDGET_MS           = 14;
+export const ROOT_SURGE_PER_OVERLAY_BUDGET_MS       = 2;
+export const ROOT_SURGE_BLOOM_BUDGET_MS             = 8;
+export const ROOT_SURGE_PER_TURN_TICK_BUDGET_MS     = 1;
