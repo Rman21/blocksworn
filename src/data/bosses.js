@@ -68,3 +68,26 @@ export const TOWER_BOSS_TTK_TARGETS = Object.freeze({
   multi_phase_special:    420,
   cosmic_revelation:      420,
 });
+
+// 2026-05-12 — TASK-034 (T2.07): Identity Layer boss-archetype FX key map.
+//
+// Spec: docs/design/mechanics/identity-layer.md §3 (boss-reactive identity
+// mechanics convention) — sibling to `RACE_IDENTITY_FX` in `src/data/races.js`.
+// Maps each boss archetype to the boss-reactive identity FX key registered
+// in `IDENTITY_BOSS_FX_KEYS` (`src/data/identity-layer.js`). Used by the
+// boss-reactive handler in `src/core/reactivity-events.js` and (T2.12) the
+// Codex screen to surface each archetype's identity mechanic.
+//
+// SIBLING export precedent — established by T2.02 RACE_IDENTITY_FX pattern
+// (`src/data/races.js#212`). Sacred boss data (BOSS_TTK_TARGETS, archetype
+// roster) lives elsewhere and is BYTE-PERFECT untouched by this addition.
+// CLAUDE.md §2.5 (BOSS_TTK_TARGETS, PHOENIX_REVIVE_HP_PCT, PHOENIX_IMMUNE_TURNS,
+// REACTIVITY_TELEGRAPH_MS, all 22 reactivity handlers) — 0 modifications.
+//
+// T2.07 ships only the phoenix entry (Ashen Reign). T2.08–T2.11 will append
+// the other 6 boss-reactive entries per spec §3.2–§3.7 schedule (assassin /
+// berserker / engineer / grovewarden / void / uroboros).
+export const BOSS_IDENTITY_FX = Object.freeze({
+  phoenix:    'phoenix_ashen_reign',
+  // T2.08–T2.11: assassin / berserker / engineer / grovewarden / void / uroboros
+});

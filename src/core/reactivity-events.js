@@ -177,6 +177,13 @@ import { playDialog, showBossPhaseDialog } from '../ui/dialog.js';
 import { vHaptic } from '../feel/haptics.js';
 import { logEvent } from '../services/analytics.js';
 import { log } from '../services/logger.js';
+// T2.07 — Identity Layer · Phoenix Ashen Reign (boss-reactive fx + reset).
+// Sacred 22 REACTIVITY_HANDLERS UNTOUCHED — these run in PARALLEL via the
+// new `IDENTITY_BOSS_HANDLERS` registry + `triggerIdentityBossEvent` dispatcher.
+import {
+  fxPhoenixAshenReign as _fxPhoenixAshenReignImpl,
+  resetAshenReign      as _resetAshenReignImpl,
+} from '../feel/identity-fx.js';
 
 // Feel layer (residual legacy-owned):
 /* global flashText, flashStateBanner, vibrate, hitBoss,
@@ -1356,6 +1363,103 @@ export function clearVoidfangTints() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-034 (T2.07): Identity Layer · BOSS-REACTIVE HANDLERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Boss-reactive identity hooks live in a NEW registry under the `identity_*`
+// namespace, ALONGSIDE the sacred 22 REACTIVITY_HANDLERS (which remain
+// BYTE-PERFECT — verifiable via git diff).
+//
+// Spec: docs/design/mechanics/identity-layer.md §1 hard rule 1 + §3.1.
+// Architecture: Each identity handler reuses the existing telegraph→execute
+// pattern (`showReactivityTelegraph(eventId)` + `setTimeout REACTIVITY_TELEGRAPH_MS
+// → handler()`), so the player learns ONE visual language for "boss is doing a
+// thing." The 3-second wind-up uses the same `REACTIVITY_TELEGRAPH_MS = 3000`
+// sacred constant (read-only — never modified).
+//
+// Trigger source (T2.07 Phoenix):
+//   Legacy `maybePhoenixRevive` (`docs/_legacy/_archive_v1/blocksworn_index_fixed.html:57033`)
+//   fires the sacred revive (60% HP heal + 2-turn immune window — UNTOUCHED).
+//   T2.B legacy bridge will call `triggerIdentityBossEvent('identity_phoenix_revive')`
+//   AFTER the sacred revive completes, layering Ashen Reign on top.
+//
+// Sacred-cow audit (T2.07):
+//   - REACTIVITY_HANDLERS (sacred 22): UNTOUCHED — `git diff` confirms.
+//   - PHOENIX_REVIVE_HP_PCT = 0.6: UNTOUCHED.
+//   - PHOENIX_IMMUNE_TURNS = 2: UNTOUCHED.
+//   - REACTIVITY_TELEGRAPH_MS = 3000: RE-USED (imported, never modified).
+//   - REACTIVITY_BANNER_DURATION_MS = 1500: UNTOUCHED.
+
+// IDENTITY_BOSS_HANDLERS — parallel registry to REACTIVITY_HANDLERS (which
+// stays byte-perfect with its 22 sacred entries). Each handler runs AFTER
+// the 3-second telegraph wind-up via `triggerIdentityBossEvent` below.
+// Adding entries here NEVER modifies the sacred 22; sacred audit asserts
+// `git diff` shows only NEW additions.
+export const IDENTITY_BOSS_HANDLERS = {
+  // ── PHOENIX ASHEN REIGN (spec §3.1) ──────────────────────────────────
+  // Layered on top of sacred phoenix revive (PHOENIX_REVIVE_HP_PCT = 0.6 +
+  // PHOENIX_IMMUNE_TURNS = 2). Sacred revive math UNTOUCHED — Ashen Reign
+  // adds a 5000ms ember-only state that gates piece placement (T2.B bridge
+  // wires the gate into legacy `pieceCanBePlaced`). Banner color matches
+  // phoenix palette (#E8B84A) consistent with the sacred phoenix_p1_p2 entry.
+  identity_phoenix_revive: function() {
+    try { flashStateBanner('ASHEN REIGN · EMBER ONLY · 5s', '#E8B84A'); } catch (e) {}
+    try { vibrate([60, 30, 60, 30, 60]); } catch (e) {}
+    try { _fxPhoenixAshenReignImpl(null, null); } catch (e) {
+      log.error('[T2.07] Phoenix Ashen Reign fx threw:', e);
+    }
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('phoenix', 'ashen_reign'); } catch (e) {}
+  },
+};
+
+// Dispatch entry point — mirrors `triggerReactivityEvent` shape so the
+// telegraph→execute pattern is identical between sacred and identity layers.
+// Step 1: showReactivityTelegraph(eventId) — 3-second wind-up banner.
+// Step 2: setTimeout REACTIVITY_TELEGRAPH_MS → handler() + log.
+// Telegraph is non-blocking — gameplay continues, banner overlays the screen.
+//
+// The eventId uses the `identity_<archetype>_<trigger>` namespace
+// (T2.07: `identity_phoenix_revive`; T2.08+: `identity_assassin_shark_counter`,
+// `identity_berserker_bloodtide`, etc. per spec §3.2–§3.7).
+//
+// Re-use note: this dispatcher RE-USES the sacred `REACTIVITY_TELEGRAPH_MS`
+// constant by reading it from the import chain established at line 167.
+// The constant itself lives in `src/core/bosses.js:265` — UNTOUCHED.
+export function triggerIdentityBossEvent(eventId) {
+  const handler = IDENTITY_BOSS_HANDLERS[eventId];
+  if (!handler) {
+    log.warn('[T2.07] No identity handler for boss event:', eventId);
+    return;
+  }
+  // Step 1: telegraph wind-up (3s — sacred REACTIVITY_TELEGRAPH_MS).
+  try { if (typeof showReactivityTelegraph === 'function') showReactivityTelegraph(eventId); } catch (e) {}
+
+  // Step 2: execute after telegraph window. Single setTimeout — no
+  // setInterval, no requestAnimationFrame. Steady-state per-frame work
+  // during the 5s window is pure CSS (handled by fx).
+  setTimeout(() => {
+    try { handler(); } catch (e) { log.error('[T2.07] identity boss handler error:', eventId, e); }
+    try {
+      if (typeof logBattleEvent === 'function') {
+        const label = eventId.toUpperCase().replace(/_/g, ' ');
+        logBattleEvent('identity', 'BOSS REACTS', label, '#E8B84A');
+      }
+    } catch (e) {}
+    try { if (typeof logEvent === 'function') logEvent('boss_identity_fired', { eventId }); } catch (e) {}
+  }, REACTIVITY_TELEGRAPH_MS);
+}
+
+// Re-export the Ashen Reign reset hook so callers managing battle state
+// (battle pipeline T2.B + bug-tester regression flows) can clear any active
+// boss-identity windows on battle-end / new-battle / menu-return without
+// reaching into `src/feel/identity-fx.js` directly. Mirrors the
+// `clearVoidfangTints` precedent (Voidfang shroud slice line 1350).
+export function resetIdentityBossState() {
+  try { _resetAshenReignImpl(); } catch (e) {
+    log.warn('[T2.07] resetAshenReign threw:', e);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONSOLE HELPERS (legacy 30021-30034)
 // forcePhase (drop bossHP + trigger), resetBattlePhases.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1443,6 +1547,12 @@ if (typeof window !== 'undefined') {
   // ===== Console helpers =====
   window.forcePhase                   = forcePhase;
   window.resetBattlePhases            = resetBattlePhases;
+  // ===== T2.07 — Identity Layer · boss-reactive dispatch =====
+  // T2.B legacy bridge calls `window.triggerIdentityBossEvent(eventId)` from
+  // legacy `maybePhoenixRevive` after the sacred revive completes.
+  window.IDENTITY_BOSS_HANDLERS       = IDENTITY_BOSS_HANDLERS;
+  window.triggerIdentityBossEvent     = triggerIdentityBossEvent;
+  window.resetIdentityBossState       = resetIdentityBossState;
 }
 
 // Quiet T1.10.8 boot acknowledgement — confirms the module side-effects

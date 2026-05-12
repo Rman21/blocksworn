@@ -69,6 +69,13 @@ import {
   SPARK_CASCADE_RAY_DECAY_MS,
   SPARK_CASCADE_DOMINANT_ELEMENT,
   SPARK_CASCADE_ENABLED,
+  // T2.07 — Phoenix Ashen Reign constants.
+  IDENTITY_BOSS_FX_KEYS,
+  ASHEN_REIGN_DURATION_MS,
+  ASHEN_REIGN_DECAY_MS,
+  ASHEN_REIGN_REQUIRED_ELEMENT,
+  ASHEN_REIGN_HUD_COUNTDOWN_TEXT,
+  ASHEN_REIGN_INITIAL_BUDGET_MS,
 } from '../data/identity-layer.js';
 import { RACE_SYNERGY } from '../data/races.js';
 import {
@@ -1941,6 +1948,281 @@ export function fxSparkLineClear(rows, cols, squad, ctx) {
   }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-034 (T2.07): Phoenix Ashen Reign (FIRST boss-reactive
+// identity mechanic).
+//
+// Spec: docs/design/mechanics/identity-layer.md §3.1.
+// Architecture (spec §1 hard rule 1): Identity Layer EXTENDS, never MODIFIES,
+// v2.1 P4 reactivity. Sacred Phoenix revive (PHOENIX_REVIVE_HP_PCT = 0.6 +
+// PHOENIX_IMMUNE_TURNS = 2) and the 22 reactivity handlers are BYTE-PERFECT.
+// Ashen Reign is a NEW handler under namespace `identity_phoenix_revive` in
+// `src/core/reactivity-events.js`, fired ALONGSIDE the sacred phoenix path.
+//
+// Mechanical contract:
+//   - On revive trigger: setTimeout REACTIVITY_TELEGRAPH_MS (3000ms) →
+//     activate Ashen Reign state for ASHEN_REIGN_DURATION_MS (5000ms).
+//   - During the window: `canPlacePieceDuringAshenReign(piece)` returns false
+//     unless `piece.element === 'ember'`. T2.B bridge wires this into legacy
+//     `pieceCanBePlaced(piece)` check site.
+//   - Visual: 180px-wide pulsing red-orange gradient flame border + HUD
+//     countdown indicator (CSS animation, zero JS per frame — §3.1 field 7).
+//   - Release: single setTimeout fires once at ASHEN_REIGN_DURATION_MS,
+//     fades out over ASHEN_REIGN_DECAY_MS (200ms).
+//
+// Sacred-cow safety:
+//   - Reads PHOENIX_REVIVE_HP_PCT / PHOENIX_IMMUNE_TURNS / REACTIVITY_TELEGRAPH_MS
+//     never writes. The legacy `maybePhoenixRevive` site is the trigger source;
+//     Ashen Reign attaches AFTER the sacred revive finishes.
+//   - Per-frame work during the 5s window: ZERO. Flame border + HUD countdown
+//     are CSS-keyframe-driven (animations.css / battle.css), animation duration
+//     read from `--ashen-reign-duration-ms` custom property on each element.
+//   - Single setTimeout for window end; no setInterval / requestAnimationFrame.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Pre-allocated DOM elements (object pool: 1 flame border + 1 HUD countdown).
+// The flame border is appended to body (positioned fixed over the grid coord
+// range); the HUD countdown attaches under the body too (positioned to the
+// top of the screen). Lazy creation on first activate.
+let   _ashenReignFlameBorderEl   = null;
+let   _ashenReignHudEl           = null;
+let   _ashenReignPoolInitDone    = false;
+// Module state — spec §3.1 contract.
+let   _ashenReignActive          = false;
+let   _ashenReignEndsAt          = null;
+let   _ashenReignReleaseTimer    = null;
+let   _ashenReignDecayTimer      = null;
+
+function _ensureAshenReignPool() {
+  if (_ashenReignPoolInitDone) return;
+  if (typeof document === 'undefined') return; // unit-test guard
+
+  // Flame border overlay. Painterly red-orange ring positioned over the
+  // grid container. CSS class controls the pulse animation; we just toggle.
+  _ashenReignFlameBorderEl = document.createElement('div');
+  _ashenReignFlameBorderEl.className = 'identity-phoenix-ashen-reign-border';
+  _ashenReignFlameBorderEl.setAttribute('aria-hidden', 'true');
+  _ashenReignFlameBorderEl.style.display = 'none';
+  document.body.appendChild(_ashenReignFlameBorderEl);
+
+  // HUD countdown text element. Sits at top of the viewport; CSS-driven
+  // 5000ms width-or-opacity decay so the visual countdown is GPU-only.
+  _ashenReignHudEl = document.createElement('div');
+  _ashenReignHudEl.className = 'identity-phoenix-ashen-reign-hud';
+  _ashenReignHudEl.setAttribute('aria-hidden', 'true');
+  _ashenReignHudEl.textContent = ASHEN_REIGN_HUD_COUNTDOWN_TEXT;
+  _ashenReignHudEl.style.display = 'none';
+  document.body.appendChild(_ashenReignHudEl);
+
+  _ashenReignPoolInitDone = true;
+}
+
+// ─── Pure helpers (unit-testable, no DOM) ──────────────────────────────
+//
+// Returns the Ashen Reign duration constant. Pure pass-through — exists so
+// tests can lock the spec value (5000ms) via a single import. Mirrors
+// `computePirateGold` etc.: pure math indirection so unit tests don't have
+// to import the data constants directly (they can, but a tiny pure helper
+// is the established T2.02 precedent).
+export function computeAshenReignDuration() {
+  return ASHEN_REIGN_DURATION_MS;
+}
+
+// Predicate: can the given piece be placed while Ashen Reign is active?
+// Spec §3.1 field 4 bullet 2: "`pieceCanBePlaced(piece)` returns false unless
+// `piece.element === 'ember'`."
+//
+// When the window is INACTIVE: every piece is placeable (Ashen Reign
+// imposes no restriction). When the window is ACTIVE: only `ember` pieces
+// pass; everything else (including a null/undefined piece) is rejected
+// defensively.
+//
+// `state` is the optional Ashen Reign state snapshot. Default reads module
+// state via `isAshenReignActive()` so callers don't have to thread it; tests
+// can override by passing `{ _ashenReignActive: true|false }` directly.
+//
+// Pure function (no DOM, no side effects) — unit-testable.
+export function canPlacePieceDuringAshenReign(piece, state) {
+  const active = state && Object.prototype.hasOwnProperty.call(state, '_ashenReignActive')
+    ? Boolean(state._ashenReignActive)
+    : _ashenReignActive;
+  if (!active) return true;                          // window inactive — no restriction
+  if (!piece) return false;                          // defensive: null piece during active window
+  return piece.element === ASHEN_REIGN_REQUIRED_ELEMENT;
+}
+
+// Read-only state accessor — used by `canPlacePieceDuringAshenReign` default
+// path AND by the T2.B legacy bridge (which will call this from inside
+// legacy `pieceCanBePlaced(piece)` to inject the ember-only gate).
+export function isAshenReignActive() {
+  return _ashenReignActive;
+}
+
+// Timestamp at which the active window ends (`performance.now()` epoch).
+// Returns null when inactive. Used by the HUD CSS animation indirectly
+// (via the `--ashen-reign-end-at` custom property set by `fxPhoenixAshenReign`).
+export function getAshenReignEndsAt() {
+  return _ashenReignEndsAt;
+}
+
+// ─── Activate / release / reset (module state mutations) ───────────────
+//
+// `fxPhoenixAshenReign(bossState, ctx)` — activate the 5s ember-only state.
+// Spec §3.1 field 4. Called by the new reactivity handler
+// (`identity_phoenix_revive` in `src/core/reactivity-events.js`) AFTER the
+// REACTIVITY_TELEGRAPH_MS (3000ms) wind-up banner completes (sacred re-use).
+//
+// Initial-trigger wall-time budget: ≤ASHEN_REIGN_INITIAL_BUDGET_MS (16ms).
+// Steady-state per-frame budget during the 5s window: ≤2ms (CSS animation,
+// zero JS per frame — verified by single setTimeout for release, no
+// setInterval/rAF).
+//
+// `bossState` and `ctx` parameters are reserved for T2.08–T2.11 boss-reactive
+// FX that may need archetype-specific tinting / dispatch context. Currently
+// unused for Phoenix; documented for forward compat.
+export function fxPhoenixAshenReign(_bossState, _ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  try {
+    // Defensive: if the window is somehow already active (double-fire from a
+    // pathological revive double-event), release the previous one first so
+    // timers don't overlap. Single-fire-at-a-time contract.
+    if (_ashenReignActive) {
+      fxPhoenixAshenReignRelease();
+    }
+
+    _ashenReignActive = true;
+    const _now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    _ashenReignEndsAt = _now + ASHEN_REIGN_DURATION_MS;
+
+    // DOM activation (lazy pool). All visual work is CSS-keyframe driven —
+    // we ONLY toggle classes + custom properties here. Zero per-frame JS.
+    _ensureAshenReignPool();
+    if (_ashenReignPoolInitDone) {
+      // Flame border. Position relative to grid container if present
+      // (positioned in CSS via `position: fixed` + grid-rect lookup).
+      const flame = _ashenReignFlameBorderEl;
+      if (flame) {
+        flame.style.setProperty('--ashen-reign-duration-ms', ASHEN_REIGN_DURATION_MS + 'ms');
+        flame.style.setProperty('--ashen-reign-decay-ms', ASHEN_REIGN_DECAY_MS + 'ms');
+        // Position over the grid container if it exists. The CSS class is
+        // `.identity-phoenix-ashen-reign-border` which the stylesheet positions
+        // fixed; we only set CSS variables for the border-rect bounds.
+        const gridEl = document.querySelector('.grid') || document.getElementById('grid');
+        if (gridEl) {
+          const r = gridEl.getBoundingClientRect();
+          flame.style.setProperty('--ashen-reign-grid-left', r.left + 'px');
+          flame.style.setProperty('--ashen-reign-grid-top',  r.top  + 'px');
+          flame.style.setProperty('--ashen-reign-grid-w',    r.width  + 'px');
+          flame.style.setProperty('--ashen-reign-grid-h',    r.height + 'px');
+        }
+        // Restart keyframes deterministically (re-trigger on pool re-use).
+        flame.classList.remove('identity-phoenix-ashen-reign-border-active');
+        flame.style.display = 'block';
+        // Force a synchronous reflow so the keyframe restarts cleanly.
+        void flame.offsetWidth;
+        flame.classList.add('identity-phoenix-ashen-reign-border-active');
+      }
+      // HUD countdown. Text is static ("EMBER ONLY — 5s"); the visual decay
+      // is a CSS animation reading --ashen-reign-duration-ms. The countdown
+      // is purely visual — JS knows the exact end time via _ashenReignEndsAt.
+      const hud = _ashenReignHudEl;
+      if (hud) {
+        hud.style.setProperty('--ashen-reign-duration-ms', ASHEN_REIGN_DURATION_MS + 'ms');
+        hud.style.setProperty('--ashen-reign-decay-ms', ASHEN_REIGN_DECAY_MS + 'ms');
+        hud.textContent = ASHEN_REIGN_HUD_COUNTDOWN_TEXT;
+        hud.classList.remove('identity-phoenix-ashen-reign-hud-active');
+        hud.style.display = 'block';
+        void hud.offsetWidth;
+        hud.classList.add('identity-phoenix-ashen-reign-hud-active');
+      }
+    }
+
+    // Single setTimeout for release. No setInterval. No requestAnimationFrame.
+    // Spec §3.1 field 7: zero per-frame JS during the 5s window.
+    if (_ashenReignReleaseTimer) clearTimeout(_ashenReignReleaseTimer);
+    _ashenReignReleaseTimer = setTimeout(() => {
+      _ashenReignReleaseTimer = null;
+      fxPhoenixAshenReignRelease();
+    }, ASHEN_REIGN_DURATION_MS);
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      if (dt > ASHEN_REIGN_INITIAL_BUDGET_MS) {
+        log.warn('Phoenix Ashen Reign initial trigger over budget:',
+                 dt.toFixed(2), 'ms (limit', ASHEN_REIGN_INITIAL_BUDGET_MS, 'ms)');
+      }
+    }
+  }
+}
+
+// Release the Ashen Reign window. Idempotent — safe to call when inactive.
+// Triggers the 200ms fade-out via CSS class swap, then removes the visible
+// state after the decay completes.
+export function fxPhoenixAshenReignRelease() {
+  _ashenReignActive = false;
+  _ashenReignEndsAt = null;
+  if (_ashenReignReleaseTimer) {
+    clearTimeout(_ashenReignReleaseTimer);
+    _ashenReignReleaseTimer = null;
+  }
+  if (!_ashenReignPoolInitDone) return;
+
+  const flame = _ashenReignFlameBorderEl;
+  const hud   = _ashenReignHudEl;
+  // Swap to fade-out class — CSS animation handles the 200ms decay.
+  if (flame) {
+    flame.classList.remove('identity-phoenix-ashen-reign-border-active');
+    flame.classList.add('identity-phoenix-ashen-reign-border-fading');
+  }
+  if (hud) {
+    hud.classList.remove('identity-phoenix-ashen-reign-hud-active');
+    hud.classList.add('identity-phoenix-ashen-reign-hud-fading');
+  }
+  // Hide after the decay window — single setTimeout, fires once.
+  if (_ashenReignDecayTimer) clearTimeout(_ashenReignDecayTimer);
+  _ashenReignDecayTimer = setTimeout(() => {
+    _ashenReignDecayTimer = null;
+    if (flame) {
+      flame.style.display = 'none';
+      flame.classList.remove('identity-phoenix-ashen-reign-border-fading');
+    }
+    if (hud) {
+      hud.style.display = 'none';
+      hud.classList.remove('identity-phoenix-ashen-reign-hud-fading');
+    }
+  }, ASHEN_REIGN_DECAY_MS);
+}
+
+// Reset hook for battle pipeline (battle start / battle end). Clears all
+// state + cancels pending timers + hides DOM. Mirrors `resetCrocFragmentBank`
+// precedent from T2.05.
+export function resetAshenReign() {
+  _ashenReignActive = false;
+  _ashenReignEndsAt = null;
+  if (_ashenReignReleaseTimer) {
+    clearTimeout(_ashenReignReleaseTimer);
+    _ashenReignReleaseTimer = null;
+  }
+  if (_ashenReignDecayTimer) {
+    clearTimeout(_ashenReignDecayTimer);
+    _ashenReignDecayTimer = null;
+  }
+  if (_ashenReignFlameBorderEl) {
+    _ashenReignFlameBorderEl.classList.remove(
+      'identity-phoenix-ashen-reign-border-active',
+      'identity-phoenix-ashen-reign-border-fading',
+    );
+    _ashenReignFlameBorderEl.style.display = 'none';
+  }
+  if (_ashenReignHudEl) {
+    _ashenReignHudEl.classList.remove(
+      'identity-phoenix-ashen-reign-hud-active',
+      'identity-phoenix-ashen-reign-hud-fading',
+    );
+    _ashenReignHudEl.style.display = 'none';
+  }
+}
+
 // ─── Dispatcher (spec §7.2 hook from src/core/grid.js#clearLines) ──────
 //
 // Single entry point invoked from `src/core/grid.js` AFTER the sacred
@@ -2072,5 +2354,28 @@ export const __identityFxTestables = Object.freeze({
     }
     _sparkRayPoolContainer = null;
   },
+  // T2.07 — Phoenix Ashen Reign testables. Module-state observers + pool
+  // resetter so tests can assert state transitions without reaching into
+  // module privates.
+  isAshenReignPoolInitDone: () => _ashenReignPoolInitDone,
+  getAshenReignFlameBorderEl: () => _ashenReignFlameBorderEl,
+  getAshenReignHudEl:         () => _ashenReignHudEl,
+  hasAshenReignReleaseTimer:  () => _ashenReignReleaseTimer !== null,
+  hasAshenReignDecayTimer:    () => _ashenReignDecayTimer !== null,
+  resetAshenReignPool: () => {
+    // First: drop all state + cancel timers via the public reset path.
+    resetAshenReign();
+    // Then: tear down DOM so the next test re-creates the pool fresh.
+    if (_ashenReignFlameBorderEl && _ashenReignFlameBorderEl.parentNode) {
+      _ashenReignFlameBorderEl.parentNode.removeChild(_ashenReignFlameBorderEl);
+    }
+    if (_ashenReignHudEl && _ashenReignHudEl.parentNode) {
+      _ashenReignHudEl.parentNode.removeChild(_ashenReignHudEl);
+    }
+    _ashenReignFlameBorderEl = null;
+    _ashenReignHudEl = null;
+    _ashenReignPoolInitDone = false;
+  },
   IDENTITY_FX_KEYS,
+  IDENTITY_BOSS_FX_KEYS,
 });

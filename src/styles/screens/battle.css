@@ -6217,3 +6217,251 @@ button, .menu-btn, .btn, .hero-card, .piece, .cell, .roster-card, .tier-btn, .ba
   40%  { opacity: 0.7; transform: scale(1.0); }
   100% { opacity: 0; transform: scale(1.0); }
 }
+
+/* ─── 2026-05-12 — TASK-034 (T2.07): Identity Layer · Phoenix Ashen Reign ──
+ * FIRST boss-reactive identity mechanic. Flame border + HUD countdown that
+ * appear for ASHEN_REIGN_DURATION_MS = 5000ms after Phoenix revive, then
+ * fade out over ASHEN_REIGN_DECAY_MS = 200ms.
+ *
+ * Architecture (spec §3.1 field 7):
+ *   - Steady-state per-frame budget during the 5s window is ≤2ms. To meet
+ *     this, ALL animation lives in CSS @keyframes; the JS layer only flips
+ *     class names + sets CSS custom properties at activate/release.
+ *   - Single setTimeout in JS fires once at the 5000ms mark to trigger
+ *     fade-out (no setInterval, no requestAnimationFrame, no per-frame work).
+ *
+ * Sacred safety:
+ *   - No existing CSS class modified. Pure addition.
+ *   - Phoenix sacred constants (PHOENIX_REVIVE_HP_PCT, PHOENIX_IMMUNE_TURNS)
+ *     not referenced — Ashen Reign LAYERS ON TOP of the sacred revive.
+ *   - REACTIVITY_TELEGRAPH_MS = 3000 RE-USED (telegraph banner is handled
+ *     by existing showReactivityTelegraph + `.reactivity-telegraph-banner`
+ *     CSS, untouched here).
+ *
+ * Z-index ordering (Identity Layer particles): coin (9999) > shark (9998) >
+ * rock (9997) > croc-fragment (9996) > spark (9995) > **phoenix-ashen-reign
+ * border** (9994) > phoenix-ashen-reign HUD (9993). The flame border sits
+ * BELOW the particle layers (it's a screen-level state indicator, not a
+ * burst effect) but ABOVE the grid + HUD chrome.
+ */
+
+/* Flame border overlay. 180px-wide pulsing red-orange gradient ring around
+ * the grid rect (positioned via `--ashen-reign-grid-*` custom properties
+ * set per-fire by `fxPhoenixAshenReign`). Pulses across the full 5000ms
+ * window via CSS animation — zero JS per frame.
+ *
+ * Width per spec §3.1 field 4 bullet 1: 180px (ASHEN_REIGN_FLAME_BORDER_WIDTH_PX).
+ *
+ * The border is implemented as a fixed-position element whose `inset`
+ * shrinks to surround the grid container (set via JS-set CSS variables at
+ * activation time). The painterly red-orange gradient pulses by animating
+ * box-shadow + filter brightness — both GPU-accelerated. */
+.identity-phoenix-ashen-reign-border {
+  position: fixed;
+  /* Default: centered on viewport if grid coords haven't been resolved.
+   * `fxPhoenixAshenReign` overrides via CSS custom properties on the element
+   * (--ashen-reign-grid-left / -top / -w / -h) so the border surrounds the
+   * grid rect at the moment of activation. */
+  left: calc(var(--ashen-reign-grid-left, 50vw) - 90px);
+  top:  calc(var(--ashen-reign-grid-top,  50vh) - 90px);
+  width:  calc(var(--ashen-reign-grid-w, 0px) + 180px);
+  height: calc(var(--ashen-reign-grid-h, 0px) + 180px);
+  pointer-events: none;
+  z-index: 9994;
+  border-radius: 24px;
+  /* Painterly red-orange ring — 180px-wide pulsing gradient. The visible
+   * "border" is a soft inner glow via box-shadow inset, plus an outer halo
+   * that pulses brighter on each beat. */
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 100, 30, 0)  60%,
+    rgba(255, 90, 30, 0.20) 75%,
+    rgba(255, 70, 20, 0.45) 88%,
+    rgba(255, 60, 10, 0.65) 100%
+  );
+  box-shadow:
+    inset 0 0 60px 20px rgba(255, 90, 30, 0.45),
+    inset 0 0 120px 40px rgba(220, 60, 10, 0.30),
+    0 0 80px 10px rgba(255, 80, 20, 0.50);
+  opacity: 0;
+  will-change: opacity, box-shadow, filter;
+  filter: blur(0.5px);
+  /* Default: hidden via display:none from JS at module load. */
+}
+.identity-phoenix-ashen-reign-border.identity-phoenix-ashen-reign-border-active {
+  /* The pulsing red-orange flame border. Animation reads the
+   * `--ashen-reign-duration-ms` custom property (5000ms) so the visual
+   * timing always matches the JS-side duration constant. */
+  animation: identityPhoenixFlameBorder var(--ashen-reign-duration-ms, 5000ms) ease-in-out forwards;
+}
+.identity-phoenix-ashen-reign-border.identity-phoenix-ashen-reign-border-fading {
+  /* Single-shot fade-out over `--ashen-reign-decay-ms` (200ms). */
+  animation: identityPhoenixFlameBorderFade var(--ashen-reign-decay-ms, 200ms) ease-out forwards;
+}
+@keyframes identityPhoenixFlameBorder {
+  0%   {
+    opacity: 0;
+    box-shadow:
+      inset 0 0 30px 10px rgba(255, 90, 30, 0.30),
+      0 0 40px 4px rgba(255, 80, 20, 0.30);
+  }
+  6%   {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 80px 24px rgba(255, 110, 40, 0.55),
+      inset 0 0 140px 50px rgba(220, 70, 15, 0.35),
+      0 0 100px 16px rgba(255, 90, 30, 0.60);
+  }
+  /* Triple pulse at 25 / 50 / 75 — each ~250ms peak, reads as a steady
+   * breath of flame. The whole window is 5000ms so 3 beats lands clean. */
+  25%  {
+    opacity: 0.85;
+    box-shadow:
+      inset 0 0 60px 18px rgba(255, 100, 35, 0.45),
+      inset 0 0 120px 40px rgba(220, 65, 10, 0.30),
+      0 0 60px 8px rgba(255, 80, 20, 0.45);
+  }
+  35%  {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 90px 28px rgba(255, 115, 45, 0.60),
+      inset 0 0 150px 56px rgba(225, 75, 18, 0.40),
+      0 0 110px 18px rgba(255, 95, 30, 0.65);
+  }
+  50%  {
+    opacity: 0.9;
+    box-shadow:
+      inset 0 0 70px 22px rgba(255, 105, 40, 0.50),
+      inset 0 0 130px 46px rgba(220, 65, 12, 0.35),
+      0 0 70px 10px rgba(255, 85, 20, 0.50);
+  }
+  65%  {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 90px 28px rgba(255, 115, 45, 0.60),
+      inset 0 0 150px 56px rgba(225, 75, 18, 0.40),
+      0 0 110px 18px rgba(255, 95, 30, 0.65);
+  }
+  80%  {
+    opacity: 0.85;
+    box-shadow:
+      inset 0 0 60px 18px rgba(255, 100, 35, 0.45),
+      inset 0 0 120px 40px rgba(220, 65, 10, 0.30),
+      0 0 60px 8px rgba(255, 80, 20, 0.45);
+  }
+  95%  {
+    opacity: 0.9;
+    box-shadow:
+      inset 0 0 70px 22px rgba(255, 105, 40, 0.50),
+      inset 0 0 130px 46px rgba(220, 65, 12, 0.35),
+      0 0 80px 12px rgba(255, 85, 20, 0.55);
+  }
+  100% {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 70px 22px rgba(255, 105, 40, 0.50),
+      inset 0 0 130px 46px rgba(220, 65, 12, 0.35),
+      0 0 80px 12px rgba(255, 85, 20, 0.55);
+  }
+}
+@keyframes identityPhoenixFlameBorderFade {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* HUD countdown indicator. Static "EMBER ONLY — 5s" text whose width-or-
+ * opacity decay over 5000ms gives a visual countdown WITHOUT per-frame JS.
+ *
+ * The label itself is static text (no JS-driven `--seconds-remaining`
+ * counter — that would be per-frame JS work). The visual cue is the
+ * gradient-fill bar BENEATH the text that shrinks from 100% → 0% width
+ * over the 5000ms window, driven by CSS animation only. */
+.identity-phoenix-ashen-reign-hud {
+  position: fixed;
+  top: 12vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9993;
+  pointer-events: none;
+  padding: 8px 20px 6px 20px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.85), rgba(40, 10, 0, 0.85));
+  border: 2px solid #E8B84A;
+  border-radius: 8px;
+  box-shadow: 0 0 24px rgba(232, 184, 74, 0.6), inset 0 0 16px rgba(255, 110, 30, 0.3);
+  color: #FFE0B0;
+  font-family: 'Cinzel', 'Times New Roman', serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 0 6px rgba(255, 110, 30, 0.85), 0 1px 0 rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  white-space: nowrap;
+  /* The underline countdown bar lives in a ::after pseudo-element. */
+}
+.identity-phoenix-ashen-reign-hud::after {
+  /* Countdown bar — animated width 100% → 0% over duration. CSS-only. */
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 3px;
+  height: 3px;
+  background: linear-gradient(90deg, #FF6E28, #E8B84A);
+  border-radius: 2px;
+  transform-origin: left center;
+  transform: scaleX(1);
+  box-shadow: 0 0 8px rgba(232, 184, 74, 0.7);
+}
+.identity-phoenix-ashen-reign-hud.identity-phoenix-ashen-reign-hud-active {
+  animation: identityPhoenixHudIn 180ms ease-out forwards;
+}
+.identity-phoenix-ashen-reign-hud.identity-phoenix-ashen-reign-hud-active::after {
+  animation: identityPhoenixHudCountdown var(--ashen-reign-duration-ms, 5000ms) linear forwards;
+}
+.identity-phoenix-ashen-reign-hud.identity-phoenix-ashen-reign-hud-fading {
+  animation: identityPhoenixHudFade var(--ashen-reign-decay-ms, 200ms) ease-out forwards;
+}
+@keyframes identityPhoenixHudIn {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@keyframes identityPhoenixHudCountdown {
+  0%   { transform: scaleX(1); }
+  100% { transform: scaleX(0); }
+}
+@keyframes identityPhoenixHudFade {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Reduced-motion: respect prefers-reduced-motion. Static red flame border
+ * (no pulse animation) + static HUD countdown bar (no scaleX animation —
+ * jumps to 0% immediately at activation; the visible 5000ms window is
+ * still distinguished by the static border being present, JS still
+ * releases the state correctly via the 5000ms setTimeout). The mechanical
+ * effect (ember-only piece gating) is preserved; only the kinetic energy
+ * is dialed back. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-phoenix-ashen-reign-border.identity-phoenix-ashen-reign-border-active {
+    animation: identityPhoenixFlameBorderStatic var(--ashen-reign-duration-ms, 5000ms) linear forwards;
+  }
+  .identity-phoenix-ashen-reign-hud.identity-phoenix-ashen-reign-hud-active {
+    animation: identityPhoenixHudInStatic 60ms linear forwards;
+  }
+  .identity-phoenix-ashen-reign-hud.identity-phoenix-ashen-reign-hud-active::after {
+    /* Static bar — no countdown animation for reduced-motion users. */
+    animation: none;
+    transform: scaleX(1);
+  }
+}
+@keyframes identityPhoenixFlameBorderStatic {
+  0%   { opacity: 0; }
+  4%   { opacity: 1; }
+  96%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+@keyframes identityPhoenixHudInStatic {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}

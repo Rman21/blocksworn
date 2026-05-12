@@ -32,6 +32,18 @@ export const IDENTITY_FX_KEYS = Object.freeze({
   SPARK_CASCADE:       'spark_cascade',
 });
 
+// ─── Boss-reactive identity FX key enum (sibling to IDENTITY_FX_KEYS) ──
+// T2.07 adds the first boss-reactive identity mechanic — Phoenix Ashen Reign.
+// T2.08–T2.11 will append entries for Lich Cursed Tiles / Berserker Bloodtide
+// Pulse / Engineer Lockdown Protocol / Grovewarden Root Surge / Voidfang
+// Shroud Pull / Uroboros Eternal Loop per spec §3.2–§3.7. Sibling enum keeps
+// boss-side identity keys lexically separate from race-side identity keys so
+// the codex / dispatcher / tooling can branch by namespace.
+export const IDENTITY_BOSS_FX_KEYS = Object.freeze({
+  PHOENIX_ASHEN_REIGN:   'phoenix_ashen_reign',
+  // Stubs for T2.08–T2.11 — added in subsequent tasks per spec §7.1 schedule.
+});
+
 // ─── Per-effect performance budgets (spec §5) ───────────────────────────
 // `wallTimeMs`            — per-fire wall-time ceiling (≤16ms frame budget).
 // `maxConcurrentParticles` — DOM-node cap for the effect's particle pool.
@@ -44,6 +56,26 @@ export const IDENTITY_FX_BUDGETS = Object.freeze({
   [IDENTITY_FX_KEYS.ROCK_ECHO]:         Object.freeze({ wallTimeMs: 8,  maxConcurrentParticles: 4,  decayMs: 700  }),
   [IDENTITY_FX_KEYS.CROCODILE_BASTION]: Object.freeze({ wallTimeMs: 8,  maxConcurrentParticles: 16, decayMs: 600  }),
   [IDENTITY_FX_KEYS.SPARK_CASCADE]:     Object.freeze({ wallTimeMs: 10, maxConcurrentParticles: 16, decayMs: 400  }),
+});
+
+// ─── Per-effect performance budgets — boss-reactive (spec §3 + §5) ──────
+// Same shape as IDENTITY_FX_BUDGETS but `initialMs` / `steadyStateMs` /
+// `duration` reflect the boss-reactive grammar (trigger event → 5s window →
+// release). `decayMs` is the fade-out tail. Sibling to IDENTITY_FX_BUDGETS
+// so the codex / tooling can read both budgets uniformly.
+//
+// Phoenix Ashen Reign (spec §3.1 field 7):
+//   - Initial trigger ≤16ms (one DOM overlay + heat distortion CSS filter)
+//   - Steady-state during 5s window: ≤2ms per frame (CSS animation, no JS)
+//   - Decay: 200ms fade-out
+//   - Duration: 5000ms exact (hard spec value)
+export const IDENTITY_BOSS_FX_BUDGETS = Object.freeze({
+  [IDENTITY_BOSS_FX_KEYS.PHOENIX_ASHEN_REIGN]: Object.freeze({
+    initialMs:     16,
+    steadyStateMs: 2,
+    decayMs:       200,
+    duration:      5000,
+  }),
 });
 
 // ─── Pirate's Plunder constants (spec §2.1) ─────────────────────────────
@@ -272,3 +304,72 @@ export const SPARK_CASCADE_DOMINANT_ELEMENT    = 'solar';
 // path). When false, fxSparkLineClear fires VISUAL rays only — no
 // `_dominantCountModifier` write. Single-flip demotion to pure-FX.
 export const SPARK_CASCADE_ENABLED             = true;
+
+// ─── Phoenix Ashen Reign constants (spec §3.1) ──────────────────────────
+// FIRST boss-reactive identity mechanic — T2.07.
+//
+// Mechanical contract (spec §3.1 fields 3-4):
+//   - Trigger: Phoenix revive event fires (sacred PHOENIX_REVIVE_HP_PCT = 0.6
+//     + PHOENIX_IMMUNE_TURNS = 2 path UNTOUCHED — Ashen Reign LAYERS ON TOP).
+//   - For exactly ASHEN_REIGN_DURATION_MS (5000ms) after revive completes:
+//     * Board renders ASHEN_REIGN_FLAME_BORDER_WIDTH_PX (180px) pulsing
+//       red-orange gradient overlay on grid container.
+//     * `pieceCanBePlaced(piece)` returns false unless
+//       `piece.element === ASHEN_REIGN_REQUIRED_ELEMENT` ('ember').
+//     * HUD shows ASHEN_REIGN_HUD_COUNTDOWN_TEXT ("EMBER ONLY — 5s").
+//     * Pieces drawn during the window are NOT re-rolled.
+//     * Window times out harmlessly at duration end (no penalty, just
+//       a tempo loss if no placeable ember exists).
+//   - Telegraph: ASHEN_REIGN_TELEGRAPH_MS (3000ms) wind-up banner —
+//     RE-USES the sacred `REACTIVITY_TELEGRAPH_MS` constant value
+//     (CLAUDE.md §2.5, `src/core/bosses.js:265`). Both are 3000.
+//   - Decay: ASHEN_REIGN_DECAY_MS (200ms) fade-out.
+//
+// Sacred-cow safety (CLAUDE.md §2.5 + spec §3.1 field 8):
+//   - PHOENIX_REVIVE_HP_PCT = 0.6 UNTOUCHED — Ashen Reign reads the existing
+//     revive event; never modifies the 60% threshold or any heal math.
+//   - PHOENIX_IMMUNE_TURNS = 2 UNTOUCHED — same.
+//   - REACTIVITY_TELEGRAPH_MS = 3000 UNTOUCHED — Ashen Reign RE-USES the
+//     constant by importing it from `src/core/bosses.js`. The invariant
+//     `ASHEN_REIGN_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS === 3000` is
+//     unit-tested.
+//   - All 22 v2.1 P4 reactivity handlers UNTOUCHED — Ashen Reign adds a
+//     NEW handler in `src/core/reactivity-events.js` under namespace
+//     `identity_phoenix_revive`, separate from the sacred 22.
+//
+// Performance budget (spec §3.1 field 7 / §5):
+//   - Initial trigger ≤ASHEN_REIGN_INITIAL_BUDGET_MS (16ms) — one DOM
+//     overlay flag + one HUD element flag, both CSS-animation driven.
+//   - Steady-state during 5s window ≤ASHEN_REIGN_STEADY_STATE_BUDGET_MS
+//     (2ms per frame) — PURE CSS animation, zero JS per-frame work.
+//   - Single `setTimeout(release, 5000)` fires once at window end —
+//     not a per-frame timer.
+//
+// Player counterplay (spec §3.1 field 5): Hold an ember piece in queue for
+// the revive moment (boss-intel-overlay should hint this); run ember-friendly
+// squad (Pirate, Orc); accept the tempo loss and chain Sun Cascade afterward.
+//
+// Architectural pattern (spec §1 hard rule 1): Identity Layer EXTENDS, never
+// MODIFIES, v2.1 P4. The sacred `phoenix_p1_p2` handler (legacy revive heal)
+// stays byte-perfect; the new `identity_phoenix_revive` handler runs IN
+// PARALLEL via a separate window-bridge call from the legacy
+// `maybePhoenixRevive` site. NO modification to the sacred 22 REACTIVITY_HANDLERS
+// entries.
+export const ASHEN_REIGN_DURATION_MS               = 5000;
+export const ASHEN_REIGN_FLAME_BORDER_WIDTH_PX     = 180;
+export const ASHEN_REIGN_DECAY_MS                  = 200;
+// Telegraph duration. Spec §3.1 field 8 + spec §3 "Convention": RE-USES
+// the sacred REACTIVITY_TELEGRAPH_MS = 3000 value. The unit-tested invariant
+// `ASHEN_REIGN_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS` ensures both stay
+// in lock-step. Documented as 3000 here (single source of truth in this
+// module per CLAUDE.md §7.8) AND imported separately in tests for the
+// equality assertion (sacred re-use audit).
+export const ASHEN_REIGN_TELEGRAPH_MS              = 3000;
+export const ASHEN_REIGN_REQUIRED_ELEMENT          = 'ember';
+export const ASHEN_REIGN_HUD_COUNTDOWN_TEXT        = 'EMBER ONLY — 5s';
+// Performance ceilings (spec §3.1 field 7) — mirrored from IDENTITY_BOSS_FX_BUDGETS
+// for direct named import in fx + tests. The budget object remains the
+// single-source-of-truth aggregate; these named exports avoid the indirection
+// when a single number is needed inline.
+export const ASHEN_REIGN_INITIAL_BUDGET_MS         = 16;
+export const ASHEN_REIGN_STEADY_STATE_BUDGET_MS    = 2;

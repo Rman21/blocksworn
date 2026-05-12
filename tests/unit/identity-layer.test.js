@@ -48,6 +48,14 @@ import {
   countSolarCellsInClear,
   computeSunCascadeModifier,
   fxSparkLineClear,
+  // T2.07 — Phoenix Ashen Reign helpers.
+  computeAshenReignDuration,
+  canPlacePieceDuringAshenReign,
+  isAshenReignActive,
+  getAshenReignEndsAt,
+  fxPhoenixAshenReign,
+  fxPhoenixAshenReignRelease,
+  resetAshenReign,
   __identityFxTestables,
 } from '../../src/feel/identity-fx.js';
 import {
@@ -78,8 +86,26 @@ import {
   SPARK_CASCADE_RAY_DECAY_MS,
   SPARK_CASCADE_DOMINANT_ELEMENT,
   SPARK_CASCADE_ENABLED,
+  // T2.07 — Phoenix Ashen Reign constants.
+  IDENTITY_BOSS_FX_KEYS,
+  IDENTITY_BOSS_FX_BUDGETS,
+  ASHEN_REIGN_DURATION_MS,
+  ASHEN_REIGN_FLAME_BORDER_WIDTH_PX,
+  ASHEN_REIGN_DECAY_MS,
+  ASHEN_REIGN_TELEGRAPH_MS,
+  ASHEN_REIGN_REQUIRED_ELEMENT,
+  ASHEN_REIGN_HUD_COUNTDOWN_TEXT,
+  ASHEN_REIGN_INITIAL_BUDGET_MS,
+  ASHEN_REIGN_STEADY_STATE_BUDGET_MS,
 } from '../../src/data/identity-layer.js';
 import { RACE_SYNERGY, RACE_IDENTITY_FX } from '../../src/data/races.js';
+import {
+  PHOENIX_REVIVE_HP_PCT,
+  PHOENIX_IMMUNE_TURNS,
+  REACTIVITY_TELEGRAPH_MS,
+  REACTIVITY_BANNER_DURATION_MS,
+} from '../../src/core/bosses.js';
+import { BOSS_IDENTITY_FX } from '../../src/data/bosses.js';
 
 describe('identity-layer · Pirate\'s Plunder · computePirateGold', () => {
   it('0 pirates × 10 cells → 0g (silent no-op contract)', () => {
@@ -1773,5 +1799,295 @@ describe('identity-layer · dispatchIdentityFx — spark race regression', () =>
     // The fact that no exception was thrown AND the modifier is exactly +1 confirms
     // the independence invariant.
     expect(ctx._dominantCountModifier).toBe(1);
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-034 (T2.07): Phoenix Ashen Reign unit tests.
+// First boss-reactive identity mechanic — 5s ember-only window on revive.
+// Spec: docs/design/mechanics/identity-layer.md §3.1.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('identity-layer · Phoenix Ashen Reign · computeAshenReignDuration', () => {
+  it('returns exactly 5000 (spec §3.1 field 4 hard value)', () => {
+    expect(computeAshenReignDuration()).toBe(5000);
+  });
+  it('matches ASHEN_REIGN_DURATION_MS constant byte-perfect', () => {
+    expect(computeAshenReignDuration()).toBe(ASHEN_REIGN_DURATION_MS);
+  });
+});
+
+describe('identity-layer · Phoenix Ashen Reign · canPlacePieceDuringAshenReign predicate', () => {
+  it('window INACTIVE → ember piece is placeable (no restriction)', () => {
+    expect(canPlacePieceDuringAshenReign({ element: 'ember' },
+      { _ashenReignActive: false })).toBe(true);
+  });
+  it('window INACTIVE → tide piece is placeable (no restriction)', () => {
+    expect(canPlacePieceDuringAshenReign({ element: 'tide' },
+      { _ashenReignActive: false })).toBe(true);
+  });
+  it('window INACTIVE → any element is placeable (umbra, solar, grove)', () => {
+    expect(canPlacePieceDuringAshenReign({ element: 'umbra' },
+      { _ashenReignActive: false })).toBe(true);
+    expect(canPlacePieceDuringAshenReign({ element: 'solar' },
+      { _ashenReignActive: false })).toBe(true);
+    expect(canPlacePieceDuringAshenReign({ element: 'grove' },
+      { _ashenReignActive: false })).toBe(true);
+  });
+  it('window INACTIVE → null piece returns true (no restriction)', () => {
+    expect(canPlacePieceDuringAshenReign(null,
+      { _ashenReignActive: false })).toBe(true);
+  });
+  it('window ACTIVE + ember piece → true (placeable, spec §3.1 field 4)', () => {
+    expect(canPlacePieceDuringAshenReign({ element: 'ember' },
+      { _ashenReignActive: true })).toBe(true);
+  });
+  it('window ACTIVE + tide piece → false (rejected)', () => {
+    expect(canPlacePieceDuringAshenReign({ element: 'tide' },
+      { _ashenReignActive: true })).toBe(false);
+  });
+  it('window ACTIVE + umbra piece → false (rejected)', () => {
+    expect(canPlacePieceDuringAshenReign({ element: 'umbra' },
+      { _ashenReignActive: true })).toBe(false);
+  });
+  it('window ACTIVE + solar piece → false (rejected)', () => {
+    expect(canPlacePieceDuringAshenReign({ element: 'solar' },
+      { _ashenReignActive: true })).toBe(false);
+  });
+  it('window ACTIVE + grove piece → false (rejected)', () => {
+    expect(canPlacePieceDuringAshenReign({ element: 'grove' },
+      { _ashenReignActive: true })).toBe(false);
+  });
+  it('window ACTIVE + null piece → false (defensive — reject)', () => {
+    expect(canPlacePieceDuringAshenReign(null,
+      { _ashenReignActive: true })).toBe(false);
+  });
+  it('window ACTIVE + piece missing element field → false', () => {
+    expect(canPlacePieceDuringAshenReign({}, { _ashenReignActive: true })).toBe(false);
+  });
+  it('default state (no state arg) reads module isAshenReignActive()', () => {
+    // No state argument — falls back to module-state. With no fx active
+    // (fresh module), window is inactive → any piece passes.
+    resetAshenReign();
+    expect(canPlacePieceDuringAshenReign({ element: 'tide' })).toBe(true);
+    expect(canPlacePieceDuringAshenReign({ element: 'ember' })).toBe(true);
+    expect(canPlacePieceDuringAshenReign(null)).toBe(true);
+  });
+});
+
+describe('identity-layer · Phoenix Ashen Reign · module state transitions', () => {
+  it('fresh module: isAshenReignActive() === false, getAshenReignEndsAt() === null', () => {
+    resetAshenReign();
+    expect(isAshenReignActive()).toBe(false);
+    expect(getAshenReignEndsAt()).toBeNull();
+  });
+  it('fxPhoenixAshenReign(...) → isAshenReignActive() flips to true', () => {
+    resetAshenReign();
+    fxPhoenixAshenReign(null, null);
+    expect(isAshenReignActive()).toBe(true);
+    // Cleanup to avoid leaking timer state into next test.
+    fxPhoenixAshenReignRelease();
+  });
+  it('fxPhoenixAshenReign(...) → getAshenReignEndsAt() returns a number ≥ now', () => {
+    resetAshenReign();
+    const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    fxPhoenixAshenReign(null, null);
+    const ends = getAshenReignEndsAt();
+    expect(typeof ends).toBe('number');
+    expect(ends).toBeGreaterThanOrEqual(t0 + ASHEN_REIGN_DURATION_MS - 100);
+    expect(ends).toBeLessThanOrEqual(t0 + ASHEN_REIGN_DURATION_MS + 100);
+    fxPhoenixAshenReignRelease();
+  });
+  it('fxPhoenixAshenReignRelease() → isAshenReignActive() flips to false', () => {
+    resetAshenReign();
+    fxPhoenixAshenReign(null, null);
+    expect(isAshenReignActive()).toBe(true);
+    fxPhoenixAshenReignRelease();
+    expect(isAshenReignActive()).toBe(false);
+    expect(getAshenReignEndsAt()).toBeNull();
+  });
+  it('resetAshenReign() → zeroes both active flag and endsAt', () => {
+    fxPhoenixAshenReign(null, null);
+    expect(isAshenReignActive()).toBe(true);
+    resetAshenReign();
+    expect(isAshenReignActive()).toBe(false);
+    expect(getAshenReignEndsAt()).toBeNull();
+  });
+  it('double-fire safety: fxPhoenixAshenReign twice does not double-allocate (idempotent active)', () => {
+    resetAshenReign();
+    fxPhoenixAshenReign(null, null);
+    expect(isAshenReignActive()).toBe(true);
+    fxPhoenixAshenReign(null, null);  // should release-and-re-activate gracefully
+    expect(isAshenReignActive()).toBe(true);
+    fxPhoenixAshenReignRelease();
+    expect(isAshenReignActive()).toBe(false);
+  });
+  it('release idempotency: calling release twice is safe', () => {
+    fxPhoenixAshenReign(null, null);
+    fxPhoenixAshenReignRelease();
+    expect(isAshenReignActive()).toBe(false);
+    fxPhoenixAshenReignRelease();   // no-op, no throw
+    expect(isAshenReignActive()).toBe(false);
+  });
+});
+
+describe('identity-layer · Phoenix Ashen Reign · duration enforcement (5000ms)', () => {
+  it('endsAt is exactly ASHEN_REIGN_DURATION_MS in the future when activated', () => {
+    resetAshenReign();
+    const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    fxPhoenixAshenReign(null, null);
+    const ends = getAshenReignEndsAt();
+    const delta = ends - t0;
+    // Allow tolerance for inter-call latency (single-digit ms in practice).
+    expect(delta).toBeGreaterThanOrEqual(ASHEN_REIGN_DURATION_MS - 50);
+    expect(delta).toBeLessThanOrEqual(ASHEN_REIGN_DURATION_MS + 50);
+    fxPhoenixAshenReignRelease();
+  });
+  it('5000ms hard value matches spec §3.1 field 4 (no drift via constant)', () => {
+    expect(ASHEN_REIGN_DURATION_MS).toBe(5000);
+  });
+});
+
+describe('identity-layer · Phoenix Ashen Reign · SACRED COW byte-perfect audit', () => {
+  it('PHOENIX_REVIVE_HP_PCT === 0.6 byte-perfect (sacred CLAUDE.md §2.5)', () => {
+    expect(PHOENIX_REVIVE_HP_PCT).toBe(0.6);
+  });
+  it('PHOENIX_IMMUNE_TURNS === 2 byte-perfect (sacred CLAUDE.md §2.5)', () => {
+    expect(PHOENIX_IMMUNE_TURNS).toBe(2);
+  });
+  it('REACTIVITY_TELEGRAPH_MS === 3000 byte-perfect (sacred CLAUDE.md §2.5)', () => {
+    expect(REACTIVITY_TELEGRAPH_MS).toBe(3000);
+  });
+  it('REACTIVITY_BANNER_DURATION_MS === 1500 byte-perfect (sacred CLAUDE.md §2.5)', () => {
+    expect(REACTIVITY_BANNER_DURATION_MS).toBe(1500);
+  });
+  it('SACRED RE-USE INVARIANT: ASHEN_REIGN_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS', () => {
+    // Spec §3.1 field 8: Ashen Reign RE-USES the sacred 3000ms telegraph
+    // value. This invariant ensures the two stay in lock-step — any future
+    // edit to one MUST update the other (and will trip this test if not).
+    expect(ASHEN_REIGN_TELEGRAPH_MS).toBe(REACTIVITY_TELEGRAPH_MS);
+    expect(ASHEN_REIGN_TELEGRAPH_MS).toBe(3000);
+  });
+  it('Ashen Reign DOES NOT modify sacred Phoenix constants — read-only re-use', () => {
+    // Activate + release the fx pipeline; sacred constants are immutable
+    // by virtue of being `const` exports, but this test asserts the values
+    // remain unchanged after the full fx round-trip (no global state leak).
+    resetAshenReign();
+    fxPhoenixAshenReign(null, null);
+    expect(PHOENIX_REVIVE_HP_PCT).toBe(0.6);
+    expect(PHOENIX_IMMUNE_TURNS).toBe(2);
+    expect(REACTIVITY_TELEGRAPH_MS).toBe(3000);
+    fxPhoenixAshenReignRelease();
+    expect(PHOENIX_REVIVE_HP_PCT).toBe(0.6);
+    expect(PHOENIX_IMMUNE_TURNS).toBe(2);
+    expect(REACTIVITY_TELEGRAPH_MS).toBe(3000);
+  });
+});
+
+describe('identity-layer · Phoenix Ashen Reign · constants & budgets', () => {
+  it('ASHEN_REIGN_DURATION_MS === 5000 (spec §3.1 field 4)', () => {
+    expect(ASHEN_REIGN_DURATION_MS).toBe(5000);
+  });
+  it('ASHEN_REIGN_FLAME_BORDER_WIDTH_PX === 180 (spec §3.1 field 4)', () => {
+    expect(ASHEN_REIGN_FLAME_BORDER_WIDTH_PX).toBe(180);
+  });
+  it('ASHEN_REIGN_DECAY_MS === 200 (spec §3.1 field 7 — fade-out)', () => {
+    expect(ASHEN_REIGN_DECAY_MS).toBe(200);
+  });
+  it('ASHEN_REIGN_REQUIRED_ELEMENT === "ember" (spec §3.1 field 4)', () => {
+    expect(ASHEN_REIGN_REQUIRED_ELEMENT).toBe('ember');
+  });
+  it('ASHEN_REIGN_HUD_COUNTDOWN_TEXT === "EMBER ONLY — 5s"', () => {
+    expect(ASHEN_REIGN_HUD_COUNTDOWN_TEXT).toBe('EMBER ONLY — 5s');
+  });
+  it('ASHEN_REIGN_INITIAL_BUDGET_MS === 16 (spec §3.1 field 7 + §5)', () => {
+    expect(ASHEN_REIGN_INITIAL_BUDGET_MS).toBe(16);
+  });
+  it('ASHEN_REIGN_STEADY_STATE_BUDGET_MS === 2 (spec §3.1 field 7)', () => {
+    expect(ASHEN_REIGN_STEADY_STATE_BUDGET_MS).toBe(2);
+  });
+  it('IDENTITY_BOSS_FX_KEYS exposes PHOENIX_ASHEN_REIGN === "phoenix_ashen_reign"', () => {
+    expect(IDENTITY_BOSS_FX_KEYS.PHOENIX_ASHEN_REIGN).toBe('phoenix_ashen_reign');
+  });
+  it('IDENTITY_BOSS_FX_BUDGETS[PHOENIX_ASHEN_REIGN] matches spec §3.1 field 7', () => {
+    const b = IDENTITY_BOSS_FX_BUDGETS[IDENTITY_BOSS_FX_KEYS.PHOENIX_ASHEN_REIGN];
+    expect(b.initialMs).toBe(16);
+    expect(b.steadyStateMs).toBe(2);
+    expect(b.decayMs).toBe(200);
+    expect(b.duration).toBe(5000);
+  });
+  it('BOSS_IDENTITY_FX maps phoenix → phoenix_ashen_reign (sibling export)', () => {
+    expect(BOSS_IDENTITY_FX.phoenix).toBe('phoenix_ashen_reign');
+  });
+});
+
+describe('identity-layer · Phoenix Ashen Reign · cross-race regression (T2.02-T2.06 invariants)', () => {
+  it('Ashen Reign active during mixed-race squad dispatch does NOT block race FX', () => {
+    // Activate Phoenix's Ashen Reign window, then fire a race-FX line clear
+    // with a mixed squad including pirate + shark + rock + crocodile + spark.
+    // All 5 race layers must still fire independently — Ashen Reign is a
+    // BOSS-side state, not a race-FX gate. The piece-placement gate is a
+    // separate concern (legacy `pieceCanBePlaced` bridge in T2.B).
+    __identityFxTestables.resetCoinPool();
+    __identityFxTestables.resetSharkBitePool();
+    __identityFxTestables.resetRockEchoPool();
+    __identityFxTestables.resetCrocFragmentPool();
+    __identityFxTestables.resetSparkRayPool();
+    resetCrocFragmentBank();
+    resetAshenReign();
+
+    // Turn on Ashen Reign first.
+    fxPhoenixAshenReign(null, null);
+    expect(isAshenReignActive()).toBe(true);
+
+    // Now dispatch a 5-race line clear — all FX layers must run without throw.
+    const squad = [
+      { race: 'pirate' },
+      { race: 'shark' },
+      { race: 'shark' },
+      { race: 'rock' },
+      { race: 'crocodile' },
+      { race: 'spark' },
+    ];
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) grid[0][c] = 'solar';     // gates Spark
+    for (let c = 0; c < 8; c++) grid[2][c] = 'grove';     // gates Crocodile
+    const ctx = { gridState: grid, dominantElementsByLine: ['solar', 'grove'] };
+    expect(() => dispatchIdentityFx([0, 2], [], squad, null, ctx)).not.toThrow();
+
+    // Race FX layers fired correctly even with Ashen Reign active.
+    expect(ctx._dominantCountModifier).toBe(1);          // Spark fired
+    expect(isAshenReignActive()).toBe(true);             // boss state still active
+
+    // Cleanup.
+    fxPhoenixAshenReignRelease();
+  });
+
+  it('canPlacePieceDuringAshenReign INACTIVE → 5-race squad regression unchanged', () => {
+    // Establish the inactive baseline: every piece placeable, no race FX
+    // interference.
+    resetAshenReign();
+    expect(canPlacePieceDuringAshenReign({ element: 'tide' })).toBe(true);
+    expect(canPlacePieceDuringAshenReign({ element: 'solar' })).toBe(true);
+    expect(canPlacePieceDuringAshenReign({ element: 'grove' })).toBe(true);
+    expect(canPlacePieceDuringAshenReign({ element: 'umbra' })).toBe(true);
+    expect(canPlacePieceDuringAshenReign({ element: 'ember' })).toBe(true);
+  });
+
+  it('Sacred RACE_SYNERGY entries byte-perfect after Ashen Reign fx round-trip', () => {
+    // Activate + release Ashen Reign, then verify RACE_SYNERGY's sacred
+    // entries (lion solar bonus from T2.06, rock encore from T2.04, golem
+    // maxShieldBonus from T2.05) are still byte-perfect.
+    resetAshenReign();
+    fxPhoenixAshenReign(null, null);
+    fxPhoenixAshenReignRelease();
+    expect(RACE_SYNERGY.lion[5].bonusDmg.solar).toBe(3);
+    expect(RACE_SYNERGY.rock[3].encore).toBe(true);
+    expect(RACE_SYNERGY.golem[2].maxShieldBonus).toBe(1);
+    expect(RACE_SYNERGY.golem[3].maxShieldBonus).toBe(2);
+    expect(RACE_SYNERGY.golem[5].maxShieldBonus).toBe(2);
+    // Race identity sibling export untouched.
+    expect(RACE_IDENTITY_FX.pirate).toBe('pirate_plunder');
+    expect(RACE_IDENTITY_FX.spark).toBe('spark_cascade');
   });
 });

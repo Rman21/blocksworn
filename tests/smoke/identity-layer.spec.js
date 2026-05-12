@@ -1396,3 +1396,413 @@ test('fxCrocodileLineClear performance: quad-grove-line clear completes within w
   expect(wallTime).toBeLessThan(24);
   expect(errors).toEqual([]);
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-034 (T2.07): Phoenix Ashen Reign smoke tests.
+// FIRST boss-reactive identity mechanic — 5s ember-only window on revive.
+// Spec: docs/design/mechanics/identity-layer.md §3.1.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+test('fxPhoenixAshenReign: activate → flame border + HUD elements created, state flips active', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetAshenReignPool();
+
+    // Pre-fire snapshot.
+    const before = {
+      active: mod.isAshenReignActive(),
+      endsAt: mod.getAshenReignEndsAt(),
+      poolInit: mod.__identityFxTestables.isAshenReignPoolInitDone(),
+    };
+
+    // Activate.
+    mod.fxPhoenixAshenReign(null, null);
+
+    const after = {
+      active: mod.isAshenReignActive(),
+      endsAt: mod.getAshenReignEndsAt(),
+      poolInit: mod.__identityFxTestables.isAshenReignPoolInitDone(),
+      flameBorderInDom: !!(mod.__identityFxTestables.getAshenReignFlameBorderEl()
+                            && mod.__identityFxTestables.getAshenReignFlameBorderEl().parentNode),
+      hudInDom: !!(mod.__identityFxTestables.getAshenReignHudEl()
+                    && mod.__identityFxTestables.getAshenReignHudEl().parentNode),
+      flameBorderActive: !!(mod.__identityFxTestables.getAshenReignFlameBorderEl()
+                            && mod.__identityFxTestables.getAshenReignFlameBorderEl().classList.contains('identity-phoenix-ashen-reign-border-active')),
+      hudActive: !!(mod.__identityFxTestables.getAshenReignHudEl()
+                     && mod.__identityFxTestables.getAshenReignHudEl().classList.contains('identity-phoenix-ashen-reign-hud-active')),
+      hudText: (mod.__identityFxTestables.getAshenReignHudEl() || {}).textContent || '',
+      releaseTimerScheduled: mod.__identityFxTestables.hasAshenReignReleaseTimer(),
+    };
+
+    // Cleanup so state doesn't leak across tests.
+    mod.resetAshenReign();
+
+    return { before, after };
+  });
+
+  expect(result.before.active).toBe(false);
+  expect(result.before.endsAt).toBeNull();
+  expect(result.after.active).toBe(true);
+  expect(typeof result.after.endsAt).toBe('number');
+  expect(result.after.endsAt).toBeGreaterThan(0);
+  expect(result.after.poolInit).toBe(true);
+  expect(result.after.flameBorderInDom).toBe(true);
+  expect(result.after.hudInDom).toBe(true);
+  expect(result.after.flameBorderActive).toBe(true);
+  expect(result.after.hudActive).toBe(true);
+  expect(result.after.hudText).toBe('EMBER ONLY — 5s');
+  expect(result.after.releaseTimerScheduled).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('fxPhoenixAshenReign: canPlacePieceDuringAshenReign — ember-only gate during active window', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetAshenReignPool();
+
+    // Inactive baseline — every piece placeable.
+    mod.resetAshenReign();
+    const inactiveBaseline = {
+      ember:    mod.canPlacePieceDuringAshenReign({ element: 'ember' }),
+      tide:     mod.canPlacePieceDuringAshenReign({ element: 'tide' }),
+      umbra:    mod.canPlacePieceDuringAshenReign({ element: 'umbra' }),
+      solar:    mod.canPlacePieceDuringAshenReign({ element: 'solar' }),
+      grove:    mod.canPlacePieceDuringAshenReign({ element: 'grove' }),
+      nullPiece: mod.canPlacePieceDuringAshenReign(null),
+    };
+
+    // Active window — only ember passes.
+    mod.fxPhoenixAshenReign(null, null);
+    const activeWindow = {
+      ember:    mod.canPlacePieceDuringAshenReign({ element: 'ember' }),
+      tide:     mod.canPlacePieceDuringAshenReign({ element: 'tide' }),
+      umbra:    mod.canPlacePieceDuringAshenReign({ element: 'umbra' }),
+      solar:    mod.canPlacePieceDuringAshenReign({ element: 'solar' }),
+      grove:    mod.canPlacePieceDuringAshenReign({ element: 'grove' }),
+      nullPiece: mod.canPlacePieceDuringAshenReign(null),
+      noElementField: mod.canPlacePieceDuringAshenReign({}),
+    };
+
+    // Cleanup.
+    mod.resetAshenReign();
+    const afterRelease = {
+      ember:    mod.canPlacePieceDuringAshenReign({ element: 'ember' }),
+      tide:     mod.canPlacePieceDuringAshenReign({ element: 'tide' }),
+      umbra:    mod.canPlacePieceDuringAshenReign({ element: 'umbra' }),
+    };
+
+    return { inactiveBaseline, activeWindow, afterRelease };
+  });
+
+  // Inactive baseline: everything passes.
+  expect(result.inactiveBaseline.ember).toBe(true);
+  expect(result.inactiveBaseline.tide).toBe(true);
+  expect(result.inactiveBaseline.umbra).toBe(true);
+  expect(result.inactiveBaseline.solar).toBe(true);
+  expect(result.inactiveBaseline.grove).toBe(true);
+  expect(result.inactiveBaseline.nullPiece).toBe(true);
+
+  // Active window: only ember passes.
+  expect(result.activeWindow.ember).toBe(true);
+  expect(result.activeWindow.tide).toBe(false);
+  expect(result.activeWindow.umbra).toBe(false);
+  expect(result.activeWindow.solar).toBe(false);
+  expect(result.activeWindow.grove).toBe(false);
+  expect(result.activeWindow.nullPiece).toBe(false);
+  expect(result.activeWindow.noElementField).toBe(false);
+
+  // After release: everything passes again.
+  expect(result.afterRelease.ember).toBe(true);
+  expect(result.afterRelease.tide).toBe(true);
+  expect(result.afterRelease.umbra).toBe(true);
+
+  expect(errors).toEqual([]);
+});
+
+test('fxPhoenixAshenReign: 5000ms duration release — state cleared via setTimeout (fake-timer)', async ({ page }) => {
+  // Verify the setTimeout-driven release fires exactly at 5000ms — the
+  // single-setTimeout-no-rAF design contract from spec §3.1 field 7.
+  // We can't wait 5s in CI, so we drive the clock with sinon-style stubbing
+  // of setTimeout via wrapper override.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetAshenReignPool();
+
+    // Capture the release timer callback so we can invoke it synchronously
+    // without waiting 5000ms in real time. setTimeout is replaced for the
+    // span of the activate call to capture the release callback.
+    let capturedReleaseCb = null;
+    let capturedReleaseDelay = null;
+    const origSetTimeout = window.setTimeout;
+    window.setTimeout = function(cb, delay) {
+      if (delay === 5000 && !capturedReleaseCb) {
+        capturedReleaseCb = cb;
+        capturedReleaseDelay = delay;
+        // Return a fake timer id — fxPhoenixAshenReignRelease clears via
+        // clearTimeout, which is OK with a number id even if not "real".
+        return 9999;
+      }
+      return origSetTimeout(cb, delay);
+    };
+
+    mod.fxPhoenixAshenReign(null, null);
+    const midActive = mod.isAshenReignActive();
+    const releaseTimerScheduled = mod.__identityFxTestables.hasAshenReignReleaseTimer();
+
+    // Restore setTimeout, fire the captured release callback synchronously.
+    window.setTimeout = origSetTimeout;
+    if (capturedReleaseCb) capturedReleaseCb();
+
+    const afterReleaseActive = mod.isAshenReignActive();
+    const afterReleaseEndsAt = mod.getAshenReignEndsAt();
+
+    mod.resetAshenReign();
+
+    return {
+      capturedReleaseDelay,
+      midActive,
+      releaseTimerScheduled,
+      afterReleaseActive,
+      afterReleaseEndsAt,
+    };
+  });
+
+  // Release setTimeout was scheduled at exactly 5000ms.
+  expect(result.capturedReleaseDelay).toBe(5000);
+  expect(result.midActive).toBe(true);
+  expect(result.releaseTimerScheduled).toBe(true);
+  // Firing the release callback flips state back to inactive.
+  expect(result.afterReleaseActive).toBe(false);
+  expect(result.afterReleaseEndsAt).toBeNull();
+  expect(errors).toEqual([]);
+});
+
+test('fxPhoenixAshenReign: telegraph re-uses sacred REACTIVITY_TELEGRAPH_MS = 3000', async ({ page }) => {
+  // Spec §3.1 field 8 + spec §3 Convention: Ashen Reign telegraph MUST
+  // re-use the sacred REACTIVITY_TELEGRAPH_MS constant. Verifies the
+  // sacred re-use invariant from the design spec.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const idMod  = await import('/src/data/identity-layer.js');
+    const bsMod  = await import('/src/core/bosses.js');
+    return {
+      ashenTelegraph: idMod.ASHEN_REIGN_TELEGRAPH_MS,
+      sacredTelegraph: bsMod.REACTIVITY_TELEGRAPH_MS,
+      sacredBannerDuration: bsMod.REACTIVITY_BANNER_DURATION_MS,
+      phoenixReviveHpPct: bsMod.PHOENIX_REVIVE_HP_PCT,
+      phoenixImmuneTurns: bsMod.PHOENIX_IMMUNE_TURNS,
+    };
+  });
+
+  // Sacred re-use invariant: ASHEN_REIGN_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS.
+  expect(result.ashenTelegraph).toBe(result.sacredTelegraph);
+  expect(result.ashenTelegraph).toBe(3000);
+  // Sacred constants byte-perfect (CLAUDE.md §2.5).
+  expect(result.sacredTelegraph).toBe(3000);
+  expect(result.sacredBannerDuration).toBe(1500);
+  expect(result.phoenixReviveHpPct).toBe(0.6);
+  expect(result.phoenixImmuneTurns).toBe(2);
+  expect(errors).toEqual([]);
+});
+
+test('fxPhoenixAshenReign performance: initial trigger within ≤16ms budget', async ({ page }) => {
+  // Spec §3.1 field 7: initial trigger ≤16ms wall-time. Single DOM overlay
+  // toggle + HUD element class swap, no per-frame JS work during the window.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const wallTime = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetAshenReignPool();
+
+    // Warm-up call (pool init cost factored out of measurement).
+    mod.fxPhoenixAshenReign(null, null);
+    mod.resetAshenReign();
+
+    // Measure the activate call.
+    const t0 = performance.now();
+    mod.fxPhoenixAshenReign(null, null);
+    const dt = performance.now() - t0;
+
+    mod.resetAshenReign();
+    return dt;
+  });
+
+  // Spec §3.1 field 7: ≤16ms initial trigger. Allow 3× CI headroom.
+  expect(wallTime).toBeLessThan(48);
+  expect(errors).toEqual([]);
+});
+
+test('Mixed-race squad regression: 5-race line-clear unaffected by Ashen Reign state (T2.02-T2.06 unchanged)', async ({ page }) => {
+  // Critical regression: activating Phoenix Ashen Reign must NOT break the
+  // 5-race identity layer dispatch. Boss-state and race-FX are independent
+  // layers per spec §1 hard rule 3.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    // Stub all five race-layer APIs.
+    let goldDelta = 0;
+    window.addGold = (n) => { goldDelta += Number(n) || 0; };
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.shieldCount = 0;
+    window.MAX_SHIELD = 3;
+    window.maxShieldBonus = 2;
+    window.HERO_DECK = [
+      { id: 'sp1', race: 'spark' },
+      { id: 'p1',  race: 'pirate' },
+      { id: 'p2',  race: 'pirate' },
+      { id: 'r1',  race: 'rock' },
+      { id: 's1',  race: 'shark' },
+      { id: 'c1',  race: 'crocodile' },
+    ];
+
+    // Build an 8x8 grid stub.
+    window.grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) {
+      window.grid[0][c] = 'solar';  // gates Spark
+      window.grid[3][c] = 'grove';  // gates Crocodile
+    }
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetSparkRayPool();
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.__identityFxTestables.resetRockEchoPool();
+    mod.__identityFxTestables.resetSharkBitePool();
+    mod.__identityFxTestables.resetAshenReignPool();
+    mod.resetCrocFragmentBank();
+
+    // Activate Phoenix Ashen Reign FIRST.
+    mod.fxPhoenixAshenReign(null, null);
+    const ashenActiveBefore = mod.isAshenReignActive();
+
+    // Now fire the 5-race line clear. All race FX must still run.
+    const api = {
+      get: () => window.shieldCount,
+      set: (n) => { window.shieldCount = n; },
+      cap: window.MAX_SHIELD + 2 + window.maxShieldBonus,
+    };
+    const ctx = {
+      gridState: window.grid,
+      squadShieldsApi: api,
+      dominantElementsByLine: ['solar', 'umbra'],
+    };
+    mod.dispatchIdentityFx([0, 3], [], window.HERO_DECK, null, ctx);
+
+    const ashenActiveAfter = mod.isAshenReignActive();
+
+    // Cleanup.
+    mod.resetAshenReign();
+
+    return {
+      goldDelta,
+      shieldCount: window.shieldCount,
+      umbraCharge: window.ultCharges.umbra,
+      sparkModifier: ctx._dominantCountModifier,
+      bank: mod.__identityFxTestables.getCrocFragmentBank(),
+      ashenActiveBefore,
+      ashenActiveAfter,
+    };
+  });
+
+  // Ashen Reign was active during the line clear.
+  expect(result.ashenActiveBefore).toBe(true);
+  // And remained active after — race FX didn't tamper with boss state.
+  expect(result.ashenActiveAfter).toBe(true);
+  // All 5 race FX fired correctly (T2.02-T2.06 invariants maintained).
+  expect(result.goldDelta).toBe(160);
+  expect(result.shieldCount).toBe(1);
+  expect(result.bank).toBe(3);
+  expect(result.umbraCharge).toBe(1);
+  expect(result.sparkModifier).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('IDENTITY_BOSS_HANDLERS: registers identity_phoenix_revive alongside sacred 22 handlers (byte-perfect audit)', async ({ page }) => {
+  // Verify the new boss-reactive handler registry is wired correctly AND
+  // the sacred 22 REACTIVITY_HANDLERS entries are untouched. Confirms the
+  // T2.07 architectural contract from spec §1 hard rule 1.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/core/reactivity-events.js');
+    const identityKeys = Object.keys(mod.IDENTITY_BOSS_HANDLERS || {});
+    const sacredKeys   = Object.keys(mod.REACTIVITY_HANDLERS || {});
+    return {
+      identityKeys,
+      sacredKeyCount: sacredKeys.length,
+      sacredKeys,
+      identityPhoenixHandlerType: typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_phoenix_revive'],
+      triggerEventType: typeof mod.triggerIdentityBossEvent,
+      resetIdentityType: typeof mod.resetIdentityBossState,
+    };
+  });
+
+  // Sacred 22 still present, byte-perfect entry set.
+  expect(result.sacredKeyCount).toBe(22);
+  // Identity registry has the Phoenix Ashen Reign handler.
+  expect(result.identityKeys).toContain('identity_phoenix_revive');
+  expect(result.identityPhoenixHandlerType).toBe('function');
+  // Dispatch + reset entry points exposed.
+  expect(result.triggerEventType).toBe('function');
+  expect(result.resetIdentityType).toBe('function');
+  // Sacred 22 entries explicitly present (subset check — the 22 keys per spec §5.1).
+  const expectedSacred = [
+    'berserker_p1_p2', 'berserker_p2_p3',
+    'armored_p1_p2',   'armored_p2_p3',
+    'phoenix_p1_p2',   'phoenix_p2_p3',
+    'assassin_p1_p2',  'assassin_p2_p3',
+    'bruiser_p1_p2',   'bruiser_p2_p3',
+    'hypnotist_p1_p2', 'hypnotist_p2_p3',
+    'engineer_p1_p2',  'engineer_p2_p3',
+    'frenzy_p1_p2',    'frenzy_p2_p3',
+    'tempo_disruptor_p1_p2', 'tempo_disruptor_p2_p3',
+    'battery_p1_p2',   'battery_p2_p3',
+    'tower_voidfang_p1_p2', 'tower_voidfang_p2_p3',
+  ];
+  for (const k of expectedSacred) {
+    expect(result.sacredKeys).toContain(k);
+  }
+  expect(errors).toEqual([]);
+});
