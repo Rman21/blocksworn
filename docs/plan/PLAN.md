@@ -95,8 +95,8 @@
 ### High-level Tasks
 - [x] T2.01 — Identity Layer design doc (Designer) — **DONE 2026-05-12** (`b325c30`; 1189 LoC spec `docs/design/mechanics/identity-layer.md` v1.1 with Roman ruling appendix; 5 race flavors + 7 boss mechanics + Codex + 36-row sacred audit)
 - [x] T2.02 — Pirate line-clear flavor (Pirate's Plunder) — **DONE 2026-05-12** (`6a6ad39`; 1100 LoC across 9 files; +28 unit tests (37→65); 12/12 smoke pass × 2 projects; 0 sacred-cow modifications. CTO-blessed `RACE_IDENTITY_FX` sibling export pattern for T2.03–T2.06)
-- [ ] T2.03 — Shark line-clear flavor (Feeding Frenzy) — **ACTIVE**
-- [ ] T2.04 — Rock line-clear flavor (Encore Echo)
+- [x] T2.03 — Shark line-clear flavor (Feeding Frenzy) — **DONE 2026-05-12** (`3dee3cd`; +1163 LoC across 8 files; +45 unit tests (65→110); 22/22 smoke pass; 0 sacred-cow modifications. `_lastBittenCells` side-channel for combo-crit input modification — formula untouched. Wall-time 1-3ms typical, well under 10ms budget)
+- [ ] T2.04 — Rock line-clear flavor (Encore Echo) — **ACTIVE**
 - [ ] T2.05 — Crocodile line-clear flavor (Bedrock Bastion)
 - [ ] T2.06 — Spark line-clear flavor (Sun Cascade) — **MUST gate on 5×5 matchup matrix per ESC-02 O3 ruling**
 - [ ] T2.07 — Phoenix Ashen Reign
@@ -105,7 +105,7 @@
 - [ ] T2.10 — Engineer Lockdown Protocol
 - [ ] T2.11 — Grovewarden Root Surge (+ mandatory narrator copy-pass per ESC-02 O2)
 - [ ] T2.12 — Codex screen
-- [ ] **T2.B** — Legacy Bridge (batched end-of-Phase-2) — wires `docs/_legacy/_archive_v1/blocksworn_index_fixed.html#clearLines` callsite (~line 55929) → `window.__dispatchIdentityFx` so Identity Layer fires LIVE in legacy primary runtime. Single coherent legacy mutation covering all 5 races + 7 boss mechanics + Codex hooks. Includes 25-smoke matchup matrix (5 races × 5 chapter-finale bosses) gating Spark per ESC-02 O3.
+- [ ] **T2.B** — Legacy Bridge (batched end-of-Phase-2) — wires `docs/_legacy/_archive_v1/blocksworn_index_fixed.html#clearLines` callsite (~line 55929) → `window.__dispatchIdentityFx` so Identity Layer fires LIVE in legacy primary runtime. Single coherent legacy mutation covering all 5 races + 7 boss mechanics + Codex hooks. **Scope grown:** (a) legacy bridge for dispatcher; (b) thread `ctx.dominantElementsByLine` from legacy through dispatcher (T2.03 flagged); (c) cross-race synergy wiring — `_lastBittenCells` side-channel from Shark → Pirate's Plunder gold extension (spec §2.2 field 8); (d) 25-smoke matchup matrix (5 races × 5 chapter-finale bosses) gating Spark per ESC-02 O3.
 
 ### Gate Criteria
 - Each race has distinct line-clear flavor

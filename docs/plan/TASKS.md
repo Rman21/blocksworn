@@ -2785,9 +2785,16 @@ All 9 tests pass.
 
 ---
 
-### TASK-030 (T2.03) — REVIEW (2026-05-12) — Shark Feeding Frenzy
+### TASK-030 (T2.03) — ✅ DONE 2026-05-12 — Shark Feeding Frenzy
 
-**Status:** IN PROGRESS → REVIEW (CTO sign-off pending)
+**CTO acceptance 2026-05-12:** PASS. Implementation matches spec §2.2; 36-row sacred audit clean (combo crit untouched, RACE_SYNERGY byte-perfect, all 22 P4 handlers byte-perfect); 110/110 unit + 22/22 smoke (×2 projects); wall-time 1-3ms (10× under 10ms budget); commit `3dee3cd`. All 4 T2.02 precedents followed.
+
+**CTO acknowledged 3 organic deferrals to T2.B (integration scope growth):**
+1. `ctx.dominantElementsByLine` thread from legacy — T2.B (b)
+2. Bite-cell anchor heuristic Designer review — spec v1.2 polish, not blocking
+3. Cross-race Pirate↔Shark synergy wiring (§2.2 field 8) — T2.B (c)
+
+**Status:** IN PROGRESS → REVIEW → **DONE** (CTO sign-off 2026-05-12)
 **Started:** 2026-05-12
 **Completed (Game Dev):** 2026-05-12
 **Priority:** HIGH

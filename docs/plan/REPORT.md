@@ -1578,6 +1578,70 @@ Per ADR-004 hybrid coexistence, legacy `clearLines` (line 55929 in `docs/_legacy
 
 ---
 
+## REPORT-21: T2.03 Shark Feeding Frenzy — second race flavor PASS
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Dev agent `ac8f727f14ad46670` returned PASS; CTO review confirmed.
+
+### Summary
+
+T2.03 lands clean: +1163 LoC / -13 across 8 files, +45 unit tests (65 → 110), +5 smoke tests (12 → 22 × 2 projects), **0 sacred-cow modifications confirmed**, bundle CSS +1.5KB Shark keyframes, JS unchanged. Commit `3dee3cd`. CTO acceptance PASS.
+
+### Implementation contract met
+
+- **Mechanical:** `min(1, floor(sharkCount/2))` extra adjacent cells per cleared row/col with **HARD CAP at 4 extra cells per fire**
+- **Gate paths:** dominant-tide single-shark OR ≥2-shark regardless-of-element
+- **Combo crit untouched:** extra-bitten cells flow into `dominantCount` via `_lastBittenCells` side-channel — input modification pattern (architecturally same as cascade), formula untouched
+- **Cell-state predicates respected:** locked/electrified/cursed/void cells absorb bite visually but are NOT cleared (natural boss-counter mechanism)
+- **Wall-time measured:** 1-3ms typical (10× under 10ms budget); pool size = 4 (= hard cap, mathematically cannot exhaust in single fire)
+- **All 4 T2.02 precedents followed:** sibling `RACE_IDENTITY_FX` extended; defensive `countAliveSharks` (no-hp = alive); single haptic re-use; no legacy bridge
+
+### 3 "замечено рядом" reports — all sensible deferrals to T2.B
+
+1. **`ctx.dominantElementsByLine` unconsumed in T2.02's dispatcher hook** — single-shark tide-dominant trigger path requires per-line dominant element data threaded from legacy. Unit tests cover this branch via direct ctx mock; live gameplay path needs T2.B to wire legacy → ctx. Module-side correctness verified.
+2. **Bite-cell anchor heuristic** — center-column (col 4) for rows / center-row (row 4) for cols, radiating outward if blocked. Spec §2.2 only says "one extra adjacent cell"; this is a judgment call. Flagged for Designer to confirm in spec v1.2 (or document edge-priority preference for boss-counter design).
+3. **Cross-race Pirate↔Shark synergy** — spec §2.2 field 8 says "extra bitten cells award Plunder gold too in mixed squads". Requires dispatcher ordering + Pirate reading `_lastBittenCells` side-channel. Game Dev correctly flagged for T2.B integration.
+
+### T2.B scope grew (organically — good signal)
+
+T2.B is no longer just a legacy bridge — it's the integration moment for the entire Identity Layer:
+- (a) legacy bridge for dispatcher (original scope)
+- (b) thread `ctx.dominantElementsByLine` from legacy
+- (c) cross-race synergy wiring (`_lastBittenCells` → Pirate gold extension)
+- (d) 25-smoke matchup matrix (per ESC-02 O3 Spark gate)
+- (e) visual baseline updates (14 baselines from spec §7.4)
+- (f) sacred audit re-verification post-batch
+
+This is exactly what an integration sub-task should look like in AAA+: many small additive modules + one cohesive integration. Matches T1.14-T1.18 batched-cleanup pattern from Phase 1.
+
+### Game Dev quality bar exceeded
+
+| Metric | Brief target | Game Dev delivered |
+|---|---|---|
+| Unit tests | +6 to +10 | **+45** |
+| Smoke tests | +2 | **+5 × 2 projects** |
+| Wall-time | ≤10ms | **1-3ms typical** |
+| Sacred audit | 0 mods | **0 mods** |
+| Precedent compliance | 4/4 | **4/4** |
+
+45 unit tests means edge cases are deeply covered: 4 cell-state predicates × multiple bite-count cases × board-edge handling × gate-path combinations. This is the foundation for T2.04+ regression safety.
+
+### Quality bar maintained
+
+| Metric | Phase 1 baseline | Post-T2.02 | Post-T2.03 | AAA+ target |
+|---|---|---|---|---|
+| Bundle JS | 4.5 MB | ~4.5 MB | 205.87 kB (unchanged from T2.02) | <5 MB ✅ |
+| Bundle CSS | 368 kB | 369.41 kB | 370.91 kB (+1.5 kB) | reasonable ✅ |
+| Unit tests | 37 | 65 | **110** | growing ✅ |
+| Smoke pass | 2 | 12 | **22** | golden paths green ✅ |
+| Lint warnings | 0 | 0 | 0 | 0 ✅ |
+| Sacred audit | 0 mods | 0 mods | 0 mods | always 0 ✅ |
+
+🟢 **T2.03 DONE. Next: T2.04 Rock Encore Echo.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)
