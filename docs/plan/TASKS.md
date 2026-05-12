@@ -4107,6 +4107,61 @@ All 22 v2.1 P4 reactivity handlers byte-perfect; all phase gates (`PHASE_GATE_P1
 
 ## BUG TESTER
 
+### TASK-041 (T2.B.QA) — 🟡 REVIEW 2026-05-12 — Phase 2 final audit (25-matchup matrix + 14 visual baselines + narrator copy review + sacred re-verification)
+
+**Status:** IN PROGRESS → **REVIEW** (awaiting CTO sign-off)
+**Started:** 2026-05-12
+**Priority:** CRITICAL — final Phase 2 gate before PR opens
+**Phase:** 2 (Identity Layer) — 14/14 (closes Phase 2)
+**Depends on:** ✅ TASK-040 (T2.B Game Dev portion — Legacy Bridge)
+**Verdict:** ✅ **GO** — all 4 audit areas PASS; Phase 2 PR cleared
+
+**Deliverables:**
+
+| Area | File | Result |
+|---|---|---|
+| 1. 25-matchup matrix (ESC-02 O3 gate) | `tests/smoke/identity-matchup-matrix.spec.js` (+27 tests × 2 projects = 54 runs) | ✅ 27/27 PASS chromium + 27/27 PASS mobile-chrome |
+| 1. Spark demotion gate | `[T2.B.QA Spark gate]` test | ✅ `SPARK_CASCADE_ENABLED = true` STAYS |
+| 2. 14 visual baselines | `tests/visual/capture-identity-baselines.spec.js` + 28 baseline PNGs | ✅ 28/28 captured (14 chromium + 14 mobile) |
+| 2. Regression contract | existing `tests/visual/regression.spec.js` | ✅ 11/11 PASS (existing baselines unchanged) |
+| 3. Narrator copy review | `docs/design/narrator-copy-review.md` | ✅ 5 strings inventoried; sacred `NARRATOR_LINES` byte-perfect |
+| 4. Sacred audit | 36-row table per spec §8 | ✅ 0 modifications (all 36 rows byte-perfect) |
+| 4. Performance audit | per-mechanic smoke perf tests | ✅ ≤4ms/frame avg maintained |
+| 4. Cross-mechanic regression | lint + unit + smoke + visual + build | ✅ 0/0/204/11/<5MB all green |
+| Final report | `docs/design/phase2-bug-tester-audit.md` | ✅ Phase 2 Readiness Verdict = GO |
+
+**Headline numbers:**
+
+- 25/25 matchups within ±15% TTK budget. Spark peak deviation 12.24% (vs solar-element bosses); Shark uniform 14.34% (at edge of budget); Pirate/Rock/Crocodile 0% (non-damage paths).
+- All 36 sacred-cow rows BYTE-PERFECT. 0 deletions in `src/feel/narrator-lines.js` + `src/core/reactivity-events.js` (sacred 22 handlers untouched).
+- 204/204 smoke tests pass (was 150 + 54 new from matchup matrix × 2 projects).
+- 581/581 unit tests pass.
+- 11/11 existing visual regression pass (regression contract holds — Identity Layer does NOT leak).
+- 0 lint warnings, 0 errors.
+- Bundle 272.17 KB JS + 394.86 KB CSS = ~660 KB (well under 5MB AAA+ ceiling).
+
+**Bugs found:** 0 BLOCKERS, 0 CRITICALS, 0 MAJORS, 0 MINORS. Phase 2 ships clean.
+
+**Recommendations for follow-up (not blocking):**
+
+1. Phase 2.5 polish patch: add `PHOENIX_ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER` + `LICH_CURSED_TILES_NARRATOR_LINE_PLACEHOLDER` constants in `src/data/identity-layer.js` to wire spec §3.1 + §3.2 narrator lines (same pattern as Root Surge).
+2. Phase 3 task: extend `tests/helpers/game-state.js` with `in-battle-with-race` state setters for full-fidelity live-battle visual baselines (current baselines use deterministic overlay frames).
+
+**Files delivered:**
+
+- `tests/smoke/identity-matchup-matrix.spec.js` (524 LoC, 27 tests)
+- `tests/visual/capture-identity-baselines.spec.js` (244 LoC, 14 tests)
+- `tests/visual/baseline/battle-*-squad.png` × 5 (race-squad baselines, chromium)
+- `tests/visual/baseline/battle-{phoenix-revive,lich-cursed,berserker-pulse,engineer-lockdown,grovewarden-roots}.png` × 5 (boss-reactive baselines, chromium)
+- `tests/visual/baseline/codex-{races-tab,bosses-tab,detail-race,detail-boss}.png` × 4 (Codex baselines, chromium)
+- `tests/visual/baseline/mobile/{...}` × 14 (mobile-chrome duplicates)
+- `docs/design/narrator-copy-review.md` (Roman copy-pass sheet, 152 lines)
+- `docs/design/phase2-bug-tester-audit.md` (final audit report, 280 lines)
+
+**Awaiting CTO review + Phase 2 PR open.**
+
+---
+
 ### BUGS (closed)
 
 #### BUG-001 🟡 MAJOR ✅ CLOSED 2026-05-11 — Visual regression WARN band silently passed CI
