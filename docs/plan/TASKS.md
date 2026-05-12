@@ -7,6 +7,96 @@
 
 ## GAME DEVELOPER
 
+### TASK-040 (T2.B) — 🟡 REVIEW 2026-05-12 — Legacy Bridge: Identity Layer integration moment
+
+**Status:** IN PROGRESS → **REVIEW** (awaiting CTO sign-off + Bug Tester T2.B.QA)
+**Started:** 2026-05-12
+**Priority:** CRITICAL — final Phase 2 task
+**Phase:** 2 (Identity Layer) — **13/13** (final task before Phase 2 PR opens)
+**Estimated complexity:** XL — the integration moment per ADR-004 hybrid coexistence
+**Depends on:** ✅ TASK-029–TASK-039 (all 10 identity fx + Codex aggregation in src/)
+
+**Implementation summary:**
+
+T2.B wires the module-side Identity Layer (T2.02–T2.12, 581/581 unit + 140/140 smoke) into the LIVE legacy single-HTML primary runtime per ADR-004. Module-side fx now fire in live gameplay — no longer module-only.
+
+**Bridge surface exposed on window (`src/main.js`, +104 LoC, +1 deletion):**
+
+- **Dispatchers:** `__dispatchIdentityFx`, `__dispatchIdentityBossEvent`
+- **Placement gates:** `__canPlacePieceDuringAshenReign`, `__isAshenReignActive`, `__isCellCursed`, `__isCellLockedByLockdownProtocol`, `__isCellRooted`
+- **Cross-layer accumulators:** `__onRootCellCleared`, `__incrementBloodtideClearCount`, `__consumeBloodtidePulse`, `__pushRecentClear`, `__shouldRootSurgeFire`, `__getRecentClearsSnapshot`
+- **Per-turn ticks:** `__fxLichCursedTilesTick`, `__fxEngineerLockdownTick`, `__fxGrovewardenRootSurgeTick`
+- **Battle resets:** `__resetAshenReign`, `__resetCursedTiles`, `__resetBloodtide`, `__resetEngineerLockdowns`, `__resetGrovewardenRootSurge`, `__resetCrocFragmentBank`, `__resetIdentityBossState`
+- **Codex aggregation:** `__recordRaceTrigger`, `__recordBossEncounter`, `__recordBossDefeat`, `__recordMomentTrigger`
+
+**26 total window bridge functions.**
+
+**Legacy mutations (`docs/_legacy/_archive_v1/blocksworn_index_fixed.html`, +268 LoC, 1 deletion):**
+
+| # | Site (line) | Type | Effect |
+|---|---|---|---|
+| 1 | `clearLines` (~55951) | Insert | Dispatcher fire + dominant-per-line + Codex push + Bloodtide bump + Engineer Tetris + Grove surge gate + Root reward |
+| 2 | `canPlace` (~55795) | Insert top | 4 placement gates (Ashen Reign / Cursed / Lockdown / Rooted) |
+| 3 | `domCount = ...` (line 63816) | **Replace** | Single-line EXTENSION: `Math.max(...Object.values(counts)) + _sparkMod` per ESC-02 O3 ruling. Sacred formula at line 63825 BYTE-PERFECT. |
+| 4 | `maybePhoenixRevive` (~57050) | Insert | Dispatch `identity_phoenix_revive` after sacred revive math |
+| 5 | `bossAttack` (~59230) | Insert | Consume Bloodtide pulse (one-shot +5% modifier) |
+| 6 | `afterPlacement` (~64080) | Insert | Lich shark-counter dispatch + Lich/Engineer/Grovewarden per-turn ticks |
+| 7 | `startBossBattle` reset block (~55596) | Insert | All 7 reset hooks + Codex boss encounter recording |
+| 8 | `onBossDefeated` (~57424) | Insert | Codex boss defeat recording (BEFORE `vPlayBossDieFx`) |
+
+**The ONLY deletion in the diff:** `const domCount = Math.max(...Object.values(counts));` → replaced with the same expression extended by `+ _sparkMod`. The sacred formula `critMult = 1 + domCount * count * CRIT_MULT_K` at line 63825 is BYTE-PERFECT.
+
+**LIVE integration smoke tests added (`tests/smoke/identity-layer.spec.js`, +188 LoC):**
+
+1. `[T2.B LIVE] Pirate Plunder fires through window.__dispatchIdentityFx + addGold pipeline` — 5-pirate squad × 1-row clear → bridge dispatcher → `addGold(200)` captured.
+2. `[T2.B LIVE] Phoenix Ashen Reign — bridge exposes placement gate after revive dispatch` — `__isAshenReignActive` toggles + ember piece allowed + tide piece rejected.
+3. `[T2.B LIVE] Codex aggregation — race trigger + boss encounter persist via bridge` — `__recordRaceTrigger` / `__recordBossEncounter` / `__recordBossDefeat` / `__recordMomentTrigger` all persist to `localStorage[blocksworn_codex_state]`.
+4. `[T2.B LIVE] Legacy file loads with T2.B bridge mutations — no pageerrors` — sacred regression contract: bridge mutations do NOT introduce pageerror at legacy boot.
+5. `[T2.B LIVE] Sacred combo-crit formula at line 63825 byte-perfect` — verifies the sacred formula string + `CRIT_MULT_K = 0.1` + `CRIT_MIN_COMBO = 2` literals remain in the file.
+
+**Sacred cow audit (verified explicitly):**
+
+| Sacred system | Status | Verification |
+|---|---|---|
+| Combo crit formula `critMult = 1 + domCount * count * CRIT_MULT_K` | byte-perfect ✅ | `grep -c` returns 1 occurrence at line 63825 |
+| `CRIT_MULT_K = 0.1` | byte-perfect ✅ | line 20159 untouched |
+| `CRIT_MIN_COMBO = 2` | byte-perfect ✅ | line 20160 untouched |
+| `PHOENIX_REVIVE_HP_PCT = 0.6` | byte-perfect ✅ | legacy line 57038 unchanged |
+| `PHOENIX_IMMUNE_TURNS = 2` | byte-perfect ✅ | legacy line 57039 unchanged |
+| `BERSERKER_ENRAGE_MULT = 2.0` | byte-perfect ✅ | no edits |
+| `STAGGER_DURATION_TURNS = 4` / `RECOVERY_DURATION_TURNS = 2` | byte-perfect ✅ | no edits |
+| `engineer_p1_p2` sacred handler + 40T + `.cell--engineer-welded` + `#B87333` | byte-perfect ✅ | no edits to src/core/reactivity-events.js (`git diff` 0 deletions) |
+| 22 v2.1 P4 reactivity handlers | byte-perfect ✅ | `git diff src/core/reactivity-events.js \| grep '^-' \| wc -l = 0` |
+| `HERO_ULT_COST_BY_NEWROLE` | byte-perfect ✅ | no edits |
+| `RACE_SYNERGY` (all races) | byte-perfect ✅ | no edits |
+| `NARRATOR_LINES` sacred table | byte-perfect ✅ | no edits |
+| Element Synergy values | byte-perfect ✅ | no edits |
+| `V_HAPTICS` | byte-perfect ✅ | no edits |
+| `TIER_COSTS_V18` / `MAX_HP` / `GEM_PACKS` / TTK formula | byte-perfect ✅ | no edits |
+| `ARMORED_SHIELD_COUNT = 2` / `ARMORED_SHIELD_ABSORB = 0.3` | byte-perfect ✅ | no edits |
+| Codex localStorage isolation | maintained ✅ | Codex writes ONLY to `blocksworn_codex_state` |
+
+**Quality bar:**
+
+| Metric | Before | After T2.B | Notes |
+|---|---|---|---|
+| Unit tests | 581/581 | **581/581** | unchanged — T2.B is wire-up only |
+| Smoke tests | 140/140 | **150/150** | +10 (5 new × 2 projects) |
+| Build size JS | 243.30 KB | **272.17 KB** | +28.87 KB (bridge surface imports) |
+| Build size CSS | 394.86 KB | **394.86 KB** | unchanged |
+| Lint | clean | clean | 0 errors |
+| Legacy file diff | 0 | **+268 / -1** | Only deletion is the `domCount` definition replace |
+
+**T2.B.QA (Bug Tester) follows — deferred:**
+
+- 25-smoke matchup matrix (5 races × 5 chapter-finale bosses) per ESC-02 O3 quality gate
+- 14 visual baselines per spec §7.4
+- Narrator copy-pass review by CTO + Roman per ESC-02 O2
+
+**Awaiting CTO review.**
+
+---
+
 ### TASK-039 (T2.12) — ✅ DONE 2026-05-12 — FINAL Phase 2 implementation task — Codex screen
 
 **CTO acceptance 2026-05-12:** PASS. Strictest sacred-cow discipline of Phase 2 — Codex is pure-read of game state + writes ONLY to `localStorage[blocksworn_codex_state]` (verified via grep + dedicated sacred-audit unit test). 22 P4 reactivity handlers byte-perfect. All 10 identity fx mechanical contracts unchanged — recording calls added at end-of-fire with `try/catch` defensive wrapper (T2.02 pattern). 0 deletions across all sacred files (races, bosses, chapters, narrator-lines, haptics, reactivity-events, grid, balance). Codex render FCP <5ms (60× under 300ms budget). 581/581 unit + 140/140 smoke × 2 projects. Bundle 243.30 KB JS / 394.86 KB CSS — well under AAA+ 5MB ceiling. 13-race catalog correctly extends RACE_IDENTITY_FX (3 Identity-only entries for shark/crocodile/spark per ESC-02 O1 DEFER). Commit `2b85e9f`.

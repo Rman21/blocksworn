@@ -51,7 +51,56 @@ import { setupRouting, showScreen } from './ui/router.js';
 // so the in-memory cache is warm before the first dispatch fires. The Codex
 // writes ONLY to localStorage[blocksworn_codex_state] per spec §4.10 (READ-
 // ONLY of game state, never mutates sacred tables).
-import { getCodexState } from './ui/codex.js';
+import {
+  getCodexState,
+  recordRaceTrigger,
+  recordBossEncounter,
+  recordBossDefeat,
+  recordMomentTrigger,
+} from './ui/codex.js';
+
+// T2.B (2026-05-12): Legacy Bridge — Identity Layer integration moment.
+// Expose all 10 mechanics' dispatcher + predicates + reset hooks onto window
+// under the `__` prefix (matching the existing `__dispatchIdentityFx` /
+// `__pushRecentClear` naming convention seeded by T2.07-T2.11 reports). The
+// legacy single-HTML primary runtime (per ADR-004 hybrid coexistence) reads
+// these via `window.__*` and calls them defensively (try/catch) from
+// `clearLines`, `canPlace`, `maybePhoenixRevive`, `bossAttack`, and
+// `startBossBattle`. Module-side fx + identity-bridge contract was verified
+// by T2.02-T2.12 (581 unit + 140 smoke green). Now LIVE in legacy gameplay.
+//
+// Sacred-cow safety: every bridge function below is a PURE EXPORT from
+// `src/feel/identity-fx.js` or `src/core/reactivity-events.js` — exposing
+// them on window is additive (no sacred numeric / formula / handler change).
+// Legacy bridge call sites are wrapped in try/catch so the sacred line-clear
+// pipeline NEVER regresses if an identity bridge throws.
+import {
+  dispatchIdentityFx,
+  canPlacePieceDuringAshenReign,
+  isAshenReignActive,
+  isCellCursed,
+  isCellLockedByLockdownProtocol,
+  isCellRooted,
+  onRootCellCleared,
+  incrementBloodtideClearCount,
+  consumeBloodtidePulse,
+  pushRecentClear,
+  resetAshenReign,
+  resetCursedTiles,
+  resetBloodtide,
+  resetEngineerLockdowns,
+  resetGrovewardenRootSurge,
+  resetCrocFragmentBank,
+  fxLichCursedTilesTick,
+  fxEngineerLockdownTick,
+  fxGrovewardenRootSurgeTick,
+  shouldRootSurgeFire,
+  getRecentClearsSnapshot,
+} from './feel/identity-fx.js';
+import {
+  triggerIdentityBossEvent,
+  resetIdentityBossState,
+} from './core/reactivity-events.js';
 
 // T1.13.5 (2026-05-12): bridge `showScreen` onto window so legacy inline
 // onclick="showScreen('menu')" handlers (still present in any scaffold the
@@ -59,6 +108,60 @@ import { getCodexState } from './ui/codex.js';
 // legacy-style call sites that survived the T1.12 switchover.
 if (typeof window !== 'undefined') {
   window.showScreen = showScreen;
+
+  // T2.B (2026-05-12): Identity Layer legacy bridge surface. All hooks are
+  // namespaced with the `__` prefix so they cannot collide with legacy
+  // identifiers (every search of legacy returned 0 hits for the names below
+  // before this commit). Per ADR-004 hybrid coexistence: legacy is primary
+  // runtime; src/ exports the truth; bridges below let legacy call src/
+  // without legacy importing src/ directly (which it cannot — single-HTML
+  // has no module system).
+  //
+  // CRITICAL — sacred safety:
+  //   1. NONE of these exports modify sacred values. They wrap a pure src/
+  //      function or pure read accessor.
+  //   2. Legacy bridge call sites are DEFENSIVE (try/catch around every
+  //      bridge call) so an identity-layer bug NEVER regresses the sacred
+  //      line-clear / placement / boss-attack pipelines.
+  //   3. The Spark combo-crit `_dominantCountModifier` input modification
+  //      at legacy line 63659 is a 1-line domCount EXTENSION (sacred
+  //      formula at line 63664 stays byte-perfect). Per ESC-02 O3 ruling
+  //      ("WITHIN BOUNDARY") this is the established input-mutation
+  //      precedent (same architectural pattern as legacy cascade).
+  //
+  // ── Dispatcher entrypoints (called from legacy clearLines + reactivity) ──
+  window.__dispatchIdentityFx               = dispatchIdentityFx;
+  window.__dispatchIdentityBossEvent        = triggerIdentityBossEvent;
+  // ── Placement gates (called from legacy canPlace) ───────────────────────
+  window.__canPlacePieceDuringAshenReign    = canPlacePieceDuringAshenReign;
+  window.__isAshenReignActive               = isAshenReignActive;
+  window.__isCellCursed                     = isCellCursed;
+  window.__isCellLockedByLockdownProtocol   = isCellLockedByLockdownProtocol;
+  window.__isCellRooted                     = isCellRooted;
+  // ── Cross-layer accumulators (Bloodtide pulse + Grove root reward) ──────
+  window.__onRootCellCleared                = onRootCellCleared;
+  window.__incrementBloodtideClearCount     = incrementBloodtideClearCount;
+  window.__consumeBloodtidePulse            = consumeBloodtidePulse;
+  window.__pushRecentClear                  = pushRecentClear;
+  window.__shouldRootSurgeFire              = shouldRootSurgeFire;
+  window.__getRecentClearsSnapshot          = getRecentClearsSnapshot;
+  // ── Per-turn tick hooks (called from legacy turn dispatcher) ────────────
+  window.__fxLichCursedTilesTick            = fxLichCursedTilesTick;
+  window.__fxEngineerLockdownTick           = fxEngineerLockdownTick;
+  window.__fxGrovewardenRootSurgeTick       = fxGrovewardenRootSurgeTick;
+  // ── Battle-pipeline reset hooks (called from legacy startBossBattle) ────
+  window.__resetAshenReign                  = resetAshenReign;
+  window.__resetCursedTiles                 = resetCursedTiles;
+  window.__resetBloodtide                   = resetBloodtide;
+  window.__resetEngineerLockdowns           = resetEngineerLockdowns;
+  window.__resetGrovewardenRootSurge        = resetGrovewardenRootSurge;
+  window.__resetCrocFragmentBank            = resetCrocFragmentBank;
+  window.__resetIdentityBossState           = resetIdentityBossState;
+  // ── Codex aggregation (called from legacy fx end-of-fire + battle hooks) ──
+  window.__recordRaceTrigger                = recordRaceTrigger;
+  window.__recordBossEncounter              = recordBossEncounter;
+  window.__recordBossDefeat                 = recordBossDefeat;
+  window.__recordMomentTrigger              = recordMomentTrigger;
 }
 
 // T1.20 — Read lifetime USD spend from the canonical legacy key
