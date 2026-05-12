@@ -86,7 +86,7 @@
 
 ## Phase 2: Identity Layer
 
-**Status:** NOT_STARTED
+**Status:** IN_PROGRESS (started 2026-05-12; T2.01 Designer assigned)
 **Goal:** Реализовать mechanics × race/boss identity — per-race line-clear flavor + boss-reactive mechanics.
 **Estimated:** 3-4 weeks
 **Tasks:** T2.01 — T2.12 (defined в Execution Plan §14)

@@ -2787,6 +2787,120 @@ All 9 tests pass.
 
 ---
 
+## GAME DESIGNER
+
+### TASK-028 (T2.01) — REVIEW (2026-05-12) — Identity Layer design spec (Phase 2 start)
+
+**Status:** TODO → IN PROGRESS → **REVIEW** (Game Designer → CTO)
+**Started:** 2026-05-12
+**Completed:** 2026-05-12
+**Priority:** HIGH
+**Phase:** 2 (Identity Layer) — **1/12 (first task)**
+**Estimated complexity:** M
+**Depends on:** ✅ Phase 1 closeout (TASK-027 / T1.20 → REVIEW); ✅ TASK-008 (T1.07 — races.js + bosses.js + elements.js + heroes.js extracted); ✅ TASK-011 (T1.10 — reactivity-events.js sacred handlers in src/core/)
+
+**Output:**
+- Document: `docs/design/mechanics/identity-layer.md` (~1189 LoC)
+- Sections: 11 (overview, architectural fit, race flavors, boss mechanics, codex, perf budgets, player perspective, dependencies, sacred audit, baselines, open questions, acceptance)
+- 5 race line-clear flavors at full 10-field spec:
+  - Pirate (ember) — "Pirate's Plunder" — +5g/cell × pirateCount (pure flavor + econ)
+  - Shark (tide) — "Feeding Frenzy" — clear up to 4 adjacent cells (mechanical, gated)
+  - Rock (umbra) — "Encore Echo" — +1 umbra ULT charge per umbra-dominant line (charge)
+  - Crocodile (grove) — "Bedrock Bastion" — fragments→shields, respects sacred max-shield cap
+  - Spark (solar) — "Sun Cascade" — +1 to dominantCount (combo crit input, gated by 2-solar minimum, capped at +1)
+- 7 boss-reactive identity mechanics at full 8-field spec:
+  - Phoenix — "Ashen Reign" — board ember-only 5s on revive
+  - Assassin/Lich — "Cursed Tiles" — 3 cells locked + 1HP/turn for 3T (counters Shark stacking)
+  - Berserker/Frenzy — "Bloodtide Pulse" — +5% next-attack damage every 3rd clear in Active
+  - Engineer — "Lockdown Protocol" — 2×2 lockdown on 4-line crit clear (anti-Tetris)
+  - Bruiser/Grovewarden — "Root Surge" — 3 rooted cells if last-3 clears all non-grove
+  - Voidfang (Tower spotlight) — "Shroud Pull" — re-uses sacred umbralShroud handler
+  - Uroboros (seasonal spotlight) — "Eternal Loop" — strong-element rotates to last-cleared
+- Codex screen spec (T2.12) — 3 tabs (Races / Bosses / Moments), 3-state unlock model (Locked / Encountered / Mastered), parchment aesthetic, persistence under `blocksworn_codex_state` localStorage key
+- Performance budgets explicit: ≤16ms per fire, ≤100 concurrent particles, ≤4ms/frame layer average, object-pool requirement spelled out for Game Dev
+- Player perspective per effect (10 entries) + cross-cutting §6 (newbie/mid/hardcore D0–D7 / D7–D30 / D30+)
+- Implementation dependencies named: new files (`src/feel/identity-fx.js`, `src/data/identity-layer.js`, `src/ui/codex.js`, `src/styles/screens/codex.css`), additive modifications (`src/core/grid.js` post-clearLines hook, `src/core/reactivity-events.js` parallel namespace, `src/data/races.js` new field, `src/feel/particles.js` factories, `src/styles/screens/battle.css` overlays, `src/styles/animations.css` keyframes)
+- Visual regression baselines: 14 new (one per race/boss matchup + codex screens) — existing baselines must NOT change
+- Sacred cow audit: 36 sacred systems table — **0 modifications confirmed**
+
+**Sacred cows respected (CLAUDE.md §2.1–§2.5):**
+
+All 22 v2.1 P4 reactivity handlers byte-perfect; all phase gates (`PHASE_GATE_P1_TO_P2 = 0.70`, `PHASE_GATE_P2_TO_P3 = 0.35`), telegraph timing (`REACTIVITY_TELEGRAPH_MS = 3000`, `REACTIVITY_BANNER_DURATION_MS = 1500`), Phoenix revive constants (0.6 / 2T), Berserker enrage (0.5 / 2.0×), Armored shield (2 / 0.3) untouched. Identity Layer adds NEW handlers under `identity_*` namespace alongside the sacred 22. RACE_SYNERGY tier values for orc/elf/troll/human/dark_elf/pirate/skeleton/golem/lion/rock untouched. V_HAPTICS reuses only existing `clear` key (25ms). Combat math formula, ULT thresholds, MAX_HP, TIER_COSTS_V18, TTK formula all untouched.
+
+**Self-check:**
+
+- [x] 5 race flavors at 10-field spec (race+element / identity name / visual / mechanical / sound / haptic / counter / stacking / perf budget / trigger)
+- [x] 5+ boss-reactive mechanics at 8-field spec (5 required + 2 optional spotlights → 7 total)
+- [x] Codex screen design (T2.12) — IA, screens, unlock model, persistence schema
+- [x] Performance budgets explicit + measurable + object-pool requirement
+- [x] Player perspective per-effect AND cross-cutting (newbie / mid / hardcore)
+- [x] Implementation dependencies named (src/ files + estimated complexity)
+- [x] Sacred cow audit (36 systems checked, 0 modified)
+- [x] Visual baseline impact listed (14 new baselines, existing must not change)
+- [x] No code written — pure design
+- [x] No src/ touched
+- [x] No sacred values modified
+- [x] Open questions for Roman section (4 questions O1–O4)
+
+**Замечено рядом (NOT actioned, reported):**
+
+1. **RACE_SYNERGY gap for shark / crocodile / spark.** These 3 races have `RACE_TO_STIHIYA` entries (line 29) and full `HERO_TIER_ABILITIES` blocks (`src/data/heroes.js` lines 105–209), but **no RACE_SYNERGY tier 2/3/5 entries** in `src/data/races.js`. RACE_SYNERGY currently only has the 5 original + pirate/skeleton/golem/lion/rock. Identity Layer ships without modifying RACE_SYNERGY (sacred §2.1), so the 5 Phase-2 races have asymmetric synergy support: pirate + rock have full RACE_SYNERGY ✓, shark + crocodile + spark have Identity Layer ✓ but no RACE_SYNERGY tier bonuses. **Recommendation:** treat this as a separate sacred-cow-EXTENSION task (post-Phase-2 sprint). Phase 2 ships with this asymmetry as-is unless Roman blocks T2.03 / T2.05 / T2.06 until synergy tiers exist. Captured as Open Question O1.
+
+2. **Narrator line approvals.** 4+ new Darkest-Dungeon-voice lines drafted in §3.1 / §3.2 / §3.5 / §3.7 (e.g., "The ash remembers. Strike only with the flame that birthed it."). New content (not edits to sacred NARRATOR_LINES), but voice tone is sacred per §2.3. Recommend Game Dev wires with placeholders; copy pass + Roman approval before T2.11 closes. Captured as Open Question O2.
+
+3. **Sun Cascade interaction with Combo Crit.** Spark's mechanic adds +1 to `dominantCount` BEFORE the sacred combo crit formula runs — same architectural pattern as cascade (input modification, not formula modification). Judgment call: is this within sacred §2.1 boundary? Recommend Roman explicit sign-off because Sun Cascade is the highest-impact race flavor. Captured as Open Question O3. Fallback if Roman rejects: demote Spark to pure-FX with NO mechanical contribution (drops to same tier as Pirate / Rock / Crocodile flavor-only).
+
+4. **Audio asset budget.** Identity Layer needs 5 new SFX + 1 ambient (coin / bite / cymbal / thunk / chime / fire roar). Most re-use existing assets at modified volume / pitch. If Audio surfaces re-use-impossible cases, that's small but non-zero asset spend. Recommend re-use-first; flag exceptions as separate asset tasks. Captured as Open Question O4.
+
+5. **Element Synergy interaction with race × boss matchup.** Existing Element Synergy 2x/3x/5x bonuses (sacred §2.1) operate on board-element dominance and are independent of race. Identity Layer's Spark (Sun Cascade) and Rock (Encore Echo) both depend on element dominance, so they compound with Element Synergy. Documented in §2.3 / §2.5 stacking sections; balance pass should verify no race × boss × element-synergy triple combo dominates.
+
+6. **Codex moments replay (stretch).** §4.6 includes a stretch goal: tap a moment → see 5-second loop replay of when it happened. Deferred to Phase 3 / Replay infrastructure per Execution Plan §8.2 ("Replay/Share — auto-record + navigator.share"). Not blocking T2.12 MVP.
+
+**Open questions for Roman (4 — see spec §10):**
+
+- **O1** — RACE_SYNERGY tier entries for shark / crocodile / spark — defer to post-Phase-2 (recommended) or block T2.03/T2.05/T2.06?
+- **O2** — Narrator lines (4+) — route through CTO+Roman approval pass before T2.11, or "Designer judgment" sufficient?
+- **O3** — Sun Cascade combo-crit input modification — within sacred §2.1 boundary (recommended) or violation requiring demotion to pure-flavor?
+- **O4** — Audio asset budget for 5–6 new samples — re-use-first (recommended) or new sample budget approved?
+
+**For Game Developer (post-CTO + Roman approval):**
+
+- Implementation tasks T2.02–T2.11 expected (5 race flavors + 5+ boss mechanics).
+- New files: `src/feel/identity-fx.js`, `src/data/identity-layer.js`, `src/ui/codex.js`, `src/styles/screens/codex.css`, `tests/smoke/identity-layer.spec.js`.
+- Additive modifications: `src/core/grid.js` (post-clearLines hook), `src/core/reactivity-events.js` (identity_* namespace), `src/data/races.js` (new optional `identity_fx_key` field on 5 V18.8 races), `src/feel/particles.js` (5 new factories), `src/styles/screens/battle.css` (overlays), `src/styles/animations.css` (keyframes).
+- Estimated complexity: T2.02 (Pirate) M; T2.03–T2.06 (Shark/Rock/Crocodile/Spark) M each, parallel-friendly; T2.07–T2.11 (boss-reactive) L each; T2.12 (Codex) L; Codex MUST be last (depends on all triggers wired).
+- Object-pool requirement: do NOT `document.createElement` per fire — module-load pool of 32 coins + 16 rays + 16 fragments.
+- Visual baselines: 14 new (one per race × boss matchup + codex screens). Existing baselines must NOT change (regression contract).
+- Per-race test scenarios: 0 race-heroes → no-op + no errors; 1 → minimum effect; 5 → max effect; with Combo Crit → independent stacking; perf @ 5×crit → 60fps maintained.
+
+**For Bug Tester (post-T2.11):**
+
+- 25 matchup smokes (5 races × 5 chapter-finale bosses) to verify no single pairing dominates.
+- Visual regression on 14 new baselines + verify existing baselines unchanged.
+- Performance audit: identity FX layer overhead ≤4ms/frame average maintained at 60fps.
+- Sacred-cow regression: re-verify 22 reactivity handlers byte-perfect post-Phase-2.
+
+**Files touched (this task — DESIGN ONLY):**
+
+- `docs/design/mechanics/identity-layer.md` (new, 1189 LoC)
+- `docs/plan/TASKS.md` (this entry)
+- `docs/design/mechanics/` directory (new — created per CLAUDE.md §1.4 target structure)
+
+**Files NOT touched (per strict constraints):**
+
+- ALL `src/` files (this is design only)
+- ALL CSS files
+- ALL test files / baselines / CI / husky
+- `docs/_legacy/` (read-only reference)
+- No npm packages installed
+- No push to remote
+
+**Time:** ~3 hours (research existing systems → 5-race × 7-boss spec design → sacred-cow audit → codex IA → open questions formulation).
+
+**Commit:** see git log — `[T2.01] Identity Layer design spec (Phase 2 start)`
+
+---
+
 ## BUG TESTER
 
 ### BUGS (closed)
