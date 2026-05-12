@@ -2,15 +2,15 @@
 
 ## Project Status
 
-- **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 19 / 20 done (T1.01-T1.19) — **95%**
-- **Overall progress:** ~76% (Phase 1 endgame cleanup phase)
-- **Bundle:** ✅ **4.5 MB total** (204KB JS + 368KB CSS + 3.4MB public/images) — UNDER AAA+ 5MB cap
-- **Architectural decision (ADR-004):** Phase 1 closes at INFRASTRUCTURE level. Legacy stays primary runtime; new shell ships as foundation. Approved 2026-05-12.
-- **CI status:** ✅ ALL GREEN (PR #158, 100+ commits)
-- **Active task:** T1.20 — Complete v2.1 Player Segments (LAST Phase 1 task)
-- **Phase 1 endgame:** T1.20 → Phase 1 100% → Roman merge PR #158 → Phase 2 Identity Layer starts
-- **Last updated:** 2026-05-12 by CTO (after T1.17 review)
+- **Current phase:** 1 — Foundation Reset ✅ **COMPLETE 20/20 (100%)** 🎉
+- **Overall progress:** Phase 1 done; ready for Phase 2 Identity Layer
+- **Bundle:** ✅ **4.5 MB total** (205KB JS + 368KB CSS + 3.4MB public/images) — UNDER AAA+ 5MB cap
+- **Architectural decision (ADR-004):** Hybrid coexistence — legacy + src/ co-runtime through Phase 2-4; full switchover deferred to future sprint
+- **CI status:** ✅ ALL GREEN (PR #158, 115+ commits)
+- **Cumulative migrated:** src/core/ 12,164 + src/ui/ 5,012 + src/data/ + src/feel/ + src/services/ + dialog + assets pipeline + migrate shim = **17,000+ LoC** in modular ES architecture
+- **Tests:** lint 0, unit 37/37, smoke 2/2 (4 projects on Linux CI incl. WebKit + mobile-safari), visual 22/22 chromium
+- **Pending Roman action:** merge PR #158 (Phase 1 milestone) → Phase 2 starts
+- **Last updated:** 2026-05-12 by CTO (Phase 1 closeout)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -20,7 +20,7 @@
 
 ## Phase 1: Foundation Reset
 
-**Status:** IN_PROGRESS (started 2026-05-11)
+**Status:** ✅ **COMPLETE 2026-05-12** (started 2026-05-11)
 **Goal:** Превратить 21MB single HTML в модульный, тестируемый Vite + ES Modules проект.
 **Estimated:** 6-8 weeks
 **Approach:** Strict sequential. One Dev task at a time. Test infrastructure FIRST.
@@ -69,7 +69,7 @@
 
 **Week 7-8: Completion + hardening**
 - [x] T1.19 — Complete v2.1 Mythic ability framework — **DONE 2026-05-12** (commits `795953d`, `5cc2867`; VERIFIED COMPLETE, no code change; 25/25 descriptors + ascension commitment screen + one-per-save + 5/5 role fire paths verified; 8 new unit tests (27 total); Plan §23 P3 Mythic ⚠️→✓)
-- [ ] T1.20 — Complete v2.1 Player Segments — IN PROGRESS (Game Dev Agent)
+- [x] T1.20 — Complete v2.1 Player Segments — **DONE 2026-05-12** (commits `e13d51b`, `853ddf1`; getPlayerSegment + 4 constants in src/services/analytics.js; logEvent auto-enriches with segment; 10 new unit tests (37 total); Pinch system Phase 2 integration flagged)
 
 ### Phase 1 Gate Criteria (Go/No-Go to Phase 2)
 

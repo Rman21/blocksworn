@@ -1283,6 +1283,120 @@ Zero actual code dependencies on artifact APIs remain in src/. Legacy retains hi
 
 ---
 
+## REPORT-17: 🎉 PHASE 1 FOUNDATION RESET COMPLETE 20/20
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** T1.20 PASS — last Phase 1 task closed
+
+### Summary
+
+**Phase 1 Foundation Reset is COMPLETE.** All 20 tasks (T1.01-T1.20) done in 2-day intensive session (2026-05-11 → 2026-05-12). 17,000+ LoC migrated from monolithic 21MB legacy into modular Vite + ES Modules architecture with full test infrastructure, CI/CD, asset optimization, and v2.1 debt cleanup.
+
+### Task scorecard (T1.01-T1.20)
+
+All 20 ✅. See PLAN.md "Tasks (T1.01 — T1.20)" section for per-task commits + outcomes. Key milestones:
+- **T1.10 watershed:** 12,164 LoC in 9 src/core/ modules (9 sub-tasks T1.10.1-T1.10.9)
+- **T1.11/T1.11.1:** 11 src/ui/ modules + archetype-ticks (5,012 LoC)
+- **T1.12 structural switchover:** new shell wired (per ADR-004 hybrid coexistence)
+- **PR #158:** 6 CI fix iterations to validate WebKit + mobile-safari on Linux runner
+- **T1.14-T1.18 cleanup:** artifact subsystem deleted, Cosmic Memorial purged, 100-hearts UI replaced, shop packs consolidated
+
+### Sacred cows verified byte-perfect
+
+All CLAUDE.md §2 + §9 sacred values preserved across 20 tasks:
+- §2.1 Combat math (combo crit, TIER_COSTS_V18, HERO_ULT_COST, TTK, MAX_HP=100)
+- §2.2 Feel (V_HAPTICS, vPlayCritFlash 180/440ms, 5-beat boss death, NARRATOR_LINES)
+- §2.3 Narrative voice (Chronicler, dialog copy, boss names)
+- §2.4 Economy (GEM_PACKS ladder, First Purchase +50%, Battle Pass formula, Tower retry)
+- §2.5 v2.1 systems (4-channel P1, Stagger Loop P2, Aegis/Squad Conductor P3, Reactivity Events P4)
+- §9 Mythic (25/25 descriptors, one-per-save, commitment screen)
+- §9 Player Segments (F2P/Minnow/Dolphin/Whale thresholds)
+
+### AAA+ standards (CLAUDE.md §3)
+
+- §3.2 Performance: bundle 4.5MB <5MB cap; Lighthouse Performance 99/100
+- §3.4 Code quality: ESLint v9 flat config 0 warnings; modular ES; no window-globals in src/core except documented bridge
+- §3.5 Test coverage: 37 unit + 22 visual + 4-project smoke; CI authoritative
+- §3.7 Visual regression: canonical 3-band threshold restored after Phase 1 strict mode
+
+### Architecture established
+
+```
+src/
+  core/        9 modules / 12,164 LoC — battle, heroes, bosses, channels,
+               stagger, grid, ftue-state, progression, reactivity-events
+  ui/          11 modules / 5,012 LoC — menu, battle-screen, shop, tower,
+               season, profile, select, dailies, router, rewards, archetype-ticks
+  feel/        5 modules — haptics, narrator-lines, animations, particles, narrator
+  data/        10 modules — balance, races, elements, chapters, bosses, heroes,
+               ftue-scripts, tower, monetization-config (incl SHOP_PACKS), assets
+  services/    7 modules — firebase, revenuecat, sentry, analytics (+ segments),
+               logger, storage, migrate (10-key shim)
+  styles/      19 CSS files — tokens, reset, typography, animations, components,
+               screens
+  main.js      94 LoC boot chain
+index.html     113 LoC scaffold
+public/images/ 89 binary assets (3.4MB browser-cached, replaced data URIs)
+docs/_legacy/  21.47 MB legacy (primary runtime per ADR-004)
+```
+
+### Engineering wins
+
+1. **Pure-relocation discipline** through T1.06-T1.11 — every sacred byte-perfect, commit per sub-system
+2. **Migration shim** for 9 bare-string localStorage keys — prevents data loss on future switchover
+3. **Window-bridge pattern** (`Object.defineProperty(window, X, {get, set})`) — clean legacy + src/ coexistence
+4. **Asset pipeline refactor** — 4.6MB base64 → 89 binary files, bundle 5.13MB → 4.5MB
+5. **CI multi-platform validation** — WebKit + mobile-safari on Linux (impossible locally on macOS 13 arm64)
+6. **ADR-004 Hybrid Coexistence** — honest architectural decision matching Discord/VS Code/Slack/GitHub patterns
+7. **5 v2.1 status flips** (⚠️ VERIFY → ✓ IMPLEMENTED): P3 Mythic Framework, P4 Reactivity Events, P5 §7 Final Legacy Purge (Cosmic Memorial), P1 §4 Artifact removal, P7 Player Segments
+
+### Tech debt deferred (flagged, not blocking)
+
+- HERO_MYTHIC_RUNTIME covers 5/25 heroes with full rule-break runtime (Phase 2-3 content)
+- Pinch system segment-aware tuning (Phase 2 monetization)
+- Bundle scalars consolidation (SQUAD_POWER_*, etc. — separate task)
+- `site/public/blocksworn_index_fixed.html` Vercel mirror T1.14-T1.17 behind
+- Eventual full switchover sprint (post-Phase 4)
+- 2 moderate npm transitive vulnerabilities
+
+### Phase 2 readiness
+
+**Identity Layer (T2.01-T2.12) unblocked:**
+- Designer T2.01 (Identity Layer spec) can start
+- `src/feel/identity-fx.js` slot ready
+- `src/data/identity-layer.js` slot ready
+- `src/core/reactivity-events.js` extension hooks ready
+- All new code in src/ only per ADR-004 (legacy frozen for cleanup-only mutations)
+
+### Roman next actions
+
+1. Review PR #158 (115+ commits, all CI green)
+2. Merge when satisfied → Phase 1 lands in main
+3. GO for Phase 2 Identity Layer
+
+### Phase 1 reflection
+
+**Surprising:**
+- Finished in 2 days vs Plan's 6-8 weeks estimate
+- T1.10 watershed (50% of Phase 1 effort per Plan) delivered in single session
+- 6 CI fix iterations on PR #158 surfaced real cross-platform issues only at Linux runner — exactly what CI catches
+
+**Hard moments:**
+- T1.13 verify revealed cascading wire-up gaps (5 iterations T1.13.1-.5)
+- ADR-004 pivot when full switchover hit diminishing returns
+- Bundle bloat from ASSETS data URIs (5.13MB → 4.5MB fix)
+
+**Discipline that worked:**
+- Pure-relocation byte-perfect through T1.06-T1.11
+- Sub-tasking T1.10 into 9 manageable chunks
+- One-question rule keeping agents focused
+- Sacred cow audit at every extraction
+
+🎉 **Phase 1 Foundation Reset — COMPLETE.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host
