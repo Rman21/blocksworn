@@ -7,6 +7,68 @@
 
 ## GAME DEVELOPER
 
+### TASK-024 (T1.17) — REVIEW (2026-05-12)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)
+**Started:** 2026-05-12
+**Completed:** 2026-05-12
+**Priority:** HIGH
+**Phase:** 1 (Week 6 — cleanup)
+**Estimated complexity:** M
+**Depends on:** ✅ T1.16 + ADR-004 (Path A Hybrid Coexistence — legacy mutable for cleanup)
+
+**Implementation summary:**
+
+Replaced the 100-individual-heart-icon render in the boss-area HP strip with a scaled HP bar widget (single ❤ icon + filled progress track + numeric "N / 100"). Roman's explicit complaint addressed — `_renderBossAreaHearts()` previously emitted one `<span class="v-battle-boss-heart">` per HP point (100 spans at MAX_HP=100 → visible DOM debt every renderHP() call). MAX_HP=100 sacred value (CLAUDE.md §2.1) unchanged: only the visual rendering changes. The new widget is 4 child nodes regardless of HP cap and scales cleanly past 100 (v2.1 P5 +10/+15 HP stacks) without re-laying out the row.
+
+**Files changed:**
+
+- `docs/_legacy/_archive_v1/blocksworn_index_fixed.html`
+    - `_renderBossAreaHearts()` (§64460): per-HP span loop → bar widget (icon + track + fill + numeric); `.low` class toggled when `cur ≤ 25%` cap
+    - CSS block (§1975): old per-span rules + new `.v-battle-boss-hp-icon` / `-hp-track` / `-hp-fill` / `-hp-text` + `.low` pulse keyframes; legacy `.v-battle-boss-heart` selectors retained as no-op safety net
+    - HTML scaffold comment (§17089): updated to reflect new design
+- `src/styles/screens/battle.css`
+    - Mirror CSS block (§1238) — same selectors, kept in sync with legacy for ADR-004 hybrid-runtime parity
+
+**Existing animations preserved:** verified via `grep` that no `.v-battle-boss-heart` class had attached animations or SFX triggers; the new `.low` state pulse mirrors the existing `.hp-digital.low` pattern (polish v0.1 Track C.4 §10396-10419). Low-HP flash, hit shake, `vPlayCritFlash` — all SACRED per CLAUDE.md §2.2 — are wired through other call sites (renderHP top-bar digital + flashText overlays) and remain untouched.
+
+**CSS tokens reused (NOT introduced):** `--hearts-color`, `--hearts-glow`, `--hp-low`, `--hp-mid`, `--hp-full`, `--hp-critical`, `--a-bg-well` — all already in `src/styles/tokens.css §10.4`. No new color tokens.
+
+**DOM scaffold ID + outer class unchanged** (`#bossAreaHearts` / `.v-battle-boss-hearts`) — all existing callers (`renderHP`, `render`, 4× ticker pathways) continue working without changes.
+
+**Visual baselines:** no battle-screen baseline exists in `tests/visual/baseline/` that captures the boss-area-hearts surface visibly — only `ftue-pyredrake.png` is a "battle" baseline and the FTUE dialog overlay covers the heart row at that beat. Visual regression confirms 0% diff on that baseline; no baseline updates needed.
+
+**Performance:** 1 wrapper + 4 child nodes vs `cap` (100) spans = ~96% DOM node reduction for the boss-area-hearts surface per renderHP() call.
+
+**Smoke tests:** ✅ 2 / 2 pass (`npm run test:smoke`)
+**Visual regression:** ✅ 22 / 22 pass under 5% (no baseline updates — change not visible in any captured baseline state)
+**Unit tests:** ✅ 19 / 19 pass (`npm run test:unit`)
+**Build:** ✅ 204.02 KB JS bundle (unchanged), 368.07 KB CSS (+1.40 KB / +0.38% from new HP bar styles)
+**Lint:** ✅ 0 errors
+
+**Self-check:**
+
+- [x] Acceptance: HP visible without 100 individual icons (single ❤ + bar + numeric)
+- [x] Acceptance: Updates correctly during damage / healing (renderHP path unchanged; bar fill `width` tweens via CSS `transition: width 220ms ease-out`)
+- [x] Acceptance: Mobile (small viewport) readable — `min-width: 120px; max-width: 180px` keeps the bar legible without crowding the boss-info-btn
+- [x] Acceptance: Visual regression baseline updated — N/A (no baseline visibly shows the heart row; 22/22 pass under 5%)
+- [x] DO NOT TOUCH: MAX_HP value (CLAUDE.md §2.1) — unchanged
+- [x] DO NOT TOUCH: HP damage calculation / combat math — unchanged
+- [x] DO NOT TOUCH: Low-HP flash / hit shake / `vPlayCritFlash` (CLAUDE.md §2.2) — unchanged
+- [x] DO NOT TOUCH: Visual baselines for screens other than battle — unchanged
+- [x] No npm packages installed
+- [x] No push to remote
+
+**Замечено рядом (NOT fixed, reported):**
+
+- `site/public/blocksworn_index_fixed.html` (Vercel-served static copy) is now T1.14-T1.17 behind `docs/_legacy/_archive_v1/` mirror. Pattern matches T1.14 / T1.15 / T1.16 — site-deploy sync is a separate concern handled by whatever ships the next site refresh. The Vite dev server + Playwright tests all target `docs/_legacy/_archive_v1/` via the `serveLegacyHtmlRaw` plugin, so test gates remain authoritative.
+- HTML scaffold comment block at legacy §17089 said "4 individual hearts" since 2026-04-30 PR 4/6 — the comment was stale (rendered `cap = currentMaxHP || MAX_HP || 3 = 100`, not 4). T1.17 fixes the comment in lockstep with the implementation swap.
+
+**Time:** ~1 hour
+**Commit:** see git log — `[T1.17] Replace 100-hearts UI with scaled HP bar` + `[DOCS] TASK-024 T1.17 → REVIEW with self-check`
+
+---
+
 ### TASK-023 (T1.15) — REVIEW (2026-05-12)
 
 **Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)

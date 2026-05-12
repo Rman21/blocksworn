@@ -3,14 +3,14 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 16 / 20 done (T1.01-T1.16)
-- **Overall progress:** ~75% (Phase 1 endgame cleanup phase)
-- **Bundle:** ✅ **4.5 MB total** (203KB JS + 368KB CSS + 3.4MB public/images) — UNDER AAA+ 5MB cap
+- **Phase progress:** 16 / 20 done (T1.01-T1.16); T1.17 in REVIEW
+- **Overall progress:** ~76% (Phase 1 endgame cleanup phase)
+- **Bundle:** ✅ **4.5 MB total** (204KB JS + 368KB CSS + 3.4MB public/images) — UNDER AAA+ 5MB cap
 - **Architectural decision (ADR-004):** Phase 1 closes at INFRASTRUCTURE level. Legacy stays primary runtime; new shell ships as foundation. Approved 2026-05-12.
 - **CI status:** ✅ ALL GREEN (PR #158, 100+ commits)
-- **Active task:** T1.17 — Replace 100-hearts UI in combat top bar
+- **Active task:** T1.17 — REVIEW (Game Dev → CTO, 2026-05-12)
 - **Phase 1 endgame:** T1.17-T1.20 cleanup over legacy → Roman merge PR #158 → Phase 2 Identity Layer starts
-- **Last updated:** 2026-05-12 by CTO (after T1.14 review — legacy already 80% gutted, T1.14 finished cleanup)
+- **Last updated:** 2026-05-12 by Game Dev (after T1.17 REVIEW with self-check)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -64,7 +64,7 @@
 - [x] T1.14 — DELETE artifact subsystem (v2.1 P1 §4 completion) — **DONE 2026-05-12** (commits `aed0cc6`, `eeea459`; legacy −7.5KB; 19 fns + 13 consts/state deleted; migrateRemoveArtifacts shim + 4 unit tests; legacy was already 80% gutted by v2.1 P1 PR #1.E + P5 §7)
 - [x] T1.15 — DELETE Cosmic Memorial (v2.1 P5 §7 completion) — **DONE 2026-05-12** (commits `8ef8e3a`, `028def7`; legacy −4KB; Ch3 hub strip purged; P6.F active memorial system preserved; migration shim 5 keys; 4 new unit tests (19 total); CSS bundle −2.1KB)
 - [x] T1.16 — DELETE legacy `--v-*` CSS tokens — **DONE 2026-05-12** (CTO patch — was already 0 active refs per T1.06 closeout; 3 stale historical comments purged from legacy lines 23, 62, 2113; verified 0 refs everywhere)
-- [ ] T1.17 — Replace 100-hearts UI in combat top bar — TODO
+- [~] T1.17 — Replace 100-hearts UI with scaled HP bar — **REVIEW 2026-05-12** (commit `8cbfae6`; `_renderBossAreaHearts` 100-span loop → 4-node bar widget; MAX_HP=100 sacred preserved; CSS +1.4KB; 22/22 visual pass; 19/19 unit; 2/2 smoke)
 - [ ] T1.18 — Consolidate shop pack systems — TODO
 
 **Week 7-8: Completion + hardening**
