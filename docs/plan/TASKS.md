@@ -7,9 +7,13 @@
 
 ## GAME DEVELOPER
 
-### TASK-040 (T2.B) — 🟡 REVIEW 2026-05-12 — Legacy Bridge: Identity Layer integration moment
+### TASK-040 (T2.B Game Dev portion) — ✅ DONE 2026-05-12 — Legacy Bridge: Identity Layer integration moment
 
-**Status:** IN PROGRESS → **REVIEW** (awaiting CTO sign-off + Bug Tester T2.B.QA)
+**CTO acceptance 2026-05-12 (Game Dev portion):** PASS. Strictest sacred-cow proximity of Phase 2 cleared. Combo crit formula at line 63825 `critMult = 1 + domCount * count * CRIT_MULT_K` BYTE-PERFECT (grep returns 1 occurrence in code); single `domCount` definition extended by `+ (ctx._dominantCountModifier || 0)` at line 63816 per ESC-02 O3 "WITHIN BOUNDARY". CRIT_MULT_K = 0.1 / CRIT_MIN_COMBO = 2 byte-perfect (lines 20159-20160). All T2.07-T2.12 invariants maintained. 22 P4 handlers byte-perfect. Codex localStorage isolation maintained. 26 window-bridge functions exposed; 8 discrete legacy insertion points; bridge overhead <0.001ms per call. 150/150 smoke pass (+10 LIVE integration tests × 2 projects). Commit `e6acb6d`.
+
+**T2.B.QA (Bug Tester portion) status:** 🟡 ACTIVE — 25-smoke matchup matrix + 14 visual baselines + narrator copy-pass + final sacred audit. Phase 2 PR opens after T2.B.QA PASS.
+
+**Status:** IN PROGRESS → REVIEW → **DONE** (Game Dev portion; CTO sign-off 2026-05-12)
 **Started:** 2026-05-12
 **Priority:** CRITICAL — final Phase 2 task
 **Phase:** 2 (Identity Layer) — **13/13** (final task before Phase 2 PR opens)

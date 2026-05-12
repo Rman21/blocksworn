@@ -2427,6 +2427,106 @@ The last task before Phase 2 PR opens:
 
 ---
 
+## REPORT-31: 🎯 T2.B Game Dev — Legacy Bridge integration moment COMPLETE; Identity Layer LIVE in legacy
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Dev agent `a660fc36465dc4e1d` returned PASS; CTO review confirmed.
+
+### Summary
+
+The integration moment. T2.B (Game Dev portion) wires all 10 Identity Layer mechanics + Codex aggregation into the legacy primary runtime per ADR-004 hybrid coexistence. +651 / -2 LoC across 4 files, +10 smoke tests (140 → 150 × 2 projects), 0 sacred-cow modifications. Commit `e6acb6d`. CTO acceptance PASS.
+
+Phase 2 implementation: **13/13 COMPLETE.** Next: Bug Tester T2.B.QA (25-smoke matchup matrix + visual baselines + narrator copy-pass) before Phase 2 PR opens.
+
+### Sacred cow audit — strictest moment of Phase 2
+
+The integration moment is the highest sacred-cow proximity of all Phase 2. Game Dev verified each sacred system byte-perfect:
+
+| Sacred system | Status | Verification |
+|---|---|---|
+| **Combo crit formula** `critMult = 1 + domCount * count * CRIT_MULT_K;` | **BYTE-PERFECT** ✅ | Line 63825, grep returns 1 occurrence in code; ONLY `domCount` definition extended by `+ (ctx._dominantCountModifier \|\| 0)` per ESC-02 O3 ruling |
+| **`CRIT_MULT_K = 0.1`** | byte-perfect ✅ | Line 20159 |
+| **`CRIT_MIN_COMBO = 2`** | byte-perfect ✅ | Line 20160 |
+| 22 v2.1 P4 reactivity handlers | byte-perfect ✅ | `git diff src/core/reactivity-events.js \| grep '^-' \| wc -l = 0` |
+| `PHOENIX_REVIVE_HP_PCT = 0.6` / `PHOENIX_IMMUNE_TURNS = 2` | byte-perfect ✅ | T2.07 invariants maintained |
+| `BERSERKER_ENRAGE_MULT = 2.0` / `STAGGER_DURATION_TURNS = 4` / `RECOVERY_DURATION_TURNS = 2` | byte-perfect ✅ | T2.09 invariants maintained |
+| `engineer_p1_p2` + 40T + `.cell--engineer-welded` + `#B87333` | byte-perfect ✅ | T2.10 invariants maintained |
+| `HERO_ULT_COST_BY_NEWROLE` / `RACE_SYNERGY` / `NARRATOR_LINES` / `V_HAPTICS` / `TIER_COSTS_V18` / `MAX_HP` / `GEM_PACKS` / `ARMORED_SHIELD_*` | byte-perfect ✅ | All untouched |
+| Codex `localStorage[blocksworn_codex_state]` isolation | maintained ✅ | T2.12 invariant |
+
+### LIVE integration verified — 5 smoke scenarios green
+
+1. **Pirate Plunder** — `window.__dispatchIdentityFx` fires with 5-pirate squad → `addGold(200)` captured ✅
+2. **Phoenix Ashen Reign** — `__isAshenReignActive` toggle + `__canPlacePieceDuringAshenReign` ember-allowed/tide-rejected verified ✅
+3. **Codex aggregation** — `__recordRaceTrigger` / `__recordBossEncounter` / `__recordBossDefeat` / `__recordMomentTrigger` all persist to `localStorage[blocksworn_codex_state]` ✅
+4. **Legacy boot** — no pageerrors with bridge mutations ✅
+5. **Sacred formula regression** — line 63825 byte-perfect verified ✅
+
+### Bridge surface
+
+**26 window-bridge functions** exposed from `src/main.js` boot chain:
+- 2 dispatchers (`__dispatchIdentityFx`, `__dispatchIdentityBossEvent`)
+- 5 placement gates (`__canPlacePieceDuringAshenReign`, `__isCellCursed`, `__isCellLockedByLockdownProtocol`, `__isCellRooted`, + bridge alias)
+- 6 cross-layer accumulators (`__pushRecentClear`, `__incrementBloodtideClearCount`, `__consumeBloodtidePulse`, `__onRootCellCleared`, + 2 module exports)
+- 3 per-turn ticks (Lich, Engineer, Grovewarden tick handlers)
+- 7 battle resets (`__resetAshenReign`, `__resetCursedTiles`, `__resetBloodtide`, `__resetEngineerLockdowns`, `__resetGrovewardenRootSurge`, `__resetCrocFragmentBank`, + Codex reset variant)
+- 4 Codex aggregation (`__recordRaceTrigger`, `__recordBossEncounter`, `__recordBossDefeat`, `__recordMomentTrigger`)
+
+### Legacy mutation count — 8 discrete insertion points
+
+| # | Site | Lines | Purpose |
+|---|---|---|---|
+| 1 | `clearLines` bridge (~55951) | dispatcher + Codex + sliding window + Engineer Tetris + cross-layer Root reward |
+| 2 | `canPlace` 4-gate prelude (~55795) | placement gates cascade (Ashen Reign / cursed / locked / rooted) |
+| 3 | **`domCount` EXTENSION at line 63816** | **SINGLE sacred-formula-adjacent change** per ESC-02 O3 "WITHIN BOUNDARY" |
+| 4 | `maybePhoenixRevive` (~57050) | dispatches `identity_phoenix_revive` |
+| 5 | `bossAttack` Bloodtide consume (~59230) | applies pulse bonus to damage |
+| 6 | `afterPlacement` (~64080) | Lich shark counter + 3 per-turn ticks |
+| 7 | `startBossBattle` (~55596) | 7 resets + Codex encounter |
+| 8 | `onBossDefeated` (~57424) | Codex defeat recording |
+
+All bridge calls wrapped in `try/catch` — legacy mechanical pipeline cannot regress regardless of Identity Layer state.
+
+### Performance
+
+| Metric | Budget | Measured |
+|---|---|---|
+| Bridge dispatch overhead per call | ≤2ms | **<0.001ms** (1000-iter benchmark = 0.65ms total) |
+| Legacy boot impact | minimal | no pageerrors; existing smoke baseline unchanged |
+| Bundle JS | <5 MB | 272.17 kB ✅ |
+| Bundle CSS | reasonable | 394.86 kB ✅ |
+
+### Notable engineering
+
+- **The single sacred-formula-adjacent change is exactly the ESC-02 O3 "WITHIN BOUNDARY" pattern.** Line 63816 `const domCount = Math.max(...Object.values(counts))` extended by `+ (ctx._dominantCountModifier \|\| 0)`. The formula itself at line 63825 (`critMult = 1 + domCount * count * CRIT_MULT_K`) is byte-perfect. Input modification, not formula modification — exactly what Roman approved.
+- **Codex schema field discovery:** field names are `triggerCount` / `defeatedCount`, not `triggers` / `defeated`. Game Dev caught on first smoke run + fixed test assertions. Good defensive coding.
+- **Dual `_resetReactivityState` site** in `startBossBattle` (two execution branches: pre-archetype + post-archetype) — resolved by using `replace_all=true` since both paths should reset Identity Layer. AAA+ thoroughness.
+
+### Phase 2 task scoreboard (13/14 — only T2.B.QA remains)
+
+| Task | Status | Owner |
+|---|---|---|
+| T2.01 Design spec | ✅ | Designer |
+| T2.02–T2.06 Race flavors | ✅ 5/5 | Game Dev |
+| T2.07–T2.11 Boss-reactive | ✅ 5/5 | Game Dev |
+| T2.12 Codex screen | ✅ | Game Dev |
+| **T2.B (Game Dev)** Legacy Bridge | **✅** | Game Dev |
+| **T2.B.QA (Bug Tester)** Final audit | 🟡 next | Bug Tester |
+
+### What T2.B.QA Bug Tester does
+
+1. **25-smoke matchup matrix** (5 races × 5 chapter-finale bosses) per ESC-02 O3 — explicit Spark balance check; if any pairing >15% TTK deviation, demote Spark to pure-FX (`SPARK_CASCADE_ENABLED = false`)
+2. **14 visual baseline captures** per spec §7.4 (one per race × boss matchup + 4 Codex screens)
+3. **Narrator copy-pass** — Roman approves T2.11 placeholder line `"Where you would not bloom, I will."` + any other identity narrator copy per ESC-02 O2
+4. **Sacred audit re-verification** post-batch — final pass over all 36 sacred-cow rows
+5. **Performance audit** — identity FX layer overhead ≤4ms/frame avg maintained at 60fps in live legacy gameplay
+6. **Cross-mechanic regression** — verify all 10 mechanics + Codex work together in live legacy gameplay
+
+🎯 **T2.B Game Dev DONE. Identity Layer LIVE in legacy. Next: Bug Tester T2.B.QA — final Phase 2 gate.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)
