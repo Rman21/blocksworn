@@ -2785,9 +2785,11 @@ All 9 tests pass.
 
 ---
 
-### TASK-031 (T2.04) — REVIEW 2026-05-12 — Rock Encore Echo
+### TASK-031 (T2.04) — ✅ DONE 2026-05-12 — Rock Encore Echo
 
-**Status:** IN PROGRESS → **REVIEW** (Game Dev complete 2026-05-12, awaiting CTO sign-off)
+**CTO acceptance 2026-05-12:** PASS. Implementation matches spec §2.3; 36-row sacred audit clean (HERO_ULT_COST_BY_NEWROLE READ-only for clamp, RACE_SYNERGY.rock literal byte-perfect incl sacred ENCORE flag, all P4 handlers untouched); 152/152 unit + 34/34 smoke; wall-time 0.2ms median (40× under 8ms budget); commit `fe3e3c1`. Threshold clamp safety verified 5 ways. All 4 T2.02 precedents + T2.03 ctx pattern followed.
+
+**Status:** IN PROGRESS → REVIEW → **DONE** (CTO sign-off 2026-05-12)
 **Started:** 2026-05-12
 **Completed (Game Dev):** 2026-05-12
 **Priority:** HIGH

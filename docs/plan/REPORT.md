@@ -1642,6 +1642,63 @@ This is exactly what an integration sub-task should look like in AAA+: many smal
 
 ---
 
+## REPORT-22: T2.04 Rock Encore Echo — third race flavor PASS
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Dev agent `a537e159ad9f662e4` returned PASS; CTO review confirmed.
+
+### Summary
+
+T2.04 lands clean: +1252 / -11 LoC across 8 files, +42 unit tests (110 → 152), +12 smoke tests (22 → 34), **0 sacred-cow modifications**, performance 40× under budget. Commit `fe3e3c1`. CTO acceptance PASS.
+
+### Implementation contract met
+
+- **Mechanical:** +1 umbra ULT charge per umbra-dominant cleared line, **HARD CAP at +4 per fire**
+- **Threshold clamp invariant:** `Math.min(threshold, current + delta)` — same pattern as legacy `heroes.js:790`. Encore Echo READS `HERO_ULT_COST_BY_NEWROLE` for clamp; NEVER WRITES. Existing ULT-fire pipeline reads `>= threshold` for ready-state — Encore Echo never overflows past threshold, so pipeline ownership is preserved.
+- **`RACE_SYNERGY.rock` literal byte-perfect** — confirmed via `git diff src/data/races.js`. The sacred `ENCORE` flag at tier 3 (first 🌑ULT ×2) UNTOUCHED. Compound synergy with Encore Echo is layered, not replaced.
+- **All 4 T2.02 precedents followed** + **T2.03 ctx.dominantElementsByLine** side-channel consumed for umbra-dominant gate
+
+### Performance (40× under budget)
+
+| Test scenario | Wall-time (median) | Budget | Margin |
+|---|---|---|---|
+| 5-rock × quad-umbra-line clear | **0.2 ms** | 8 ms | 40× under ✅ |
+| 1-rock × 1-umbra-line clear | <0.1 ms | 8 ms | 80× under ✅ |
+| Mixed-race squad (5 rock + cross-fire fx) | ~0.5 ms | combined ~26 ms | safe ✅ |
+
+### Threshold clamp safety — verified 5 ways
+
+1. **100-row exhaustive unit test:** for `current` in 0..100, `clamp(current, +echo) <= 100` always (never 101)
+2. **Edge case unit test:** current=99 + echo=4 → clamp to 100, not 103
+3. **Smoke test:** `ultCharges.umbra = 11` + 4 echo charge → result 12 (not 15)
+4. **Pipeline invariant:** Encore Echo writes via `Math.min(threshold, current + delta)`; the ULT-fire trigger pipeline owns the `>= threshold` check and continues to fire
+5. **No "skip the pipeline" path:** Encore Echo never writes threshold+1 or above; existing ULT-fire trigger pipeline remains the only owner of the "ready" transition
+
+### Quality bar maintained
+
+| Metric | Phase 1 | T2.02 | T2.03 | **T2.04** | AAA+ target |
+|---|---|---|---|---|---|
+| Unit tests | 37 | 65 | 110 | **152** | growing ✅ |
+| Smoke pass | 2 | 12 | 22 | **34** | green ✅ |
+| Sacred audit | 0 mods | 0 mods | 0 mods | **0 mods** | always 0 ✅ |
+| Wall-time | n/a | ≤6ms (T2.02) | 1-3ms (T2.03) | **0.2ms** (T2.04) | budget margin ✅ |
+
+### Engineering wins
+
+- 4× more unit tests than brief (target 8-12, delivered 42) — exhaustive helper coverage
+- Game Dev independently identified the `Math.min(threshold, ...)` pattern from legacy `heroes.js:790` — shows good codebase reading discipline
+- `/* global */` ESLint annotation pattern from T1.10.* tasks for `ultCharges` access — consistent with established legacy bridge patterns
+- ctx field naming consistent with T2.03 (`dominantElementsByLine`) — no fragmentation of dispatcher contract
+
+### Nothing unexpected reported
+
+Spec §2.3 was unambiguous; ctx surface dovetailed perfectly with Rock's umbra-dominant gate; legacy `ultCharges` global access already established. No escalation needed.
+
+🟢 **T2.04 DONE. Phase 2: 4/13 done. Next: T2.05 Crocodile Bedrock Bastion.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)

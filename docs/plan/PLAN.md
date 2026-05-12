@@ -96,8 +96,8 @@
 - [x] T2.01 — Identity Layer design doc (Designer) — **DONE 2026-05-12** (`b325c30`; 1189 LoC spec `docs/design/mechanics/identity-layer.md` v1.1 with Roman ruling appendix; 5 race flavors + 7 boss mechanics + Codex + 36-row sacred audit)
 - [x] T2.02 — Pirate line-clear flavor (Pirate's Plunder) — **DONE 2026-05-12** (`6a6ad39`; 1100 LoC across 9 files; +28 unit tests (37→65); 12/12 smoke pass × 2 projects; 0 sacred-cow modifications. CTO-blessed `RACE_IDENTITY_FX` sibling export pattern for T2.03–T2.06)
 - [x] T2.03 — Shark line-clear flavor (Feeding Frenzy) — **DONE 2026-05-12** (`3dee3cd`; +1163 LoC across 8 files; +45 unit tests (65→110); 22/22 smoke pass; 0 sacred-cow modifications. `_lastBittenCells` side-channel for combo-crit input modification — formula untouched. Wall-time 1-3ms typical, well under 10ms budget)
-- [ ] T2.04 — Rock line-clear flavor (Encore Echo) — **ACTIVE**
-- [ ] T2.05 — Crocodile line-clear flavor (Bedrock Bastion)
+- [x] T2.04 — Rock line-clear flavor (Encore Echo) — **DONE 2026-05-12** (`fe3e3c1`; +1252 LoC across 8 files; +42 unit tests (110→152); 34/34 smoke pass; 0 sacred-cow modifications. `HERO_ULT_COST_BY_NEWROLE` READS for threshold clamp only — never WRITES. `RACE_SYNERGY.rock` literal incl sacred ENCORE flag byte-perfect. Median 0.2ms — 40× under 8ms budget)
+- [ ] T2.05 — Crocodile line-clear flavor (Bedrock Bastion) — **ACTIVE**
 - [ ] T2.06 — Spark line-clear flavor (Sun Cascade) — **MUST gate on 5×5 matchup matrix per ESC-02 O3 ruling**
 - [ ] T2.07 — Phoenix Ashen Reign
 - [ ] T2.08 — Lich Cursed Tiles
