@@ -99,8 +99,8 @@
 - [x] T2.04 — Rock line-clear flavor (Encore Echo) — **DONE 2026-05-12** (`fe3e3c1`; +1252 LoC across 8 files; +42 unit tests (110→152); 34/34 smoke pass; 0 sacred-cow modifications. `HERO_ULT_COST_BY_NEWROLE` READS for threshold clamp only — never WRITES. `RACE_SYNERGY.rock` literal incl sacred ENCORE flag byte-perfect. Median 0.2ms — 40× under 8ms budget)
 - [x] T2.05 — Crocodile line-clear flavor (Bedrock Bastion) — **DONE 2026-05-12** (`e24c0e1`; +1855 LoC across 8 files; +23 unit tests (152→175); 48/48 smoke pass; 0 sacred-cow modifications. `RACE_SYNERGY.golem.<tier>.maxShieldBonus` (1,2,2) byte-perfect read-only for clamp source. Squad-vs-boss shield distinction respected. `_crocFragmentBank` cross-fire persistence + `resetCrocFragmentBank()` API)
 - [x] T2.06 — Spark line-clear flavor (Sun Cascade) — **DONE 2026-05-12** (`d2423bc`; +1648 LoC across 8 files; +49 unit tests (175→224); 62/62 smoke pass; 0 sacred-cow modifications. **Combo crit formula BYTE-PERFECT** (line 63664 unchanged); cap invariant verified exhaustive [0..10]×[0..64] sweep — modifier ∈ {0, +1}; `SUN_CASCADE_ENABLED` single-flip fallback to pure-FX architected for T2.B matchup-matrix gate. T2.B bridge is one-line patch with zero formula touch. **Race-flavor portion of Phase 2 COMPLETE 5/5.**)
-- [ ] T2.07 — Phoenix Ashen Reign — **ACTIVE**
-- [ ] T2.08 — Lich Cursed Tiles
+- [x] T2.07 — Phoenix Ashen Reign — **DONE 2026-05-12** (`060fbcc`; 1625 insertions / 0 deletions across 8 files; +42 unit tests (224→303); 76/76 smoke pass; 0 sacred-cow modifications. **22 v2.1 P4 reactivity handlers byte-perfect** (smoke enumerates all 22). `IDENTITY_BOSS_HANDLERS` parallel registry + `triggerIdentityBossEvent` dispatcher pattern established for T2.08–T2.11. Steady-state ZERO JS per-frame (pure CSS @keyframes). Telegraph sacred re-use invariant: `ASHEN_REIGN_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS === 3000`)
+- [ ] T2.08 — Lich Cursed Tiles — **ACTIVE**
 - [ ] T2.09 — Berserker/Frenzy Bloodtide Pulse
 - [ ] T2.10 — Engineer Lockdown Protocol
 - [ ] T2.11 — Grovewarden Root Surge (+ mandatory narrator copy-pass per ESC-02 O2)

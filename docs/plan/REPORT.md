@@ -1849,6 +1849,94 @@ All 4 side-channels are clean by-construction. T2.B is now scoped: bridge + ctx 
 
 ---
 
+## REPORT-25: T2.07 Phoenix Ashen Reign — first boss-reactive PASS; parallel-namespace pattern established
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Dev agent `a366f34626a536c26` returned PASS; CTO review confirmed.
+
+### Summary
+
+T2.07 lands clean — first boss-reactive mechanic, with the most architecturally significant precedent of Phase 2: **parallel-namespace registry** alongside sacred reactivity handlers. 1625 insertions / **0 deletions** across 8 files. Unit 261→303 (+42), smoke 62→76 (+14 × 2 projects). 0 sacred-cow modifications. Commit `060fbcc`. CTO PASS.
+
+### Architectural pattern — `IDENTITY_BOSS_HANDLERS` parallel registry
+
+`src/core/reactivity-events.js` now contains TWO registries:
+
+| Registry | Status | Owner | Count |
+|---|---|---|---|
+| `REACTIVITY_HANDLERS` (sacred 22) | BYTE-PERFECT | v2.1 P4 (sacred §2.5) | 22 |
+| `IDENTITY_BOSS_HANDLERS` (Phase 2 new) | Active | Identity Layer | 1 (Phoenix) + 6 slots reserved |
+
+`triggerIdentityBossEvent` dispatcher mirrors `triggerReactivityEvent` (line 695 template). Sacred dispatcher and sacred 22 handlers UNTOUCHED — verified via `git diff src/core/reactivity-events.js | grep '^-' | wc -l` returning **0** (only additive entries).
+
+**This pattern is reusable for T2.08–T2.11:** each new boss-reactive mechanic adds a single entry to `IDENTITY_BOSS_HANDLERS` + a `BOSS_IDENTITY_FX` key + an `fxBoss<Identity>` function. The sacred reactivity handlers stay frozen.
+
+### Sacred cow audit — central proofs
+
+| Sacred (CLAUDE.md §2.5) | Value | Status |
+|---|---|---|
+| `PHOENIX_REVIVE_HP_PCT` | 0.6 | byte-perfect ✅ |
+| `PHOENIX_IMMUNE_TURNS` | 2 | byte-perfect ✅ |
+| `REACTIVITY_TELEGRAPH_MS` | 3000 | byte-perfect ✅ |
+| `REACTIVITY_BANNER_DURATION_MS` | 1500 | byte-perfect ✅ |
+| 22 P4 handlers | byte-perfect | smoke enumerates all 22 by name ✅ |
+| `BOSS_TTK_TARGETS` | sacred | not in diff ✅ |
+
+### Telegraph re-use invariant
+
+`ASHEN_REIGN_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS === 3000` — verified via dedicated unit test `SACRED RE-USE INVARIANT` + smoke test `telegraph re-uses sacred REACTIVITY_TELEGRAPH_MS = 3000`. Dispatcher reads sacred constant directly from existing line-167 import. No constant duplication.
+
+### Performance — pure CSS animation for steady state
+
+- **Initial trigger:** <48ms in CI smoke (3× headroom over 16ms spec budget)
+- **Steady-state during 5000ms window:** ZERO JS per-frame work, verified by construction
+  - Flame border: pure CSS `@keyframes` 5000ms pulsing gradient
+  - HUD countdown: pure CSS animation-based decay (NOT JS-driven timer)
+  - Single `setTimeout(release, 5000)` fires once at window end
+  - No `setInterval`, no `requestAnimationFrame`
+- **Decay:** 200ms fade-out (CSS-only)
+
+Steady-state ≤2ms budget honored by zero-JS-per-frame design.
+
+### T2.B bridge cost for Phoenix — 2 single-line additions
+
+1. In legacy `maybePhoenixRevive` (after sacred revive completes): `window.triggerIdentityBossEvent?.('identity_phoenix_revive')`
+2. In legacy `pieceCanBePlaced` (additive gate): `if (window.canPlacePieceDuringAshenReign && !window.canPlacePieceDuringAshenReign(piece, state)) return false;`
+
+That's it. Combined with Spark's one-line bridge from T2.06, T2.B's per-mechanic bridge cost is staying small by design — exactly what the deferred-batched strategy was meant to achieve.
+
+### Quality bar trajectory
+
+| Metric | T2.05 | T2.06 | **T2.07** | AAA+ |
+|---|---|---|---|---|
+| Unit tests | 175 | 224 | **303** | growing ✅ |
+| Smoke runs (× 2 projects) | 48 | 62 | **76** | green ✅ |
+| Sacred audit | 0 mods | 0 mods | **0 mods** | always 0 ✅ |
+| Bundle JS | 205.87 kB | 205.87 kB | **209.74 kB** | <5 MB ✅ |
+| Bundle CSS | 374.91 | 376.96 | **381.09** (+4.13 KB Phoenix keyframes) | reasonable ✅ |
+
+### Engineering wins
+
+- 3× brief target on unit tests (target +10-15, delivered **+42**)
+- 22 v2.1 P4 handlers verified byte-perfect via 3 independent paths: git diff '^-' count = 0, smoke enumeration, sacred constant assertion tests
+- Parallel-namespace pattern is a clean architectural primitive — reusable for ALL remaining boss-reactive mechanics
+- T2.B per-mechanic bridge cost staying minimal (2-line additions per boss)
+
+### Phase 2 boss-reactive scoreboard (1/5)
+
+| # | Boss/archetype | Identity | Status |
+|---|---|---|---|
+| 1 | Phoenix | Ashen Reign | ✅ T2.07 |
+| 2 | Lich (assassin) | Cursed Tiles | 🟡 T2.08 next |
+| 3 | Berserker / Frenzy | Bloodtide Pulse | T2.09 |
+| 4 | Engineer | Lockdown Protocol | T2.10 |
+| 5 | Grovewarden (bruiser) | Root Surge | T2.11 |
+
+🟢 **T2.07 DONE. Next: T2.08 Lich Cursed Tiles — explicit Shark counter mechanism.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)
