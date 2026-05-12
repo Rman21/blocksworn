@@ -7,6 +7,63 @@
 
 ## GAME DEVELOPER
 
+### TASK-023 (T1.15) — REVIEW (2026-05-12)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)
+**Started:** 2026-05-12
+**Completed:** 2026-05-12
+**Priority:** HIGH
+**Phase:** 1 (Week 6 — cleanup)
+**Estimated complexity:** S
+**Depends on:** ✅ T1.14 + ADR-004 (Path A Hybrid Coexistence — legacy mutable for cleanup)
+
+**Implementation summary:**
+
+Deleted the Cosmic Memorial Ch3 hub strip (Block 6.5 DEBT-9) from `src/` and `docs/_legacy/_archive_v1/blocksworn_index_fixed.html`. v2.1 polish v0.1 Track B (2026-04-29, Roman) had already removed the DOM hosts (`#vCosmicMemorial` / `#vMemorialStrip`) from the home hub markup, leaving the renderer + CSS + render-chain call site as dead code guarded by null-check early-returns. T1.15 completes the deletion per v2.1 P5 §7 Final Legacy Purge: renderer, CSS block (8 selectors + 3 keyframes), 2 data unlock strings (`cosmic_memorial_system` / `cosmic_court_memorial`), and the render-chain call site all removed from legacy. The src/ no-op stub (T1.13.5 TODO marker) + its router.js import + the menu.css block + the animations.css keyframes are all gone from src/. Save migration shim `migrateRemoveCosmicMemorial()` lands in `src/services/migrate.js` with 4 unit tests + boot-chain wiring + 5-key cleanup sentinel.
+
+**Files changed:**
+
+- `src/services/migrate.js` — +110 LoC `migrateRemoveCosmicMemorial()` + sentinel + 5-key allow-list export
+- `src/main.js` — wires `migrateRemoveCosmicMemorial()` into boot chain after `migrateRemoveArtifacts()`
+- `tests/unit/migrate.test.js` — +4 unit tests (19 total now)
+- `src/ui/menu.js` — removed `vRenderCosmicMemorial` no-op stub + render-chain callsite + header doc references
+- `src/ui/router.js` — removed `vRenderCosmicMemorial` from /* global */ block
+- `src/styles/screens/menu.css` — removed 82-LoC `.a-hub-memorial*` block (1821-1902)
+- `src/styles/animations.css` — removed `memorialDust` / `memorialAura` / `memorialFloat` keyframes (225-237)
+- `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` — function body (39 LoC) + CSS block (95 LoC) + render-chain call + HTML "removed" comment + 2 systemUnlocks data strings removed
+
+**Smoke tests:** ✅ 2 / 2 pass (`npm run test:smoke`)
+**Visual regression:** ✅ 22 / 22 pass under 5% (no baseline updates — Ch3 hub strip was invisible in baselines since 2026-04-29 polish v0.1 Track B removed the DOM hosts)
+**Unit tests:** ✅ 19 / 19 pass (`npm run test:unit`) — was 15, +4 new
+**Build:** ✅ 204.02 KB JS bundle (+0.27 KB from migration shim), 366.67 KB CSS (−2.10 KB from purged keyframes + selectors)
+**Lint:** ✅ 0 errors
+
+**Legacy size:** 21,472,991 → 21,468,871 bytes (−4,120 B / −4.0 KB)
+
+**Self-check:**
+
+- [x] Acceptance: `grep -ri "cosmic.memorial" src/` returns only T1.15 deletion-marker comments + migrate.js shim implementation
+- [x] Acceptance: No `.a-hub-memorial*` CSS rules in src/
+- [x] Acceptance: Storage migration runs cleanly via `migrateRemoveCosmicMemorial()` (idempotent via `blocksworn_cosmic_memorial_removed_v1` sentinel)
+- [x] Acceptance: Smoke tests pass
+- [x] Acceptance: Visual regression — home/menu screen no diff (Ch3 strip was already invisible in baselines)
+- [x] DO NOT TOUCH: Combat math, race synergy, V_HAPTICS, NARRATOR_LINES, GEM_PACKS prices — all unchanged
+- [x] DO NOT TOUCH: P6.F memorial cosmetic system (unlockBossMemorial, renderHomeScreenMemorials, PHASE6_BOSS_MEMORIALS) and P10 `_phase10RenderMemorialCluster` — these are SEPARATE active features and stay
+- [x] DO NOT TOUCH: Unrelated legacy code (only cosmic-memorial-touching code modified)
+- [x] No npm packages installed
+- [x] No push to remote
+
+**Замечено рядом (NOT fixed, reported):**
+
+- Cosmic Memorial Ch3 hub strip was 100% inert in production since 2026-04-29 polish v0.1 Track B removed the DOM hosts. The shim's 5-key allow-list is conservative defense-in-depth — the production strip projected purely from `chapterProgress[3]` and never wrote its own state. Pattern matches T1.14 (artifact subsystem also 80% gutted before deletion).
+- P6.F memorial cosmetic system is still actively shipping (v2.1 P6 §11 — boss-defeat unlock with orbit animation on home screen). Its `.p6memorial-sprite` CSS lives in JS-injected `<style>` blocks in legacy 44691-44712 and is unrelated to the Ch3 hub strip purged here.
+- P10 `_phase10RenderMemorialCluster` (legacy 52089-52118) labels its UI section "COSMIC MEMORIALS" but renders the P6.F boss-defeat memorial set (via `_phase6GetDefeatedBosses`) — also unrelated. Out of scope.
+
+**Time:** ~1 hour
+**Commit:** see git log — `[T1.15] DELETE Cosmic Memorial (v2.1 P5 §7 completion)` + `[DOCS] TASK-023 T1.15 → REVIEW with self-check`
+
+---
+
 ### TASK-022 (T1.14) — REVIEW (2026-05-12)
 
 **Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)
