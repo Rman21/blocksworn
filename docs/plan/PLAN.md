@@ -3,13 +3,13 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 17 / 20 done (T1.01-T1.17)
+- **Phase progress:** 18 / 20 done (T1.01-T1.18) — **90%**
 - **Overall progress:** ~76% (Phase 1 endgame cleanup phase)
 - **Bundle:** ✅ **4.5 MB total** (204KB JS + 368KB CSS + 3.4MB public/images) — UNDER AAA+ 5MB cap
 - **Architectural decision (ADR-004):** Phase 1 closes at INFRASTRUCTURE level. Legacy stays primary runtime; new shell ships as foundation. Approved 2026-05-12.
 - **CI status:** ✅ ALL GREEN (PR #158, 100+ commits)
-- **Active task:** T1.18 — Consolidate shop pack systems (IN PROGRESS)
-- **Phase 1 endgame:** T1.18-T1.20 → Roman merge PR #158 → Phase 2 Identity Layer starts
+- **Active task:** T1.19 — Verify v2.1 Mythic ability framework (IN PROGRESS)
+- **Phase 1 endgame:** T1.19 → T1.20 → Phase 1 100% → Roman merge PR #158 → Phase 2 Identity Layer starts
 - **Last updated:** 2026-05-12 by CTO (after T1.17 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
@@ -65,7 +65,7 @@
 - [x] T1.15 — DELETE Cosmic Memorial (v2.1 P5 §7 completion) — **DONE 2026-05-12** (commits `8ef8e3a`, `028def7`; legacy −4KB; Ch3 hub strip purged; P6.F active memorial system preserved; migration shim 5 keys; 4 new unit tests (19 total); CSS bundle −2.1KB)
 - [x] T1.16 — DELETE legacy `--v-*` CSS tokens — **DONE 2026-05-12** (CTO patch — was already 0 active refs per T1.06 closeout; 3 stale historical comments purged from legacy lines 23, 62, 2113; verified 0 refs everywhere)
 - [x] T1.17 — Replace 100-hearts UI with scaled HP bar — **DONE 2026-05-12** (commits `8cbfae6`, `f20f060`; engineering catch: real 100-hearts source was `_renderBossAreaHearts` (boss-area strip), NOT renderHP; 100 spans → 4-node bar; CSS mirror in legacy + src/styles for ADR-004 hybrid parity; MAX_HP=100 sacred preserved)
-- [ ] T1.18 — Consolidate shop pack systems — IN PROGRESS (Game Dev Agent)
+- [x] T1.18 — Consolidate shop pack systems — **DONE 2026-05-12** (commits `b50efac`, `afa6c9e`; 13 SHOP_PACKS entries; 38 scalar shadows deleted; 14 IAP SKUs preserved; sacred §2.4 ladder/+50%/Battle Pass/Tower retry all byte-perfect)
 
 **Week 7-8: Completion + hardening**
 - [ ] T1.19 — Complete v2.1 Mythic ability framework — TODO
