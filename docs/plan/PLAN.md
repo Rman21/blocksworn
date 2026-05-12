@@ -86,11 +86,12 @@
 
 ## Phase 2: Identity Layer
 
-**Status:** IN_PROGRESS (started 2026-05-12; T2.01 DONE; ESC-02 RESOLVED; T2.02 ACTIVE)
-**Goal:** Реализовать mechanics × race/boss identity — per-race line-clear flavor + boss-reactive mechanics.
-**Estimated:** 3-4 weeks
-**Tasks:** T2.01 — T2.12 (defined в Execution Plan §14)
-**Phase 1 milestone:** ✅ MERGED to main 2026-05-12 12:26 UTC (squash `4aea3ce`); Phase 2 branch: `claude/phase2-identity-layer`
+**Status:** ✅ **COMPLETE 14/14** 2026-05-12 — Bug Tester GO verdict (`216371a`). Awaiting Roman merge.
+**Goal:** Реализовать mechanics × race/boss identity — per-race line-clear flavor + boss-reactive mechanics. **ACHIEVED.**
+**Actual duration:** 2026-05-12 (single intensive session — same day as Phase 1 close)
+**Tasks:** T2.01 — T2.12 + T2.B + T2.B.QA = 14/14 done
+**Phase 1 milestone:** ✅ MERGED to main 2026-05-12 12:26 UTC (squash `4aea3ce`)
+**Phase 2 branch:** `claude/phase2-identity-layer` — ready for Phase 2 PR
 
 ### High-level Tasks
 - [x] T2.01 — Identity Layer design doc (Designer) — **DONE 2026-05-12** (`b325c30`; 1189 LoC spec `docs/design/mechanics/identity-layer.md` v1.1 with Roman ruling appendix; 5 race flavors + 7 boss mechanics + Codex + 36-row sacred audit)
@@ -106,7 +107,7 @@
 - [x] T2.11 — Grovewarden Root Surge (+ placeholder narrator per ESC-02 O2) — **DONE 2026-05-12** (`f47bff6`; +2292/-3 LoC across 8 files; +60 unit tests (475→535); 128/128 smoke pass; 0 sacred-cow modifications. **NEW sliding-window trigger primitive** (circular buffer of last 3 line clears + non-grove gate). First LIVE cross-layer integration: +10 gold per rooted-cell clear via existing addGold (no double-count with Pirate Plunder). Placeholder narrator `ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER` isolated in `src/data/identity-layer.js:858` with "FINAL COPY: pending Roman approval" marker — sacred NARRATOR_LINES table UNTOUCHED. **Boss-reactive scoreboard COMPLETE 5/5.**)
 - [x] T2.12 — Codex screen — **DONE 2026-05-12** (`2b85e9f`; +2009/-1 LoC across 12 files (4 new + 8 modified additively); +46 unit tests (535→581); 140/140 smoke pass; 0 sacred-cow modifications. Codex writes ONLY to `localStorage[blocksworn_codex_state]` (verified via grep + dedicated sacred-audit unit test). All 10 identity fx mechanical contracts unchanged — recording calls added at end-of-fire with `try/catch` defensive wrapper. FCP <5ms (60× under 300ms budget). 3 tabs (Races/Bosses/Moments), 3-state unlock model, parchment aesthetic with PR #157 emblem PNGs.)
 - [x] **T2.B (Game Dev portion)** — Legacy Bridge wiring — **DONE 2026-05-12** (`e6acb6d`; +651/-2 LoC across 4 files; +10 smoke tests (140→150); 0 sacred-cow modifications. **Combo crit formula at line 63825 byte-perfect verified**; 26 window-bridge functions exposed; 8 discrete legacy insertion points; bridge overhead <0.001ms per call. LIVE integration verified: Pirate Plunder gold flows via addGold, Phoenix Ashen Reign toggle works, Codex persists to localStorage, legacy boot clean.)
-- [ ] **T2.B.QA (Bug Tester)** — 25-smoke matchup matrix + 14 visual baselines + narrator copy-pass + final sacred audit — **ACTIVE**
+- [x] **T2.B.QA (Bug Tester)** — 25-smoke matchup matrix + 14 visual baselines + narrator copy-pass + final sacred audit — **DONE 2026-05-12** (`216371a`; ✅ **GO VERDICT** — all 4 audit areas PASS, 0 bugs. 25/25 matchups within ±15% TTK budget; Spark peak 12.24% (KEEP `SPARK_CASCADE_ENABLED = true`); 14 visual baselines captured × 2 projects (28 PNGs total); 5 narrator strings documented in `docs/design/narrator-copy-review.md` for Roman copy-pass; sacred `NARRATOR_LINES` byte-perfect; all 36 sacred-cow rows byte-perfect; 204/204 smoke; 581/581 unit.)
 
 ### Gate Criteria
 - Each race has distinct line-clear flavor

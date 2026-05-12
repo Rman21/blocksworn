@@ -2527,6 +2527,199 @@ All bridge calls wrapped in `try/catch` — legacy mechanical pipeline cannot re
 
 ---
 
+## REPORT-32: 🎯 T2.B.QA Bug Tester — FINAL Phase 2 GATE PASS ✅ GO VERDICT
+
+**Date:** 2026-05-12
+**Author:** CTO (Bug Tester agent `a6c95855cf5745c34` returned PASS)
+**Trigger:** Bug Tester comprehensive Phase 2 audit returned GO verdict on all 4 gate criteria.
+
+### Summary
+
+Bug Tester ran the final Phase 2 audit covering ESC-02 O3 matchup gate + 14 visual baselines + ESC-02 O2 narrator copy + 36-row sacred re-verification. **ALL 4 AUDIT AREAS PASS. 0 BUGS FOUND. GO VERDICT.**
+
+Phase 2 implementation: **14/14 COMPLETE.** Phase 2 PR ready to open.
+
+Commit `216371a`.
+
+### Area 1 — 25-smoke matchup matrix (ESC-02 O3 ruling gate)
+
+**Result: 25/25 PASS** — all matchups within ±15% TTK budget.
+
+| Race | Peak TTK Deviation | Status |
+|---|---|---|
+| Pirate | within ±15% | ✅ |
+| Shark | within ±15% | ✅ |
+| Rock | within ±15% | ✅ |
+| Crocodile | within ±15% | ✅ |
+| **Spark** | **12.24%** (HELIOTRON Ch2 + ARCHIVAL ETERNAL Ch3) | ✅ **UNDER threshold** |
+
+**Spark gate decision: KEEP `SPARK_CASCADE_ENABLED = true`** in `src/data/identity-layer.js:381`. ESC-02 O3 demotion path NOT triggered. Spark Sun Cascade mechanical contribution stays LIVE.
+
+Test file: `tests/smoke/identity-matchup-matrix.spec.js` (+27 tests × 2 projects = 54 runs).
+
+### Area 2 — 14 visual baselines captured
+
+**Result: PASS** — 14 new baselines × 2 projects = 28 PNGs captured. Existing baselines unchanged (regression contract holds — Identity Layer doesn't leak into non-target matchups).
+
+| Baseline group | Count | Path |
+|---|---|---|
+| Race-squad battles | 5 | `tests/visual/baseline/battle-*-squad.png` |
+| Boss-reactive battles | 5 | `tests/visual/baseline/battle-*-{revive,cursed,pulse,lockdown,roots}.png` |
+| Codex screens | 4 | `tests/visual/baseline/codex-*.png` |
+
+Capture spec: `tests/visual/capture-identity-baselines.spec.js`.
+
+### Area 3 — Narrator copy-pass review
+
+**Result: PASS** — sacred `NARRATOR_LINES` table BYTE-PERFECT verified. 5 strings documented for Roman copy-pass at `docs/design/narrator-copy-review.md`.
+
+**Wired with placeholder marker:**
+- **§3.5 Grovewarden Root Surge:** "Where you would not bloom, I will." (`src/data/identity-layer.js:858`) — `// FINAL COPY: pending Roman approval` marker present ✅
+
+**Spec-only, NOT yet wired (Phase 2.5 polish recommendation):**
+- §3.1 Phoenix Ashen Reign: "The ash remembers. Strike only with the flame that birthed it."
+- §3.2 Lich Cursed Tiles: "What you took, the deep remembers."
+
+**Bug Tester recommendation:** Phase 2.5 polish patch using the same isolated-constant + marker pattern as Root Surge. **Does NOT block Phase 2 merge.** Roman can decide during copy-pass whether to add these now or in Phase 3.
+
+### Area 4 — Final sacred audit + performance + cross-mechanic regression
+
+**Result: PASS** — all 36 sacred-cow rows from spec §8 byte-perfect after T2.B integration. Performance budgets honored. Cross-mechanic regression clean.
+
+- 22 v2.1 P4 reactivity handlers byte-perfect (verified post-integration)
+- Combo crit formula `critMult = 1 + domCount * count * CRIT_MULT_K` byte-perfect at line 63825
+- All v2.1 P1-P4 systems intact (4-channel + Stagger Loop + Aegis/Squad Conductor + Reactivity Events)
+- All RACE_SYNERGY / Element Synergy / V_HAPTICS / NARRATOR_LINES / Chronicler / GEM_PACKS / Battle Pass / Tower retry constants byte-perfect
+- All Phoenix / Berserker / Armored / TTK / MAX_HP / HERO_ULT_COST / TIER_COSTS / 25/25 Mythic constants byte-perfect
+- Performance: identity FX layer overhead ≤4ms/frame avg maintained at 60fps
+- Cross-mechanic regression: 204/204 smoke pass (150 before T2.B.QA + 54 new matchup matrix), 581/581 unit, 0 lint warnings, build valid
+
+### Phase 2 Readiness Verdict: ✅ **GO**
+
+All gate criteria met. Phase 2 PR is cleared for opening.
+
+🎯 **Phase 2 14/14 COMPLETE. Bug Tester GO verdict on file. Next: Phase 2 milestone commit + PR opens.**
+
+---
+
+## REPORT-33: 🎉 PHASE 2 IDENTITY LAYER — COMPLETE
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** T2.B.QA Bug Tester GO verdict — all 14 Phase 2 tasks closed.
+
+### Summary
+
+**Phase 2 Identity Layer is COMPLETE.** All 14 tasks (T2.01 design + T2.02–T2.06 5 race flavors + T2.07–T2.11 5 boss-reactive + T2.12 Codex + T2.B Game Dev legacy bridge + T2.B.QA Bug Tester final audit) shipped in a single intensive session 2026-05-12 — same day as Phase 1 close.
+
+### Task scorecard (14/14 ✅)
+
+| ID | Task | Owner | Commit | Status |
+|---|---|---|---|---|
+| T2.01 | Identity Layer design spec | Designer | `b325c30` (+v1.1 ruling appendix) | ✅ |
+| T2.02 | Pirate's Plunder | Game Dev | `6a6ad39` | ✅ |
+| T2.03 | Shark Feeding Frenzy | Game Dev | `3dee3cd` | ✅ |
+| T2.04 | Rock Encore Echo | Game Dev | `fe3e3c1` | ✅ |
+| T2.05 | Crocodile Bedrock Bastion | Game Dev | `e24c0e1` | ✅ |
+| T2.06 | Spark Sun Cascade | Game Dev | `d2423bc` | ✅ |
+| T2.07 | Phoenix Ashen Reign | Game Dev | `060fbcc` | ✅ |
+| T2.08 | Lich Cursed Tiles | Game Dev | `bc229f7` | ✅ |
+| T2.09 | Berserker/Frenzy Bloodtide Pulse | Game Dev | `e471099` | ✅ |
+| T2.10 | Engineer Lockdown Protocol | Game Dev | `72bd903` | ✅ |
+| T2.11 | Grovewarden Root Surge | Game Dev | `f47bff6` | ✅ |
+| T2.12 | Codex screen | Game Dev | `2b85e9f` | ✅ |
+| T2.B | Legacy Bridge | Game Dev | `e6acb6d` | ✅ |
+| T2.B.QA | Bug Tester final audit | Bug Tester | `216371a` | ✅ **GO** |
+
+### Architectural primitives established (6 + Codex pattern)
+
+| # | Primitive | Origin | Reuse |
+|---|---|---|---|
+| 1 | Sibling export (`RACE_IDENTITY_FX`, `BOSS_IDENTITY_FX`) | T2.02 | T2.03-T2.11 + Codex |
+| 2 | Ctx side-channel (`_lastBittenCells`, `_dominantCountModifier`, `dominantElementsByLine`) | T2.03 | T2.04-T2.11 + T2.B |
+| 3 | Sacred-clamp (`Math.min(threshold, current + delta)`) | T2.04 | T2.05 + T2.08 |
+| 4 | Parallel-registry (`IDENTITY_BOSS_HANDLERS` alongside sacred 22) | T2.07 | T2.08-T2.11 |
+| 5 | Per-turn-tick (`fx*Tick(ctx)`) | T2.08 | T2.10 + T2.11 |
+| 6 | Sliding-window trigger | T2.11 | future |
+| + | Codex aggregation (READ-ONLY of game state, isolated localStorage) | T2.12 | Phase 3+ collection surfaces |
+
+### Sacred cow verification — all 36 rows byte-perfect
+
+Across 14 tasks + 14+ commits + 5 sub-agents, **ZERO sacred-cow modifications** confirmed:
+
+- Combat math: combo crit formula at line 63825 byte-perfect (only `domCount` input extended per ESC-02 O3), TIER_COSTS_V18, HERO_ULT_COST, TTK, MAX_HP=100
+- Feel: V_HAPTICS table, vPlayCritFlash 180/440ms, 5-beat boss death, NARRATOR_LINES sacred table
+- Narrative voice: Chronicler character + dialog + boss names byte-perfect
+- Economy: GEM_PACKS ladder, First Purchase Bonus, Battle Pass formula, Tower retry, 3-min TTK
+- v2.1 systems: 4-channel damage (P1), Stagger Loop / Recovery (P2), Aegis/Squad Conductor (P3), 22 Reactivity Events handlers (P4), phase gates 70/35, telegraph 3000ms
+- Specific constants: PHOENIX_REVIVE_HP_PCT=0.6, PHOENIX_IMMUNE_TURNS=2, BERSERKER_ENRAGE_MULT=2.0, STAGGER_DURATION_TURNS=4, RECOVERY_DURATION_TURNS=2, ENGINEER 40T+#B87333+`.cell--engineer-welded`, ARMORED_SHIELD_COUNT=2, ARMORED_SHIELD_ABSORB=0.3, CRIT_MULT_K=0.1, CRIT_MIN_COMBO=2
+- HERO_TIER_ABILITIES, BOSS_TTK_TARGETS, TOWER_LEADERBOARDS, TOWER_PACTS, Uroboros seasonal, FTUE_BOSS_GUARANTEES, PURE PATH leaderboard
+
+### AAA+ standards met
+
+| Metric | Phase 1 | **Phase 2** | AAA+ target |
+|---|---|---|---|
+| Bundle JS | 205.87 kB | **272.17 kB** (post T2.B) | <5 MB ✅ |
+| Bundle CSS | 368.07 kB | **394.86 kB** | reasonable ✅ |
+| Unit tests | 37 | **581** | growing ✅ |
+| Smoke pass × 2 projects | 2 | **204** | green ✅ |
+| Lint warnings | 0 | **0** | 0 ✅ |
+| Visual baselines | base | **+14** (28 PNGs cross-platform) | regression contract ✅ |
+| Sacred-cow modifications | 0 | **0** | always 0 ✅ |
+
+### Identity Layer scope delivered
+
+**5 race flavors (LIVE in legacy primary runtime):**
+- Pirate (ember): "Plunder" — +5g/cell × pirateCount via existing addGold
+- Shark (tide): "Feeding Frenzy" — adjacent bite up to 4 cells, cell-state-predicate respect
+- Rock (umbra): "Encore Echo" — +1 umbra ULT charge per umbra-dominant line, threshold-clamped
+- Crocodile (grove): "Bedrock Bastion" — fragment→shield with sacred max-shield-cap clamp
+- Spark (solar): "Sun Cascade" — +1 dominantCount input modification (ESC-02 O3 WITHIN BOUNDARY), single-flip fallback architected
+
+**5 boss-reactive mechanics (LIVE in legacy primary runtime):**
+- Phoenix: "Ashen Reign" — 5000ms ember-only window after revive (pure CSS animation steady state)
+- Lich/Assassin: "Cursed Tiles" — 3 cursed cells for 3 turns, 1HP/turn, +20 ULT compensation (clamped)
+- Berserker/Frenzy: "Bloodtide Pulse" — +5% next-attack damage every 3rd clear in Active state (Stagger Loop READ-only)
+- Engineer: "Lockdown Protocol" — 2×2 lockdown on Tetris crit (sacred 40T + .cell--engineer-welded REUSED, never duplicated)
+- Grovewarden/Bruiser: "Root Surge" — 3 rooted cells for 5 turns + cross-layer Pirate Plunder gold (first LIVE cross-layer)
+
+**Codex collection surface (LIVE):**
+- 3 tabs (Races / Bosses / Moments)
+- 3-state unlock model (Locked / Encountered / Mastered)
+- Persistence via isolated `localStorage[blocksworn_codex_state]`
+- 13-race + 25-boss catalog (per ESC-02 O1 race asymmetry deferral)
+- Parchment aesthetic re-uses PR #157 emblem PNGs
+- FCP <5ms
+
+### ESC-02 rulings honored
+
+| ID | Roman ruling | Verification |
+|---|---|---|
+| O1 | DEFER RACE_SYNERGY for shark/crocodile/spark | ✅ No new entries; Codex catalog reflects asymmetry |
+| O2 | PLACEHOLDER-FIRST narrator copy | ✅ Sacred NARRATOR_LINES byte-perfect; 5 strings documented in `docs/design/narrator-copy-review.md` for Roman copy-pass |
+| O3 | Sun Cascade WITHIN BOUNDARY (matchup matrix gate) | ✅ 25-matchup matrix PASS, Spark peak 12.24% < 15%; KEEP enabled |
+| O4 | RE-USE-FIRST audio | ✅ No new SFX assets added; mobile audio mixer untouched |
+
+### Tech debt deferred (flagged, not blocking)
+
+- **Narrator copy-pass for 2 spec-only lines** (Phoenix Ashen Reign §3.1, Lich Cursed Tiles §3.2) — Phase 2.5 polish patch recommended by Bug Tester; Roman can decide at PR review
+- **HERO_MYTHIC_RUNTIME for 20/25 heroes** (Phase 2-3 content authoring, unchanged from Phase 1 list)
+- **Pinch system segment-aware tuning** (Phase 3 monetization)
+- **RACE_SYNERGY tier entries for shark/crocodile/spark** (post-Phase-2 sacred-cow-EXTENSION sprint per ESC-02 O1)
+- **Eventual full src/ switchover sprint** (post-Phase 4 per ADR-004)
+
+### Phase 3 readiness
+
+T3.01 Endgame Social design can start immediately:
+- `src/ui/` route surface already extended (Codex shipped — pattern reusable for Adventures + Party Tower screens)
+- `src/services/firebase.js` ready for clan storage
+- All Identity Layer LIVE — Adventures can leverage race/boss matchup data for weekly missions
+- Per ADR-004: all Phase 3 code in `src/` only
+
+🎉 **PHASE 2 IDENTITY LAYER — COMPLETE.** Awaiting Roman merge.
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)
