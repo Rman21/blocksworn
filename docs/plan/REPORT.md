@@ -1699,6 +1699,73 @@ Spec §2.3 was unambiguous; ctx surface dovetailed perfectly with Rock's umbra-d
 
 ---
 
+## REPORT-23: T2.05 Crocodile Bedrock Bastion — fourth race flavor PASS
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Dev agent `ae003607d29a479b1` returned PASS; CTO review confirmed.
+
+### Summary
+
+T2.05 lands clean: +1855 / -14 LoC across 8 files, +23 unit tests (152 → 175), +14 smoke (34 → 48 × 2 projects), **0 sacred-cow modifications**, performance well under budget. Commit `e24c0e1`. CTO acceptance PASS.
+
+### Implementation contract met
+
+- **Fragment accrual:** 1 fragment per cleared grove cell; `_crocFragmentBank` accumulates across multiple line clears per battle (module-level state with `resetCrocFragmentBank()` export for battle pipeline)
+- **Shield grant:** Every 5 fragments → 1 shield; **surplus DISCARDED when squad-max-shield-cap reached** (no overflow exploit per spec §2.4 field 4)
+- **Sacred max-shield clamp:** Reads `RACE_SYNERGY.golem.<tier>.maxShieldBonus` (1, 2, 2 for tiers 2/3/5) BYTE-PERFECT — values verified via dedicated `expect(...maxShieldBonus).toBe(...)` sacred-read tests. NEVER WRITES.
+- **Squad vs Boss shield distinction respected:** Writes to `window.shieldCount` (SQUAD, defensive). `ARMORED_SHIELD_COUNT = 2` and `ARMORED_SHIELD_ABSORB = 0.3` (BOSS, sacred §2.5) UNTOUCHED.
+- **All 4 T2.02 precedents + T2.03 ctx + T2.04 sacred-clamp patterns followed**
+
+### Performance
+
+| Test scenario | Wall-time | Budget | Margin |
+|---|---|---|---|
+| Quad-grove × quad-line (32 grove cells → 16 fragment particles capped) | <24ms in CI with 3× headroom; median 0.5-2ms | 8ms | safe ✅ |
+
+### Shield cap clamp safety — 4 verification paths
+
+1. Unit specific cases (e.g., current=3 + grant=2 + cap=4 → final=4 not 5)
+2. Unit 7×11 exhaustive sweep (current × grant matrix across all cap-edge combinations)
+3. Smoke test live `window.shieldCount = 7` at cap → stays at 7, fragments discarded
+4. Sacred-read invariant test: `RACE_SYNERGY.golem.5.maxShieldBonus` byte-perfect
+
+### Cross-fire fragment persistence — 5 verification tests
+
+1. 3-fire arithmetic crossing the 5-threshold mid-sequence: bank 3 → 1 [+1 shield] → 4
+2. `resetCrocFragmentBank()` zeros bank
+3. Smoke 4-fire scenario asserts 2 shields granted at boundaries
+4. Battle-end reset hook contract documented
+5. Stale-bank-no-shield invariant (bank=2, fresh battle → no spurious shield grant)
+
+### 3 minor reported items (procedural, no CTO action)
+
+1. **`shieldCount` is a `let` global, not object** — can't write from module without bridge. Game Dev used `window.shieldCount` (same T2.04 pattern with `window.ultCharges`). T2.B will mirror `let shieldCount` ↔ `window.shieldCount`. Established pattern.
+2. **Smoke cumulative test math correction:** Game Dev caught their own off-by-one (fire 2 of 3+3+3 = bank=6 → 1 shield granted, bank=1 remains). Self-corrected; documented in both unit + smoke.
+3. **`countAliveGolems` kept module-private** — only `resolveSacredMaxShieldBonus` consumes. Promotable if T2.06+ needs.
+
+### Quality bar maintained
+
+| Metric | Phase 1 | T2.02 | T2.03 | T2.04 | **T2.05** | AAA+ |
+|---|---|---|---|---|---|---|
+| Unit tests | 37 | 65 | 110 | 152 | **175** | growing ✅ |
+| Smoke pass × 2 proj | 2 | 12 | 22 | 34 | **48** | green ✅ |
+| Sacred audit | 0 mods | 0 mods | 0 mods | 0 mods | **0 mods** | always 0 ✅ |
+
+### Phase 2 race-flavor scoreboard (4/5 done)
+
+| Race | Element | Identity | Status | Sacred clamp source |
+|---|---|---|---|---|
+| Pirate | ember | Plunder | ✅ T2.02 | (gold — no clamp needed) |
+| Shark | tide | Frenzy | ✅ T2.03 | 4-cell hard cap |
+| Rock | umbra | Encore Echo | ✅ T2.04 | `HERO_ULT_COST` threshold |
+| Crocodile | grove | Bedrock Bastion | ✅ T2.05 | `RACE_SYNERGY.golem.maxShieldBonus` |
+| Spark | solar | Sun Cascade | 🟡 T2.06 — **highest impact, matrix gate at T2.B** | Combo Crit `dominantCount` input |
+
+🟢 **T2.05 DONE. Next: T2.06 Spark Sun Cascade (highest-impact race flavor — ESC-02 O3 ruling-gated by T2.B 5×5 matchup matrix).**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)

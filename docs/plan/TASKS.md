@@ -2785,9 +2785,11 @@ All 9 tests pass.
 
 ---
 
-### TASK-032 (T2.05) — REVIEW (2026-05-12) — Crocodile Bedrock Bastion
+### TASK-032 (T2.05) — ✅ DONE 2026-05-12 — Crocodile Bedrock Bastion
 
-**Status:** IN PROGRESS → **REVIEW** (awaiting CTO sign-off)
+**CTO acceptance 2026-05-12:** PASS. Implementation matches spec §2.4; 36-row sacred audit clean (RACE_SYNERGY.golem maxShieldBonus 1/2/2 byte-perfect read-only; ARMORED_SHIELD_* boss-side untouched; squad-vs-boss distinction respected); 175/175 unit + 48/48 smoke × 2 projects; commit `e24c0e1`. Shield-cap-clamp safety verified 4 ways; cross-fire bank persistence verified 5 ways. All 4 T2.02 precedents + T2.03 ctx + T2.04 sacred-clamp patterns followed.
+
+**Status:** IN PROGRESS → REVIEW → **DONE** (CTO sign-off 2026-05-12)
 **Started:** 2026-05-12
 **Completed (Game Dev):** 2026-05-12
 **Priority:** HIGH
