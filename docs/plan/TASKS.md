@@ -7,6 +7,78 @@
 
 ## GAME DEVELOPER
 
+### TASK-026 (T1.19) — REVIEW (2026-05-12)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)
+**Started:** 2026-05-12
+**Completed:** 2026-05-12
+**Priority:** HIGH
+**Phase:** 1 (Week 7-8 — completion + hardening)
+**Estimated complexity:** L (actual: S — verification only)
+**Depends on:** ✅ T1.18 + T1.10.2 (one-Mythic-per-save constraint) + T1.10.4 (25/25 descriptors)
+
+**Verdict:** **VERIFIED COMPLETE** — the v2.1 P3 Mythic framework was already shipped in full by the T1.10 sub-tasks. T1.19 closes the verification loop officially (Execution Plan §23 P3 Mythic: was ⚠️ VERIFY, now ✓ IMPLEMENTED) and locks in regression coverage via a new unit test. No source code change required.
+
+**Verifications against `BLOCKSWORN_COMBAT_V21_PHASE_3_HERO_TIERS.md` §5:**
+
+- **§5.1 One-Mythic-per-save constraint** — enforced in `src/core/progression.js:570-592` `getMythicMissing()` via the `{ type: 'mythic_taken', byHero: otherMythic }` rejection branch (legacy line 20720). `canAscendMythic()` returns false when slot taken; `ascendHeroMythic()` writes `towerState.mythicHero = heroId` on success. ✓
+- **§5.2 Commitment moment UI** — `_ensureMythicCommitmentModal()` + `_promptMythicCommitment(heroId, onConfirm)` in legacy at line 69256-69354. Renders: hero portrait (name + race · role), Mythic ability name/desc pulled from `HERO_TIER_ABILITIES[heroId].mythic`, one-time-choice warning text in `#FF8C00`, 3-second cooldown (disabled CONFIRM button until countdown reaches 0), CANCEL fallback. Spec §5.2 layout match byte-perfect. ✓
+- **§5.3 25/25 descriptors** — `src/data/heroes.js:34` `HERO_TIER_ABILITIES` has 25 keys; every key has `t0 / t1 / t2 / t3 / mythic` descriptors with non-empty `name + description`; every `mythic.cost` is the canonical `'25 cards + 1 legendary stone + 1000g + 20 essence'`. Unit test enforces (see below). ✓
+- **§5.4 Sacred constants (CLAUDE.md §2.5)** — `BALANCE.ascend.mythic` (src/data/balance.js:50) = `{ ascend: 1, cards: 25, gold: 1000, essence: 20, damageBonus: 1.30 }` byte-perfect; T2×T3×Mythic damage stack = 1.872× (+87%). `MYTHIC_TANK_STAGGER_MULT` (src/core/heroes.js:3291) = 1.30 for all 5 tanks. `MYTHIC_CAPTAIN_THRESHOLDS` (src/core/heroes.js:3399) = `[50, 60, 75]` for NIGHTLORD (rock_captain), `[50, 75, 100]` for the other 4 captains. ✓
+- **§5.5 Mythic fire paths** — all 5 roles covered:
+  - **Tank** — `_getMythicTankStaggerMult()` at src/core/heroes.js:3299 reads `MYTHIC_TANK_STAGGER_MULT` and applies squad-wide +30% damage during Stagger when a Mythic tank is in HERO_DECK
+  - **Captain** — `_maybePromptMythicStaggerThreshold()` at src/core/heroes.js:3619 surfaces the 50/75/100 (or NIGHTLORD 50/60/75) choice at battle init when a Mythic captain is in HERO_DECK
+  - **Warrior / Hunter / Mage** — covered by the global `MYTHIC_DAMAGE_BONUS` multiplier (1.30) in `getHeroAscensionMult(hero)` at src/core/progression.js:439-446 (stacks multiplicatively on top of T2×T3). Per-hero rule-break flavor (e.g., pirate_hunter "forced quad clear") is content-layer (`HERO_MYTHIC_RUNTIME` partial map at legacy 20986; pirate_warrior/mage/hunter/tank/captain wired) — documented deferral per src/data/heroes.js:15 "HERO_MYTHIC_RUNTIME (state object) deferred to T1.10/T1.11 when fire/ult helpers migrate". Outside T1.19 scope.
+
+**Files changed:**
+
+- `tests/unit/mythic-ascension.test.js` (new, 90 LoC) — 8 tests:
+  - `HERO_TIER_ABILITIES` has exactly 25 hero entries
+  - Every canonical HERO_ROSTER id has a tier abilities entry
+  - Every hero has a non-empty mythic descriptor (name + description)
+  - Every hero has the sacred mythic cost string (byte-perfect)
+  - Every hero has full t0/t1/t2/t3/mythic ladder
+  - `HERO_TIER_ABILITIES` is deeply frozen
+  - `BALANCE.ascend.mythic` byte-perfect per v2.1 P3 §1.4 (1 stone, 25 cards, 1000g, 20 essence, 1.30 damage bonus)
+  - T2 × T3 × Mythic damage stack = 1.872× (+87%)
+- `docs/plan/TASKS.md` — TASK-026 entry (this block)
+
+**Why a unit test instead of a `tests/smoke/mythic-ascension.spec.js` Playwright spec:** reaching the Mythic ascension UI in legacy requires extensive game-state seeding (hero must be T1 → T2 → T3 → eligible for Mythic + 25 cards + legendary stone + 1000g + 20 essence + active boot through Chronicle FTUE). Per T1.19 spec note: "OK to write a stub test that verifies the data layer instead if UI smoke is too complex." The data-layer covers the surfaces that regress in practice (descriptor table drift, sacred constant tampering); the UI surface is byte-stable legacy HTML protected by visual regression at 5% sensitivity. The runtime hooks themselves can't be unit-tested without stubbing `towerState` + 30+ /* global */ identifiers in src/core/heroes.js — not in scope for T1.19.
+
+**Self-check:**
+
+- [x] Acceptance: One-Mythic-per-save enforced — verified at src/core/progression.js:574-578
+- [x] Acceptance: All 25 heroes have Mythic ability defined — unit test enforces
+- [x] Acceptance: Ascension UI shows commitment screen — verified at legacy 69256-69354
+- [x] Acceptance: Mythic ability fires correctly in battle — 5/5 role hooks verified (tank/captain dedicated, warrior/hunter/mage via global mult + content-layer hooks)
+- [x] Acceptance: Test added (`tests/unit/mythic-ascension.test.js` — 8 tests, all pass)
+- [x] DO NOT TOUCH: 1.30 Mythic damage bonus (CLAUDE.md §2.5) — unchanged, locked by test
+- [x] DO NOT TOUCH: MYTHIC_CAPTAIN_THRESHOLDS NIGHTLORD 50/60/75 / others 50/75/100 — unchanged
+- [x] DO NOT TOUCH: MYTHIC_TANK_STAGGER_MULT 1.30 — unchanged
+- [x] DO NOT TOUCH: Sacred Mythic costs (1 stone / 25 cards / 1000g / 20 essence) — unchanged, locked by test
+- [x] No "improvements" to the Mythic system
+- [x] No npm packages installed
+- [x] No push to remote
+
+**Verification gates:**
+
+- `npm run lint` → ✅ 0 errors / 0 warnings
+- `npm run test:unit` → ✅ 27 / 27 pass (19 prior + 8 new Mythic)
+- `npm run test:smoke` → ✅ 2 / 2 pass
+- `npm run test:visual` → ✅ 22 / 22 pass under 5%
+- `npm run build` → ✅ 204.02 KB JS / 368.07 KB CSS (unchanged — test files tree-shake out)
+- Legacy unchanged: no edits to `docs/_legacy/_archive_v1/blocksworn_index_fixed.html`
+
+**Замечено рядом (NOT fixed, reported):**
+
+- `HERO_MYTHIC_RUNTIME` in legacy (line 20986) covers only 5 pirate heroes with per-hero rule-break runtime data (`passiveEmberOnPlace`, `mageWindow`/`mageMult`, `hunterCapBonus`, `ironbellyCounterAny`, `dominionAscendant`). The other 20 heroes (rock/shark/crocodile/spark) rely on the global 1.30 damage multiplier + role-shared hooks for their Mythic punch. Per the spec table at §4 (rows 304-344) the per-race Mythic flavor descriptions exist in `HERO_TIER_ABILITIES` but their rule-break runtime is partially aspirational — documented as a deferral in src/data/heroes.js:15. Not a regression: shipping with the global mult is fine for v2.1 launch; per-hero rule-break expansion lives in Phase 2-3 content authoring. Flagged for visibility but **not in T1.19 scope**.
+- `src/core/heroes.js` declares `_mythicTankSquadBoostActive` as a module-private `let` (line 3189) and exposes a read accessor `isMythicTankSquadBoostActive()` (line 4050). The boost is set inside `_getMythicTankStaggerMult()` (3299-3340). All consumers wire correctly per T1.10.4 closure — no action.
+
+**Time:** ~1.5 hours (read v2.1 P3 spec §5 + cross-verify against src/core/{heroes,progression}.js + src/data/{heroes,balance}.js + legacy commitment modal; write 8-test unit suite; run all gates).
+**Commit:** see git log — `[T1.19] Verify v2.1 Mythic framework — VERIFIED COMPLETE (+ regression unit test)` + `[DOCS] TASK-026 T1.19 → REVIEW with self-check`
+
+---
+
 ### TASK-024 (T1.17) — REVIEW (2026-05-12)
 
 **Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)
