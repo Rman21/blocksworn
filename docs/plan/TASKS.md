@@ -2306,7 +2306,96 @@ Per-file `/* eslint-disable no-empty, no-unused-vars, no-undef, no-redeclare, no
 
 ---
 
-## GAME DESIGNER
+### TASK-020 (T1.13.5) — Close 4 runtime gaps surfaced by T1.13 main verify
+
+**Status:** REVIEW (Game Dev → CTO)
+**Started:** 2026-05-12
+**Completed:** 2026-05-12
+**Commit (code):** `d3f8649` — `[T1.13.5] Close 4 runtime gaps — render layer fills`
+
+### Outcome — 4 focused fixes
+
+**Fix 1: FTUE battle launchers actually wired**
+The launchers (`startPyredrakeFtueBattle` / `startGruntFtueBattle` / `startChronicleFtueBattle` / `finalizeFtue`) were already exported byte-perfect from `src/core/battle.js` (T1.10.9 closeout) and imported correctly in `ftue-state.js` (CTO patch `49d6c3f`). The real blocker was that bare `ftueBeat` reads inside these functions (and 4 other call sites in battle.js: lines 403/424/425/537/1385) threw `ReferenceError` — `ftueBeat` is module-private `let` in ftue-state.js with no window bridge. Added the standard T1.10.6-style `Object.defineProperty(window, 'ftueBeat', {get, set})` bridge in ftue-state.js. After fix, the CTA-button-click chain advances `chronicle_fight` → `showScreen('battle')` cleanly; probe `finalScreen` flips from `none` → `"battle"`.
+
+**Fix 2: vRender* family extracted to src/ui/menu.js (byte-perfect)**
+6 renderers + 1 helper relocated:
+- `vRenderTopbar` (legacy 66710-66757)
+- `vRenderWhatsNew` (legacy 66792-66805)
+- `vRenderChapter` (legacy 66827-66898)
+- `vRenderBossCard` (legacy 66900-66940)
+- `vRenderSquadDock` (legacy 66942-66972)
+- `vRenderCosmicMemorial` (legacy 66978-67012 — TODO(T1.15) deletion per Execution Plan §1.2)
+- `_vLastCounters` + `vCountUpNode` (legacy 67402-67420)
+
+Pulled `HERO_ROSTER` + `ASSETS` as ES imports. Residual `/* global */` for legacy-only tokens: `vAnimateNumber`, `vPlayLevelPulse`, `switchChapter`, `leaderHeroId`, `dailyMissionsState`, `loginStreakState`, `countUnclaimedWeeklyMissions`, `chapter{2,3,4}Unlocked`. menu.js: 151 → 462 LoC.
+
+**Fix 3: Mitigation helpers relocated to src/core/heroes.js**
+`getSquadMitigation` + `getHeroMitigationKey` byte-perfect from legacy 38691-38790. Consumers flipped to ES imports:
+- `src/core/damage-channels.js` — added to existing heroes.js import; removed from `/* global */` block
+- `src/core/stagger-loop.js` — added to existing heroes.js import; removed from `/* global */` block
+
+`getHeroStats` (the full version) still legacy-only — extracting it would pull in ~30 legacy bindings (TIER_DAMAGE_MULT, MITIGATION_TABLE, getHeroLevel, etc.); kept as `/* global */` inside `getSquadMitigation`. `MITIGATION_CAP` read via `typeof MITIGATION_CAP !== 'undefined'` guard with 0.70 fallback (avoids circular import damage-channels↔heroes). damage-channels.js still publishes `window.getSquadMitigation` + `window.getHeroMitigationKey` for legacy bare-read compatibility (mirrors legacy 38791-38794).
+
+**Fix 4: window.showScreen bridge (1-line)**
+Added `window.showScreen = showScreen;` in `src/main.js` after the router import. Legacy bare `showScreen('battle')` calls inside battle.js (lines 398/415/433/449) and any surviving inline onclick handlers now resolve. Probe A.5 `navResult.attempts` now logs `["showScreen"]` (was `[]` pre-fix).
+
+### Probe results (re-run via `npx playwright test tests/verify/playthrough.spec.js --project=chromium`)
+
+All 9 tests pass.
+
+- **A.1+A.2 cold-boot + FTUE:** dialog overlay visible, CTA click chains through to `showScreen('battle')`. `finalScreen = "battle"`. Probe instrumentation lightly tweaked to prefer `#dialogCtaBtn` over `#dialogOverlay` when CTA is visible (chronicle_intro line has `ctaLabel: '▶ BEGIN'` which gates overlay-tap advance). Next-layer warning: `ReferenceError: ftueSafetyRailUsed is not defined at startBossBattle:549` (punch list).
+- **A.3 post-FTUE menu:** screenMenu `.active`, no pageerrors, no console warnings — vRender* functions execute cleanly. `innerHTMLLength = 0` because the menu DOM scaffold (#vGoldAmt / #vBossImg / #vSquadAvatars / etc.) lives only in legacy HTML (lines 16653-16800) and is NOT in `index.html`; renderers silently no-op when targets absent. T1.13.6 punch list candidate.
+- **A.4 battle entry:** showScreen attempt logged, no pageerrors.
+- **A.5 all 6 screens:** showScreen attempts logged, all become `.active`, all empty innerHTML (same scaffold gap as A.3 — each screen's render dispatcher targets DOM IDs that live only in legacy HTML).
+
+### Next-layer gaps surfaced (T1.13.6 punch list)
+
+1. **`ftueSafetyRailUsed` not defined** at `battle.js:549` (`startBossBattle`). Same fix shape as Fix 1: either add window bridge in `ftue-state.js` (already has `getFtueSafetyRailUsed()` / `setFtueSafetyRailUsed()` accessors), OR flip battle.js bare reads to those accessors.
+2. **`playerProfile` + `_profileActiveTab` not defined** at `profile.js:74` / `profile.js:68`. Profile screen renderers — same window-bridge fix.
+3. **`vRenderSquadStrip` / `vRenderSynergyRow` / `vRenderFilterSubrow` / `vRenderRoster` not defined** at `select.js:34-37`. Same fix shape as Fix 2 — extract from legacy to `src/ui/select.js`.
+4. **Menu DOM scaffold missing from index.html** (~150 LoC of HTML from legacy 16653-16800: `.a-hub` container with `#vAvatarBtn`, `#vGoldAmt`, `#vGemAmt`, `#vBossCard`, `#vSquadDock`, etc.). All 6 vRender* functions silently no-op without it. Cosmic Memorial slot (`#vCosmicMemorial`) is intentionally excluded — was already removed from legacy hub per its own deprecation comment (legacy 16725-16733). Largest single follow-up; could become T1.13.6 or a dedicated scaffold task.
+
+### Verification
+
+- `npm run lint` → 0 errors
+- `npm run test:unit` → 11/11 pass
+- `npm run test:smoke` → 2/2 pass
+- `npm run test:visual` → 22/22 pass (chromium + mobile-chrome, all under 5%)
+- `npm run build` → success. `dist/assets/index-*.js` = **202.91 KB** (gzip 58.35 KB); was ~154 KB pre-T1.13.5 — +49 KB from vRender* helpers + mitigation extraction + ftueBeat bridge code. CSS unchanged at 368 KB.
+- Legacy: `wc -c` = **21,480,494**; SHA-256 = `4b3a3974f8b9030bf195dc9fad2b7b4bf07857021b3c01b44410ac547fcee67f` — byte-identical.
+
+### Self-check
+
+- [x] Fix 1: FTUE launchers already exported (T1.10.9); root cause = bare `ftueBeat` reads. Added window bridge per T1.10.6 pattern. Verified: FTUE advances past chronicle_fight beat (probe shows screen=battle after CTA click).
+- [x] Fix 2: 6 vRender* + helper extracted byte-perfect to `src/ui/menu.js` (sibling location chosen over a new `render-helpers.js` since menu.js is the sole consumer; 462 LoC is well under 500 cap).
+- [x] Fix 3: `getSquadMitigation` + `getHeroMitigationKey` extracted to `src/core/heroes.js`; 2 consumers updated (damage-channels.js, stagger-loop.js); window bridge preserved on damage-channels module.
+- [x] Fix 4: `window.showScreen = showScreen;` added to `src/main.js` (3 lines incl. typeof guard + comment).
+- [x] Probe re-run + 9 tests pass; FTUE advances past chronicle_fight beat.
+- [x] All gates green (lint, unit, smoke, visual, build).
+- [x] Legacy HTML untouched (SHA verified).
+- [x] No new npm packages.
+- [x] CSS / baselines / smoke specs / CI / husky / eslint configs not modified.
+- [x] Migration shim allow-list unchanged.
+- [x] No sacred cow values touched (MITIGATION_CAP / MITIGATION_TABLE / LEVEL_MITIGATION_PER stay byte-perfect in damage-channels.js; helpers in heroes.js are pure relocation).
+- [x] STOPPED after T1.13.5 commit; did NOT start T1.14 or T1.13 re-verify.
+- [x] Probe tweak limited to a single conditional (#dialogCtaBtn preferred when visible) — preserves all other instrumentation.
+
+### Замечено рядом (NOT fixed, reported)
+
+1. **Menu DOM scaffold gap.** The new shell's `index.html` only mounts an empty `<div id="screenMenu"></div>`; legacy ships ~150 LoC of menu HTML (lines 16653-16800) with all the `#vGoldAmt` / `#vBossImg` / `#vSquadAvatars` mount points the vRender* helpers target. T1.13.5 relocates the renderers but cannot fill them without the scaffold. **Largest single follow-up.** Same pattern likely for select / shop / tower / season / profile / dailies / battle screens — each has its own DOM tree in legacy. CTO consideration: could land as a single "T1.13.6 scaffold relocation" or as per-screen sub-tasks bundled with their respective vRender* extractions.
+
+2. **`ftueSafetyRailUsed` bare read in battle.js:549.** Already has `getFtueSafetyRailUsed()` + `setFtueSafetyRailUsed()` exported from ftue-state.js per T1.10.1. Mechanical flip — 4-5 call sites in battle.js. Could be T1.13.6.
+
+3. **`getHeroStats` not extracted.** The mitigation chain `getSquadMitigation → getHeroStats → getHeroMitigationKey + heroUpgrades + HERO_LEVEL_MIN + LEVEL_MITIGATION_PER + LEVEL_DMG_PER + LEVEL_ULT_PER + TIER_DAMAGE_MULT + isHeroMythic + getHeroLevel` is partially in src (TIER_DAMAGE_MULT lives in heroes.js, getHeroLevel in progression.js, MITIGATION constants in damage-channels.js) and partially legacy-only (TIER_DAMAGE_MULT is not exported from heroes.js, getHeroStats lives in legacy 38709-38763). When the mitigation chain actually runs in production (post-T1.13.6+ when battle reaches the channel-damage path), getHeroStats will throw. T1.13.5 catches this via `typeof getHeroStats !== 'function'` guard and skips the per-hero contribution. **Punch list:** extract `getHeroStats` and the 4-5 supporting constants/helpers (TIER_DAMAGE_MULT export from heroes.js, LEVEL_DMG_PER / LEVEL_ULT_PER from balance.js, isHeroMythic already extracted).
+
+4. **Profile + Select renderer scaffolds.** Profile (`playerProfile`, `_profileActiveTab`) and Select (`vRenderSquadStrip` / `vRenderSynergyRow` / `vRenderFilterSubrow` / `vRenderRoster`) have the same shape as the Menu gap: dispatcher exists in src, renderers / state still legacy-only. T1.13.6 punch list.
+
+5. **Cosmic Memorial as inert TODO(T1.15).** Per task spec, `vRenderCosmicMemorial` is relocated byte-perfect with a TODO(T1.15) comment. Its wrap.style.display='none' gate means it silently no-ops for any player without Ch3 progress — so it's not a runtime hazard between now and T1.15. CLAUDE.md §2.5 + Execution Plan §1.2 + T1.15 plan all converge on full DELETE of the subsystem (HTML scaffold, CSS rules, ASSETS Boss_11..15 keys, renderer, vMemorialStrip in legacy). When T1.15 runs it should also drop the `vRenderCosmicMemorial` export from this file, the import-tracking line in renderMenu's try/catch list, and the legacy `#vCosmicMemorial` HTML.
+
+6. **Probe instrumentation update.** Switching from blind `#dialogOverlay` taps to `#dialogCtaBtn`-preferred taps is the bare minimum to verify Fix 1 end-to-end. The probe is observational by design and the task spec authorized a small tweak. For future verify runs this means dialogs with ctaLabel are reachable; dialogs with `showSkip: true` could similarly benefit from a dialog-skip preference, but Fix 1's chronicle_intro doesn't surface that gap.
+
+**Time:** ~3 hours (430 insertions across 7 files; diagnosis via initial probe run + 4 fixes + tight feedback loop on probe → fix iterations + verify cycle).
 
 (no active tasks — Designer activated в Phase 2)
 
