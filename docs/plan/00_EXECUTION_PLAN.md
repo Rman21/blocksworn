@@ -1925,7 +1925,7 @@ If user state migration fails for any user — log warning, continue. Don't cras
 
 ### T1.18 — Consolidate shop pack systems
 
-**Status:** pending
+**Status:** REVIEW (Dev → CTO; 2026-05-12)
 **Phase:** 1
 **Estimated complexity:** M
 **Goal:** Multiple PACK_* systems (PACK_PREMIUM, PACK_BIG, PACK_RACE, PACK_STANDARD, STARTER_PACK, TOWER_CLIMBER_PACK, etc.) → unified system.
@@ -1968,11 +1968,79 @@ If user state migration fails for any user — log warning, continue. Don't cras
 5. Update IAP integration (RevenueCat) если skus поменялись (probably no — keep ids stable)
 
 **Acceptance criteria:**
-- [ ] All packs in `SHOP_PACKS` const
-- [ ] Single rendering function
-- [ ] Shop displays correctly
-- [ ] IAP SKUs unchanged
-- [ ] Visual regression: shop screen baseline updated если структура изменилась
+- [x] All packs in `SHOP_PACKS` const (13 entries: standard, race, big, premium,
+      ultimate, starter, tower_climber, race_bundle, chapter_unlock, mega_buff,
+      gold_rush, squad_power, season_pass_sub)
+- [x] Single rendering function — `renderShopPacks` reads via SHOP_PACKS.*
+- [x] Shop displays correctly (smoke + visual 22/22 pass; shop baseline
+      unchanged — pack price/cost markup byte-identical post-rewire)
+- [x] IAP SKUs unchanged — `IAP_PRODUCT_IDS` table byte-identical in legacy
+      and now mirrored as `export const IAP_PRODUCT_IDS` in
+      `src/data/monetization-config.js`
+- [x] Visual regression: shop baseline NOT updated (no layout change)
+
+**Self-check (Dev → CTO):**
+
+- **Scope:** 38 scalar shadows deleted from legacy
+  (PACK_STANDARD_COST, PACK_RACE_COST, PACK_RACE_COUNT, PACK_BIG_GOLD_COST,
+  PACK_BIG_GEMS_COST, PACK_BIG_CARDS, PACK_BIG_T2_STONES, PACK_PREMIUM_GEMS_COST,
+  PACK_PREMIUM_CARDS, PACK_PREMIUM_T2_STONES, PACK_PREMIUM_T3_CHANCE,
+  PACK_PREMIUM_GOLD_BONUS, PACK_PREMIUM_ESSENCE_BONUS, PACK_ULTIMATE_GEMS_COST,
+  PACK_ULTIMATE_CARDS, PACK_ULTIMATE_T2_STONES, PACK_ULTIMATE_T3_STONES,
+  PACK_ULTIMATE_GOLD_BONUS, PACK_ULTIMATE_ESSENCE_BONUS,
+  PACK_ULTIMATE_DROP_BOOST_DAYS, PACK_PITY_THRESHOLD, STARTER_PACK_USD,
+  STARTER_PACK_GEMS, STARTER_PACK_CARDS, STARTER_PACK_T2_STONES,
+  STARTER_PACK_GOLD, STARTER_PACK_BADGE, STARTER_PACK_MIN_DAY,
+  STARTER_PACK_MAX_DAY, MEGA_BUFF_USD, MEGA_BUFF_GEMS, MEGA_BUFF_DURATION_MS,
+  MEGA_BUFF_GOLD_MULT, MEGA_BUFF_FRAG_MULT, TOWER_CLIMBER_PACK_USD,
+  TOWER_CLIMBER_PACK_WINDOW_DAYS, TOWER_CLIMBER_PACK_CONTENTS,
+  SEASON_PASS_SUB_PRICE_USD, SEASON_PASS_SUB_PERIOD_DAYS,
+  SEASON_PASS_SUB_GEMS_BONUS, SEASON_PASS_SUB_RETRIES,
+  SEASON_PASS_SUB_DAILY_LOGIN_X — 41 total identifiers; some "shadows" were
+  groups of 1-line consts.)
+- **MONETIZATION promoted blocks:** added `towerClimber` and `seasonPassSub`
+  to canonical MONETIZATION (both legacy and src) so the 8 free-floating
+  consts (`TOWER_CLIMBER_PACK_USD=0.99`, `TOWER_CLIMBER_PACK_WINDOW_DAYS=7`,
+  `TOWER_CLIMBER_PACK_CONTENTS={sigilShards:10, heartFragments:1, gold:200,
+  heroCards:5}`, `SEASON_PASS_SUB_PRICE_USD=4.99`,
+  `SEASON_PASS_SUB_PERIOD_DAYS=30`, `SEASON_PASS_SUB_GEMS_BONUS=500`,
+  `SEASON_PASS_SUB_RETRIES=2`, `SEASON_PASS_SUB_DAILY_LOGIN_X=2`) now live
+  under MONETIZATION as `packs.towerClimber.*` and `seasonPassSub.*`. Values
+  byte-identical — no drift detected between legacy shadow values and
+  canonical sources.
+- **Sacred §2.4 verified UNCHANGED byte-perfect:**
+  - GEM_PACKS price ladder: $0.99/$4.99/$9.99/$19.99/$49.99/$99.99 ✓
+  - First Purchase Bonus +50% gems (`* 1.5`) ✓
+  - Battle Pass tier XP: 500 + (tier-1) × 150 ✓
+  - Tower retry gem ladder [100, 200, 400] ✓
+- **IAP SKUs unchanged:** all 14 product IDs (`blocksworn.gems.099` …
+  `blocksworn.battlepass.season`) byte-identical; promoted to
+  `IAP_PRODUCT_IDS` export.
+
+**Замечено рядом (out of T1.18 scope, candidate follow-ups):**
+
+- `IAP_PRODUCT_IDS.SEASON_PASS_SUB` legacy comment says `// $4.49/mo` but
+  actual `SEASON_PASS_SUB_PRICE_USD` was `4.99`. Comment is stale, not the
+  SKU. Should fix comment in a sweep task.
+- Bundle-specific scalars (`SQUAD_POWER_*`, `RAPID_ASCENSION_*`,
+  `ENDGAME_KIT_*`, `RACE_BUNDLE_USD`, `GOLD_RUSH_*`, `DAILY_GIFT_*`) are NOT
+  pack-style scalar shadows of MONETIZATION (they hold real values in
+  legacy or pricing blocks not in MONETIZATION). Folding them into SHOP_PACKS
+  would require promoting their canonical sources first — flagged for a
+  future task. Their inline references in `src/ui/shop.js` were left intact.
+- The src/ui/shop.js `renderShopPacks` is still mostly an inline-string
+  builder — making it iterate `SHOP_PACKS` with a per-pack card factory
+  would require unifying the per-section custom UI (pity bars, weekly
+  offer, ad center, cosmetics, subscription tile) into pluggable card
+  variants. Out of T1.18 scope; T2 candidate.
+
+**Tests / gates (all green):**
+
+- `npm run lint` → 0 errors
+- `npm run test:unit` → 19/19 pass
+- `npm run test:smoke` → 2/2 pass (legacy still loads)
+- `npm run test:visual` → 22/22 pass (shop diff under 2%)
+- `npm run build` → succeeds, bundle 204.02 kB (gzip 58.41 kB)
 
 ---
 
