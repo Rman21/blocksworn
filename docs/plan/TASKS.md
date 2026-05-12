@@ -7,6 +7,141 @@
 
 ## GAME DEVELOPER
 
+### TASK-027 (T1.20) — REVIEW (2026-05-12) — LAST Phase 1 task
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)
+**Started:** 2026-05-12
+**Completed:** 2026-05-12
+**Priority:** HIGH
+**Phase:** 1 (Week 7-8 — completion + hardening) — **20/20 (final)**
+**Estimated complexity:** M
+**Depends on:** ✅ T1.19 + T1.08 (analytics + setUserProperty) + T1.07 (P7 spec inventory) + T1.18 (SHOP_PACKS consolidation)
+
+**Implementation summary:**
+
+Completes v2.1 Player Segments per Execution Plan §13 T1.20 + v2.1 P7 §2 spec.
+Adds `getPlayerSegment(state)` to `src/services/analytics.js` with the SACRED
+thresholds (F2P=0, Minnow<$25, Dolphin<$100, Whale≥$100) from CLAUDE.md §9.
+Every `logEvent(…)` call now auto-enriches its property payload with the
+current `segment` value, so downstream analytics dashboards (Firebase Analytics
++ Sentry breadcrumbs) can slice every event by F2P / Minnow / Dolphin / Whale
+without per-call-site plumbing. Boot path computes the segment from the canonical
+legacy localStorage key `blocksworn_p5_spending` (written by legacy
+`trackSpending(usdAmount)` at line 29942) and sets the `segment` Firebase user
+property. Cross-tab purchases auto-refresh via a `storage` event listener.
+A `window.refreshPlayerSegment()` global is exposed so future ES-module IAP
+completion handlers can refresh the cached state mid-session.
+
+**Files changed:**
+
+- `src/services/analytics.js` (+85 LoC)
+    - 4 segment-name constants: `SEGMENT_F2P` / `SEGMENT_MINNOW` /
+      `SEGMENT_DOLPHIN` / `SEGMENT_WHALE`
+    - `getPlayerSegment(state)` — pure thresholding per spec
+    - `setSegmentState(state)` — caches state for logEvent enrichment
+    - `logEvent()` now enriches every event with `segment` (caller-supplied
+      `segment` overrides; missing/broken state defaults to F2P)
+- `src/main.js` (+46 LoC)
+    - `_readTotalSpentUSD()` reads `blocksworn_p5_spending` localStorage key
+    - `_refreshPlayerSegment()` computes segment + pushes `segment` user property
+    - Wired into boot chain (step 5b, post-`initProgression`)
+    - `window.refreshPlayerSegment` exposed for legacy IAP handlers
+    - `storage` event listener auto-refreshes on cross-tab purchase
+- `tests/unit/player-segments.test.js` (new, ~110 LoC, 10 tests)
+
+**Sacred thresholds verified byte-perfect (CLAUDE.md §9 + Plan §13 T1.20):**
+
+| totalSpentUSD | Segment | Locked by test |
+|---|---|---|
+| `0` | F2P | ✓ |
+| `0.01 .. 24.99` | Minnow | ✓ |
+| `25 .. 99.99` | Dolphin | ✓ |
+| `100+` | Whale | ✓ |
+
+**Legacy audit (per Step C):**
+
+- `getPlayerSegment` / `playerSegment` / `isWhale` / `isDolphin` / `isMinnow` /
+  `isF2P` — searched legacy: only `isF2P` (3 hits at lines 50273, 50310, 50340)
+  inside the Tower leaderboard score-entry shape. These are READ-ONLY consumers
+  of an `isF2P` BOOLEAN on the leaderboard score row, not a segment computation.
+  Not refactored — they consume a different field at a different boundary.
+- `_phase5GetTotalSpent()` (legacy line 29959) — single source of truth for
+  USD spend. Already wired correctly. NOT modified. `src/main.js` reads the
+  same `blocksworn_p5_spending` key as the canonical state input.
+- `src/data/tower.js:97` — `eligibility: 'totalSpent === 0'` is a descriptive
+  metadata string for `TOWER_LEADERBOARDS.f2p_only`, not a runtime check. Left
+  unchanged.
+- `0` hard-coded `if (totalSpent > 25)` style checks found in src/. Nothing
+  to consolidate.
+
+**Pinch system integration:**
+
+Legacy `showPinchModal()` (line 19753) is currently **segment-agnostic** — it
+takes an array of path objects (skill / grind / ad / pay) and renders them in
+fixed order regardless of player segment. Per spec, segment-aware pinch
+frequency tuning ("F2P → more pinches; Whales → minimal pinches") is a Phase 2
+monetization-tuning concern and is **flagged for T2.xx**, not wired in T1.20.
+The cached segment state is available globally via
+`window.refreshPlayerSegment` and per-event via the auto-enriched `segment`
+property, so future Phase 2 pinch-frequency-by-segment logic has full
+infrastructure to draw from.
+
+**Files NOT touched (per strict constraints):**
+
+- `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` — untouched.
+- CSS / baselines / smoke / visual / CI / husky / eslint — untouched.
+- No npm packages installed.
+- No push to remote.
+
+**Self-check:**
+
+- [x] Acceptance: Segment computed correctly per spec — locked by test
+- [x] Acceptance: Logged with each major event — `logEvent` auto-enriches
+- [x] Acceptance: Used in Pinch system if spec'd — pinch is segment-agnostic
+      in legacy; flagged for Phase 2 monetization tuning (no fabrication)
+- [x] DO NOT TOUCH: F2P=0 threshold — locked by test (SACRED)
+- [x] DO NOT TOUCH: Minnow<$25 threshold — locked by test (SACRED)
+- [x] DO NOT TOUCH: Dolphin<$100 threshold — locked by test (SACRED)
+- [x] DO NOT TOUCH: Whale≥$100 threshold — locked by test (SACRED)
+- [x] DO NOT TOUCH: CSS / baselines / smoke / visual / CI / husky / eslint
+- [x] No npm packages installed
+- [x] No push to remote
+- [x] Legacy HTML unchanged
+
+**Verification gates:**
+
+- `npm run lint` → ✅ 0 errors / 0 warnings
+- `npm run test:unit` → ✅ 37 / 37 pass (27 prior + 10 new player-segments)
+- `npm run test:smoke` → ✅ 2 / 2 pass
+- `npm run test:visual` → ✅ 22 / 22 pass under 5% (first run showed 2 known
+   platform-flake fails on `menu` / `shop` — see regression.spec.js lines 47-51
+   for documented macOS-vs-Linux font-render noise; retry passed clean)
+- `npm run build` → ✅ 205.24 KB JS (+1.22 KB from 204.02 KB for segment code)
+   / 368.07 KB CSS (unchanged)
+
+**Замечено рядом (NOT fixed, reported):**
+
+- Legacy `_phase5GetTotalSpent()` writes/reads `blocksworn_p5_spending` as a
+  raw localStorage string (`String(next)`), not via the `storage.js`
+  abstraction. T1.20 reads it raw to stay byte-compatible. A future T2.xx
+  migration can move this to the abstraction once the legacy `trackSpending()`
+  function is ported.
+- Pinch frequency by segment (e.g., F2P → 1 pinch/week, Whale → 0 pinches/week)
+  is not implemented — flagged for Phase 2 monetization tuning per spec note.
+- The 25-hero `HERO_TIER_ABILITIES.mythic` cost strings reference
+  `'25 cards + 1 legendary stone + 1000g + 20 essence'` — segment-specific
+  whale-pack discounting (e.g., legendary_bundle accelerates Mythic) is content
+  authoring, not code. Out of scope.
+
+**Time:** ~1 hour (read v2.1 P7 §2 spec + cross-reference legacy trackSpending
+and showPinchModal + implement getPlayerSegment + setSegmentState + logEvent
+enrichment + boot wiring + storage-event listener + 10 unit tests + run all
+gates twice).
+
+**🎉 PHASE 1 COMPLETE: 20/20 tasks done.**
+
+---
+
 ### TASK-026 (T1.19) — REVIEW (2026-05-12)
 
 **Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)
