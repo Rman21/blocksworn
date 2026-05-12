@@ -54,7 +54,11 @@
 /* eslint-disable no-empty, no-unused-vars, no-redeclare */
 
 // T1.13.1: /* global */ → ES imports for resolved src/ exports.
-import { isFtueActive, advanceFtue, FTUE_PYREDRAKE_ARTIFACT, FTUE_GRUNT_ARTIFACT } from '../core/ftue-state.js';
+// T1.14: removed FTUE_PYREDRAKE_ARTIFACT / FTUE_GRUNT_ARTIFACT — artifact
+// subsystem deleted. FTUE boss drops replaced with gold + hero-cards
+// (Pyredrake: 50g + 2 cards; Grunt: 75g + 3 cards) per Execution Plan §13
+// T1.14 step 3.
+import { isFtueActive, advanceFtue } from '../core/ftue-state.js';
 import {
   hasCompletedChapter1, hasCompletedChapter, computeBattleStars,
   isBossFirstCleared, markBossFirstCleared, recordBossStars,
@@ -86,10 +90,10 @@ import { log } from '../services/logger.js';
    getRewardMultiplier, getBossHeroReward,
    showChapterCompleteCelebration,
    applyReward, applyBossDefeatProgression,
-   addArtifact, addGold, awardWinGold, addHeroFragments, addGems,
+   addGold, awardWinGold, addHeroFragments, addGems,
    canCraftHero, craftHero, revealHero, dropRandomHeroCards,
    maybePhoenixRevive, grantPostFtueHeroInstantly,
-   markRacePureCleared, rollBossArtifactDrop, rollBossArtifactDropForFloor,
+   markRacePureCleared,
    maybeFireOfferTrigger, retractStihiyaFocusOnVictory,
    awardPostBattleXP, trackProfileBattleWon, _pwaIncrementBattleCount,
    _resetConsecutiveBattleLosses, recordBossWin,
@@ -222,7 +226,7 @@ export async function onBossDefeated() {
   if (currentFloorId !== null && !(currentBoss && currentBoss._isFtueOnly)) {
     recordFloorCleared(currentChapter, currentBossIdx, currentFloorId);
   }
-  // ─── Phase 5: base essence reward + Pirate plunder + artifact drop ─────────
+  // ─── Phase 5: base essence reward + Pirate plunder ─────────
   // ESSENCE REWARD — BOSS_REWARD × modifier multiplier, rounded up
   const rewardStihiya = currentBoss.stihiya;
   const rewardMult = getRewardMultiplier();
@@ -242,23 +246,11 @@ export async function onBossDefeated() {
       flashText('PLUNDER +' + plunderReward + ' shards', STIHIYA_COLORS.ember);
     }
   }
-  // V18: Artifact drop roll — 50% chance, random type from boss's race pool, T1
-  // V18.25: pity timer prevents dry streaks; flashText gives immediate unmissable feedback
-  // V3.0 Phase 2 Block 2.2: floor-aware drop. For floor launches, uses per-floor
-  // chance/pity/T2-upgrade rules. FTUE/Grunt and any legacy path (currentFloorId===null)
-  // falls back to the base function — no regression.
-  const artDrop = currentFloorId
-    ? rollBossArtifactDropForFloor(currentBoss.stihiya, currentFloorId)
-    : rollBossArtifactDrop(currentBoss.stihiya);
-  if (artDrop) {
-    addArtifact(artDrop.id, artDrop.tier);
-    // V3.0 Phase 2 Block 2.2: distinct messaging for T2 upgrade vs pity-bonus vs normal.
-    // Color/icon cues let the player feel the floor-3 T2 upgrade even without reading text.
-    const dropLabel = artDrop.floorUpgrade
-      ? '🌟 T2 ARTIFACT UPGRADE!'
-      : (artDrop.forced ? '🎁 BONUS ARTIFACT!' : '🎁 ARTIFACT ACQUIRED');
-    flashText(dropLabel, artDrop.floorUpgrade ? '#FF4D1F' : '#FFD53D');
-  }
+  // T1.14: artifact drop roll deleted — `rollBossArtifactDrop` /
+  // `rollBossArtifactDropForFloor` / `addArtifact` were all no-op stubs
+  // since v2.1 P1 PR #1.E. Boss drops now come from Phase 6/7/8 hooks
+  // (hero cards + chapter-scaled essence/stone rolls) plus FTUE-specific
+  // gold + hero-card grants below (Pyredrake / Grunt).
   // ─── Phase 6: Phase 6/7/8/10 hooks (first-win grant, memorial, drops, etc.) ──
   // 2026-05-02 — COMBAT v2.1 P6 PR #6.B §5.3: first-win Hero Card grant.
   // Idempotent — uses localStorage Set to track first-win bosses.
@@ -501,12 +493,14 @@ export async function onBossDefeated() {
       showChapterCompleteCelebration(currentChapter);
     }
   } catch (e) { log.warn('REW.2 chapter celebration failed:', e); }
-  // Store for victory modal
+  // Store for victory modal. T1.14: `artDrop` field omitted — artifact
+  // subsystem deleted. Victory-modal consumers guard the read with
+  // `_lastReward.artDrop` truthy-check so the banner is naturally skipped.
   _lastReward = {
     amount: finalReward + floorBonusEssence, // V3.0 2.2: include floor bonus in total
     stihiya: rewardStihiya,
     mult: rewardMult,
-    justUnlockedChapter2, justUnlockedChapter3, artDrop,
+    justUnlockedChapter2, justUnlockedChapter3,
     // V3.0 Phase 2 Block 2.2: floor context for victory modal display
     floorId: currentFloorId,
     floorName: currentFloorId ? (DUNGEON_FLOORS.find(f => f.id === currentFloorId) || {}).name || null : null,
@@ -546,31 +540,37 @@ export async function onBossDefeated() {
     } catch (e) {}
   }
   // ─── Phase 9: FTUE-specific reward hooks (Pyredrake / Grunt / Chronicle) ──
-  // V3.0 Phase 1 Block 1.1: FTUE Pyredrake reward — guaranteed ORC RING T1 drop.
-  // Runs AFTER awardWinGold + essence/artifact logic above so the normal rewards
-  // still apply and this just piles on a guaranteed extra artifact. No Thara
+  // V3.0 Phase 1 Block 1.1: FTUE Pyredrake reward.
+  // T1.14: artifact subsystem deleted — orc_ring drop replaced with the
+  // documented equivalent (50g + 2 hero cards) per Execution Plan §13 T1.14.
+  // Runs AFTER awardWinGold + essence logic above so the normal rewards
+  // still apply and this just piles on a guaranteed extra. No Thara
   // fragment grant — Thara is a starter (unlocked) and her reveal is Block 1.2's job.
   // The FTUE beat advance is deferred via setTimeout so victory-modal animation
   // (sleep 1200ms below) completes before dialog/reveal code fires in Block 1.2.
   if (ftueBeat === 'pyredrake_fight' && currentBoss && currentBoss.img === 'Boss_1' && !currentBoss._isFtueOnly) {
-    try { addArtifact(FTUE_PYREDRAKE_ARTIFACT, 1); } catch(e){ log.warn('FTUE orc_ring grant failed:', e); }
-    try { flashText('+ ORC RING I', '#FFD53D'); } catch(e){}
+    try { addGold(50); } catch(e){ log.warn('FTUE pyredrake gold grant failed:', e); }
+    try { dropRandomHeroCards(2); } catch(e){ log.warn('FTUE pyredrake card drop failed:', e); }
+    try { flashText('+ 50 💰 + 2 🃏', '#FFD53D'); } catch(e){}
     // V3.0 Phase 2 Block 2.1: mark Pyredrake Floor 1 as cleared so post-FTUE
     // the player can immediately tap Floor 2 without re-grinding Floor 1.
     try { recordFloorCleared(1, 0, 1); } catch(e){}
     // Delay beyond the sleep(1200) + victory modal appearance for a clean sequence.
     setTimeout(() => { try { advanceFtue('pyredrake_won'); } catch(e){ log.warn(e); } }, 1400);
   }
-  // V3.0 Phase 1 Block 1.3: Ember Grunt FTUE reward hook. Guaranteed ORC CLEAVER T1
-  // + "TUTORIAL COMPLETE" flash + advance beat. bossesDefeated is NOT incremented
-  // here: Grunt is off-sequence, so chapter progress stays at 1 (Pyredrake cleared).
-  // The chapter-advance logic earlier in this function already ran with Grunt's
-  // data, but since currentBossIdx=-1 (sentinel), Math.max(bossesDefeated, -1+1)=1
-  // which leaves the counter unchanged. Chapter2/3 unlock checks don't trigger
-  // because bossesDefeated !== BOSSES.length for Grunt's off-sequence kill.
+  // V3.0 Phase 1 Block 1.3: Ember Grunt FTUE reward hook.
+  // T1.14: artifact subsystem deleted — orc_cleaver drop replaced with the
+  // documented equivalent (75g + 3 hero cards) per Execution Plan §13 T1.14.
+  // bossesDefeated is NOT incremented here: Grunt is off-sequence, so chapter
+  // progress stays at 1 (Pyredrake cleared). The chapter-advance logic earlier
+  // in this function already ran with Grunt's data, but since currentBossIdx=-1
+  // (sentinel), Math.max(bossesDefeated, -1+1)=1 which leaves the counter
+  // unchanged. Chapter2/3 unlock checks don't trigger because bossesDefeated
+  // !== BOSSES.length for Grunt's off-sequence kill.
   if (ftueBeat === 'grunt_fight' && currentBoss && currentBoss._isFtueOnly) {
-    try { addArtifact(FTUE_GRUNT_ARTIFACT, 1); } catch(e){ log.warn('FTUE orc_cleaver grant failed:', e); }
-    try { flashText('+ ORC CLEAVER I', '#FFD53D'); } catch(e){}
+    try { addGold(75); } catch(e){ log.warn('FTUE grunt gold grant failed:', e); }
+    try { dropRandomHeroCards(3); } catch(e){ log.warn('FTUE grunt card drop failed:', e); }
+    try { flashText('+ 75 💰 + 3 🃏', '#FFD53D'); } catch(e){}
     try { flashText('TUTORIAL COMPLETE', '#FFD53D'); } catch(e){}
     // Explicitly restore chapter-1 progress in case Math.max above budged it —
     // belt-and-braces. Grunt must never count as a chapter boss.
@@ -580,11 +580,12 @@ export async function onBossDefeated() {
     setTimeout(() => { try { advanceFtue('grunt_won'); } catch(e){ log.warn(e); } }, 1400);
   }
   // 2026-04-28 — Player Education Stage 1 AAA+. Chronicle defeat: cyan-tinted
-  // "TRAINING COMPLETE" banner, no artifact (Chronicle is pre-Pyredrake — first
-  // artifact remains ORC RING from Pyredrake to preserve the existing reward
-  // pacing). Force-restore zero progress: Chronicle plays BEFORE chapter-1 boss
-  // sequence, so bossesDefeated should stay at 0 even if Math.max budged it.
-  // Beat advance after the same 1400ms animation window as Pyredrake/Grunt.
+  // "TRAINING COMPLETE" banner, no extra drop (Chronicle is pre-Pyredrake —
+  // first FTUE drop remains Pyredrake's 50g + 2 hero cards per T1.14 to
+  // preserve the existing reward pacing). Force-restore zero progress:
+  // Chronicle plays BEFORE chapter-1 boss sequence, so bossesDefeated should
+  // stay at 0 even if Math.max budged it. Beat advance after the same 1400ms
+  // animation window as Pyredrake/Grunt.
   if (ftueBeat === 'chronicle_fight' && currentBoss && currentBoss._isTrainingDummy) {
     // force: true bypasses the Chronicle-tutorial suppression — this is the
     // one essential milestone flash the player should see during the dummy fight.

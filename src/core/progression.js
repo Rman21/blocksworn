@@ -153,9 +153,9 @@ import { log } from '../services/logger.js';
 //   legacy 38276 `let essences = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };`
 //   legacy 38277 `let heroUpgrades = {};`
 //   legacy 38309 `let activeModifiers = new Set();`
-//   legacy 38314 `let artifactsOwned = {};`
-//   legacy 38315 `let equippedArtifacts = [null, null, null, null, null];`
-//   legacy 38316 `let artDropPityCounter = 0;`
+//   legacy 38314 `let artifactsOwned = {};`       (removed in T1.14)
+//   legacy 38315 `let equippedArtifacts = [...]`  (removed in T1.14)
+//   legacy 38316 `let artDropPityCounter = 0;`    (removed in T1.14)
 //   legacy 38345 `let chapter2Unlocked = false;`
 //   legacy 38346 `let chapter3Unlocked = false;`
 //   legacy 38350 `let chapter4Unlocked = false;`
@@ -177,9 +177,10 @@ let activeModifiers = new Set();
 let chapterProgress = { 1: 0, 2: 0, 3: 0 };
 let bossesDefeated = 0;
 let heroUpgrades = {};
-let artifactsOwned = {};
-let equippedArtifacts = [null, null, null, null, null];
-let artDropPityCounter = 0;
+// T1.14: removed `artifactsOwned`, `equippedArtifacts`, `artDropPityCounter`.
+// Artifact subsystem deleted per Execution Plan §13. Migration shim
+// `migrateRemoveArtifacts` in src/services/migrate.js strips these fields
+// from the aggregated `blocksworn_progress` save on next boot.
 let chapter2Unlocked = false;
 let chapter3Unlocked = false;
 let chapter4Unlocked = false;
@@ -197,9 +198,10 @@ if (typeof window !== 'undefined') {
   Object.defineProperty(window, 'chapterProgress',       { configurable: true, get: () => chapterProgress,       set: (v) => { chapterProgress = v; } });
   Object.defineProperty(window, 'bossesDefeated',        { configurable: true, get: () => bossesDefeated,        set: (v) => { bossesDefeated = v; } });
   Object.defineProperty(window, 'heroUpgrades',          { configurable: true, get: () => heroUpgrades,          set: (v) => { heroUpgrades = v; } });
-  Object.defineProperty(window, 'artifactsOwned',        { configurable: true, get: () => artifactsOwned,        set: (v) => { artifactsOwned = v; } });
-  Object.defineProperty(window, 'equippedArtifacts',     { configurable: true, get: () => equippedArtifacts,     set: (v) => { equippedArtifacts = v; } });
-  Object.defineProperty(window, 'artDropPityCounter',    { configurable: true, get: () => artDropPityCounter,    set: (v) => { artDropPityCounter = v; } });
+  // T1.14: window bridges for artifactsOwned / equippedArtifacts /
+  // artDropPityCounter removed — legacy reads of these now resolve to
+  // `undefined` (no bridge installed). All callsites have been deleted from
+  // both src/ and legacy.
   Object.defineProperty(window, 'chapter2Unlocked',      { configurable: true, get: () => chapter2Unlocked,      set: (v) => { chapter2Unlocked = v; } });
   Object.defineProperty(window, 'chapter3Unlocked',      { configurable: true, get: () => chapter3Unlocked,      set: (v) => { chapter3Unlocked = v; } });
   Object.defineProperty(window, 'chapter4Unlocked',      { configurable: true, get: () => chapter4Unlocked,      set: (v) => { chapter4Unlocked = v; } });
@@ -808,7 +810,8 @@ export function recordFloorCleared(chapter, bossIdx, floorId) {
 //   - Tier  = milestone-based role ability unlocks (existing, T0→T4)
 //   - Level = continuous stat scaling via gold spend (NEW, 1→60)
 //
-// Per-level delta (additive, stacks on tier/artifact/synergy):
+// Per-level delta (additive, stacks on tier/synergy; artifact term retired
+// in T1.14):
 //   +2% dmg, +1 HP, +0.5% ult charge rate
 //
 // Gold cost: 50 + (current-1)*50, capped at 3000 per level.
@@ -1066,11 +1069,9 @@ export function saveProgress() {
     // Sync live bossesDefeated back into chapterProgress before persisting
     const _ch = getCurrentChapter();
     chapterProgress[_ch] = bossesDefeated;
-    // 2026-05-02 — COMBAT v2.1 P1 PR #1.E §4.3: stopped persisting
-    // equippedArtifacts (artifact subsystem deleted). artifactsOwned and
-    // artDropPityCounter kept on the save record for one cycle so older
-    // builds don't strip them; PR #1.E migration drops the localStorage
-    // copies on next boot. Will be removed entirely after dev verification.
+    // T1.14: artifact subsystem fully deleted. No artifact-related fields
+    // persisted; migrateRemoveArtifacts() strips legacy residue from
+    // existing saves on next boot.
     const data = { essences, heroUpgrades, bossesDefeated, chapterProgress,
                    favorites: [...favorites], activeModifiers: [...activeModifiers],
                    currentChapter: _ch, chapter2Unlocked, chapter3Unlocked, chapter4Unlocked,
@@ -1101,14 +1102,12 @@ export function loadProgress() {
     // (pre-Sprint-3A) saves; existing Ch3 finishers grandfathered separately
     // via _migrateChapter4UnlockForExistingFinishers() (called after loads).
     chapter4Unlocked = !!data.chapter4Unlocked;
-    // 2026-05-02 — COMBAT v2.1 P1 PR #1.E §4.3+§4.5: artifact subsystem
-    // removed. Old saves may carry `artifactsOwned` and `equippedArtifacts`
-    // — we silently ignore both (kept defensive defaults so downstream
-    // call sites that still read the variables don't crash). One-time
-    // localStorage cleanup runs on next boot via _migrateArtifactStorageCleanup.
-    artifactsOwned = {};
-    equippedArtifacts = [null, null, null, null, null];
-    artDropPityCounter = 0;
+    // T1.14 (was: 2026-05-02 COMBAT v2.1 P1 PR #1.E §4.3): artifact
+    // subsystem fully deleted. Old saves may carry `artifactsOwned` /
+    // `equippedArtifacts` / `artDropPityCounter` fields — the
+    // migrateRemoveArtifacts() shim (src/services/migrate.js, called from
+    // boot chain) strips them on next boot. No defensive defaults needed
+    // here — all read sites in src/ and legacy have been deleted.
     // V16: migrate chapterProgress from legacy saves
     if (data.chapterProgress && typeof data.chapterProgress === 'object') {
       chapterProgress = { 1: 0, 2: 0, 3: 0, ...data.chapterProgress };

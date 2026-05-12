@@ -544,8 +544,9 @@ export function resetBossVoiceFlags() {
 
 // FTUE boss — appears only in `grunt_fight` beat. NOT in BOSSES (NOT
 // appended to CHAPTERS) — so it never appears in chapter selection,
-// progression UI, or bossesDefeated tracking. On defeat: ORC CLEAVER T1
-// artifact grant, then 'grunt_outro' dialog, then finalize FTUE.
+// progression UI, or bossesDefeated tracking. On defeat: 75 gold + 3 hero
+// cards drop (T1.14 replacement for legacy ORC CLEAVER T1 artifact), then
+// 'grunt_outro' dialog, then finalize FTUE.
 export const EMBER_GRUNT = Object.freeze({
   // id field is internal to FTUE code — BOSSES in CHAPTERS don't have ids, so
   // grunt detection uses the _isFtueOnly flag below, not id comparison

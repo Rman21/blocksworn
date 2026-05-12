@@ -429,8 +429,9 @@ const STARTER_HEROES = new Set([
 // Per-hero individual charge meters (Pillars 1, 2, 4 foundation from V4.0 Phase 4 Task 4.1).
 // Each hero in HERO_DECK has an independent 0..HERO_CHARGE_MAX meter that drives
 // ULT-fire eligibility. The legacy `ultCharges` element pool (declared in legacy
-// battle scope) is still bumped by various artifact/passive procs at other callsites
+// battle scope) is still bumped by various passive procs at other callsites
 // — those bumps are dead-write residue (DEBT-014) until rewired in Task 4.2/4.3.
+// (Artifact procs removed in T1.14 — see src/services/migrate.js.)
 let heroCharges = {};                  // { heroId: charge } — battle-scope, reset on startBossBattle()
 const HERO_CHARGE_MAX = 120;           // ceiling cap (over-charge buffer for Pillar 4 chain combo, Task 4.3)
 const HERO_ULT_COST_DEFAULT = 100;     // fallback when hero.newRole is missing / unknown
@@ -495,8 +496,9 @@ function distributeChargeOnElementClear(element, cellsCleared) {
 }
 // DEBT-014 — Element-pool dead writes mitigation (PRELAUNCH_MASTER amendment #3).
 // The legacy `ultCharges` pool is no longer the ult-fire gate (per-hero
-// `heroCharges` took over in Phase 4 Block 1). Various artifact/passive procs
-// still bump the legacy pool — this helper translates those bumps into per-hero
+// `heroCharges` took over in Phase 4 Block 1). Various passive procs still
+// bump the legacy pool (artifact procs removed in T1.14) — this helper
+// translates those bumps into per-hero
 // charge so the procs actually contribute to ult-readiness. Each call-site now
 // invokes this alongside the legacy write; the legacy write stays for any
 // side-effect dependency (UI flashes etc.).

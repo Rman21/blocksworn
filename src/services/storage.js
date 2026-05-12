@@ -5,11 +5,10 @@
 // docs/_legacy/_archive_v1/blocksworn_index_fixed.html). T1.08 introduces
 // this single-surface abstraction so:
 //   - tests can swap to in-memory backing (setMockMode(true)) without touching
-//     window.localStorage — first unit tests in the project (T1.14 will reuse
-//     this for the artifact-removal migration tests).
-//   - T1.14 has a place to hang `migrate()` for the artifact-subsystem cleanup
-//     (placeholder below — T1.08 doesn't implement migration logic, only the
-//     shape).
+//     window.localStorage.
+//   - T1.14 artifact-subsystem migration landed in src/services/migrate.js
+//     as `migrateRemoveArtifacts()` (sentinel `blocksworn_artifacts_removed_v1`);
+//     this module's `migrate()` placeholder retired below.
 //   - T1.10 will rewire callers from raw localStorage.* → these helpers.
 //
 // IMPORTANT — legacy compatibility note:
@@ -113,11 +112,11 @@ export function clear() {
   }
 }
 
-// Placeholder for the T1.14 artifact-subsystem migration. Spec lands when
-// the artifact cleanup task picks up; for now this is a typed no-op so the
-// public API is stable.
+// Versioned-migration hook kept as a typed no-op for the future schema
+// upgrades. T1.14's artifact-subsystem cleanup lives in
+// src/services/migrate.js (migrateRemoveArtifacts) — not here — because it
+// needs to run outside the storage abstraction (operates on raw legacy keys
+// before the JSON-routing layer can mask them).
 export function migrate(_fromVersion, _toVersion) {
-  // T1.14: scan for 'blocksworn_artifact_*' keys, transform / delete them,
-  // then re-stamp STORAGE_VERSION. NOT implemented in T1.08.
   return { ok: true, migrated: 0 };
 }

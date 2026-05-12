@@ -36,7 +36,7 @@ import './styles/index.css';
 import { initSentry, captureException } from './services/sentry.js';
 import { initFirebase } from './services/firebase.js';
 import { initRevenueCat } from './services/revenuecat.js';
-import { migrateBareStringKeys } from './services/migrate.js';
+import { migrateBareStringKeys, migrateRemoveArtifacts } from './services/migrate.js';
 import { log } from './services/logger.js';
 
 // Core state.
@@ -62,6 +62,18 @@ async function main() {
     // 2. Migration shim BEFORE any storage read. Idempotent via sentinel.
     const migrationResult = migrateBareStringKeys();
     log.info('[boot] storage migration:', migrationResult);
+
+    // 2b. T1.14 — DELETE artifact subsystem migration. Idempotent via its own
+    //     sentinel (`blocksworn_artifacts_removed_v1`). Removes well-known
+    //     artifact localStorage keys + strips `artifactsOwned` / `equippedArtifacts`
+    //     / `artDropPityCounter` from the aggregated progress save. Must run
+    //     BEFORE initProgression() reads `blocksworn_progress`.
+    try {
+      const artifactsResult = migrateRemoveArtifacts();
+      log.info('[boot] artifact removal migration:', artifactsResult);
+    } catch (err) {
+      log.warn('[boot] migrateRemoveArtifacts:', err);
+    }
 
     // 3. Firebase (sync — binds from legacy window.* dispatch when present).
     initFirebase();

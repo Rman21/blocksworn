@@ -181,3 +181,125 @@ export function migrateBareStringKeys() {
   _stampSentinel();
   return { migrated, alreadyJSON, missing, total };
 }
+
+// ─── T1.14 — DELETE artifact subsystem ────────────────────────────────────
+//
+// Background:
+//   v2.1 P1 §4 retired the artifact subsystem in legacy (PR #1.E gutted state,
+//   functions, and T4 ARCANE RESONANCE). P5 §7 layered a CONSERVATIVE
+//   localStorage cleanup pass (_phase5FinalArtifactCleanup, 4 keys). T1.14
+//   completes the deletion per ADR-004 (Hybrid Runtime Coexistence) — legacy
+//   may now be modified for cleanup tasks. This shim folds the legacy P5
+//   cleanup into the modular boot chain so the cleanup runs even after legacy
+//   is demoted, and adds defensive removal of the historical localStorage keys
+//   the artifact subsystem ever wrote (legacy 38804-38812
+//   _migrateArtifactStorageCleanup also handled `blocksworn_equipped_artifacts`
+//   and `blocksworn_artifact_inventory`; legacy 29959-29964 P5 cleanup added
+//   `blocksworn_artifact_history` and `blocksworn_artifact_pity`).
+//
+// Algorithm:
+//   1. Idempotency sentinel — `blocksworn_artifacts_removed_v1`. Stored as
+//      JSON-wrapped '"true"' so a future migrate scan won't re-target it.
+//   2. Remove each well-known artifact-related localStorage key (idempotent —
+//      missing keys are skipped silently).
+//   3. If the aggregated `blocksworn_progress` save has `artifactsOwned` /
+//      `equippedArtifacts` / `artDropPityCounter` fields, strip them and
+//      write the save back (older builds wrote these; PR #1.E §4.3 stopped
+//      writing them but old saves still carry the keys).
+//   4. Stamp the sentinel.
+//
+// Failure modes: all storage I/O wrapped in try/catch. Quota / private-mode
+// errors are swallowed (next boot will retry; idempotency makes that safe).
+// Corrupt JSON in the progress save is treated as "no artifact fields" and
+// silently ignored — the legacy load path already handles malformed data.
+
+export const ARTIFACTS_REMOVED_SENTINEL_KEY = 'blocksworn_artifacts_removed_v1';
+
+// Frozen allow-list of artifact-related localStorage keys ever written by
+// legacy (cross-referenced against legacy 29959-29964 + 38808-38809).
+export const LEGACY_ARTIFACT_STORAGE_KEYS = Object.freeze([
+  'blocksworn_artifacts',           // hypothetical aggregate key
+  'blocksworn_equipped_artifacts',  // legacy P5 cleanup + _migrateArtifactStorageCleanup
+  'blocksworn_artifact_inventory',  // legacy _migrateArtifactStorageCleanup
+  'blocksworn_artifact_history',    // legacy P5 cleanup
+  'blocksworn_artifact_pity',       // legacy P5 cleanup
+  'blocksworn_artifacts_owned',     // hypothetical alt naming
+  'blocksworn_artifacts_equipped',  // hypothetical alt naming
+]);
+
+function _artifactsSentinelStamped() {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem(ARTIFACTS_REMOVED_SENTINEL_KEY) === '"true"';
+  } catch (_e) {
+    return false;
+  }
+}
+
+function _stampArtifactsSentinel() {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(ARTIFACTS_REMOVED_SENTINEL_KEY, '"true"');
+  } catch (_e) {
+    // Best-effort; next boot retries.
+  }
+}
+
+/**
+ * Remove the artifact subsystem from persistent storage. Safe to call on
+ * every boot — sentinel short-circuits after the first successful pass.
+ *
+ * @returns {{ removed: number, savePatched: boolean, skipped?: 'sentinel' }}
+ */
+export function migrateRemoveArtifacts() {
+  if (_artifactsSentinelStamped()) {
+    return { removed: 0, savePatched: false, skipped: 'sentinel' };
+  }
+  if (typeof localStorage === 'undefined') {
+    return { removed: 0, savePatched: false };
+  }
+
+  let removed = 0;
+  let savePatched = false;
+
+  // 1. Remove well-known artifact localStorage keys.
+  for (const key of LEGACY_ARTIFACT_STORAGE_KEYS) {
+    try {
+      if (localStorage.getItem(key) !== null) {
+        localStorage.removeItem(key);
+        removed++;
+      }
+    } catch (_e) {
+      // Per-key SecurityError — skip + continue.
+    }
+  }
+
+  // 2. Strip artifact fields from the aggregated progress save. Old builds
+  //    persisted `artifactsOwned` / `equippedArtifacts` / `artDropPityCounter`
+  //    on `blocksworn_progress` until v2.1 P1 PR #1.E §4.3 stopped writing
+  //    them. The legacy load path silently defaults these to empty, so the
+  //    fields are harmless residue — but stripping them on migration prevents
+  //    storage bloat and makes the save shape match the live writer.
+  try {
+    const raw = localStorage.getItem('blocksworn_progress');
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data && typeof data === 'object'
+          && ('artifactsOwned' in data
+              || 'equippedArtifacts' in data
+              || 'artDropPityCounter' in data)) {
+        delete data.artifactsOwned;
+        delete data.equippedArtifacts;
+        delete data.artDropPityCounter;
+        localStorage.setItem('blocksworn_progress', JSON.stringify(data));
+        savePatched = true;
+      }
+    }
+  } catch (_e) {
+    // Corrupt JSON / SecurityError — silently ignored. Legacy load path
+    // handles malformed data with defensive defaults.
+  }
+
+  _stampArtifactsSentinel();
+  return { removed, savePatched };
+}

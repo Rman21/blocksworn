@@ -13,6 +13,9 @@ import {
   migrateBareStringKeys,
   LEGACY_BARE_STRING_KEYS,
   MIGRATION_SENTINEL_KEY,
+  migrateRemoveArtifacts,
+  LEGACY_ARTIFACT_STORAGE_KEYS,
+  ARTIFACTS_REMOVED_SENTINEL_KEY,
 } from '../../src/services/migrate.js';
 
 // Minimal in-memory localStorage shim. Mirrors the Web Storage API surface
@@ -159,5 +162,91 @@ describe('migrateBareStringKeys (T1.10.9)', () => {
     ]);
     // Allow-list is frozen — any accidental push() must throw.
     expect(Object.isFrozen(LEGACY_BARE_STRING_KEYS)).toBe(true);
+  });
+});
+
+describe('migrateRemoveArtifacts (T1.14)', () => {
+  it('removes known artifact localStorage keys + strips save fields', () => {
+    // Seed every artifact-related key the legacy ever wrote.
+    for (const k of LEGACY_ARTIFACT_STORAGE_KEYS) {
+      localStorage.setItem(k, '"seed"');
+    }
+    // Seed an aggregated progress save with legacy artifact fields.
+    localStorage.setItem('blocksworn_progress', JSON.stringify({
+      essences: { ember: 2 },
+      heroUpgrades: {},
+      bossesDefeated: 0,
+      artifactsOwned: { orc_ring: { 1: 3 } },
+      equippedArtifacts: ['orc_ring', null, null, null, null],
+      artDropPityCounter: 1,
+      _v: 17,
+    }));
+
+    const result = migrateRemoveArtifacts();
+
+    expect(result.removed).toBe(LEGACY_ARTIFACT_STORAGE_KEYS.length);
+    expect(result.savePatched).toBe(true);
+    expect(result.skipped).toBeUndefined();
+
+    // Every key removed.
+    for (const k of LEGACY_ARTIFACT_STORAGE_KEYS) {
+      expect(localStorage.getItem(k)).toBeNull();
+    }
+
+    // Save stripped of artifact fields but preserves everything else.
+    const patched = JSON.parse(localStorage.getItem('blocksworn_progress'));
+    expect(patched.artifactsOwned).toBeUndefined();
+    expect(patched.equippedArtifacts).toBeUndefined();
+    expect(patched.artDropPityCounter).toBeUndefined();
+    expect(patched.essences).toEqual({ ember: 2 });
+    expect(patched._v).toBe(17);
+
+    // Sentinel stamped.
+    expect(localStorage.getItem(ARTIFACTS_REMOVED_SENTINEL_KEY)).toBe('"true"');
+  });
+
+  it('subsequent calls short-circuit via sentinel', () => {
+    localStorage.setItem('blocksworn_artifact_pity', '"seed"');
+    const first = migrateRemoveArtifacts();
+    expect(first.removed).toBe(1);
+    expect(first.skipped).toBeUndefined();
+
+    // Plant a NEW artifact key — second call must NOT touch it because
+    // the sentinel short-circuits.
+    localStorage.setItem('blocksworn_artifact_inventory', '"replant"');
+    const second = migrateRemoveArtifacts();
+    expect(second).toEqual({ removed: 0, savePatched: false, skipped: 'sentinel' });
+    expect(localStorage.getItem('blocksworn_artifact_inventory')).toBe('"replant"');
+  });
+
+  it('handles missing save + corrupt save gracefully', () => {
+    // No 'blocksworn_progress' key at all.
+    const noSave = migrateRemoveArtifacts();
+    expect(noSave.removed).toBe(0);
+    expect(noSave.savePatched).toBe(false);
+    expect(localStorage.getItem(ARTIFACTS_REMOVED_SENTINEL_KEY)).toBe('"true"');
+
+    // Wipe + retry with corrupt save (sentinel was stamped on first run).
+    localStorage.clear();
+    localStorage.setItem('blocksworn_progress', '{not json');
+    const corrupt = migrateRemoveArtifacts();
+    // Sentinel had been removed by clear(); fresh run — corrupt JSON is
+    // silently swallowed by JSON.parse try/catch (savePatched stays false).
+    expect(corrupt.removed).toBe(0);
+    expect(corrupt.savePatched).toBe(false);
+    // Sentinel still gets stamped so we don't loop forever on corrupt data.
+    expect(localStorage.getItem(ARTIFACTS_REMOVED_SENTINEL_KEY)).toBe('"true"');
+    // Corrupt save left untouched (don't make corrupt data worse).
+    expect(localStorage.getItem('blocksworn_progress')).toBe('{not json');
+  });
+
+  it('allow-list is frozen + covers the legacy cleanup keys', () => {
+    expect(Object.isFrozen(LEGACY_ARTIFACT_STORAGE_KEYS)).toBe(true);
+    // Pin the keys the legacy P5 cleanup (29959-29964) + legacy
+    // _migrateArtifactStorageCleanup (38808-38809) ever wrote.
+    expect(LEGACY_ARTIFACT_STORAGE_KEYS).toContain('blocksworn_equipped_artifacts');
+    expect(LEGACY_ARTIFACT_STORAGE_KEYS).toContain('blocksworn_artifact_inventory');
+    expect(LEGACY_ARTIFACT_STORAGE_KEYS).toContain('blocksworn_artifact_history');
+    expect(LEGACY_ARTIFACT_STORAGE_KEYS).toContain('blocksworn_artifact_pity');
   });
 });

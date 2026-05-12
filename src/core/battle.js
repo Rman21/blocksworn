@@ -282,8 +282,8 @@ import { logEvent, EVT } from '../services/analytics.js';
    vDecorateVictoryModal, _incrementConsecutiveBattleLosses,
    maybeShowConsecutiveLossPinch, returnToMenuFromBattle,
    closeSettings, _signatureComboCinemaShown:writable,
-   _clutchSlowMoFired:writable, maybeFireSignatureComboCinematic,
-   buildArtifactIcon, artDisplayName */
+   _clutchSlowMoFired:writable, maybeFireSignatureComboCinematic */
+/* T1.14: removed buildArtifactIcon, artDisplayName — artifact subsystem deleted */
 
 import { log } from '../services/logger.js';
 
@@ -1576,20 +1576,10 @@ export function showVictoryModal() {
     : _lastReward.justUnlockedChapter2
     ? `<div style="margin-top:10px;padding:8px 12px;background:linear-gradient(90deg,rgba(255,213,61,0.2),rgba(232,93,74,0.2));border:1px solid rgba(255,213,61,0.5);border-radius:8px;color:#FFD53D;font-weight:700;letter-spacing:1.5px;font-size:12px">★ CHAPTER 2 UNLOCKED ★</div>`
     : '';
-  // V18: artifact drop banner
-  // V18.25: forced (pity) drops get a subtle "PITY" tag so player understands the system is fair
-  // V18.26: use buildArtifactIcon so real images render instead of CSS placeholder
-  // V3.0 Phase 2 Block 2.2: T2 upgrade (floor 3) gets a dedicated "T2 UPGRADE" badge with
-  // warmer color so the player immediately sees the floor scaling paid off.
-  const artDropBanner = _lastReward.artDrop
-    ? `<div style="margin-top:10px;padding:10px 12px;background:linear-gradient(90deg,${_lastReward.artDrop.floorUpgrade ? 'rgba(255,77,31,0.18),rgba(255,213,61,0.18)' : 'rgba(140,59,255,0.15),rgba(255,213,61,0.15)'});border:1px solid ${_lastReward.artDrop.floorUpgrade ? '#FF4D1F' : 'rgba(255,213,61,0.4)'};border-radius:8px;display:flex;align-items:center;gap:10px">
-         <div style="width:38px;height:38px;flex-shrink:0;border-radius:6px;overflow:hidden;background:#12121E">${buildArtifactIcon(_lastReward.artDrop.id, _lastReward.artDrop.tier)}</div>
-         <div style="flex:1;text-align:left">
-           <div style="font-size:9px;color:#A8A5B8;letter-spacing:1.5px">${_lastReward.artDrop.floorUpgrade ? '🌟 T2 UPGRADE' : '🎁 ARTIFACT DROPPED'}${_lastReward.artDrop.forced && !_lastReward.artDrop.floorUpgrade ? ' <span style="color:#7DEC8F">· BONUS</span>' : ''}</div>
-           <div style="font-size:12px;font-weight:700;color:${_lastReward.artDrop.floorUpgrade ? '#FF4D1F' : '#FFD53D'};letter-spacing:1px">${artDisplayName(_lastReward.artDrop.id, _lastReward.artDrop.tier)}</div>
-         </div>
-       </div>`
-    : '';
+  // T1.14: artifact drop banner deleted — `_lastReward.artDrop` is no longer
+  // populated (artifact subsystem removed). Banner reserved as empty string
+  // so the existing concatenation order below stays byte-stable.
+  const artDropBanner = '';
   // REW.1 — Star rating banner. Only shown for chapter-bosses where stars
   // were tracked (skipped for FTUE / Tower / no-table paths where firstClear
   // is undefined). Gold for 3⭐, silver for 2⭐, bronze for 1⭐.

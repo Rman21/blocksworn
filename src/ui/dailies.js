@@ -72,7 +72,8 @@ export function renderDailiesScreen() {
       if (r.gold) rewardText += `💰${r.gold}`;
       if (r.gems) rewardText += `💎${r.gems}`;
       if (r.essencesRandom) rewardText += `🔮`;
-      if (r.t2ArtifactRandom) rewardText += `🌟`;
+      // T1.14: removed `t2ArtifactRandom` rendering — artifact subsystem
+      // deleted. Day-7 jackpot remains visible via `gems` + `heroCard`.
       // 2026-04-27 — Block H.6 — Day 7 Hero Card icon (HERO_COMPENDIUM §11.2).
       if (r.heroCard) rewardText += `🃏`;
       dayEl.innerHTML = `
@@ -102,7 +103,8 @@ export function renderDailiesScreen() {
         const parts = [];
         if (m.reward.gold) parts.push(`💰${m.reward.gold}`);
         if (m.reward.gems) parts.push(`💎${m.reward.gems}`);
-        if (m.reward.t2ArtifactRandom) parts.push('🌟');
+        // T1.14: removed `t2ArtifactRandom` rendering — artifact subsystem
+        // deleted. Weekly mission rewards now show gold/gems only.
         return parts.join(' ');
       })();
       card.innerHTML = `

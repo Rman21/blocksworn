@@ -126,9 +126,10 @@ let ftueSafetyRailUsed = false;
 export const FTUE_STORAGE_KEY = 'blocksworn_ftue_beat';
 export const FTUE_PYREDRAKE_HP = 800;
 export const FTUE_PYREDRAKE_ATTACK_INTERVAL = 15;
-// Artifact IDs granted during FTUE
-export const FTUE_PYREDRAKE_ARTIFACT = 'orc_ring';   // Block 1.1 reward
-export const FTUE_GRUNT_ARTIFACT = 'orc_weapon';     // Block 1.3 reward
+// T1.14 — removed FTUE_PYREDRAKE_ARTIFACT / FTUE_GRUNT_ARTIFACT.
+// Artifact subsystem deleted; FTUE drops replaced with gold + hero-cards
+// (Pyredrake: 50g + 2 cards; Grunt: 75g + 3 cards) inline in src/ui/rewards.js
+// per Execution Plan §13 T1.14 step 3.
 
 // ─── Persistence (legacy 24120-24137) ─────────────────────────────────────
 // Legacy used localStorage directly; T1.08 abstraction rewired here. Storage
