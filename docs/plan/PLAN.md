@@ -3,13 +3,13 @@
 ## Project Status
 
 - **Current phase:** 1 — Foundation Reset (Vite + ES Modules migration)
-- **Phase progress:** 18 / 20 done (T1.01-T1.18) — **90%**
+- **Phase progress:** 19 / 20 done (T1.01-T1.19) — **95%**
 - **Overall progress:** ~76% (Phase 1 endgame cleanup phase)
 - **Bundle:** ✅ **4.5 MB total** (204KB JS + 368KB CSS + 3.4MB public/images) — UNDER AAA+ 5MB cap
 - **Architectural decision (ADR-004):** Phase 1 closes at INFRASTRUCTURE level. Legacy stays primary runtime; new shell ships as foundation. Approved 2026-05-12.
 - **CI status:** ✅ ALL GREEN (PR #158, 100+ commits)
-- **Active task:** T1.19 — Verify v2.1 Mythic ability framework (IN PROGRESS)
-- **Phase 1 endgame:** T1.19 → T1.20 → Phase 1 100% → Roman merge PR #158 → Phase 2 Identity Layer starts
+- **Active task:** T1.20 — Complete v2.1 Player Segments (LAST Phase 1 task)
+- **Phase 1 endgame:** T1.20 → Phase 1 100% → Roman merge PR #158 → Phase 2 Identity Layer starts
 - **Last updated:** 2026-05-12 by CTO (after T1.17 review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
@@ -68,8 +68,8 @@
 - [x] T1.18 — Consolidate shop pack systems — **DONE 2026-05-12** (commits `b50efac`, `afa6c9e`; 13 SHOP_PACKS entries; 38 scalar shadows deleted; 14 IAP SKUs preserved; sacred §2.4 ladder/+50%/Battle Pass/Tower retry all byte-perfect)
 
 **Week 7-8: Completion + hardening**
-- [ ] T1.19 — Complete v2.1 Mythic ability framework — TODO
-- [ ] T1.20 — Complete v2.1 Player Segments — TODO
+- [x] T1.19 — Complete v2.1 Mythic ability framework — **DONE 2026-05-12** (commits `795953d`, `5cc2867`; VERIFIED COMPLETE, no code change; 25/25 descriptors + ascension commitment screen + one-per-save + 5/5 role fire paths verified; 8 new unit tests (27 total); Plan §23 P3 Mythic ⚠️→✓)
+- [ ] T1.20 — Complete v2.1 Player Segments — IN PROGRESS (Game Dev Agent)
 
 ### Phase 1 Gate Criteria (Go/No-Go to Phase 2)
 
