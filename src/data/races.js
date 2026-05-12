@@ -158,3 +158,26 @@ export const RACE_SYNERGY = Object.freeze({
          rhythmSection: true, encore: true, amplifier: true,
          desc: '+2HP · +2🛡 · +15% dmg · +30% 🌑 · 50% 🌑 start · RHYTHM · ENCORE · AMPLIFIER' }) }),
 });
+
+// 2026-05-12 — TASK-029 (T2.02): Identity Layer race-flavor key map.
+//
+// Spec: docs/design/mechanics/identity-layer.md §7.2 — "Add new optional field
+// `identity_fx_key: 'plunder' | 'frenzy' | 'echo' | 'bastion' | 'cascade'` to
+// the 5 V18.8 races. RACE_SYNERGY tiers UNTOUCHED."
+//
+// Implemented as a SIBLING export (not a property on the RACE_SYNERGY objects)
+// so RACE_SYNERGY remains byte-perfect sacred per CLAUDE.md §2.1 — the audit
+// table at spec §8 row "RACE_SYNERGY tier values" reads "NO" modifications.
+// The consumer (`src/feel/identity-fx.js#dispatchIdentityFx`) does NOT yet
+// read this map (it routes by `h.race` directly), but the field is established
+// here so T2.03–T2.06 + the T2.12 Codex screen have a stable lookup surface.
+//
+// T2.02 ships only the pirate entry per spec §1 scope (Pirate's Plunder).
+// T2.03–T2.06 will append shark / rock / crocodile / spark entries.
+export const RACE_IDENTITY_FX = Object.freeze({
+  pirate: 'pirate_plunder',
+  // shark:     'shark_frenzy',       // T2.03
+  // rock:      'rock_echo',          // T2.04
+  // crocodile: 'crocodile_bastion',  // T2.05
+  // spark:     'spark_cascade',      // T2.06
+});

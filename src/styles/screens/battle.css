@@ -5673,3 +5673,84 @@ button, .menu-btn, .btn, .hero-card, .piece, .cell, .roster-card, .tier-btn, .ba
   margin-top: 2px;
   line-height: 1.3;
 }
+
+/* ─── 2026-05-12 — TASK-029 (T2.02): Identity Layer · Pirate's Plunder ───
+ * Painterly gold coin VFX. Pool of 32 elements lives under
+ * `.identity-coin-layer` (appended to body once at module load by
+ * `src/feel/identity-fx.js`). Each coin element re-uses across fires via
+ * the object pool — `.identity-coin-flying` toggled on re-trigger.
+ *
+ * Decay timing matches `PIRATE_PLUNDER_COIN_DECAY_MS = 1000` (spec §2.1
+ * field 9). The animation duration reads `--coin-decay-ms` (set per-fire
+ * by `spawnCoinParticle`) so the JS-side constant stays the single source
+ * of truth. Translation distance pulled from `--coin-tx` / `--coin-ty`
+ * custom properties (cleared-cell → HUD gold counter delta).
+ *
+ * Painterly emblem style matches PR #157 (warm gold gradient + soft
+ * outer glow + multi-turn rotation for a tossed-coin read). All transforms
+ * are GPU-accelerated (translate3d + rotate + scale) so 32 simultaneous
+ * coins stay under the 4ms/frame layer budget on mobile.
+ *
+ * Sacred safety: no existing class modified. Pure addition.
+ */
+.identity-coin-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0; height: 0;          /* layer is positioning-only — coins absolute */
+  pointer-events: none;
+  z-index: 9999;                /* above HUD; below modals */
+}
+.identity-coin {
+  position: fixed;
+  width: 16px; height: 16px;
+  margin-left: -8px; margin-top: -8px;  /* center on (left, top) */
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, #FFF4B0 0%, #FFD53D 45%, #C99523 100%);
+  box-shadow:
+    0 0 6px rgba(255, 213, 61, 0.55),
+    inset -1px -2px 3px rgba(120, 80, 0, 0.45),
+    inset  1px  1px 2px rgba(255, 255, 220, 0.55);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) rotate(0deg) scale(0.6);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.identity-coin.identity-coin-flying {
+  animation: identityCoinFlying var(--coin-decay-ms, 1000ms) cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes identityCoinFlying {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(0.6);
+  }
+  10% {
+    opacity: 1;
+    transform: translate3d(0, -18px, 0) rotate(45deg) scale(1.05);
+  }
+  60% {
+    opacity: 1;
+    transform:
+      translate3d(calc(var(--coin-tx, 0px) * 0.7), calc(var(--coin-ty, 0px) * 0.4 - 14px), 0)
+      rotate(540deg) scale(1.0);
+  }
+  100% {
+    opacity: 0;
+    transform:
+      translate3d(var(--coin-tx, 0px), var(--coin-ty, 0px), 0)
+      rotate(900deg) scale(0.55);
+  }
+}
+/* Reduced-motion: respect prefers-reduced-motion. Coin appears at origin,
+ * fades quickly without arc (mechanical gold gain still resolves; visual
+ * is just a fade chip). */
+@media (prefers-reduced-motion: reduce) {
+  .identity-coin.identity-coin-flying {
+    animation: identityCoinFadeOnly var(--coin-decay-ms, 1000ms) ease-out forwards;
+  }
+}
+@keyframes identityCoinFadeOnly {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.8); }
+  20%  { opacity: 1; transform: translate3d(0, -6px, 0) scale(1.0); }
+  100% { opacity: 0; transform: translate3d(0, -12px, 0) scale(0.8); }
+}

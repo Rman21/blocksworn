@@ -98,6 +98,12 @@ import { _grovewardenRootBindCells } from '../ui/archetype-ticks.js';
 import { shroudTick } from './reactivity-events.js';
 import { vHaptic } from '../feel/haptics.js';
 import { vPlayLineClearBurst } from '../feel/animations.js';
+// 2026-05-12 — TASK-029 (T2.02): Identity Layer dispatch hook.
+// Fires AFTER `vPlayLineClearBurst` (sacred timing untouched) on every line
+// clear. Routes to per-race FX (Pirate's Plunder ships in T2.02; stubs for
+// Shark / Rock / Crocodile / Spark wait for T2.03–T2.06). See
+// docs/design/mechanics/identity-layer.md §7.2.
+import { dispatchIdentityFx } from '../feel/identity-fx.js';
 import { log } from '../services/logger.js';
 
 // Residual legacy-owned tokens:
@@ -399,6 +405,17 @@ export async function clearLines(rows, cols) {
   vibrate(25);
   // V3.0 Phase 9 Vivid: particle burst from cleared cells toward the boss portrait.
   try { vPlayLineClearBurst(rows, cols); } catch (_e) { /* swallow */ }
+  // 2026-05-12 — TASK-029 (T2.02): Identity Layer dispatch.
+  // Fires AFTER the sacred `vPlayLineClearBurst` (its 32-spark cap + timing
+  // are NOT modified). Per-race FX layered additively on top. Guard against
+  // an undefined HERO_DECK (early-boot / FTUE training where the squad may
+  // not be allocated yet). Pure addition — failures swallowed so the sacred
+  // line-clear pipeline cannot regress from an Identity Layer bug.
+  try {
+    const _squad = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) ? HERO_DECK : null;
+    const _boss  = (typeof currentBoss !== 'undefined') ? currentBoss : null;
+    if (_squad) dispatchIdentityFx(rows, cols, _squad, _boss);
+  } catch (e) { log.warn('Identity FX dispatch failed:', e); }
   await sleep(450);
   // V2.0 Stage 5 Block 5.3: permanentFrozenCells are immune to clear cycles (Azuralys/Rimehelm T3 permafrost).
   // PHASE 5b BLOCK 4: engineerLockedCells (Engineer Cell Lockdown) similarly immune.

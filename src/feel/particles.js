@@ -34,6 +34,49 @@ const BOSS_DEATH_ELEM_COLOR = Object.freeze({
   umbra: '#C06ADF',
 });
 
+// 2026-05-12 — TASK-029 (T2.02): Identity Layer coin particle factory.
+//
+// Pure factory — given pre-allocated DOM element + spawn/target screen coords,
+// configures the element for a single arcing coin animation. Used exclusively
+// by the Pirate's Plunder identity FX (spec §2.1). Pool allocation lives in
+// `src/feel/identity-fx.js` per the object-pool requirement of spec §5
+// (no `document.createElement` per fire).
+//
+// The element is expected to carry the `.identity-coin` class (painterly gold
+// 16×16 SVG-style) and to support the `.identity-coin-flying` keyframe set
+// defined in `src/styles/screens/battle.css`. Caller is responsible for
+// returning the element to the pool when its decay timer fires.
+//
+// Parameters:
+//   el      — pre-allocated <div> from the pool (Identity Layer owns the pool)
+//   x, y    — origin in viewport coords (cleared-cell center)
+//   targetX, targetY — destination in viewport coords (HUD gold counter)
+//   decayMs — animation lifetime; matches PIRATE_PLUNDER_COIN_DECAY_MS
+//
+// Returns: the same `el` (caller-tracked for cleanup / pool release).
+//
+// Re-uses the existing CSS-transform-only animation pattern from the
+// boss-death burst above (no requestAnimationFrame loop, no per-frame DOM
+// writes — single transform via CSS keyframes). Pure addition; touches no
+// sacred element of `spawnBossDeathParticles`.
+export function spawnCoinParticle({ el, x, y, targetX, targetY, decayMs }) {
+  if (!el) return null;
+  // Position at origin, expose target delta via CSS custom properties so the
+  // .identity-coin-flying keyframe can interpolate translate3d().
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+  el.style.setProperty('--coin-tx', (targetX - x) + 'px');
+  el.style.setProperty('--coin-ty', (targetY - y) + 'px');
+  el.style.setProperty('--coin-decay-ms', decayMs + 'ms');
+  // Restart the animation deterministically (re-trigger CSS keyframes on
+  // re-used pool elements). Toggle class off then on by forcing a layout read.
+  el.classList.remove('identity-coin-flying');
+  // Force a synchronous reflow so the keyframe restarts cleanly.
+  void el.offsetWidth;
+  el.classList.add('identity-coin-flying');
+  return el;
+}
+
 // Spawns the 16-particle radial burst at the boss portrait centerpoint.
 // Returns nothing; the container auto-removes itself after 1600ms.
 // `wrap` is the #bossImgWrap element (caller passes its getBoundingClientRect
