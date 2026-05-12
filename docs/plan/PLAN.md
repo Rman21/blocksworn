@@ -15,9 +15,9 @@
 - **CI status:** ✅ ALL GREEN (PR #158, 6 iterations to fix Node/lockfile/vitest/threshold/visual)
 - **Architectural decision (ADR-004):** Phase 1 closes at INFRASTRUCTURE level, not "new shell plays game". Legacy stays primary runtime; src/ modules retire naturally via Phase 2-4 feature work. Approved by Roman 2026-05-12.
 - **T1.13 redefined:** "infrastructure verify" (CI green + bundle + smoke + visual + boot chain) — ✅ DONE. NOT "new shell full playthrough". That goal deferred to optional future switchover sprint.
-- **Active task:** T1.14 — DELETE artifact subsystem from legacy (v2.1 P1 §4 completion)
-- **Phase 1 endgame:** T1.14-T1.20 cleanup over legacy + Roman merge PR #158 → Phase 2 starts
-- **Last updated:** 2026-05-12 by CTO (after Roman approved Path A — Hybrid Coexistence)
+- **Active task:** T1.14 — DONE (REVIEW); next is T1.15 — DELETE Cosmic Memorial
+- **Phase 1 endgame:** T1.15-T1.20 cleanup over legacy + Roman merge PR #158 → Phase 2 starts
+- **Last updated:** 2026-05-12 by Game Developer (T1.14 REVIEW handoff)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -75,7 +75,7 @@
 - [ ] T1.13 — Verify game runs identically + visual regression pass — TODO
 
 **Week 6: Cleanup**
-- [ ] T1.14 — DELETE artifact subsystem (v2.1 P1 §4 completion) — TODO
+- [x] T1.14 — DELETE artifact subsystem (v2.1 P1 §4 completion) — **REVIEW 2026-05-12** (Game Dev; legacy −7.5KB; src/ stubs + window bridges removed; migrateRemoveArtifacts() shim + 4 unit tests; FTUE drops Pyredrake 50g+2 cards, Grunt 75g+3 cards; lint/unit 15/15/smoke 2/2/visual 22/22 all green; see REPORT-17)
 - [ ] T1.15 — DELETE Cosmic Memorial (v2.1 P5 §7 completion) — TODO
 - [ ] T1.16 — DELETE legacy `--v-*` CSS tokens — TODO
 - [ ] T1.17 — Replace 100-hearts UI in combat top bar — TODO

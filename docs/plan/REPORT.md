@@ -1201,6 +1201,88 @@ ETA at current pace: 3-5 sessions to Phase 1 100%.
 
 ---
 
+## REPORT-17: T1.14 — DELETE artifact subsystem (v2.1 P1 §4 completion)
+
+**Date:** 2026-05-12
+**Phase:** 1 (Foundation Reset cleanup)
+**Status:** REVIEW
+**Author:** Game Developer agent
+**Branch:** `claude/dreamy-bouman-f8e247` (PR #158)
+**Origin:** TASK-022 (Execution Plan §13 T1.14) + ADR-004 (Path A Hybrid Coexistence — legacy can now be modified for cleanup)
+
+### Summary
+
+Artifact subsystem deleted from both `src/` and the legacy `_archive_v1/` HTML. v2.1 P1 PR #1.E (May 2026) had already gutted the artifact MECHANICS (functions replaced with no-op stubs, T4 ARCANE RESONANCE removed, `equippedArtifacts` no longer persisted) and v2.1 P5 §7 layered a conservative 4-key localStorage cleanup, but the inert SHELL (stubs, state vars, UI surfaces, dead callsites, FTUE artifact grants, CSS/info text) all remained. T1.14 completes the deletion per ADR-004's controlled relaxation of the byte-identity rule.
+
+### Done
+
+**Migration shim (new):**
+- `migrateRemoveArtifacts()` in `src/services/migrate.js` — removes 7 well-known artifact localStorage keys + strips `artifactsOwned`/`equippedArtifacts`/`artDropPityCounter` fields from the aggregated `blocksworn_progress` save. Idempotent via the `blocksworn_artifacts_removed_v1` sentinel.
+- Wired in `src/main.js` boot chain immediately after `migrateBareStringKeys()`, before `initProgression()` reads the save.
+- 4 new unit tests in `tests/unit/migrate.test.js` (15 total now, up from 11).
+
+**src/ deletions:**
+- `src/core/ftue-state.js`: `FTUE_PYREDRAKE_ARTIFACT` + `FTUE_GRUNT_ARTIFACT` constants removed.
+- `src/core/progression.js`: `artifactsOwned` / `equippedArtifacts` / `artDropPityCounter` state vars + window bridges + load/save handling deleted.
+- `src/core/battle.js`: `buildArtifactIcon` / `artDisplayName` globals dropped; victory-modal `artDropBanner` collapsed to empty string.
+- `src/ui/rewards.js`: artifact drop roll block deleted (replaced by null); FTUE Pyredrake grant flipped to `addGold(50) + dropRandomHeroCards(2)`; FTUE Grunt grant flipped to `addGold(75) + dropRandomHeroCards(3)`.
+- `src/ui/dailies.js`: `t2ArtifactRandom` icon rendering removed (login streak + weekly missions).
+- `src/services/storage.js`: stale T1.14 migrate() placeholder retired.
+- `src/styles/screens/battle.css`: artifact pill comment updated.
+
+**Legacy deletions** (docs/_legacy/_archive_v1/blocksworn_index_fixed.html):
+- Stubs block (28 LoC): `ART_TYPES`, `artifactsOwned`, `equippedArtifacts`, `artDropPityCounter`, `_ART_RACE_TO_STIHIYA`, `artId`/`artRace`/`artType`/`artStihiya`/`artDisplayName`/`getArtifactCount`/`addArtifact`/`removeArtifact`/`countEquipped`/`canMergeArtifact`/`mergeArtifact`/`rollBossArtifactDrop`/`rollBossArtifactDropForFloor`/`computeArtifactEffects`.
+- Constants: `FTUE_PYREDRAKE_ARTIFACT`, `FTUE_GRUNT_ARTIFACT`, `_currentRacesWithArtifact`, `currentArtifactSummary`, FLOOR_REWARDS artifact fields, TEAM POWER artifact constants (`TP_BASE_ART`/`TP_TIER_ART`/`TP_INACTIVE_ART`).
+- Functions: `_phase5FinalArtifactCleanup`, `_migrateArtifactStorageCleanup`, `vOpenEquipmentStub`.
+- Call sites: rollBossArtifactDrop call in onBossDefeated, FTUE addArtifact grants (replaced with gold + cards), showVictoryModal artDrop banner, vCollectVictoryRewards artifact tile, calcTeamPower artifact loop, computeSynergies/calcSynergyState artifact effects layer.
+- DOM: `vEquipEntryBtn` button (was display:none).
+- UI text: hero detail tier 4 "(needs artifact)" suffix, info modal ARTIFACTS row, daily/weekly mission t2ArtifactRandom emoji.
+- Daily mission data: `weekly_perfect_3` `t2ArtifactRandom: true` replaced with +100 gems compensation; Day-7 login streak `t2ArtifactRandom` dropped.
+
+**Boss drop replacements (Execution Plan §13 T1.14 step 3):**
+
+| Boss | Legacy drop | New drop | Site |
+|------|------------|---------|------|
+| FTUE Pyredrake | orc_ring T1 (artifact) | 50 gold + 2 hero cards | src/ui/rewards.js + legacy onBossDefeated |
+| FTUE Grunt | orc_weapon T1 (artifact) | 75 gold + 3 hero cards | src/ui/rewards.js + legacy onBossDefeated |
+| All chapter bosses (Pyredrake replay, Abyssal Tyrant, Grovewarden, Solar Phoenix, Crypt Lich, Ch2 bosses, Ch3 bosses, Voidfang, Ch4/Ch5 bosses) | `rollBossArtifactDrop()` returned null since v2.1 P1 PR #1.E — already dead in practice | No change (continue Phase 6/7/8 hooks: hero cards + chapter-scaled essence/stone rolls) | n/a |
+| Weekly mission `weekly_perfect_3` | gems: 200 + t2ArtifactRandom | gems: 300 (+100 compensation) | legacy 27165 |
+
+### Gates
+
+- `npm run lint` — 0 errors
+- `npm run test:unit` — **15 / 15** pass (was 11; +4 new migrateRemoveArtifacts tests)
+- `npm run test:smoke` — **2 / 2** pass (legacy still loads + plays)
+- `npm run test:visual` — **22 / 22** pass under 5% (no baseline updates needed — artifact UI never appeared in tested screens because rollBossArtifactDrop returned null in legacy since v2.1 P1)
+- `npm run build` — success; bundle **203.75 KB JS** (unchanged — migrate.js +20 LoC offset by deletions elsewhere)
+- Legacy size: **21,480,494 → 21,472,991 bytes** (-7,503 bytes / -7.3 KB / 0.035%)
+
+### Verification
+
+`grep -r artifact src/` returns only:
+- T1.14 comments documenting the deletion
+- The `migrateRemoveArtifacts` function itself in `src/services/migrate.js`
+
+Zero actual code dependencies on artifact APIs remain in src/. Legacy retains historical comments + the catch-all `/artifact/i` regex in `migrateSave()`'s deprecated-key sweep (which is still valid — it strips any future stragglers).
+
+### Замечено рядом (NOT fixed, reported)
+
+- `currentWeaponUltMult` global in legacy stays declared but is no longer reassigned by `computeSynergies()` (initial identity-map value is correct for all downstream `[hero.race] || 1` reads). Safe; documented in inline comment.
+- `state.weaponUltMult` reference in `state` object retired without explicit assignment — falls back to undefined cleanly through the `|| 1` guards.
+- `currentBonusDmg`'s state.bonusDmgPerCell now omits the artifact bonusDmg term entirely (was 0 from the stub anyway).
+- Legacy `migrateSave()` still has `artifact` in its regex pattern — kept intentionally so any future stale artifact keys get cleaned (defense-in-depth alongside migrateRemoveArtifacts).
+
+### Risks accepted
+
+- No visual baseline shifts were observed, because the artifact UI never rendered in the post-PR-#1.E build (rollBossArtifactDrop returned null unconditionally; addArtifact was a no-op). The 22 baselines were already capturing the post-artifact-purge state.
+- ESLint v9 is happy with the writable-globals declarations because `artifactsOwned`/`equippedArtifacts`/`artDropPityCounter` are no longer in `progression.js`'s /* global :writable */ list either.
+
+### Final status
+
+**PASS** — ready for CTO review. Phase 1 progress: 16 / 20 tasks (T1.14 lands).
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host

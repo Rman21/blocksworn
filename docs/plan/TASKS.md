@@ -7,6 +7,66 @@
 
 ## GAME DEVELOPER
 
+### TASK-022 (T1.14) — REVIEW (2026-05-12)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)
+**Started:** 2026-05-12
+**Completed:** 2026-05-12
+**Priority:** HIGH
+**Phase:** 1 (Week 6 — cleanup)
+**Estimated complexity:** L
+**Depends on:** ✅ T1.13 + ADR-004 (Path A Hybrid Coexistence — legacy now mutable for cleanup)
+
+**Implementation summary:**
+
+Deleted the artifact subsystem from `src/` and `docs/_legacy/_archive_v1/blocksworn_index_fixed.html`. v2.1 P1 PR #1.E had already gutted the mechanics (stubs returning null/0/false; T4 ARCANE RESONANCE removed); v2.1 P5 §7 layered a conservative 4-key localStorage cleanup. T1.14 completes the deletion: inert stubs, state vars, window bridges, dead callsites, FTUE artifact grants, UI surfaces, and CSS comments all removed. Boss drops replaced per spec (Pyredrake FTUE → 50g + 2 hero cards; Grunt FTUE → 75g + 3 hero cards; non-FTUE chapter bosses unchanged since the artifact roll always returned null in legacy already). Save migration shim `migrateRemoveArtifacts()` lands in `src/services/migrate.js` with 4 unit tests + boot-chain wiring + 7-key cleanup sentinel.
+
+**Files changed:**
+
+- `src/services/migrate.js` — +120 LoC `migrateRemoveArtifacts()` + sentinel + 7-key allow-list export
+- `src/main.js` — wires `migrateRemoveArtifacts()` into boot chain after `migrateBareStringKeys()`
+- `tests/unit/migrate.test.js` — +4 unit tests (15 total now)
+- `src/core/ftue-state.js` — removed `FTUE_PYREDRAKE_ARTIFACT` / `FTUE_GRUNT_ARTIFACT` constants
+- `src/core/progression.js` — removed `artifactsOwned` / `equippedArtifacts` / `artDropPityCounter` state + window bridges + save/load handling
+- `src/core/battle.js` — removed `buildArtifactIcon` / `artDisplayName` globals + collapsed `artDropBanner` to empty string
+- `src/core/heroes.js` — comment updates only (artifact procs removed in T1.14)
+- `src/core/bosses.js` — Grunt comment updated (75g + 3 cards drop)
+- `src/ui/rewards.js` — removed artifact drop roll block + flipped FTUE Pyredrake to addGold(50) + dropRandomHeroCards(2); FTUE Grunt to addGold(75) + dropRandomHeroCards(3); removed `artDrop` from `_lastReward`
+- `src/ui/dailies.js` — removed `t2ArtifactRandom` icon rendering (login + weekly)
+- `src/services/storage.js` — retired stale T1.14 `migrate()` placeholder
+- `src/styles/screens/battle.css` — comment update only
+- `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` — 28-LoC stubs block + 20+ scattered references removed (functions, state, UI, dead callsites)
+- `docs/plan/PLAN.md` + `REPORT.md` — REPORT-17 added; T1.14 marked REVIEW
+
+**Smoke tests:** ✅ 2 / 2 pass (`npm run test:smoke`)
+**Visual regression:** ✅ 22 / 22 pass under 5% (no baseline updates needed — artifact UI was never rendered post-PR-#1.E; baselines already captured the post-purge state)
+**Unit tests:** ✅ 15 / 15 pass (`npm run test:unit`)
+**Build:** ✅ 203.75 KB JS bundle (unchanged), 368.77 KB CSS
+**Lint:** ✅ 0 errors
+
+**Self-check:**
+
+- [x] Acceptance: zero `applyArtifact*` etc. functions in src/ (only T1.14 marker comments + the migration shim)
+- [x] Acceptance: zero `ARTIFACTS` constants in src/
+- [x] Acceptance: All boss artifact drops replaced (FTUE Pyredrake: 50g + 2 cards; FTUE Grunt: 75g + 3 cards; chapter bosses already had null drops since v2.1 P1 PR #1.E)
+- [x] Acceptance: Storage migration runs cleanly via `migrateRemoveArtifacts()` (idempotent via `blocksworn_artifacts_removed_v1` sentinel)
+- [x] Acceptance: Smoke tests pass
+- [x] Acceptance: Visual regression — hero detail screen + boss drops screen: no diff (post-#1.E baselines already match)
+- [x] DO NOT TOUCH: Combat math, race synergy, hero passives, V_HAPTICS, NARRATOR_LINES, GEM_PACKS prices — all unchanged
+- [x] DO NOT TOUCH: Unrelated legacy code (only artifact-touching code modified)
+- [x] No npm packages installed
+- [x] No push to remote
+
+**Замечено рядом (NOT fixed, reported):**
+
+- Legacy `currentWeaponUltMult` global stays declared but is no longer reassigned by `computeSynergies()` (initial identity-map value `{orc:1, troll:1, ...}` is correct for all downstream `[hero.race] || 1` reads). Safe; documented in inline comment. Could be retired in a future cleanup task.
+- Legacy `migrateSave()` still has `artifact` in its catch-all regex pattern at line 38314 — kept intentionally as defense-in-depth alongside `migrateRemoveArtifacts()`. Could be tightened in a future pass if any false positives are observed.
+
+**Time:** ~2 hours
+**Commit:** see git log — `[T1.14] DELETE artifact subsystem (v2.1 P1 §4 completion)` + `[DOCS] TASK-022 T1.14 → REVIEW with self-check`
+
+---
+
 ### TASK-010 (T1.09) — Extract feel layer (animations, particles, narrator function) to `src/feel/`
 
 **Status:** REVIEW (Game Dev → CTO)
