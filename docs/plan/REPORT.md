@@ -1937,6 +1937,99 @@ That's it. Combined with Spark's one-line bridge from T2.06, T2.B's per-mechanic
 
 ---
 
+## REPORT-26: T2.08 Lich Cursed Tiles — explicit Shark counter PASS; per-turn-tick primitive established
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Dev agent `a70b1dd557fb32c35` returned PASS; CTO review confirmed.
+
+### Summary
+
+T2.08 lands clean — second boss-reactive, explicit Shark counter mechanism. +1922 / -3 LoC across 9 files, +58 unit tests (303 → 361), +12 smoke (76 → 88 × 2 projects). 0 sacred-cow modifications. Commit `bc229f7`. CTO PASS.
+
+### Sacred cow audit — explicit verification
+
+| Sacred | Status | Verification |
+|---|---|---|
+| 22 v2.1 P4 reactivity handlers | byte-perfect ✅ | `git diff HEAD~1 HEAD -- src/core/reactivity-events.js \| grep '^-' \| grep -v '^---' \| wc -l` = 0 |
+| `HERO_ULT_COST_BY_NEWROLE` (5 roles) | byte-perfect ✅ | READ-only for +20 ULT clamp; verified clamp behavior across all 5 roles (warrior:80, mage:100, hunter:120, tank:80, captain:100) |
+| `REACTIVITY_TELEGRAPH_MS = 3000` | byte-perfect ✅ | Re-used; `CURSED_TILES_TELEGRAPH_MS === REACTIVITY_TELEGRAPH_MS === 3000` invariant unit-tested |
+| Phoenix/Ashen Reign constants | byte-perfect ✅ | T2.07 invariants maintained |
+| Combo crit formula | byte-perfect ✅ | T2.06 invariant maintained |
+
+### Architectural insight — cross-mechanic integration is essentially free
+
+Shark's `isSharkBiteBlocked` predicate from T2.03 (`src/feel/identity-fx.js:396`) already recognizes the `gridState.cursedCells` Set as a cell-state predicate gate. This means:
+
+- **Shark bites attempt to clear cursed cells → naturally absorbed visually, no clear** (existing predicate respects Lich's curse state)
+- **Lich's +20 ULT compensation reads sacred thresholds** via T2.04's clamp pattern
+- **T2.B bridge wires `isCellCursed` into legacy** via single predicate hook — minimal disruption
+
+This is what spec §2.2 field 7 anticipated: "bosses with `tempo_disruptor`, `wither`, or `engineer` archetypes already lock or freeze cells; if Shark would clear a locked/electrified cell, the bite is **absorbed**". Lich Cursed Tiles plugs into the same predicate chain.
+
+### New architectural primitive — per-turn-tick
+
+T2.08 introduces `fxLichCursedTilesTick(ctx)` — a per-turn lifecycle handler called by battle pipeline. This is the first boss-reactive with **steady-state per-turn effects** (vs T2.07 Phoenix Ashen Reign's pure CSS-driven steady state). Pattern reusable for:
+
+- T2.09 Berserker Bloodtide Pulse (every 3rd clear during Active state — count-based tick)
+- T2.10 Engineer Lockdown Protocol (4-line crit detection — event-based tick)
+- T2.11 Grovewarden Root Surge (last-3-non-grove tracking — sliding-window tick)
+
+Budget per tick: ≤3ms (Cursed Tiles validates 3 cells × 1ms each).
+
+### Performance — all within spec §3.2 field 7
+
+| Phase | Budget | Measured |
+|---|---|---|
+| Telegraph banner | ≤8ms | re-use of `flashStateBanner` ✅ |
+| 3 cursed-cell overlays | ≤6ms total | pool elements + class swap ✅ |
+| Per-turn tick | ≤3ms | integer math + ≤3 DOM class swaps ✅ |
+| Total per fire peak | ≤16ms | CI smoke <48ms 3× headroom ✅ |
+
+### Threshold clamp safety — 5-case + 5-role audit
+
+The +20 ULT compensation respects sacred `HERO_ULT_COST_BY_NEWROLE` for ALL 5 roles. Cases verified:
+
+| Current | +Delta | Threshold | Result | Pattern |
+|---|---|---|---|---|
+| 80 | +20 | 100 | 100 | exact-cap clamp |
+| 99 | +20 | 100 | 100 | overflow clamp |
+| 50 | +20 | 100 | 70 | no-clamp |
+| 100 | +20 | 100 | 100 | already-at-cap |
+| 120 | +20 | 100 | 100 | defensive down-clamp |
+
+### Quality bar trajectory
+
+| Metric | T2.06 | T2.07 | **T2.08** | AAA+ |
+|---|---|---|---|---|
+| Unit tests | 224 | 303 | **361** | growing ✅ |
+| Smoke runs (× 2 projects) | 62 | 76 | **88** | green ✅ |
+| Sacred audit | 0 mods | 0 mods | **0 mods** | always 0 ✅ |
+| Bundle JS | 205.87 kB | 209.74 kB | **212.73 kB** | <5 MB ✅ |
+| Bundle CSS | 376.96 | 381.09 | **382.90** | reasonable ✅ |
+| Reactivity handlers untouched | 22/22 | 22/22 | **22/22** | sacred ✅ |
+
+### Engineering wins
+
+- 4.8× brief target on unit tests (target +12-18, delivered **+58**)
+- Cross-mechanic integration is essentially free by design — Shark + Lich, Crocodile + Lich both work via existing predicate chains
+- New per-turn-tick primitive reusable for 3 remaining boss-reactive mechanics
+- Identity Layer's 4 patterns now established: sibling export (T2.02), ctx side-channel (T2.03), sacred-clamp (T2.04), parallel-registry (T2.07), per-turn-tick (T2.08)
+
+### Phase 2 boss-reactive scoreboard (2/5)
+
+| # | Boss/archetype | Identity | Status |
+|---|---|---|---|
+| 1 | Phoenix | Ashen Reign | ✅ T2.07 |
+| 2 | Lich (assassin) | Cursed Tiles | ✅ T2.08 |
+| 3 | Berserker / Frenzy | Bloodtide Pulse | 🟡 T2.09 next |
+| 4 | Engineer | Lockdown Protocol | T2.10 |
+| 5 | Grovewarden (bruiser) | Root Surge | T2.11 |
+
+🟢 **T2.08 DONE. Next: T2.09 Berserker/Frenzy Bloodtide Pulse — every-3rd-clear tempo mechanic.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)

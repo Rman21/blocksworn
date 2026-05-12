@@ -2785,9 +2785,11 @@ All 9 tests pass.
 
 ---
 
-### TASK-035 (T2.08) — REVIEW 2026-05-12 — Lich Cursed Tiles — explicit Shark counter (SECOND boss-reactive identity mechanic)
+### TASK-035 (T2.08) — ✅ DONE 2026-05-12 — Lich Cursed Tiles — explicit Shark counter (SECOND boss-reactive identity mechanic)
 
-**Status:** IN PROGRESS → **REVIEW** (Game Dev sign-off 2026-05-12 — awaiting CTO)
+**CTO acceptance 2026-05-12:** PASS. Sacred 22 P4 handlers byte-perfect (0 deletions in reactivity-events.js diff). +20 ULT threshold clamp verified across all 5 roles. Cross-mechanic integration is essentially free by design (Shark+Lich+Crocodile work via existing predicate chains). New `fxLichCursedTilesTick` per-turn-tick primitive reusable for T2.09-T2.11. 361/361 unit + 88/88 smoke × 2 projects. Commit `bc229f7`. All precedents followed.
+
+**Status:** IN PROGRESS → REVIEW → **DONE** (CTO sign-off 2026-05-12)
 **Started:** 2026-05-12
 **Completed (Game Dev):** 2026-05-12
 **Priority:** HIGH
