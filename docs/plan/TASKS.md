@@ -2785,9 +2785,11 @@ All 9 tests pass.
 
 ---
 
-### TASK-033 (T2.06) — REVIEW (2026-05-12) — Spark Sun Cascade — FIFTH and HIGHEST-IMPACT race flavor
+### TASK-033 (T2.06) — ✅ DONE 2026-05-12 — Spark Sun Cascade — race-flavor portion of Phase 2 COMPLETE 5/5
 
-**Status:** IN PROGRESS → REVIEW (awaiting CTO acceptance)
+**CTO acceptance 2026-05-12:** PASS. Highest-stakes sacred-cow proximity in Phase 2 cleared. Combo crit formula (line 63664 `critMult = 1 + domCount * count * CRIT_MULT_K`) BYTE-PERFECT verified via empty `git diff` on legacy. `RACE_SYNERGY.lion[5].bonusDmg.solar = 3` byte-perfect. Cap invariant exhaustively swept [0..10]×[0..64] proves modifier ∈ {0, +1}. `SUN_CASCADE_ENABLED` single-flip fallback architected for T2.B matchup-matrix gate. T2.B bridge for Spark is genuinely a one-line addition. 224/224 unit + 62/62 smoke. Commit `d2423bc`. All 4 T2.02 precedents + T2.03/T2.04/T2.05 patterns followed.
+
+**Status:** IN PROGRESS → REVIEW → **DONE** (CTO sign-off 2026-05-12)
 **Started:** 2026-05-12
 **Completed (Game Dev):** 2026-05-12
 **Priority:** HIGH
