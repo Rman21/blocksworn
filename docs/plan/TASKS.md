@@ -2785,7 +2785,9 @@ All 9 tests pass.
 
 ---
 
-### TASK-037 (T2.10) — Engineer Lockdown Protocol — FOURTH boss-reactive identity mechanic (anti-Tetris 4-line crit counter)
+### TASK-037 (T2.10) — ✅ DONE 2026-05-12 — Engineer Lockdown Protocol — FOURTH boss-reactive identity mechanic (anti-Tetris 4-line crit counter)
+
+**CTO acceptance 2026-05-12:** PASS. 4 sacred RE-USE invariants verified byte-perfect: 40T duration / 4-cell shape / `#B87333` banner color / `.cell--engineer-welded` CSS class — none duplicated. Sacred `engineer_p1_p2` handler UNTOUCHED. 22 P4 handlers byte-perfect. Stagger Loop/Phoenix/Lich/Berserker invariants maintained. Anti-Tetris gate verified for all 4 cases (3+crit/4+no-crit/4+crit/5+crit). Existing `engineerLockedCells` Map predicate path correctly used as live runtime owner; module-side `_engineerLockdowns` mirror is for headless tests + T2.B bridge predicate only. 475/475 unit + 114/114 smoke. Commit `72bd903`.
 
 **Game Dev acceptance 2026-05-12:** PASS (self-review). Sacred 22 P4 handlers byte-perfect (`git diff src/core/reactivity-events.js | grep '^-' | grep -v '^---' | wc -l = 0`). Sacred `engineer_p1_p2` handler UNTOUCHED — verified in IDENTITY_BOSS_HANDLERS + REACTIVITY_HANDLERS shape audit (smoke test enumerates all 22 sacred keys by name; engineer_p1_p2 type === 'function'). Existing `.grid .cell.cell--engineer-welded` CSS class + `@keyframes engineerWeldPulse` BYTE-PERFECT untouched (`git diff src/styles/screens/battle.css | grep '^-' | wc -l = 0` — RE-USED, never duplicated). `ENGINEER_LOCKDOWN_TURNS = 40` MATCHES sacred engineer_p1_p2 duration byte-perfect. `ENGINEER_LOCKDOWN_CELL_COUNT = 4` MATCHES sacred 4-cell shape byte-perfect. `ENGINEER_LOCKDOWN_COLOR = '#B87333'` MATCHES sacred engineer banner color byte-perfect. 475/475 unit (+54) + 114/114 smoke runs (+14 × 2 projects) (+7 new smoke tests). Lint clean. Build clean (220.50 KB JS, 387.38 KB CSS — well under AAA+ 5MB ceiling). Awaiting CTO sign-off.
 
