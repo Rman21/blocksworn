@@ -1180,10 +1180,43 @@ re-use-impossible cases to CTO for a separate asset-request task.
 
 ---
 
-**Document version:** 1.0 DRAFT
-**Awaiting:** Roman approval (O1–O4 specifically) before T2.02 starts.
-**Maintainer:** Game Designer agent (this session).
+**Document version:** 1.1 — Roman ruling applied 2026-05-12
+**Status:** APPROVED — T2.02 unblocked
+**Maintainer:** Game Designer agent (T2.01) + CTO
 
 > "Mechanics × race/boss identity." — Roman's audit phrase.
 > The Identity Layer is how every fight remembers the race that
 > fought it and every race remembers the boss it faced.
+
+---
+
+## 12. ROMAN RULING APPENDIX — ESC-02 resolved 2026-05-12
+
+Roman authorized "merge and continue (on your recommendations if AAA+ game development)" — all 4 ESC-02 open questions approved per CTO recommendations.
+
+| ID | Question | Ruling | Effect on Phase 2 |
+|---|---|---|---|
+| **O1** | RACE_SYNERGY tier entries for shark / crocodile / spark | ✅ **DEFER** to post-Phase-2 sacred-cow-EXTENSION task | Phase 2 ships with asymmetric synergy support (pirate+rock have RACE_SYNERGY+Identity ✓; shark/crocodile/spark have Identity only ✓). RACE_SYNERGY remains sacred-immutable in Phase 2. |
+| **O2** | Narrator line approvals (4+ new Darkest-Dungeon-voice lines) | ✅ **PLACEHOLDER-FIRST.** Game Dev wires with Designer's draft strings; CTO + Roman do a copy-pass before T2.11 closes (parallel review track) | Implementation unblocked; final-line editorial review batched at end of Phase 2 |
+| **O3** | Sun Cascade modifies `dominantCount` BEFORE sacred combo-crit formula (input-mutation, not formula-change) | ✅ **WITHIN BOUNDARY.** Input modification (same architectural pattern as cascade), not formula modification. Capped at +1, gated 2-solar-cell minimum, not stacking | T2.06 (Spark Sun Cascade) proceeds as designed; **Bug Tester must run 5×5 matchup matrix (25 smokes) with explicit Spark balance check before T2.06 closes** |
+| **O4** | Audio asset budget for 5–6 new SFX (coin / bite / cymbal / thunk / chime / fire roar) | ✅ **RE-USE-FIRST.** All Identity Layer SFX must re-use existing assets at modified volume/pitch. Flag re-use-impossible cases as separate asset-request tasks (not blocking T2.02–T2.11) | Audio mixer stays under 5MB working set; mobile audio budget preserved |
+
+### Phase 2 implementation green-lit per ruling
+
+- **T2.02** Pirate's Plunder — UNBLOCKED ✅
+- **T2.03** Shark Feeding Frenzy — UNBLOCKED ✅
+- **T2.04** Rock Encore Echo — UNBLOCKED ✅
+- **T2.05** Crocodile Bedrock Bastion — UNBLOCKED ✅
+- **T2.06** Spark Sun Cascade — UNBLOCKED ✅ with mandatory matchup matrix gate
+- **T2.07–T2.11** Boss-reactive mechanics — UNBLOCKED ✅ (narrator placeholder-first)
+- **T2.12** Codex screen — UNBLOCKED ✅ (gated by all triggers wired)
+
+### Sacred cow status after ruling
+
+Identity Layer remains **purely additive**. Roman's ruling does NOT change the 36-row sacred audit in §8 — 0 modifications. The O3 "within boundary" ruling confirms: input modification before sacred formula evaluation is established precedent (cascade) and not a sacred-cow change.
+
+### Quality gates added by ruling
+
+1. **T2.06 mandatory Bug Tester matchup matrix:** 5 races × 5 chapter-finale bosses = 25 smokes verifying no single Spark-pairing dominates. If any pairing exceeds expected TTK by >15%, demote Spark to pure-FX per §2.5 fallback path.
+2. **T2.11 mandatory narrator copy-pass:** All Designer-drafted Darkest-Dungeon-voice lines reviewed by CTO + Roman before Phase 2 PR merges.
+3. **Phase 2 closeout audit:** Bug Tester re-verifies 22 sacred Reactivity handlers byte-perfect; identity_* namespace stays cleanly separated.

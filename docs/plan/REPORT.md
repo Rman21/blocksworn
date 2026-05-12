@@ -1461,15 +1461,74 @@ Phase 2 first task closed. T2.01 design spec is the source of truth for T2.02–
 
 ---
 
+## REPORT-19: 🚀 Phase 1 MERGED to main + Phase 2 pipeline OPEN
+
+**Date:** 2026-05-12 12:26 UTC
+**Author:** CTO
+**Trigger:** Roman authorized "merge and continue (on your recommendations if AAA+ game development)"
+
+### Phase 1 merge
+
+PR #158 squash-merged to `main` as commit `4aea3ce feat(phase1): Foundation Reset COMPLETE — modular ES Modules + Vite + v2.1 cleanup (#158)`. 116+ commits collapsed into single milestone commit per repo squash convention. Branch `claude/dreamy-bouman-f8e247` preserved locally for full git history audit; remote branch retired.
+
+### Phase 2 branch initialized
+
+New working branch: `claude/phase2-identity-layer` (created from `origin/main` post-merge).
+- 2 Phase 2 doc commits cherry-picked from Phase 1 branch: `2c35484` (T2.01 design spec) + `8ccd748` (T2.01 CTO closeout + ESC-02)
+- All future Phase 2 work lands on this branch
+- Phase 2 PR will open when sufficient implementation exists for review (likely after T2.06 — 5 races done)
+
+### ESC-02 resolved per CTO recommendations
+
+Roman applied "blanket approval per CTO recommendations" — all 4 open questions accepted as Designer + CTO recommended:
+- **O1** DEFER RACE_SYNERGY symmetry to post-Phase-2
+- **O2** PLACEHOLDER-FIRST narrator copy (Roman copy-pass at T2.11)
+- **O3** Sun Cascade WITHIN BOUNDARY (with T2.06 5×5 matchup matrix gate)
+- **O4** RE-USE-FIRST audio assets
+
+Design spec v1.0 → v1.1; §12 Roman ruling appendix added with quality gates. T2.02 (Pirate's Plunder) Game Dev agent launches next.
+
+### What unblocks immediately
+
+| Layer | Status |
+|---|---|
+| T2.02 Pirate Plunder (Game Dev) | ACTIVE (launches next, background agent) |
+| T2.03–T2.06 race flavors | UNBLOCKED |
+| T2.07–T2.11 boss-reactive | UNBLOCKED (placeholder narrator OK) |
+| T2.12 Codex screen | UNBLOCKED (gated by T2.02–T2.11 triggers wired) |
+
+### AAA+ engineering notes
+
+- Phase 2 starts on a clean branch from latest main — no rebase drama, no force-push, clean linear history going forward
+- Phase 1 branch + 116-commit history preserved locally in case audit needed
+- Design spec is immutable for T2.02–T2.11 implementation reference (any deviation = task return)
+- ADR-004 hybrid coexistence continues: any new Phase 2 code lands in `src/` only; legacy remains primary runtime
+
+🚀 **Phase 1 closed. Phase 2 open. Next: T2.02 Game Dev agent.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)
 
-**Status:** ⚠️ **AWAITING ROMAN APPROVAL**
+**Status:** ✅ **RESOLVED 2026-05-12** — Roman approved all 4 per CTO recommendations ("merge and continue (on your recommendations if AAA+ game development)")
 **Created:** 2026-05-12
+**Resolved:** 2026-05-12
 **Origin:** TASK-028 / T2.01 (`b325c30`)
-**Severity:** NORMAL (blocks Phase 2 progress, not Phase 1 finish; safe to deliberate)
-**Reference:** `docs/design/mechanics/identity-layer.md` §10
+**Severity:** NORMAL (no longer blocking)
+**Reference:** `docs/design/mechanics/identity-layer.md` §10 + §12 (Roman ruling appendix)
+
+### Ruling summary
+
+| O# | Question | Roman ruling | Quality gate added |
+|---|---|---|---|
+| O1 | RACE_SYNERGY tier entries for shark/crocodile/spark | DEFER post-Phase-2 | none (asymmetry accepted for Phase 2) |
+| O2 | Narrator line approvals | PLACEHOLDER-FIRST | T2.11 mandatory copy-pass before Phase 2 PR merges |
+| O3 | Sun Cascade `dominantCount` input mutation | WITHIN BOUNDARY | T2.06 mandatory 5×5 matchup matrix (25 smokes); demote to pure-FX if any pairing >15% TTK deviation |
+| O4 | Audio budget for 5–6 new SFX | RE-USE-FIRST | none (mobile audio ≤5MB working set preserved) |
+
+Ruling baked into design spec v1.1 §12. T2.02 unblocked; Phase 2 implementation pipeline open.
 
 ### Context
 
