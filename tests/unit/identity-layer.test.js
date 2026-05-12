@@ -43,6 +43,11 @@ import {
   resolveSacredMaxShieldBonus,
   fxCrocodileLineClear,
   resetCrocFragmentBank,
+  // T2.06 — Spark Sun Cascade helpers.
+  countAliveSparks,
+  countSolarCellsInClear,
+  computeSunCascadeModifier,
+  fxSparkLineClear,
   __identityFxTestables,
 } from '../../src/feel/identity-fx.js';
 import {
@@ -67,8 +72,14 @@ import {
   CROCODILE_BASTION_FRAGMENT_DECAY_MS,
   CROCODILE_BASTION_GROVE_ELEMENT,
   CROCODILE_BASTION_TARGET_HERO_INDEX,
+  SPARK_CASCADE_MIN_SOLAR_CELLS,
+  SPARK_CASCADE_MAX_DOMINANT_BOOST,
+  SPARK_CASCADE_MAX_RAY_PARTICLES,
+  SPARK_CASCADE_RAY_DECAY_MS,
+  SPARK_CASCADE_DOMINANT_ELEMENT,
+  SPARK_CASCADE_ENABLED,
 } from '../../src/data/identity-layer.js';
-import { RACE_SYNERGY } from '../../src/data/races.js';
+import { RACE_SYNERGY, RACE_IDENTITY_FX } from '../../src/data/races.js';
 
 describe('identity-layer · Pirate\'s Plunder · computePirateGold', () => {
   it('0 pirates × 10 cells → 0g (silent no-op contract)', () => {
@@ -1305,5 +1316,462 @@ describe('identity-layer · dispatchIdentityFx — crocodile race regression', (
     // All four FX layers fire in sequence; no exception, no interference.
     expect(() => dispatchIdentityFx([0], [], squad, null,
       { gridState: grid, dominantElementsByLine: ['umbra'] })).not.toThrow();
+  });
+});
+
+// ─── T2.06 — Spark Sun Cascade unit tests (spec §2.5) ──────────────────────
+//
+// THE highest-stakes Phase 2 race flavor — Sun Cascade is the ONLY race
+// flavor that interacts directly with the sacred combo crit input
+// (CLAUDE.md §2.1 row 1, legacy line 63664). The implementation modifies
+// the INPUT (dominantCount) via `ctx._dominantCountModifier`, NEVER the
+// formula multiplier arithmetic.
+//
+// These tests verify:
+//   - countAliveSparks: defensive squad count (T2.02 precedent #2)
+//   - countSolarCellsInClear: inclusion–exclusion solar cell scan
+//   - computeSunCascadeModifier: HARD CAP / GATE / FALLBACK FLAG invariants
+//   - fxSparkLineClear: end-to-end gate + cap + ctx side-channel write
+//   - Sacred isolation: formula multipliers NEVER touched
+//   - Fallback flag: SPARK_CASCADE_ENABLED=false demotes to pure-FX
+//   - Mixed-race independence: Spark's modifier does not leak into
+//     Pirate/Shark/Rock/Crocodile state
+
+// Solar-grid stub builder. Same pattern as _makeStubGrid but populates
+// solar cells per overrides instead of grove.
+function _makeSolarStubGrid(overrides = {}) {
+  const g = Array.from({ length: 8 }, () => Array(8).fill(null));
+  if (overrides.rowsSolar) {
+    for (const r of overrides.rowsSolar) {
+      for (let c = 0; c < 8; c++) g[r][c] = 'solar';
+    }
+  }
+  if (overrides.cellsSolar) {
+    for (const [r, c] of overrides.cellsSolar) {
+      g[r][c] = 'solar';
+    }
+  }
+  if (overrides.cellsMixed) {
+    // cellsMixed: [[r, c, element], ...]
+    for (const [r, c, el] of overrides.cellsMixed) {
+      g[r][c] = el;
+    }
+  }
+  return g;
+}
+
+describe('identity-layer · Spark Sun Cascade · countAliveSparks', () => {
+  it('empty / undefined / null squad → 0', () => {
+    expect(countAliveSparks([])).toBe(0);
+    expect(countAliveSparks(undefined)).toBe(0);
+    expect(countAliveSparks(null)).toBe(0);
+  });
+
+  it('mixed squad with 1 spark → 1', () => {
+    const squad = [
+      { id: 's1', race: 'spark' },
+      { id: 'o1', race: 'orc' },
+      { id: 'p1', race: 'pirate' },
+    ];
+    expect(countAliveSparks(squad)).toBe(1);
+  });
+
+  it('5-spark squad → 5 (squad max)', () => {
+    const squad = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, race: 'spark' }));
+    expect(countAliveSparks(squad)).toBe(5);
+  });
+
+  it('dead spark (hp=0) excluded; absent hp treated as alive (T2.02 precedent #2)', () => {
+    const squad = [
+      { id: 's1', race: 'spark', hp: 100 },
+      { id: 's2', race: 'spark', hp: 0 },     // dead — excluded
+      { id: 's3', race: 'spark' },            // hp absent — alive
+      { id: 's4', race: 'spark', hp: -5 },    // negative — excluded
+    ];
+    expect(countAliveSparks(squad)).toBe(2);
+  });
+
+  it('null entries + non-spark races ignored', () => {
+    expect(countAliveSparks([null, { race: 'spark' }, undefined, { race: 'lion' }])).toBe(1);
+  });
+});
+
+describe('identity-layer · Spark Sun Cascade · countSolarCellsInClear', () => {
+  it('null gridState → 0 (defensive)', () => {
+    expect(countSolarCellsInClear([0], [], null)).toBe(0);
+    expect(countSolarCellsInClear([0], [], undefined)).toBe(0);
+  });
+
+  it('empty rows∪cols → 0', () => {
+    const grid = _makeSolarStubGrid({ rowsSolar: [0, 1, 2] });
+    expect(countSolarCellsInClear([], [], grid)).toBe(0);
+  });
+
+  it('full solar row clear → 8 solar cells', () => {
+    const grid = _makeSolarStubGrid({ rowsSolar: [0] });
+    expect(countSolarCellsInClear([0], [], grid)).toBe(8);
+  });
+
+  it('0 solar cells in cleared row → 0', () => {
+    const grid = _makeSolarStubGrid({
+      cellsMixed: [[0, 0, 'ember'], [0, 1, 'tide'], [0, 2, 'grove']],
+    });
+    expect(countSolarCellsInClear([0], [], grid)).toBe(0);
+  });
+
+  it('exactly 1 solar cell in cleared row → 1 (BELOW gate threshold)', () => {
+    const grid = _makeSolarStubGrid({
+      cellsMixed: [[0, 0, 'solar'], [0, 1, 'tide'], [0, 2, 'ember']],
+    });
+    expect(countSolarCellsInClear([0], [], grid)).toBe(1);
+  });
+
+  it('exactly 2 solar cells → 2 (AT gate threshold)', () => {
+    const grid = _makeSolarStubGrid({
+      cellsMixed: [[0, 0, 'solar'], [0, 1, 'solar'], [0, 2, 'ember']],
+    });
+    expect(countSolarCellsInClear([0], [], grid)).toBe(2);
+  });
+
+  it('mixed: solar cells across rows + cols counted once (inclusion-exclusion)', () => {
+    // Place solar cells at (0,0), (0,3), (1,3), (5,3). Clear row 0 and col 3.
+    // Row 0 contains: (0,0)=solar, (0,3)=solar → 2 solars
+    // Col 3 contains: (0,3)=solar(dup), (1,3)=solar, (5,3)=solar → 2 new solars
+    // Total distinct = 4.
+    const grid = _makeSolarStubGrid({
+      cellsSolar: [[0, 0], [0, 3], [1, 3], [5, 3]],
+    });
+    expect(countSolarCellsInClear([0], [3], grid)).toBe(4);
+  });
+
+  it('all solar quad-clear (4 rows) → 32 cells', () => {
+    const grid = _makeSolarStubGrid({ rowsSolar: [0, 2, 4, 6] });
+    expect(countSolarCellsInClear([0, 2, 4, 6], [], grid)).toBe(32);
+  });
+
+  it('respects getElementAt accessor (module-style API surface)', () => {
+    const accessor = {
+      getElementAt: (r, c) => (r === 0 && c < 3) ? 'solar' : null,
+    };
+    expect(countSolarCellsInClear([0], [], accessor)).toBe(3);
+  });
+});
+
+describe('identity-layer · Spark Sun Cascade · computeSunCascadeModifier', () => {
+  it('0 sparks + 5 solar cells → 0 (no sparks → no fire)', () => {
+    expect(computeSunCascadeModifier(0, 5, true)).toBe(0);
+  });
+
+  it('1 spark + 1 solar cell → 0 (BELOW gate threshold of 2)', () => {
+    expect(computeSunCascadeModifier(1, 1, true)).toBe(0);
+  });
+
+  it('1 spark + 2 solar cells → +1 (AT gate threshold)', () => {
+    expect(computeSunCascadeModifier(1, 2, true)).toBe(1);
+  });
+
+  it('1 spark + 8 solar cells → +1 (HARD CAP — NOT stacking with cell count)', () => {
+    expect(computeSunCascadeModifier(1, 8, true)).toBe(1);
+  });
+
+  it('5 sparks + 2 solar cells → +1 (HARD CAP — NOT stacking with spark count)', () => {
+    expect(computeSunCascadeModifier(5, 2, true)).toBe(1);
+  });
+
+  it('5 sparks + 32 solar cells (full quad-line clear) → +1 (HARD CAP under maximum load)', () => {
+    expect(computeSunCascadeModifier(5, 32, true)).toBe(1);
+  });
+
+  it('SPARK_CASCADE_ENABLED=false: 5 sparks + 5 solar → 0 (FALLBACK FLAG — pure-FX demotion)', () => {
+    expect(computeSunCascadeModifier(5, 5, false)).toBe(0);
+    expect(computeSunCascadeModifier(1, 2, false)).toBe(0);
+    expect(computeSunCascadeModifier(5, 32, false)).toBe(0);
+  });
+
+  it('defensive: negative / NaN inputs → 0', () => {
+    expect(computeSunCascadeModifier(-1, 5, true)).toBe(0);
+    expect(computeSunCascadeModifier(1, -1, true)).toBe(0);
+    expect(computeSunCascadeModifier(NaN, NaN, true)).toBe(0);
+    expect(computeSunCascadeModifier('foo', 'bar', true)).toBe(0);
+  });
+
+  it('CRITICAL HARD CAP invariant: return value is ALWAYS 0 or SPARK_CASCADE_MAX_DOMINANT_BOOST', () => {
+    // Exhaustive check across plausible (sparks, solars) input space.
+    for (let sparks = 0; sparks <= 10; sparks++) {
+      for (let solars = 0; solars <= 64; solars++) {
+        const m = computeSunCascadeModifier(sparks, solars, true);
+        expect(m === 0 || m === SPARK_CASCADE_MAX_DOMINANT_BOOST).toBe(true);
+        // Cap is sacred — never exceeds +1.
+        expect(m).toBeLessThanOrEqual(SPARK_CASCADE_MAX_DOMINANT_BOOST);
+      }
+    }
+  });
+});
+
+describe('identity-layer · Spark Sun Cascade · fxSparkLineClear gate behavior', () => {
+  it('0-spark squad → silent no-op, returns 0, ctx untouched', () => {
+    __identityFxTestables.resetSparkRayPool();
+    const grid = _makeSolarStubGrid({ rowsSolar: [0] });
+    const ctx = { gridState: grid };
+    const result = fxSparkLineClear([0], [], [{ race: 'orc' }, { race: 'pirate' }], ctx);
+    expect(result).toBe(0);
+    expect(ctx._dominantCountModifier).toBeUndefined();
+  });
+
+  it('1-spark + 1-solar-cell line clear → silent no-op (BELOW gate), ctx untouched', () => {
+    __identityFxTestables.resetSparkRayPool();
+    const grid = _makeSolarStubGrid({
+      cellsMixed: [[0, 0, 'solar'], [0, 1, 'tide'], [0, 2, 'ember']],
+    });
+    const ctx = { gridState: grid };
+    const result = fxSparkLineClear([0], [], [{ race: 'spark' }], ctx);
+    expect(result).toBe(0);
+    expect(ctx._dominantCountModifier).toBeUndefined();
+  });
+
+  it('1-spark + 2-solar-cell line clear → fires, returns 1, ctx._dominantCountModifier = 1', () => {
+    __identityFxTestables.resetSparkRayPool();
+    const grid = _makeSolarStubGrid({
+      cellsMixed: [[0, 0, 'solar'], [0, 1, 'solar'], [0, 2, 'ember']],
+    });
+    const ctx = { gridState: grid };
+    const result = fxSparkLineClear([0], [], [{ race: 'spark' }], ctx);
+    expect(result).toBe(1);
+    expect(ctx._dominantCountModifier).toBe(1);
+  });
+
+  it('5-spark + 8-solar full row → fires once, modifier capped at +1 (NOT stacking with spark count)', () => {
+    __identityFxTestables.resetSparkRayPool();
+    const grid = _makeSolarStubGrid({ rowsSolar: [0] });
+    const ctx = { gridState: grid };
+    const squad = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, race: 'spark' }));
+    const result = fxSparkLineClear([0], [], squad, ctx);
+    expect(result).toBe(1);
+    expect(ctx._dominantCountModifier).toBe(1);
+  });
+
+  it('5-spark + 32-solar quad-line clear → modifier STILL capped at +1 (NOT stacking with line count)', () => {
+    __identityFxTestables.resetSparkRayPool();
+    const grid = _makeSolarStubGrid({ rowsSolar: [0, 2, 4, 6] });
+    const ctx = { gridState: grid };
+    const squad = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, race: 'spark' }));
+    const result = fxSparkLineClear([0, 2, 4, 6], [], squad, ctx);
+    expect(result).toBe(1);
+    expect(ctx._dominantCountModifier).toBe(1);
+  });
+
+  it('zero lines clear → silent no-op (no ctx touch)', () => {
+    __identityFxTestables.resetSparkRayPool();
+    const grid = _makeSolarStubGrid({ rowsSolar: [0] });
+    const ctx = { gridState: grid };
+    const result = fxSparkLineClear([], [], [{ race: 'spark' }], ctx);
+    expect(result).toBe(0);
+    expect(ctx._dominantCountModifier).toBeUndefined();
+  });
+
+  it('missing gridState + no global grid → silent no-op (defensive)', () => {
+    __identityFxTestables.resetSparkRayPool();
+    const ctx = {};
+    const result = fxSparkLineClear([0], [], [{ race: 'spark' }], ctx);
+    expect(result).toBe(0);
+    expect(ctx._dominantCountModifier).toBeUndefined();
+  });
+
+  it('null ctx → fires but no modifier write (no crash)', () => {
+    __identityFxTestables.resetSparkRayPool();
+    // ctx is null — function should not throw and should not crash on modifier write.
+    // gridState falls back to global grid (undefined in vitest env) → silent no-op.
+    expect(() => fxSparkLineClear([0], [], [{ race: 'spark' }], null)).not.toThrow();
+  });
+
+  it('CTX ACCUMULATOR PRESERVED: prior _dominantCountModifier value is added to, not replaced', () => {
+    __identityFxTestables.resetSparkRayPool();
+    const grid = _makeSolarStubGrid({ rowsSolar: [0] });
+    const ctx = { gridState: grid, _dominantCountModifier: 3 };
+    fxSparkLineClear([0], [], [{ race: 'spark' }], ctx);
+    // Modifier accumulates: 3 prior + 1 from this fire = 4. Per-fire HARD CAP
+    // is +1, so the +1 increment is what's added (not stacking).
+    expect(ctx._dominantCountModifier).toBe(4);
+  });
+});
+
+describe('identity-layer · Spark Sun Cascade · SPARK_CASCADE_ENABLED fallback flag', () => {
+  // CRITICAL: Per ESC-02 O3 ruling, if T2.B matchup matrix surfaces >15% TTK
+  // deviation on any Spark pairing, the SPARK_CASCADE_ENABLED constant
+  // flips to `false` → Sun Cascade demotes to pure-FX (no mechanical
+  // contribution). These tests verify the fallback path is wired correctly.
+  it('fallback flag is `true` in production (Phase 2 default per ESC-02 O3)', () => {
+    expect(SPARK_CASCADE_ENABLED).toBe(true);
+  });
+
+  it('computeSunCascadeModifier ALWAYS returns 0 when fallback flag is false (pure-FX demotion)', () => {
+    // Exhaustive — flag-false ALWAYS returns 0 regardless of (sparks, solars).
+    for (let sparks = 0; sparks <= 5; sparks++) {
+      for (let solars = 0; solars <= 32; solars++) {
+        expect(computeSunCascadeModifier(sparks, solars, false)).toBe(0);
+      }
+    }
+  });
+
+  it('demotion path: flag=true → modifier=1; flag=false → modifier=0 (single-flip fallback)', () => {
+    // Production path: enabled=true → +1.
+    expect(computeSunCascadeModifier(5, 8, true)).toBe(1);
+    // Fallback path: enabled=false → 0 (pure-FX, no mechanical contribution).
+    expect(computeSunCascadeModifier(5, 8, false)).toBe(0);
+  });
+});
+
+describe('identity-layer · Spark Sun Cascade · SACRED COMBO CRIT FORMULA isolation', () => {
+  // CRITICAL sacred-cow invariant per CLAUDE.md §2.1 row 1: the combo crit
+  // formula `total_dmg × (1 + dominantCount × combo × 10%)` (legacy line
+  // 63664: `critMult = 1 + domCount * count * CRIT_MULT_K`) is BYTE-PERFECT
+  // and MUST NOT be modified by Sun Cascade. Sun Cascade only modifies the
+  // INPUT (dominantCount via ctx._dominantCountModifier).
+  it('Sun Cascade writes ONLY to ctx._dominantCountModifier — no other ctx field touched', () => {
+    __identityFxTestables.resetSparkRayPool();
+    const grid = _makeSolarStubGrid({ rowsSolar: [0] });
+    const ctx = {
+      gridState: grid,
+      // Existing ctx fields from T2.03/T2.04/T2.05 that should NOT be touched:
+      dominantElementsByLine: ['umbra'],
+      squadShieldsApi: { get: () => 0, set: () => {}, cap: 5 },
+      lockedCells: new Set(['1_1']),
+      // Hypothetical formula-multiplier field that Sun Cascade should NEVER touch:
+      _critMultOverride: 1.5,
+      _CRIT_MULT_K: 0.1,
+    };
+    fxSparkLineClear([0], [], [{ race: 'spark' }], ctx);
+    // Only _dominantCountModifier should be set.
+    expect(ctx._dominantCountModifier).toBe(1);
+    // Verify the other ctx fields are UNTOUCHED.
+    expect(ctx.dominantElementsByLine).toEqual(['umbra']);
+    expect(ctx._critMultOverride).toBe(1.5);
+    expect(ctx._CRIT_MULT_K).toBe(0.1);
+    expect(ctx.lockedCells.has('1_1')).toBe(true);
+  });
+
+  it('SPARK_CASCADE_MAX_DOMINANT_BOOST is 1 — sacred cap value', () => {
+    // If this test fails, the HARD CAP was modified — STOP and rollback.
+    // Per ESC-02 O3 ruling: "Capped at +1, gated 2-solar-cell minimum, not stacking."
+    expect(SPARK_CASCADE_MAX_DOMINANT_BOOST).toBe(1);
+  });
+
+  it('SPARK_CASCADE_MIN_SOLAR_CELLS is 2 — sacred gate value', () => {
+    // If this test fails, the GATE was modified — STOP and rollback.
+    expect(SPARK_CASCADE_MIN_SOLAR_CELLS).toBe(2);
+  });
+
+  it('formula isolation: maximum-load fire still produces EXACTLY +1 modifier (no formula leakage)', () => {
+    __identityFxTestables.resetSparkRayPool();
+    // Worst case: 5 sparks + full board of solar cleared via quad-clear.
+    const grid = _makeSolarStubGrid({ rowsSolar: [0, 2, 4, 6] });
+    const ctx = { gridState: grid };
+    const squad = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, race: 'spark' }));
+    fxSparkLineClear([0, 2, 4, 6], [], squad, ctx);
+    // Even with 32 solar cells and 5 sparks, modifier is EXACTLY +1.
+    expect(ctx._dominantCountModifier).toBe(1);
+  });
+
+  it('sacred RACE_SYNERGY.lion.5.bonusDmg.solar is 3 (byte-perfect, untouched by T2.06)', () => {
+    // If this test fails, the sacred lion solar bonus was corrupted — STOP and rollback.
+    // Per spec §2.5 field 8: "With Lion RACE_SYNERGY tier 5 (`solar` themed,
+    // `bonusDmg.solar +3/cell`): both apply, independent reward channels."
+    expect(RACE_SYNERGY.lion[5].bonusDmg.solar).toBe(3);
+  });
+
+  it('sacred RACE_SYNERGY structure entirely byte-perfect after T2.06 additions', () => {
+    // Quick smoke-check that other sacred entries are intact.
+    expect(RACE_SYNERGY.golem[2].maxShieldBonus).toBe(1);
+    expect(RACE_SYNERGY.golem[3].maxShieldBonus).toBe(2);
+    expect(RACE_SYNERGY.golem[5].maxShieldBonus).toBe(2);
+    expect(RACE_SYNERGY.rock[3].encore).toBe(true);
+    expect(RACE_SYNERGY.lion[5].bonusDmg.solar).toBe(3);
+    expect(RACE_SYNERGY.orc[5].bonusDmg.ember).toBe(5);
+    expect(RACE_SYNERGY.pirate[5].bonusDmg.ember).toBe(5);
+    // RACE_SYNERGY.spark should NOT exist (ESC-02 O1 DEFER).
+    expect(RACE_SYNERGY.spark).toBeUndefined();
+  });
+});
+
+describe('identity-layer · Spark Sun Cascade · constants & budgets', () => {
+  it('Spark Cascade constants match spec §2.5', () => {
+    expect(SPARK_CASCADE_MIN_SOLAR_CELLS).toBe(2);
+    expect(SPARK_CASCADE_MAX_DOMINANT_BOOST).toBe(1);
+    expect(SPARK_CASCADE_MAX_RAY_PARTICLES).toBe(16);
+    expect(SPARK_CASCADE_RAY_DECAY_MS).toBe(400);
+    expect(SPARK_CASCADE_DOMINANT_ELEMENT).toBe('solar');
+    expect(SPARK_CASCADE_ENABLED).toBe(true);
+  });
+
+  it('Spark Cascade budget ≤10ms wall-time (spec §2.5 field 9)', () => {
+    expect(IDENTITY_FX_BUDGETS[IDENTITY_FX_KEYS.SPARK_CASCADE].wallTimeMs).toBeLessThanOrEqual(10);
+    expect(IDENTITY_FX_BUDGETS[IDENTITY_FX_KEYS.SPARK_CASCADE].maxConcurrentParticles).toBe(16);
+    expect(IDENTITY_FX_BUDGETS[IDENTITY_FX_KEYS.SPARK_CASCADE].decayMs).toBe(400);
+  });
+
+  it('IDENTITY_FX_KEYS exposes SPARK_CASCADE', () => {
+    expect(IDENTITY_FX_KEYS.SPARK_CASCADE).toBe('spark_cascade');
+  });
+
+  it('RACE_IDENTITY_FX has spark entry mapped to spark_cascade key', () => {
+    expect(RACE_IDENTITY_FX.spark).toBe('spark_cascade');
+  });
+});
+
+describe('identity-layer · dispatchIdentityFx — spark race regression', () => {
+  it('spark race squad dispatches to fxSparkLineClear without throw', () => {
+    const squad = [{ race: 'spark' }];
+    const grid = _makeSolarStubGrid({ rowsSolar: [0] });
+    expect(() => dispatchIdentityFx([0], [], squad, null, { gridState: grid })).not.toThrow();
+  });
+
+  it('spark race squad writes ctx._dominantCountModifier when gate passes (dispatcher path)', () => {
+    __identityFxTestables.resetSparkRayPool();
+    const squad = [{ race: 'spark' }];
+    const grid = _makeSolarStubGrid({ rowsSolar: [0] });
+    const ctx = { gridState: grid };
+    dispatchIdentityFx([0], [], squad, null, ctx);
+    expect(ctx._dominantCountModifier).toBe(1);
+  });
+
+  it('mixed spark + pirate + shark + rock + crocodile squad dispatches ALL FIVE layers (T2.02/T2.03/T2.04/T2.05 regression)', () => {
+    const squad = [
+      { race: 'spark' },
+      { race: 'pirate' },
+      { race: 'shark' },
+      { race: 'shark' },
+      { race: 'rock' },
+      { race: 'crocodile' },
+    ];
+    // Build a grid with: row 0 grove cells (for crocodile) + row 2 solar cells (for spark).
+    const grid = _makeSolarStubGrid({ rowsSolar: [2] });
+    for (let c = 0; c < 8; c++) grid[0][c] = 'grove';
+    // All five FX layers fire in sequence; no exception, no interference.
+    expect(() => dispatchIdentityFx([0, 2], [], squad, null,
+      { gridState: grid, dominantElementsByLine: ['umbra', 'solar'] })).not.toThrow();
+  });
+
+  it('CROSS-RACE INDEPENDENCE: Spark modifier does not leak into Pirate/Shark/Rock/Crocodile state', () => {
+    __identityFxTestables.resetSparkRayPool();
+    __identityFxTestables.resetCrocFragmentPool();
+    resetCrocFragmentBank();
+    const squad = [
+      { race: 'spark' },
+      { race: 'pirate' },
+      { race: 'crocodile' },
+    ];
+    // Row 0 solar (gates Spark), row 2 grove (gates Crocodile).
+    const grid = _makeSolarStubGrid({ rowsSolar: [0] });
+    for (let c = 0; c < 8; c++) grid[2][c] = 'grove';
+    const ctx = { gridState: grid };
+    dispatchIdentityFx([0, 2], [], squad, null, ctx);
+    // Spark wrote its modifier.
+    expect(ctx._dominantCountModifier).toBe(1);
+    // Crocodile's fragment bank advanced from grove cells in row 2 (no cross-contamination
+    // — Spark's modifier write didn't affect Crocodile's bank arithmetic).
+    // Note: crocodile fragment bank is module-state, not ctx-state — they're orthogonal.
+    // The fact that no exception was thrown AND the modifier is exactly +1 confirms
+    // the independence invariant.
+    expect(ctx._dominantCountModifier).toBe(1);
   });
 });

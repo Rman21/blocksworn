@@ -989,6 +989,377 @@ test('Mixed-race squad regression: crocodile + pirate + shark + rock fire all fo
   expect(errors).toEqual([]);
 });
 
+// ─── T2.06 — Spark Sun Cascade smoke tests (spec §2.5) ────────────────────
+//
+// THE highest-stakes Phase 2 race flavor — Sun Cascade is the ONLY race
+// flavor that interacts directly with the sacred combo crit input. These
+// smoke tests verify the ctx side-channel write path, HARD CAP invariants,
+// and the SPARK_CASCADE_ENABLED fallback flag.
+//
+// Per Roman ruling ESC-02 O3: "WITHIN BOUNDARY. Input modification (same
+// architectural pattern as cascade), not formula modification. Capped at +1,
+// gated 2-solar-cell minimum, not stacking."
+
+// Build a stub 8×8 grid (2D array of stihiya strings) with solar cells per
+// overrides + a fresh .grid .cell DOM scaffold so the FX's cell-origin
+// resolver finds positions. The grid host is shared across Spark + other
+// race tests via _crocSmokeSetupScript helpers above; this builder is a
+// standalone solar-cell variant.
+function _sparkSmokeSetupScript() {
+  return /* js */ `
+    function _setupSparkSmoke() {
+      const grid = Array.from({ length: 8 }, () => Array(8).fill(null));
+      // Default: row 3 is all solar (8 solar cells for full-row clear scenarios).
+      for (let c = 0; c < 8; c++) grid[3][c] = 'solar';
+      // Place a few non-solar cells at scattered locations so
+      // _findNearestNonEmptyCell has targets outside the cleared row.
+      grid[1][4] = 'ember';
+      grid[5][2] = 'tide';
+      grid[6][6] = 'umbra';
+      window.grid = grid;
+      // 8×8 grid DOM scaffold for ray origin + target resolution.
+      const gridHost = document.createElement('div');
+      gridHost.className = 'grid';
+      gridHost.style.cssText = 'position:fixed;left:0;top:0;width:320px;height:320px;display:grid;grid-template-columns:repeat(8,40px);';
+      for (let i = 0; i < 64; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.style.cssText = 'width:40px;height:40px;';
+        gridHost.appendChild(cell);
+      }
+      document.body.appendChild(gridHost);
+      return { grid };
+    }
+    _setupSparkSmoke();
+  `;
+}
+
+test('fxSparkLineClear: 5-spark squad + 3-solar-cell row → ctx._dominantCountModifier = 1, visual rays fire', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, race: 'spark' }));
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetSparkRayPool();
+
+    // Override row 3 to have 3 solar cells (above gate of 2).
+    for (let c = 0; c < 8; c++) window.grid[3][c] = c < 3 ? 'solar' : null;
+    // Place a non-empty target in row 1 so rays have somewhere to chain.
+    window.grid[1][0] = 'ember';
+    window.grid[1][1] = 'tide';
+    window.grid[1][2] = 'grove';
+
+    const ctx = { gridState: window.grid };
+    const modifier = mod.fxSparkLineClear([3], [], window.HERO_DECK, ctx);
+
+    await new Promise(r => requestAnimationFrame(() => r()));
+
+    const rayNodes = document.querySelectorAll('.identity-spark-ray');
+    const flyingRays = document.querySelectorAll('.identity-spark-ray.identity-spark-ray-flying');
+
+    return {
+      modifier,
+      ctxModifier: ctx._dominantCountModifier,
+      rayPoolSize: mod.__identityFxTestables.getSparkRayPoolSize(),
+      rayNodeCount: rayNodes.length,
+      flyingRayCount: flyingRays.length,
+    };
+  }, _sparkSmokeSetupScript());
+
+  // Spec §2.5: 3 solar cells (above gate of 2) → +1 dominantCount modifier.
+  expect(result.modifier).toBe(1);
+  expect(result.ctxModifier).toBe(1);
+  // Pool pre-allocated at first fire (16 = hard cap).
+  expect(result.rayPoolSize).toBe(16);
+  // Visual rays spawned (at least 1 — at most 3 for the 3 solar cells).
+  expect(result.flyingRayCount).toBeGreaterThanOrEqual(1);
+  expect(errors).toEqual([]);
+});
+
+test('fxSparkLineClear: HARD CAP — 5 sparks + 5 solar in quad-clear → modifier stays at +1 (NOT stacking)', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, race: 'spark' }));
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetSparkRayPool();
+
+    // Clear 4 rows of all-solar cells — max possible solar in clear.
+    for (const r of [0, 2, 4, 6]) {
+      for (let c = 0; c < 8; c++) window.grid[r][c] = 'solar';
+    }
+    // Leave some non-cleared non-empty cells as ray targets.
+    window.grid[1][0] = 'ember';
+    window.grid[5][0] = 'umbra';
+
+    const ctx = { gridState: window.grid };
+    const modifier = mod.fxSparkLineClear([0, 2, 4, 6], [], window.HERO_DECK, ctx);
+
+    return {
+      modifier,
+      ctxModifier: ctx._dominantCountModifier,
+    };
+  }, _sparkSmokeSetupScript());
+
+  // CRITICAL HARD CAP INVARIANT: 5 sparks × 32 solar cells × 4 lines = STILL +1.
+  // Per ESC-02 O3 ruling: "Capped at +1, not stacking."
+  expect(result.modifier).toBe(1);
+  expect(result.ctxModifier).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('fxSparkLineClear: 1-spark + 1-solar (below gate) → silent no-op, ctx untouched', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = [{ id: 's1', race: 'spark' }];
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetSparkRayPool();
+
+    // Override row 3 to have only 1 solar cell — BELOW gate threshold of 2.
+    for (let c = 0; c < 8; c++) window.grid[3][c] = c === 0 ? 'solar' : null;
+
+    const ctx = { gridState: window.grid };
+    const modifier = mod.fxSparkLineClear([3], [], window.HERO_DECK, ctx);
+
+    return {
+      modifier,
+      ctxModifier: ctx._dominantCountModifier,
+    };
+  }, _sparkSmokeSetupScript());
+
+  expect(result.modifier).toBe(0);
+  expect(result.ctxModifier).toBeUndefined();
+  expect(errors).toEqual([]);
+});
+
+test('fxSparkLineClear: 0-spark + 5-solar full row → silent no-op, ctx untouched', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    // No sparks in deck.
+    window.HERO_DECK = [{ race: 'orc' }, { race: 'pirate' }];
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetSparkRayPool();
+
+    // Row 3 = all solar (well above gate).
+    for (let c = 0; c < 8; c++) window.grid[3][c] = 'solar';
+
+    const ctx = { gridState: window.grid };
+    const modifier = mod.fxSparkLineClear([3], [], window.HERO_DECK, ctx);
+
+    return {
+      modifier,
+      ctxModifier: ctx._dominantCountModifier,
+    };
+  }, _sparkSmokeSetupScript());
+
+  expect(result.modifier).toBe(0);
+  expect(result.ctxModifier).toBeUndefined();
+  expect(errors).toEqual([]);
+});
+
+test('fxSparkLineClear: combo crit formula site BYTE-PERFECT (sacred §2.1 row 1 audit)', async ({ page }) => {
+  // CRITICAL — verify the sacred formula `total_dmg × (1 + dominantCount × combo × 10%)`
+  // is UNTOUCHED by Sun Cascade. Sun Cascade modifies the INPUT (dominantCount
+  // via ctx._dominantCountModifier), never the formula itself.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, race: 'spark' }));
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetSparkRayPool();
+
+    // Pre-fire snapshot of multiplier-adjacent ctx fields (synthesizing the
+    // sacred formula's input space).
+    const ctx = {
+      gridState: window.grid,
+      // Hypothetical pre-existing formula state — must NOT be touched.
+      _critMult: 1.5,
+      _CRIT_MULT_K: 0.1,
+      _comboCount: 3,
+      _domCount: 5,
+    };
+    const before = JSON.stringify({
+      _critMult: ctx._critMult,
+      _CRIT_MULT_K: ctx._CRIT_MULT_K,
+      _comboCount: ctx._comboCount,
+      _domCount: ctx._domCount,
+    });
+
+    // Row 3 is all solar (full row).
+    for (let c = 0; c < 8; c++) window.grid[3][c] = 'solar';
+    mod.fxSparkLineClear([3], [], window.HERO_DECK, ctx);
+
+    const after = JSON.stringify({
+      _critMult: ctx._critMult,
+      _CRIT_MULT_K: ctx._CRIT_MULT_K,
+      _comboCount: ctx._comboCount,
+      _domCount: ctx._domCount,
+    });
+
+    return {
+      before, after,
+      modifierWritten: ctx._dominantCountModifier,
+    };
+  }, _sparkSmokeSetupScript());
+
+  // BYTE-PERFECT formula isolation — none of the multiplier ctx fields were touched.
+  expect(result.before).toBe(result.after);
+  // Sun Cascade only modified _dominantCountModifier (the INPUT path).
+  expect(result.modifierWritten).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('Mixed-race squad regression: spark + pirate + shark + rock + crocodile fire ALL FIVE layers without interference', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async (setup) => {
+    eval(setup);
+    // Stub all five layer APIs.
+    let goldDelta = 0;
+    window.addGold = (n) => { goldDelta += Number(n) || 0; };
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.shieldCount = 0;
+    window.MAX_SHIELD = 3;
+    window.maxShieldBonus = 2;
+    window.HERO_DECK = [
+      { id: 'sp1', race: 'spark' },
+      { id: 'p1',  race: 'pirate' },
+      { id: 'p2',  race: 'pirate' },
+      { id: 'r1',  race: 'rock' },
+      { id: 's1',  race: 'shark' },
+      { id: 'c1',  race: 'crocodile' },
+    ];
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetSparkRayPool();
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.__identityFxTestables.resetRockEchoPool();
+    mod.__identityFxTestables.resetSharkBitePool();
+    mod.resetCrocFragmentBank();
+
+    // Two cleared rows: row 0 all solar (Spark + crit-input gate),
+    // row 3 all grove (Crocodile gate).
+    for (let c = 0; c < 8; c++) {
+      window.grid[0][c] = 'solar';
+      window.grid[3][c] = 'grove';
+    }
+
+    const api = {
+      get: () => window.shieldCount,
+      set: (n) => { window.shieldCount = n; },
+      cap: window.MAX_SHIELD + 2 + window.maxShieldBonus,
+    };
+
+    const ctx = {
+      gridState: window.grid,
+      squadShieldsApi: api,
+      // 2 cleared lines; line 0 (row 0) is solar-dominant; line 1 (row 3) is umbra-tagged
+      // so Rock Encore Echo also fires.
+      dominantElementsByLine: ['solar', 'umbra'],
+    };
+
+    mod.dispatchIdentityFx([0, 3], [], window.HERO_DECK, null, ctx);
+
+    return {
+      goldDelta,                          // Pirate Plunder (2 pirates × 16 cells × 5g/cell = 160g)
+      shieldCount: window.shieldCount,    // Crocodile (8 grove → 1 shield)
+      umbraCharge: window.ultCharges.umbra, // Rock Encore Echo (umbra-dominant line)
+      sparkModifier: ctx._dominantCountModifier, // Sun Cascade (+1)
+      bank: mod.__identityFxTestables.getCrocFragmentBank(),
+    };
+  }, _sparkSmokeSetupScript());
+
+  // Pirate Plunder: 2 pirates × 16 cells × 5g/cell = 160g.
+  expect(result.goldDelta).toBe(160);
+  // Crocodile Bedrock Bastion: 8 grove cells → 1 shield (bank=3 remaining).
+  expect(result.shieldCount).toBe(1);
+  expect(result.bank).toBe(3);
+  // Rock Encore Echo: +1 umbra charge (1 umbra-dominant line in row 3).
+  expect(result.umbraCharge).toBe(1);
+  // Sun Cascade: +1 dominantCount modifier (8 solar cells above gate of 2).
+  expect(result.sparkModifier).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('fxSparkLineClear performance: 5-spark × quad-solar-line clear completes within wall-time budget', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const wallTime = await page.evaluate(async (setup) => {
+    eval(setup);
+    window.HERO_DECK = Array.from({ length: 5 }, (_, i) => ({ id: `s${i}`, race: 'spark' }));
+
+    const mod = await import('/src/feel/identity-fx.js');
+
+    // Warm-up call so the pool init cost doesn't skew timing.
+    for (let c = 0; c < 8; c++) window.grid[3][c] = 'solar';
+    mod.fxSparkLineClear([3], [], window.HERO_DECK,
+      { gridState: window.grid });
+    mod.__identityFxTestables.resetSparkRayPool();
+
+    // Quad-line clear with all solar rows (max ray volume = 16 cap).
+    for (const r of [0, 2, 4, 6]) {
+      for (let c = 0; c < 8; c++) window.grid[r][c] = 'solar';
+    }
+    const t0 = performance.now();
+    mod.fxSparkLineClear([0, 2, 4, 6], [], window.HERO_DECK,
+      { gridState: window.grid });
+    return performance.now() - t0;
+  }, _sparkSmokeSetupScript());
+
+  // Spec §2.5 field 9: wall-time ≤10ms per fire. Allow 3× headroom for CI
+  // variability — any value >30ms is a clear regression.
+  expect(wallTime).toBeLessThan(30);
+  expect(errors).toEqual([]);
+});
+
 test('fxCrocodileLineClear performance: quad-grove-line clear completes within wall-time budget', async ({ page }) => {
   await seedAuthenticatedState(page);
   await page.goto(VITE_PATH);

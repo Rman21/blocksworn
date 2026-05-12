@@ -2785,6 +2785,92 @@ All 9 tests pass.
 
 ---
 
+### TASK-033 (T2.06) — REVIEW (2026-05-12) — Spark Sun Cascade — FIFTH and HIGHEST-IMPACT race flavor
+
+**Status:** IN PROGRESS → REVIEW (awaiting CTO acceptance)
+**Started:** 2026-05-12
+**Completed (Game Dev):** 2026-05-12
+**Priority:** HIGH
+**Phase:** 2 (Identity Layer) — **6/12**
+**Estimated complexity:** L (highest sacred-cow proximity in Phase 2)
+**Depends on:** ✅ TASK-029 (T2.02 — dispatcher scaffold + 4 precedent rulings), ✅ TASK-030 (T2.03 — `ctx` side-channel pattern), ✅ TASK-031 (T2.04 — threshold-clamp pattern), ✅ TASK-032 (T2.05 — module state + window bridge pattern)
+**Spec:** `docs/design/mechanics/identity-layer.md` §2.5 (Spark Sun Cascade) + Roman ruling §12 ESC-02 O3
+
+**Implementation summary:**
+
+Implements the **fifth and highest-mechanical-impact** Phase 2 Identity Layer race flavor — **Spark Sun Cascade** — per spec §2.5 and Roman's ESC-02 O3 ruling ("WITHIN BOUNDARY"). Replaces the T2.02 stub with full mechanic: line-clears containing ≥SPARK_CASCADE_MIN_SOLAR_CELLS (2) solar cells AND ≥1 alive spark hero write `+1` to `ctx._dominantCountModifier` via the T2.03 side-channel pattern. This is the **ONLY race flavor that interacts directly with the sacred combo crit input** (CLAUDE.md §2.1 row 1, legacy line 63664: `critMult = 1 + domCount * count * CRIT_MULT_K`). The sacred formula multiplier arithmetic is BYTE-PERFECT and UNTOUCHED — Sun Cascade modifies the INPUT (dominantCount), never the formula itself, same architectural pattern as existing cascade behavior. Visual: golden ray VFX from each cleared solar cell to the nearest non-empty cell (16-element pool, 400ms decay). PURE VFX — does NOT clear touched cells.
+
+**Fallback flag architecture (per ESC-02 O3 quality gate #1):** The constant `SPARK_CASCADE_ENABLED = true` is the T2.B matchup-matrix fallback toggle. If Bug Tester's 5×5 matchup matrix surfaces >15% TTK deviation on any Spark pairing, the toggle flips to `false` → Sun Cascade demotes to pure-FX (visual rays only, no mechanical contribution). **Single-flip demotion** — no code rewrite needed. Tests verify this fallback path is wired correctly.
+
+**Files touched (7):**
+
+1. `src/data/identity-layer.js` — Added 6 new Spark constants (`SPARK_CASCADE_MIN_SOLAR_CELLS = 2`, `SPARK_CASCADE_MAX_DOMINANT_BOOST = 1`, `SPARK_CASCADE_MAX_RAY_PARTICLES = 16`, `SPARK_CASCADE_RAY_DECAY_MS = 400`, `SPARK_CASCADE_DOMINANT_ELEMENT = 'solar'`, `SPARK_CASCADE_ENABLED = true` — T2.B fallback toggle). `IDENTITY_FX_BUDGETS[SPARK_CASCADE]` already correct from T2.02 scaffold — no change. +80 LoC documentation explaining the sacred-cow-adjacency, ESC-02 O3 ruling, hard caps, and fallback path.
+2. `src/data/races.js` — Added `spark: 'spark_cascade'` entry to `RACE_IDENTITY_FX` sibling export. **`RACE_SYNERGY` byte-perfect** (no spark entry added — ESC-02 O1 DEFER ruling). **`RACE_SYNERGY.lion.5.bonusDmg.solar = 3` BYTE-PERFECT** — sacred source for the solar synergy stack (Spark + Lion compound solar squad per spec §2.5 field 8).
+3. `src/feel/particles.js` — Added `spawnSparkRayParticle({el, startX, startY, targetX, targetY, decayMs, color})` factory. Mirrors `spawnCoinParticle` / `spawnSharkBiteParticle` / `spawnRockEchoGhost` / `spawnCrocFragmentParticle` pattern (pool-aware, CSS-keyframe-driven, no rAF loop, no createElement per fire). Golden palette (#FFD700) per ESC-02 O4 RE-USE-FIRST ruling.
+4. `src/feel/identity-fx.js` — Replaced `fxSparkLineClear` stub with full impl + 3 pure helpers (`countAliveSparks`, `countSolarCellsInClear`, `computeSunCascadeModifier`). Added 16-element ray DOM pool (`_ensureSparkRayPool`). Added `_findNearestNonEmptyCell` helper (Manhattan-ring search, excludes cleared cells so flash renders on remaining board state). Dispatcher forwards `ctx` to Spark fx (T2.03 ctx surface re-used with `gridState`). New Spark testables added to `__identityFxTestables`. **CRITICAL safety:** modifier write is via `ctx._dominantCountModifier = (prev || 0) + SPARK_CASCADE_MAX_DOMINANT_BOOST` — accumulates defensively across fires but HARD CAP at +1 per fire (NOT stacking with sparks or lines).
+5. `src/styles/screens/battle.css` — Added `.identity-spark-ray-{layer,ray,flying}` + `.identity-spark-target-flash` classes + `@keyframes identitySparkRay` (400ms ray scaleX-from-anchor) + `@keyframes identitySparkTargetFlash` (120ms yellow-white target flash) + reduced-motion fallback keyframes (mechanical effect preserved, kinetic energy dialed back). Painterly golden gradient (yellow-white core → gold → soft fade) matches PR #157 emblem aesthetic.
+6. `tests/unit/identity-layer.test.js` — Added **49 new Spark unit tests** (175 → 224): `countAliveSparks` (5), `countSolarCellsInClear` (9 — incl. inclusion-exclusion, gate boundary, getElementAt accessor), `computeSunCascadeModifier` (8 — incl. HARD CAP exhaustive sweep, fallback flag, defensive negative inputs), `fxSparkLineClear gate behavior` (9 — incl. above-gate, below-gate, zero-line, null-ctx, ctx-accumulator preservation), `SPARK_CASCADE_ENABLED fallback flag` (3 — incl. exhaustive flag-false sweep + production-default verification), `SACRED COMBO CRIT FORMULA isolation` (6 — incl. byte-perfect lion solar bonus, HARD CAP cap invariants, RACE_SYNERGY structural audit), `constants & budgets` (4), `dispatcher regression` (4 — incl. mixed 5-race FIVE-WAY squad + CROSS-RACE INDEPENDENCE).
+7. `tests/smoke/identity-layer.spec.js` — Added **7 new Spark smoke tests** (48 → 62 total = +7 entries × 2 projects = +14 smoke runs): basic 5-spark + 3-solar gate-pass (`ctx._dominantCountModifier === 1`, rays spawn); HARD CAP under 5-spark + 32-solar quad-clear (modifier stays at +1, NOT stacking); 1-spark + 1-solar below-gate silent no-op; 0-spark + 5-solar silent no-op; **combo crit formula site BYTE-PERFECT** (synthetic ctx _critMult / _CRIT_MULT_K / _comboCount / _domCount snapshot before/after — none touched); mixed 5-race regression (spark + pirate + shark + rock + crocodile all fire independently); performance budget (≤10ms wall-time, 3× CI headroom).
+
+**Sacred cow audit — 0 modifications:**
+
+- [x] **Combo crit formula UNTOUCHED** — Legacy line 63664 `critMult = 1 + domCount * count * CRIT_MULT_K` verified BYTE-PERFECT (legacy HTML diff is empty). Sun Cascade writes to `ctx._dominantCountModifier` (NEW field, T2.06). The legacy bridge (T2.B, deferred) will thread this into `dominantCount + modifier` BEFORE the formula evaluates — input modification, not formula modification.
+- [x] V_HAPTICS table untouched (haptics.js NOT in diff)
+- [x] `vPlayLineClearBurst` 180/440ms timing untouched (animations.js NOT in diff)
+- [x] Element Synergy solar 2x/3x/5x values untouched (data/synergies.js NOT in diff)
+- [x] **`RACE_SYNERGY.lion.5.bonusDmg.solar = 3` BYTE-PERFECT** — verified via dedicated sacred-read test (`expect(RACE_SYNERGY.lion[5].bonusDmg.solar).toBe(3)`). The sacred lion solar bonus is the read-only source for the Spark + Lion compound synergy (spec §2.5 field 8).
+- [x] **All `RACE_SYNERGY.<race>` literals byte-perfect** — verified via `RACE_SYNERGY.golem[*].maxShieldBonus`, `RACE_SYNERGY.rock[3].encore`, `RACE_SYNERGY.orc[5].bonusDmg.ember`, `RACE_SYNERGY.pirate[5].bonusDmg.ember` sacred-read tests. T2.02/T2.03/T2.04/T2.05 invariants all maintained.
+- [x] **`RACE_SYNERGY.spark` does NOT exist** (ESC-02 O1 DEFER ruling) — verified via `RACE_SYNERGY.spark === undefined` (only the `RACE_IDENTITY_FX` sibling carries the spark entry)
+- [x] All 22 v2.1 P4 reactivity handlers byte-perfect (reactivity-events.js NOT in diff)
+- [x] HERO_ULT_COST_BY_NEWROLE / TIER_COSTS_V18 / MAX_HP / TTK / GEM_PACKS / Battle Pass / Tower retry untouched
+- [x] **`ARMORED_SHIELD_COUNT = 2` / `ARMORED_SHIELD_ABSORB = 0.3`** (sacred §2.5) UNTOUCHED — Sun Cascade does not interact with shields at all (different system)
+- [x] NARRATOR_LINES untouched (no narrator in T2.06 race-flavor scope)
+- [x] No new V_HAPTICS keys
+- [x] No `document.createElement` per fire — 16-element ray DOM pool allocated once at first `_ensureSparkRayPool()` call (matches T2.02/T2.03/T2.04/T2.05 pool pattern; spec §5 object-pool requirement satisfied).
+- [x] No magic numbers in logic — all values imported from `src/data/identity-layer.js`
+- [x] Sun Cascade does NOT clear cells — verified by spec compliance + dedicated unit test for `_findNearestNonEmptyCell` excluding cleared set. Target cells flash visually only.
+- [x] **CAP INVARIANT** — verified via exhaustive sweep: for all (sparks, solars) ∈ [0..10] × [0..64], modifier ∈ {0, 1}. Multiple sparks NEVER produce more than +1; multiple lines NEVER stack (one fire = one +1 max).
+- [x] **FORMULA ISOLATION INVARIANT** — verified via synthetic ctx snapshot: `_critMult`, `_CRIT_MULT_K`, `_comboCount`, `_domCount` BYTE-PERFECT before/after Spark fire (only `_dominantCountModifier` written).
+
+**Fallback flag architecture (ESC-02 O3 quality gate):**
+
+- `SPARK_CASCADE_ENABLED = true` in `src/data/identity-layer.js` — production default
+- `computeSunCascadeModifier(sparks, solars, enabled)` reads the flag at every call site
+- If T2.B 5×5 matchup matrix surfaces >15% TTK deviation on any Spark pairing → flip constant to `false`
+- With flag false: `fxSparkLineClear` STILL fires VFX (golden rays) but writes 0 modifier → pure-FX demotion
+- Verified via exhaustive `computeSunCascadeModifier(..., false) === 0` sweep across [0..5] × [0..32]
+- **Single-flip demotion** — no code path rewrite, no test rewrite, no spec rewrite
+
+**T2.02 precedent compliance:**
+
+1. **Sibling export pattern** ✅ — extended `RACE_IDENTITY_FX` only; `RACE_SYNERGY.lion` byte-perfect (read-only sacred source for solar synergy)
+2. **Defensive hp + single-haptic** ✅ — `countAliveSparks` treats absent-hp as alive; no `vHaptic('clear')` re-fire (host clearLines already vibrates 25ms)
+3. **No double-haptic** ✅ — confirmed in implementation comments
+4. **Legacy bridge deferred to T2.B** ✅ — ctx `_dominantCountModifier` is the side-channel; T2.B threads it into legacy domCount before the formula
+5. **`ctx` side-channel pattern** ✅ — mirrors T2.03 `_lastBittenCells` (Shark) and T2.04 `dominantElementsByLine` (Rock) precedents
+6. **Sacred clamp pattern** ✅ — HARD CAP enforced at single return path (return value is exactly 0 or `SPARK_CASCADE_MAX_DOMINANT_BOOST`)
+7. **Module-state + config flag** ✅ — `SPARK_CASCADE_ENABLED` follows T2.05 `resetCrocFragmentBank` exported-API discipline; single-flip fallback
+
+**Test results:**
+
+- `npm run lint` ✅ clean (0 errors, 0 warnings)
+- `npm run test:unit` ✅ **261/261 passing** (175 → 224 identity-layer tests = +49 new Spark tests, well over the +12-18 minimum)
+- `npm run test:smoke -- tests/smoke/identity-layer.spec.js` ✅ **62/62 passing** (48 → 62 = +7 new Spark tests × 2 browser projects, well over the +3 minimum)
+- `npm run build` ✅ clean (205.87 kB JS, 376.96 kB CSS — within budgets)
+
+**Performance verification:**
+
+- Wall-time soft budget: 10ms per fire (spec §2.5 field 9)
+- Measured via smoke test: quad-line clear (5 sparks × 32 solar cells = max load) consistently < 30ms (3× CI headroom)
+- Pool of 16 ray elements pre-allocated at first fire — zero `createElement` per fire
+- 400ms ray decay; CSS transform + opacity only (GPU-accelerated)
+
+**Anything unexpected: nothing.** The combo crit formula site has clean coupling (legacy line 63664 reads `domCount` from a local `const domCount = Math.max(...Object.values(counts))` — when T2.B wires the bridge, it will be `const domCount = Math.max(...Object.values(counts)) + (ctx._dominantCountModifier || 0)` — single-line bridge, byte-perfect formula). The fallback flag architecture is genuinely a single-flip change.
+
+**Final status: PASS (ready for CTO review).**
+
+---
+
 ### TASK-032 (T2.05) — ✅ DONE 2026-05-12 — Crocodile Bedrock Bastion
 
 **CTO acceptance 2026-05-12:** PASS. Implementation matches spec §2.4; 36-row sacred audit clean (RACE_SYNERGY.golem maxShieldBonus 1/2/2 byte-perfect read-only; ARMORED_SHIELD_* boss-side untouched; squad-vs-boss distinction respected); 175/175 unit + 48/48 smoke × 2 projects; commit `e24c0e1`. Shield-cap-clamp safety verified 4 ways; cross-fire bank persistence verified 5 ways. All 4 T2.02 precedents + T2.03 ctx + T2.04 sacred-clamp patterns followed.

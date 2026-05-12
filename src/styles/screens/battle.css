@@ -6091,3 +6091,129 @@ button, .menu-btn, .btn, .hero-card, .piece, .cell, .roster-card, .tier-btn, .ba
   35%  { opacity: 0.7; transform: translate3d(0, 0, 0) scale(1.0); }
   100% { opacity: 0; transform: translate3d(0, 0, 0) scale(1.0); }
 }
+
+/* ─── 2026-05-12 — TASK-033 (T2.06): Identity Layer · Spark Sun Cascade ───
+ * Golden ray VFX. Pool of 16 elements lives under `.identity-spark-ray-layer`
+ * (appended to body lazily on first fire by `src/feel/identity-fx.js`). Each
+ * ray element re-uses across fires via the object pool —
+ * `.identity-spark-ray-flying` toggled on re-trigger.
+ *
+ * Decay timing matches `SPARK_CASCADE_RAY_DECAY_MS = 400` (spec §2.5 field 9).
+ * The animation duration reads `--ray-decay-ms` (set per-fire by
+ * `spawnSparkRayParticle`) so the JS-side constant stays the single source
+ * of truth. Translation distance pulled from `--ray-tx` / `--ray-ty`
+ * custom properties (cleared solar-cell → nearest non-empty cell delta).
+ *
+ * Visual: golden line gradient (yellow-white core, golden glow) that arcs
+ * from the cleared solar cell to the nearest non-empty cell. The target
+ * cell receives a single-frame yellow-white flash (via the
+ * .identity-spark-target-flash class) — PURE VFX, does NOT clear the
+ * target cell (Sun Cascade is gated on solar cells in the cleared rows∪cols,
+ * NOT on adjacent cells like Shark Frenzy).
+ *
+ * Sacred safety: no existing class modified. Pure addition. The sacred
+ * combo crit formula site is UNTOUCHED — Sun Cascade modifies the
+ * `dominantCount` INPUT via `ctx._dominantCountModifier`, not via any CSS
+ * variable or DOM mutation.
+ */
+.identity-spark-ray-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0; height: 0;          /* layer is positioning-only — rays absolute */
+  pointer-events: none;
+  z-index: 9995;                /* below croc-fragment (9996); below rock-echo (9997); below shark (9998); below coin (9999) */
+}
+.identity-spark-ray {
+  position: fixed;
+  /* Width is set per-fire via --ray-length CSS variable (start→target distance).
+   * Height is the visual ray thickness (5px painterly stroke). */
+  width: var(--ray-length, 60px);
+  height: 5px;
+  margin-top: -2.5px;            /* center on (left, top) */
+  transform-origin: 0% 50%;      /* rotate around the start anchor */
+  /* Painterly golden ray gradient — yellow-white core fading to gold.
+   * Re-uses solar-element palette (see boss-death elemColor solar #FFE14A). */
+  background:
+    linear-gradient(90deg,
+      rgba(255, 245, 200, 0.95) 0%,
+      var(--ray-color, #FFD700) 35%,
+      rgba(255, 220, 100, 0.75) 65%,
+      rgba(255, 180, 80, 0.0) 100%);
+  box-shadow:
+    0 0 4px rgba(255, 220, 100, 0.65),
+    0 0 8px rgba(255, 200, 80, 0.35);
+  border-radius: 2.5px;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  /* Initial rotation set per-fire via --ray-angle CSS variable. */
+  transform: rotate(var(--ray-angle, 0deg)) scaleX(0);
+}
+.identity-spark-ray.identity-spark-ray-flying {
+  animation: identitySparkRay var(--ray-decay-ms, 400ms) cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes identitySparkRay {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--ray-angle, 0deg)) scaleX(0);
+  }
+  25% {
+    opacity: 1;
+    transform: rotate(var(--ray-angle, 0deg)) scaleX(1);
+  }
+  60% {
+    opacity: 0.85;
+    transform: rotate(var(--ray-angle, 0deg)) scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--ray-angle, 0deg)) scaleX(1);
+  }
+}
+/* Yellow-white target flash on the nearest non-empty cell. Single-shot
+ * (one DOM creation per ray, ≤16 per fire). PURE VFX — does NOT clear
+ * the target cell. Sacred safety: not pooled (single-frame flash duration,
+ * minimal DOM churn). */
+.identity-spark-target-flash {
+  position: fixed;
+  width: 36px; height: 36px;
+  margin-left: -18px; margin-top: -18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      rgba(255, 250, 220, 0.95) 0%,
+      rgba(255, 230, 130, 0.75) 40%,
+      rgba(255, 200, 80, 0.0) 100%);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: identitySparkTargetFlash 120ms ease-out forwards;
+}
+@keyframes identitySparkTargetFlash {
+  0%   { opacity: 0; transform: scale(0.8); }
+  40%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+/* Reduced-motion: respect prefers-reduced-motion. Ray fades in place (no
+ * arc / rotate), target flash is a single quick fade. The mechanical effect
+ * (dominantCount modifier write to ctx) is preserved; only the kinetic
+ * energy is dialed back. Mirrors the Pirate / Shark / Rock / Crocodile
+ * reduced-motion fallback pattern. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-spark-ray.identity-spark-ray-flying {
+    animation: identitySparkRayFadeOnly var(--ray-decay-ms, 400ms) ease-out forwards;
+  }
+  .identity-spark-target-flash {
+    animation: identitySparkTargetFlashStatic 120ms ease-out forwards;
+  }
+}
+@keyframes identitySparkRayFadeOnly {
+  0%   { opacity: 0; transform: rotate(var(--ray-angle, 0deg)) scaleX(0.5); }
+  30%  { opacity: 0.85; transform: rotate(var(--ray-angle, 0deg)) scaleX(1); }
+  100% { opacity: 0; transform: rotate(var(--ray-angle, 0deg)) scaleX(1); }
+}
+@keyframes identitySparkTargetFlashStatic {
+  0%   { opacity: 0; transform: scale(0.95); }
+  40%  { opacity: 0.7; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.0); }
+}

@@ -192,3 +192,83 @@ export const CROCODILE_BASTION_MAX_FRAGMENT_PARTICLES = 16; // HARD CAP per spec
 export const CROCODILE_BASTION_FRAGMENT_DECAY_MS      = 600;
 export const CROCODILE_BASTION_GROVE_ELEMENT          = 'grove';
 export const CROCODILE_BASTION_TARGET_HERO_INDEX      = 0;   // leftmost crocodile
+
+// ─── Spark Sun Cascade constants (spec §2.5) ────────────────────────────
+// Mechanical contract (THE highest-stakes sacred-cow-adjacent path in Phase 2):
+//   IF (sparkCount >= 1 AND solarCellsInClear >= SPARK_CASCADE_MIN_SOLAR_CELLS
+//       AND SPARK_CASCADE_ENABLED):
+//     ctx._dominantCountModifier = (ctx._dominantCountModifier || 0)
+//                                 + SPARK_CASCADE_MAX_DOMINANT_BOOST
+//   ELSE silent no-op.
+//
+// The sacred combo crit formula `total_dmg × (1 + dominantCount × combo × 10%)`
+// (CLAUDE.md §2.1 row 1, legacy line 63664: `critMult = 1 + domCount * count *
+// CRIT_MULT_K`) is UNTOUCHED. Sun Cascade modifies the INPUT (dominantCount)
+// before the formula evaluates — same architectural pattern as existing
+// cascade behavior (cells get added to the input set BEFORE evaluation).
+//
+// Roman ruling ESC-02 O3: "WITHIN BOUNDARY. Input modification (same
+// architectural pattern as cascade), not formula modification. Capped at +1,
+// gated 2-solar-cell minimum, not stacking."
+//
+// CRITICAL HARD CAPS (sacred — DO NOT increase without escalation):
+//   - SPARK_CASCADE_MIN_SOLAR_CELLS = 2 — gate threshold, prevents single-solar
+//     promotion from being a tempo cheese strategy
+//   - SPARK_CASCADE_MAX_DOMINANT_BOOST = 1 — NOT stacking; multiple sparks or
+//     multiple lines never produce more than +1 per fire
+//
+// SPARK_CASCADE_ENABLED is the T2.B fallback toggle. If the 5×5 matchup
+// matrix (Bug Tester, ESC-02 ruling-added quality gate #1) surfaces >15% TTK
+// deviation on any Spark pairing, the toggle flips to `false` and Spark
+// becomes pure-FX (visual rays only, no mechanical contribution). Single-flip
+// demotion to fallback — code path unchanged.
+//
+// Trigger gate (spec §2.5 field 10):
+//   - Every `clearLines(rows, cols)` resolve, AND
+//   - rows∪cols contain ≥ SPARK_CASCADE_MIN_SOLAR_CELLS solar cells, AND
+//   - ≥1 spark hero alive.
+//   Else silent no-op (no DOM, no allocation, no modifier write, no log).
+//
+// Cell-state predicates: none — Sun Cascade is gated purely on solar-cell
+// count in the cleared rows∪cols. Visual rays are pure VFX (do NOT clear
+// touched cells — that would be a Shark Frenzy mechanic, not Spark).
+//
+// Combo-crit interaction (spec §2.5 field 4): THIS is the interaction.
+// Sun Cascade is the ONLY race flavor that mutates `dominantCount` directly.
+// Implementation pattern (T2.03 ctx side-channel):
+//   1. fxSparkLineClear computes `wouldFire` from gate
+//   2. If wouldFire AND SPARK_CASCADE_ENABLED:
+//        ctx._dominantCountModifier = (ctx._dominantCountModifier || 0) + 1
+//   3. Legacy bridge (T2.B, deferred) reads ctx._dominantCountModifier and
+//      threads it into legacy's `domCount + modifier` BEFORE
+//      `critMult = 1 + (domCount + modifier) * count * CRIT_MULT_K`.
+//   Formula is BYTE-PERFECT. Only the input value is mutated.
+//
+// Stacking (spec §2.5 field 8):
+//   - With Combo Crit: input modification (this IS the interaction).
+//     A solar-heavy clear that would have been combo=3 becomes effective
+//     dominantCount + 1, which the sacred multiplier reads as a stronger
+//     crit. Sacred formula unchanged.
+//   - With Element Synergy solar 2x/3x/5x: independent — synergy reduces
+//     ULT cost; Sun Cascade boosts crit input. No conflict.
+//   - With RACE_SYNERGY.lion.5.bonusDmg.solar (+3/cell, SACRED): both fire,
+//     independent reward channels. Sacred lion value UNTOUCHED.
+//   - With Phoenix Ashen Reign (5s solar-only window): CHOREOGRAPHED — the
+//     boss reaction makes the board ember-heavy after the window, which
+//     makes solar-cell clears RARER, balancing Sun Cascade. Phoenix Ashen
+//     Reign INTENTIONALLY turns Sun Cascade UP, not down (per spec §2.5
+//     field 7).
+//
+// Performance budget (spec §2.5 field 9): ≤10ms wall-time per fire, max 16
+// ray VFX simultaneously (one per cleared solar cell, capped by board
+// geometry at ~16 per quad-clear), 400ms decay.
+export const SPARK_CASCADE_MIN_SOLAR_CELLS     = 2;     // HARD gate — sacred (Roman ruling ESC-02 O3)
+export const SPARK_CASCADE_MAX_DOMINANT_BOOST  = 1;     // HARD CAP — NOT stacking (sacred ESC-02 O3)
+export const SPARK_CASCADE_MAX_RAY_PARTICLES   = 16;    // DOM pool ceiling per spec §2.5 + §5
+export const SPARK_CASCADE_RAY_DECAY_MS        = 400;
+export const SPARK_CASCADE_DOMINANT_ELEMENT    = 'solar';
+// T2.B fallback toggle — flip to `false` if 5×5 matchup matrix surfaces
+// >15% TTK deviation on any Spark pairing (per ESC-02 O3 ruling fallback
+// path). When false, fxSparkLineClear fires VISUAL rays only — no
+// `_dominantCountModifier` write. Single-flip demotion to pure-FX.
+export const SPARK_CASCADE_ENABLED             = true;

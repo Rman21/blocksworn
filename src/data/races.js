@@ -192,11 +192,27 @@ export const RACE_SYNERGY = Object.freeze({
 //   perfect) ONLY to compute the squad shield-cap clamp — never writes.
 //   Crocodile + Golem grove-stacked squads hit max-shield faster but the
 //   sacred cap is NEVER exceeded.
-// T2.06 will append the spark entry.
+// T2.06 (2026-05-12) appends the spark entry per spec §2.5 (Sun Cascade).
+//   NOTE: spark has NO RACE_SYNERGY entry per ESC-02 O1 ruling (DEFER to
+//   post-Phase-2 sacred-cow-EXTENSION task). The Sun Cascade identity layer
+//   READS the combo-crit `dominantCount` input via the T2.03 ctx side-channel
+//   pattern (writes `ctx._dominantCountModifier`) — sacred combo crit formula
+//   `total_dmg × (1 + dominantCount × combo × 10%)` (CLAUDE.md §2.1 row 1,
+//   legacy line 63664) is BYTE-PERFECT and UNTOUCHED.
+//
+//   The sacred `RACE_SYNERGY.lion.5.bonusDmg.solar = 3` (line ~143 above) is
+//   ALSO byte-perfect — Sun Cascade fires ALONGSIDE the sacred lion solar
+//   bonus (compound solar synergy intentional per spec §2.5 field 8 stacking
+//   notes). Read-only sacred source — Sun Cascade never modifies it.
+//
+//   Roman ruling ESC-02 O3: Sun Cascade input modification is WITHIN
+//   BOUNDARY (same architectural pattern as cascade). Capped at +1, gated
+//   2-solar-cell minimum, not stacking. T2.B mandatory matchup matrix (5×5)
+//   verifies no Spark pairing exceeds expected TTK by >15%.
 export const RACE_IDENTITY_FX = Object.freeze({
   pirate:    'pirate_plunder',
   shark:     'shark_frenzy',           // T2.03
   rock:      'rock_echo',              // T2.04
   crocodile: 'crocodile_bastion',      // T2.05
-  // spark:     'spark_cascade',      // T2.06
+  spark:     'spark_cascade',          // T2.06
 });

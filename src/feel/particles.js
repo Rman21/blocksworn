@@ -235,6 +235,79 @@ export function spawnCrocFragmentParticle({ el, x, y, targetX, targetY, decayMs,
   return el;
 }
 
+// 2026-05-12 — TASK-033 (T2.06): Identity Layer spark ray particle factory.
+//
+// Pure factory — given pre-allocated DOM element + cleared-solar-cell origin
+// coords + nearest-non-empty-cell target coords, configures the element for a
+// single golden ray that arcs from the cleared solar cell toward the target
+// cell, accompanied by a single-frame yellow-white flash on the target. Used
+// exclusively by the Spark Sun Cascade identity FX (spec §2.5). Pool
+// allocation lives in `src/feel/identity-fx.js` per the object-pool
+// requirement of spec §5 (no `document.createElement` per fire).
+//
+// The element is expected to carry the `.identity-spark-ray` class (golden
+// line gradient with yellow-white highlights) and to support the
+// `.identity-spark-ray-flying` keyframe set defined in
+// `src/styles/screens/battle.css`. Caller is responsible for returning the
+// element to the pool when its decay timer fires.
+//
+// Parameters:
+//   el      — pre-allocated <div> from the pool (Identity Layer owns the pool)
+//   startX, startY — origin in viewport coords (cleared solar-cell center)
+//   targetX, targetY — destination in viewport coords (nearest non-empty cell)
+//   decayMs — animation lifetime; matches SPARK_CASCADE_RAY_DECAY_MS (400ms)
+//   color   — optional ray color override (defaults to '#FFD700' golden)
+//
+// Returns: the same `el` (caller-tracked for cleanup / pool release).
+//
+// Re-uses the existing CSS-transform-only animation pattern from
+// `spawnCoinParticle` / `spawnSharkBiteParticle` / `spawnRockEchoGhost` /
+// `spawnCrocFragmentParticle` above — no requestAnimationFrame loop, no
+// per-frame DOM writes, single transform via CSS keyframes. Pure addition;
+// touches no sacred element of the existing particle factories.
+//
+// Visual reference (spec §2.5 field 3): "Each cleared solar cell emits a
+// small golden ray that 'chains' briefly to the nearest non-empty cell of
+// any element. The nearest cell flashes yellow-white for one frame, then
+// resolves normally. PURE VFX — does NOT clear the touched cell."
+//
+// CRITICAL SACRED-COW SAFETY: This factory ONLY configures the ray element
+// and its target flash. It does NOT clear grid cells. The "touched cell"
+// flash is purely visual — the grid cell at (targetX, targetY) is NEVER
+// added to the cleared set by Sun Cascade. (If it were, that would be a
+// Shark Frenzy mechanic, not Spark — DO NOT confuse the two.)
+export function spawnSparkRayParticle({ el, startX, startY, targetX, targetY, decayMs, color }) {
+  if (!el) return null;
+  // Position at origin (cleared solar-cell center), expose target delta and
+  // decay via CSS custom properties so the .identity-spark-ray-flying
+  // keyframe can interpolate translate3d() + rotate (the ray "chains" along
+  // the line from origin to target).
+  el.style.left = startX + 'px';
+  el.style.top  = startY + 'px';
+  el.style.setProperty('--ray-tx', (targetX - startX) + 'px');
+  el.style.setProperty('--ray-ty', (targetY - startY) + 'px');
+  // Pre-compute ray length so the CSS doesn't need to call hypot. We pass it
+  // as a CSS variable for the gradient width.
+  const dx = targetX - startX;
+  const dy = targetY - startY;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  el.style.setProperty('--ray-length', len + 'px');
+  // Angle (deg) for rotate, anchored at start.
+  const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+  el.style.setProperty('--ray-angle', angleDeg + 'deg');
+  el.style.setProperty('--ray-decay-ms', decayMs + 'ms');
+  if (color) {
+    el.style.setProperty('--ray-color', color);
+  }
+  // Restart the animation deterministically (re-trigger CSS keyframes on
+  // re-used pool elements). Toggle class off then on by forcing a layout read.
+  el.classList.remove('identity-spark-ray-flying');
+  // Force a synchronous reflow so the keyframe restarts cleanly.
+  void el.offsetWidth;
+  el.classList.add('identity-spark-ray-flying');
+  return el;
+}
+
 // Spawns the 16-particle radial burst at the boss portrait centerpoint.
 // Returns nothing; the container auto-removes itself after 1600ms.
 // `wrap` is the #bossImgWrap element (caller passes its getBoundingClientRect

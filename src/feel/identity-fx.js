@@ -63,6 +63,12 @@ import {
   CROCODILE_BASTION_FRAGMENT_DECAY_MS,
   CROCODILE_BASTION_GROVE_ELEMENT,
   CROCODILE_BASTION_TARGET_HERO_INDEX,
+  SPARK_CASCADE_MIN_SOLAR_CELLS,
+  SPARK_CASCADE_MAX_DOMINANT_BOOST,
+  SPARK_CASCADE_MAX_RAY_PARTICLES,
+  SPARK_CASCADE_RAY_DECAY_MS,
+  SPARK_CASCADE_DOMINANT_ELEMENT,
+  SPARK_CASCADE_ENABLED,
 } from '../data/identity-layer.js';
 import { RACE_SYNERGY } from '../data/races.js';
 import {
@@ -70,6 +76,7 @@ import {
   spawnSharkBiteParticle,
   spawnRockEchoGhost,
   spawnCrocFragmentParticle,
+  spawnSparkRayParticle,
 } from './particles.js';
 import { vHaptic } from './haptics.js';
 import { log } from '../services/logger.js';
@@ -1527,12 +1534,411 @@ export function fxCrocodileLineClear(rows, cols, squad, ctx) {
   }
 }
 
-// ─── Stubs for T2.06 (export contract only) ───────────────────────────
-// This exists so `dispatchIdentityFx` can route to Spark today without
-// throwing. No-op pass-through; T2.06 will replace the body.
-export function fxSparkLineClear(_rows, _cols, _squad) {
-  // T2.06 — Sun Cascade (spec §2.5). Stub.
-  return 0;
+// ─── Spark Sun Cascade DOM pool (spec §2.5 + §5 — no createElement per fire) ──
+// Pre-allocate SPARK_CASCADE_MAX_RAY_PARTICLES (16) ray elements at module
+// load (lazy — first call to `_ensureSparkRayPool`). Track available vs
+// in-flight via two arrays. Mirrors the coin + shark-bite + rock-echo +
+// croc-fragment pool patterns above. The ray ceiling matches the spec's
+// hard cap (16 ray particles simultaneous), so pool exhaustion under
+// realistic load is mathematically impossible inside a single fire —
+// exhaustion would only occur if two fires overlap their 400ms decay
+// windows.
+const _sparkRayPool          = [];   // all SPARK_CASCADE_MAX_RAY_PARTICLES elements (created once)
+const _sparkRayPoolAvailable = [];   // currently idle elements (poppable)
+let   _sparkRayPoolInitDone  = false;
+let   _sparkRayPoolContainer = null;
+
+function _ensureSparkRayPool() {
+  if (_sparkRayPoolInitDone) return;
+  if (typeof document === 'undefined') return; // unit-test guard
+  _sparkRayPoolContainer = document.createElement('div');
+  _sparkRayPoolContainer.className = 'identity-spark-ray-layer';
+  _sparkRayPoolContainer.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(_sparkRayPoolContainer);
+  for (let i = 0; i < SPARK_CASCADE_MAX_RAY_PARTICLES; i++) {
+    const el = document.createElement('div');
+    el.className = 'identity-spark-ray';
+    _sparkRayPoolContainer.appendChild(el);
+    _sparkRayPool.push(el);
+    _sparkRayPoolAvailable.push(el);
+  }
+  _sparkRayPoolInitDone = true;
+}
+
+function _acquireSparkRay() {
+  return _sparkRayPoolAvailable.pop() || null;
+}
+
+function _releaseSparkRay(el) {
+  if (!el) return;
+  el.classList.remove('identity-spark-ray-flying');
+  _sparkRayPoolAvailable.push(el);
+}
+
+// ─── Spark pure math (unit-testable, no DOM) ───────────────────────────
+//
+// Squad alive-spark count. Defensive against the codebase reality that heroes
+// in HERO_DECK don't track per-hero hp (squad shares global `hp`). Treats
+// absence of `.hp` as alive (heroes are removed from deck on death;
+// `h.hp > 0` gate is preserved when hp IS present). Mirrors
+// `countAlivePirates` / `countAliveSharks` / `countAliveRocks` /
+// `countAliveCrocodiles` precedent (T2.02 CTO ruling #2 — defensive hp /
+// single-haptic).
+export function countAliveSparks(squad) {
+  if (!Array.isArray(squad)) return 0;
+  let n = 0;
+  for (const h of squad) {
+    if (!h || h.race !== 'spark') continue;
+    if (h.hp !== undefined && h.hp <= 0) continue;
+    n++;
+  }
+  return n;
+}
+
+// Count solar cells in cleared rows∪cols. Pure function — unit-testable.
+// `gridState` is a flexible source of grid element data (same surface as
+// `countGroveCells` above; the Crocodile precedent — T2.05):
+//   - 2D array indexed `[r][c]` returning stihiya string or null (legacy grid global pattern)
+//   - { getElementAt(r, c): string|null } object (module-style API)
+//   - null/undefined → returns 0 (defensive — no source means no solar cells)
+//
+// Spec §2.5 field 10 trigger: rows∪cols must contain ≥
+// SPARK_CASCADE_MIN_SOLAR_CELLS solar cells (gate threshold = 2). The
+// SPARK_CASCADE_DOMINANT_ELEMENT constant ('solar') is the literal value
+// produced by the legacy grid (line 191 — `weightedStihiya()` writes
+// 'ember'|'tide'|'grove'|'solar'|'umbra' strings into grid cells).
+//
+// `gridCols` / `gridRows` default to BOARD_COLS / BOARD_ROWS (8×8). Cells
+// are accounted via inclusion–exclusion (the intersection of a cleared row
+// and cleared col is one cell, not two — same accounting as
+// `computeCellsCleared` and `countGroveCells` above).
+export function countSolarCellsInClear(rows, cols, gridState, gridCols = BOARD_COLS, gridRows = BOARD_ROWS) {
+  if (!gridState) return 0;
+  const _rowList = Array.isArray(rows) ? rows.filter(r => typeof r === 'number' && r >= 0 && r < gridRows) : [];
+  const _colList = Array.isArray(cols) ? cols.filter(c => typeof c === 'number' && c >= 0 && c < gridCols) : [];
+  if (_rowList.length === 0 && _colList.length === 0) return 0;
+
+  // Resolve a unified accessor (mirror countGroveCells pattern). Prefer
+  // explicit `getElementAt` (module API), fall back to 2D-array indexing
+  // (legacy grid global).
+  const _getter = (typeof gridState.getElementAt === 'function')
+    ? ((r, c) => { try { return gridState.getElementAt(r, c); } catch (_e) { return null; } })
+    : ((r, c) => {
+        const row = gridState[r];
+        if (!row) return null;
+        return row[c];
+      });
+
+  // Track visited cells via the inclusion-exclusion key so a cell at a row×col
+  // intersection counts ONCE (not twice).
+  const _seen = new Set();
+  let n = 0;
+  for (const r of _rowList) {
+    for (let c = 0; c < gridCols; c++) {
+      const key = r + '_' + c;
+      if (_seen.has(key)) continue;
+      _seen.add(key);
+      const v = _getter(r, c);
+      if (v === SPARK_CASCADE_DOMINANT_ELEMENT) n++;
+    }
+  }
+  for (const c of _colList) {
+    for (let r = 0; r < gridRows; r++) {
+      const key = r + '_' + c;
+      if (_seen.has(key)) continue;
+      _seen.add(key);
+      const v = _getter(r, c);
+      if (v === SPARK_CASCADE_DOMINANT_ELEMENT) n++;
+    }
+  }
+  return n;
+}
+
+// Computes the Sun Cascade dominantCount modifier. Pure function —
+// unit-testable. This is the CRITICAL sacred-cow-adjacent math: the SOLE
+// place where Sun Cascade's contribution to the combo crit formula is
+// computed. The function NEVER touches the formula — it only returns
+// the `+modifier` value that the legacy bridge (T2.B) will thread into
+// the formula's INPUT (dominantCount) before evaluation.
+//
+// Per spec §2.5 field 4:
+//   - sparkCount >= 1 AND solarCellsInClear >= SPARK_CASCADE_MIN_SOLAR_CELLS
+//     AND enabled → +SPARK_CASCADE_MAX_DOMINANT_BOOST (currently +1)
+//   - else → 0 (silent no-op contract)
+//
+// HARD CAP at SPARK_CASCADE_MAX_DOMINANT_BOOST (1) per fire. NOT stacking:
+// 5 sparks does NOT yield +5; multiple cleared lines does NOT yield +N.
+// This is enforced at the return-value level — exactly one of {0, +1}.
+//
+// Roman ruling ESC-02 O3 hard caveat: "Capped at +1, gated 2-solar-cell
+// minimum, not stacking." If the matchup matrix (T2.B) surfaces >15% TTK
+// deviation on any Spark pairing, set `enabled=false` (via the
+// SPARK_CASCADE_ENABLED constant flip) → this function then returns 0 for
+// all inputs, demoting Spark to pure-FX. Single-flip fallback.
+//
+// Defensive against non-finite / negative inputs (returns 0).
+export function computeSunCascadeModifier(sparkCount, solarCellsInClear, enabled) {
+  const _sparks = Math.max(0, Math.floor(Number(sparkCount) || 0));
+  const _solars = Math.max(0, Math.floor(Number(solarCellsInClear) || 0));
+  if (!enabled) return 0;                                    // fallback flag — pure-FX demotion
+  if (_sparks === 0) return 0;                               // no alive sparks — silent no-op
+  if (_solars < SPARK_CASCADE_MIN_SOLAR_CELLS) return 0;     // below gate — silent no-op
+  return SPARK_CASCADE_MAX_DOMINANT_BOOST;                   // HARD CAP — never stacks
+}
+
+// Resolves the screen-coord origin for a grid cell at (r, c). Read-only
+// DOM query — no mutation. Mirrors `_resolveCellOriginRC` above. Used by
+// Sun Cascade to anchor ray origins on cleared solar cells.
+function _resolveCellOriginRCForSpark(r, c) {
+  if (typeof document === 'undefined') return null;
+  const cells = document.querySelectorAll('.grid .cell');
+  const el = cells[r * BOARD_COLS + c];
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+// Resolves the nearest NON-EMPTY cell to (originR, originC) using the
+// gridState getter. Pure function — used by Sun Cascade to determine the
+// target cell for each golden ray. Returns `{r, c}` of the nearest
+// non-empty cell, or `null` if no non-empty cells exist within the grid.
+//
+// "Non-empty" = grid value is truthy (any stihiya string, charged variant,
+// void variant, or frozen variant — anything not null/undefined/empty).
+// Per spec §2.5 field 3: "chains briefly to the nearest non-empty cell of
+// any element". The ray target is read-only — Sun Cascade NEVER clears
+// the target cell (that would be a Shark Frenzy mechanic). The cell just
+// flashes yellow-white visually for one frame.
+//
+// Search strategy: expanding Manhattan-distance ring. First non-empty cell
+// found wins. Excludes the origin cell itself. Excludes cells that are in
+// the cleared rows/cols set (those are about to be cleared — picking them
+// as target would render the flash on a cleared cell, which is invisible).
+function _findNearestNonEmptyCell(originR, originC, gridState, clearedSet, gridCols = BOARD_COLS, gridRows = BOARD_ROWS) {
+  if (!gridState) return null;
+  const _getter = (typeof gridState.getElementAt === 'function')
+    ? ((r, c) => { try { return gridState.getElementAt(r, c); } catch (_e) { return null; } })
+    : ((r, c) => {
+        const row = gridState[r];
+        if (!row) return null;
+        return row[c];
+      });
+  // Manhattan distance ring search. Max ring = max(gridCols, gridRows).
+  const _maxRing = Math.max(gridCols, gridRows);
+  for (let d = 1; d <= _maxRing; d++) {
+    // Iterate cells with manhattan distance exactly = d.
+    for (let dr = -d; dr <= d; dr++) {
+      const dc = d - Math.abs(dr);
+      for (const sign of (dc === 0 ? [1] : [1, -1])) {
+        const r = originR + dr;
+        const c = originC + sign * dc;
+        if (r < 0 || r >= gridRows || c < 0 || c >= gridCols) continue;
+        const key = r + '_' + c;
+        if (clearedSet && clearedSet.has(key)) continue; // skip cleared cells
+        const v = _getter(r, c);
+        if (v) return { r, c };  // any truthy value counts as non-empty
+      }
+    }
+  }
+  return null;
+}
+
+// ─── Spark Sun Cascade (spec §2.5) ─────────────────────────────────────
+//
+// THE single highest-impact race flavor in the Identity Layer (per spec
+// §2.5 "design balance note" and Roman ruling ESC-02 O3 "WITHIN
+// BOUNDARY"). It is the ONLY race flavor that interacts directly with the
+// sacred combo crit input. Implementation follows the T2.03 ctx
+// side-channel pattern: Sun Cascade writes to `ctx._dominantCountModifier`
+// (a NEW field added in T2.06), and the legacy bridge (T2.B, deferred to
+// end of Phase 2) reads this modifier and threads it into the combo crit
+// formula's INPUT (dominantCount) before the formula evaluates.
+//
+// SACRED COMBO CRIT FORMULA (CLAUDE.md §2.1 row 1, legacy line 63664):
+//   critMult = 1 + domCount * count * CRIT_MULT_K
+//   finalDmg = floor(totalDmg * critMult)
+// THE FORMULA IS UNTOUCHED BY THIS FUNCTION. Sun Cascade modifies
+// `domCount` BEFORE the formula runs — same architectural pattern as
+// cascade (cells get added to the input set BEFORE evaluation). The
+// multiplier arithmetic stays byte-perfect.
+//
+// Trigger contract (spec §2.5 field 10):
+//   - Fires every `clearLines(rows, cols)` resolve.
+//   - Gate: ≥1 spark hero alive AND ≥SPARK_CASCADE_MIN_SOLAR_CELLS (2)
+//     solar cells in rows∪cols.
+//     Else silent no-op (NEITHER FX nor mechanical fire).
+// Effect contract (spec §2.5 fields 3–9):
+//   - Mechanical: +SPARK_CASCADE_MAX_DOMINANT_BOOST (1) to
+//     ctx._dominantCountModifier. HARD CAP — NOT stacking. Multiple sparks
+//     or multiple solar lines NEVER produce more than +1 per fire.
+//   - Visual: Golden ray from each cleared solar cell to the nearest
+//     non-empty cell (any element). Pool of 16 rays, decay 400ms each.
+//     Target cell flashes yellow-white for one frame — PURE VFX, does NOT
+//     clear the target cell (Shark Frenzy is the cell-clearing mechanic,
+//     not Spark).
+//   - Sound: crisp bell chime (200ms golden-tone), layered, re-use existing
+//     per ESC-02 O4 RE-USE-FIRST ruling. Audio mixer handles re-use; this
+//     module does NOT call audio APIs directly.
+//   - Haptic: standard `clear` already fired by host `clearLines` via
+//     `vibrate(25)` — `fxSparkLineClear` does NOT re-fire (T2.02 precedent
+//     #3 — no double-pulse).
+//   - Total wall-time ≤10ms (spec §2.5 field 9).
+//
+// Fallback (per ESC-02 O3 ruling):
+//   If SPARK_CASCADE_ENABLED is `false` (T2.B fallback toggle), the
+//   mechanical write is SKIPPED but VFX still fires. Sun Cascade is then
+//   pure-FX (visual rays only, no combo crit input modification). Single
+//   config flag flip — no rewrite needed.
+//
+// `ctx` is an optional cell-state predicate snapshot (passed through from
+// the dispatcher; nullable in T2.06 since legacy bridge is deferred to
+// T2.B). Recognized keys for Spark:
+//   - `gridState` — 2D grid array OR `{ getElementAt(r, c) }` accessor
+//     (for the solar-cell scan AND the nearest-non-empty-cell ray target)
+//   - `_dominantCountModifier` — accumulator (NEW field, T2.06). Sun Cascade
+//     INCREMENTS this by SPARK_CASCADE_MAX_DOMINANT_BOOST when the gate
+//     passes. The legacy bridge (T2.B) reads it BEFORE the sacred formula
+//     evaluates, threads it into dominantCount, then evaluates the formula
+//     BYTE-PERFECT.
+//
+// Returns the modifier value actually written to ctx (0 or
+// SPARK_CASCADE_MAX_DOMINANT_BOOST). Useful for smoke assertions that need
+// to verify the input-modification invariant + fallback flag behavior.
+export function fxSparkLineClear(rows, cols, squad, ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  try {
+    // Squad alive-spark count. Same fallback chain as Pirate / Shark / Rock /
+    // Crocodile (T2.02 precedent #2 — defensive hp).
+    const _squad = Array.isArray(squad) ? squad
+                 : (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) ? HERO_DECK
+                 : [];
+    const sparkCount = countAliveSparks(_squad);
+    if (sparkCount === 0) return 0;
+
+    const rowCount = Array.isArray(rows) ? rows.length : 0;
+    const colCount = Array.isArray(cols) ? cols.length : 0;
+    if (rowCount + colCount === 0) return 0;
+
+    // Resolve gridState from ctx → legacy `grid` global (T2.05 precedent).
+    const _gridState = (ctx && ctx.gridState) ? ctx.gridState
+                     : (typeof grid !== 'undefined' && Array.isArray(grid)) ? grid
+                     : (typeof window !== 'undefined' && Array.isArray(window.grid)) ? window.grid
+                     : null;
+
+    const solarCellsInClear = countSolarCellsInClear(rows, cols, _gridState);
+    // Gate: silent no-op below SPARK_CASCADE_MIN_SOLAR_CELLS (NEITHER FX nor
+    // mechanical fire). Spec §2.5 field 10: "If solar cells in clear < 2, no
+    // effect."
+    if (solarCellsInClear < SPARK_CASCADE_MIN_SOLAR_CELLS) return 0;
+
+    // ── MECHANICAL PATH (sacred-cow-adjacent — central audit row §2.1.1) ──
+    // Computes the modifier via the pure-helper that respects the
+    // SPARK_CASCADE_ENABLED fallback flag. HARD CAP at
+    // SPARK_CASCADE_MAX_DOMINANT_BOOST (+1) — NEVER stacking.
+    //
+    // IMPORTANT: We write to `ctx._dominantCountModifier`, NOT to the
+    // formula multiplier. The sacred formula `total_dmg × (1 + dominantCount
+    // × combo × 10%)` is BYTE-PERFECT and UNTOUCHED. Only the INPUT
+    // (dominantCount) is mutated — same architectural pattern as cascade.
+    //
+    // When SPARK_CASCADE_ENABLED is `false` (T2.B fallback toggle flipped
+    // by Bug Tester after matchup matrix), the modifier is 0 and Sun
+    // Cascade is pure-FX. Single-flip demotion — no rewrite.
+    const modifier = computeSunCascadeModifier(sparkCount, solarCellsInClear, SPARK_CASCADE_ENABLED);
+    if (modifier > 0 && ctx && typeof ctx === 'object') {
+      // Accumulate via defensive read: `(prev || 0) + modifier`. This is
+      // safe because the gate guarantees one write per fire (HARD CAP), so
+      // the accumulator only grows across DIFFERENT fires (the dispatcher
+      // creates a fresh ctx per clearLines call in production). Per spec
+      // §2.5 field 4: "Capped at +1 per fire."
+      const prev = (typeof ctx._dominantCountModifier === 'number') ? ctx._dominantCountModifier : 0;
+      ctx._dominantCountModifier = prev + modifier;
+    }
+
+    // ── VISUAL PATH (always fires when gate passes; runs even when
+    // SPARK_CASCADE_ENABLED is `false` — pure-FX fallback path) ──
+    // Build the set of cleared cell (r,c) coords AND the subset of those
+    // that are solar (the ray origins). Mirrors `countSolarCellsInClear`
+    // inclusion-exclusion accounting.
+    _ensureSparkRayPool();
+    if (_sparkRayPoolInitDone && _gridState) {
+      const _getter = (typeof _gridState.getElementAt === 'function')
+        ? ((r, c) => { try { return _gridState.getElementAt(r, c); } catch (_e) { return null; } })
+        : ((r, c) => {
+            const row = _gridState[r];
+            if (!row) return null;
+            return row[c];
+          });
+      const _clearedSet = new Set();
+      const _solarOrigins = [];
+      const _rowList = Array.isArray(rows) ? rows : [];
+      const _colList = Array.isArray(cols) ? cols : [];
+      // Build cleared set + scan for solar origins.
+      for (const r of _rowList) {
+        if (typeof r !== 'number') continue;
+        for (let c = 0; c < BOARD_COLS; c++) {
+          const key = r + '_' + c;
+          if (_clearedSet.has(key)) continue;
+          _clearedSet.add(key);
+          if (_getter(r, c) === SPARK_CASCADE_DOMINANT_ELEMENT) _solarOrigins.push({ r, c });
+        }
+      }
+      for (const c of _colList) {
+        if (typeof c !== 'number') continue;
+        for (let r = 0; r < BOARD_ROWS; r++) {
+          const key = r + '_' + c;
+          if (_clearedSet.has(key)) continue;
+          _clearedSet.add(key);
+          if (_getter(r, c) === SPARK_CASCADE_DOMINANT_ELEMENT) _solarOrigins.push({ r, c });
+        }
+      }
+
+      // Spawn one ray per solar origin, capped at SPARK_CASCADE_MAX_RAY_PARTICLES.
+      let _spawned = 0;
+      for (const { r, c } of _solarOrigins) {
+        if (_spawned >= SPARK_CASCADE_MAX_RAY_PARTICLES) break;
+        const origin = _resolveCellOriginRCForSpark(r, c);
+        if (!origin) continue;
+        // Find nearest non-empty cell as the target (excluding cells in the
+        // cleared set so the flash doesn't render on a cell about to clear).
+        const target = _findNearestNonEmptyCell(r, c, _gridState, _clearedSet);
+        if (!target) continue;
+        const targetOrigin = _resolveCellOriginRCForSpark(target.r, target.c);
+        if (!targetOrigin) continue;
+        const el = _acquireSparkRay();
+        if (!el) break; // pool exhausted (concurrent fires overlap) — drop surplus
+        spawnSparkRayParticle({
+          el,
+          startX: origin.x,
+          startY: origin.y,
+          targetX: targetOrigin.x,
+          targetY: targetOrigin.y,
+          decayMs: SPARK_CASCADE_RAY_DECAY_MS,
+          color: '#FFD700',
+        });
+        setTimeout(() => _releaseSparkRay(el), SPARK_CASCADE_RAY_DECAY_MS);
+        _spawned++;
+      }
+    }
+
+    // Spec §2.5 field 6: standard `clear` haptic. Already fired by host
+    // clearLines (`vibrate(25)` at grid.js:399). NOT re-fired here — T2.02
+    // precedent #3 (no double-pulse).
+    void vHaptic;
+
+    // Return the modifier actually written (0 or
+    // SPARK_CASCADE_MAX_DOMINANT_BOOST). Useful for smoke assertions:
+    //   - Gate passed + enabled → returns 1
+    //   - Gate failed → returns 0 (function exited early above)
+    //   - Gate passed + disabled (T2.B fallback) → returns 0
+    return modifier;
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      // Spec §2.5 field 9 — soft budget check at 10ms.
+      if (dt > 10) log.warn('Spark Sun Cascade over budget:', dt.toFixed(2), 'ms');
+    }
+  }
 }
 
 // ─── Dispatcher (spec §7.2 hook from src/core/grid.js#clearLines) ──────
@@ -1585,7 +1991,7 @@ export function dispatchIdentityFx(rows, cols, squad, _currentBoss, ctx = null) 
     if (races.has('crocodile')) fxCrocodileLineClear(rows, cols, squad, ctx);
   } catch (e) { log.warn('Crocodile FX threw:', e); }
   try {
-    if (races.has('spark'))     fxSparkLineClear(rows, cols, squad);
+    if (races.has('spark'))     fxSparkLineClear(rows, cols, squad, ctx);
   } catch (e) { log.warn('Spark FX threw:', e); }
 }
 
@@ -1653,6 +2059,18 @@ export const __identityFxTestables = Object.freeze({
   // `resetCrocFragmentBank()` exported above instead.
   setCrocFragmentBankForTest: (n) => {
     _crocFragmentBank = Math.max(0, Math.floor(Number(n) || 0));
+  },
+  // T2.06 — Spark Sun Cascade testables.
+  getSparkRayPoolSize: () => _sparkRayPool.length,
+  getSparkRayPoolAvailable: () => _sparkRayPoolAvailable.length,
+  resetSparkRayPool: () => {
+    while (_sparkRayPool.length) _sparkRayPool.pop();
+    while (_sparkRayPoolAvailable.length) _sparkRayPoolAvailable.pop();
+    _sparkRayPoolInitDone = false;
+    if (_sparkRayPoolContainer && _sparkRayPoolContainer.parentNode) {
+      _sparkRayPoolContainer.parentNode.removeChild(_sparkRayPoolContainer);
+    }
+    _sparkRayPoolContainer = null;
   },
   IDENTITY_FX_KEYS,
 });
