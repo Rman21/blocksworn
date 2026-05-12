@@ -16,6 +16,9 @@ import {
   migrateRemoveArtifacts,
   LEGACY_ARTIFACT_STORAGE_KEYS,
   ARTIFACTS_REMOVED_SENTINEL_KEY,
+  migrateRemoveCosmicMemorial,
+  LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS,
+  COSMIC_MEMORIAL_REMOVED_SENTINEL_KEY,
 } from '../../src/services/migrate.js';
 
 // Minimal in-memory localStorage shim. Mirrors the Web Storage API surface
@@ -248,5 +251,90 @@ describe('migrateRemoveArtifacts (T1.14)', () => {
     expect(LEGACY_ARTIFACT_STORAGE_KEYS).toContain('blocksworn_artifact_inventory');
     expect(LEGACY_ARTIFACT_STORAGE_KEYS).toContain('blocksworn_artifact_history');
     expect(LEGACY_ARTIFACT_STORAGE_KEYS).toContain('blocksworn_artifact_pity');
+  });
+});
+
+describe('migrateRemoveCosmicMemorial (T1.15)', () => {
+  it('removes known cosmic-memorial localStorage keys + strips save fields', () => {
+    // Seed every cosmic-memorial-related key the legacy ever could have
+    // written. Pure-cosmetic Ch3 hub strip never persisted in production,
+    // but the shim defensively cleans up to a deterministic shape.
+    for (const k of LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS) {
+      localStorage.setItem(k, '"seed"');
+    }
+    // Seed an aggregated progress save with cosmic-memorial fields.
+    localStorage.setItem('blocksworn_progress', JSON.stringify({
+      essences: { ember: 4 },
+      heroUpgrades: {},
+      bossesDefeated: 3,
+      cosmicMemorial: { unlocked: ['TWILIGHT VESSEL', 'STORMSHEPHERD'] },
+      cosmicMemorialEntries: 2,
+      memorialDefeats: ['TWILIGHT VESSEL'],
+      _v: 17,
+    }));
+
+    const result = migrateRemoveCosmicMemorial();
+
+    expect(result.removed).toBe(LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS.length);
+    expect(result.savePatched).toBe(true);
+    expect(result.skipped).toBeUndefined();
+
+    // Every key removed.
+    for (const k of LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS) {
+      expect(localStorage.getItem(k)).toBeNull();
+    }
+
+    // Save stripped of cosmic-memorial fields but preserves everything else.
+    const patched = JSON.parse(localStorage.getItem('blocksworn_progress'));
+    expect(patched.cosmicMemorial).toBeUndefined();
+    expect(patched.cosmicMemorialEntries).toBeUndefined();
+    expect(patched.memorialDefeats).toBeUndefined();
+    expect(patched.essences).toEqual({ ember: 4 });
+    expect(patched.bossesDefeated).toBe(3);
+    expect(patched._v).toBe(17);
+
+    // Sentinel stamped.
+    expect(localStorage.getItem(COSMIC_MEMORIAL_REMOVED_SENTINEL_KEY)).toBe('"true"');
+  });
+
+  it('subsequent calls short-circuit via sentinel', () => {
+    localStorage.setItem('blocksworn_cosmic_memorial', '"seed"');
+    const first = migrateRemoveCosmicMemorial();
+    expect(first.removed).toBe(1);
+    expect(first.skipped).toBeUndefined();
+
+    // Plant a NEW cosmic-memorial key — second call must NOT touch it
+    // because the sentinel short-circuits.
+    localStorage.setItem('blocksworn_memorial_defeats', '"replant"');
+    const second = migrateRemoveCosmicMemorial();
+    expect(second).toEqual({ removed: 0, savePatched: false, skipped: 'sentinel' });
+    expect(localStorage.getItem('blocksworn_memorial_defeats')).toBe('"replant"');
+  });
+
+  it('handles missing save + corrupt save gracefully', () => {
+    // No 'blocksworn_progress' key at all.
+    const noSave = migrateRemoveCosmicMemorial();
+    expect(noSave.removed).toBe(0);
+    expect(noSave.savePatched).toBe(false);
+    expect(localStorage.getItem(COSMIC_MEMORIAL_REMOVED_SENTINEL_KEY)).toBe('"true"');
+
+    // Wipe + retry with corrupt save (sentinel was stamped on first run).
+    localStorage.clear();
+    localStorage.setItem('blocksworn_progress', '{not json');
+    const corrupt = migrateRemoveCosmicMemorial();
+    expect(corrupt.removed).toBe(0);
+    expect(corrupt.savePatched).toBe(false);
+    expect(localStorage.getItem(COSMIC_MEMORIAL_REMOVED_SENTINEL_KEY)).toBe('"true"');
+    // Corrupt save left untouched (don't make corrupt data worse).
+    expect(localStorage.getItem('blocksworn_progress')).toBe('{not json');
+  });
+
+  it('allow-list is frozen + pins the cosmic-memorial key names', () => {
+    expect(Object.isFrozen(LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS)).toBe(true);
+    // Pin the conservative defense-in-depth key set.
+    expect(LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS).toContain('blocksworn_cosmic_memorial');
+    expect(LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS).toContain('blocksworn_cosmic_memorial_entries');
+    expect(LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS).toContain('blocksworn_memorial_defeats');
+    expect(LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS).toHaveLength(5);
   });
 });

@@ -222,19 +222,10 @@
   0%   { opacity: 0; transform: scale(0.85) translateY(20px); }
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
-@keyframes memorialDust {
-  0%   { background-position: 0 6px,   0 6px,   0 6px;   opacity: 0; }
-  20%  { opacity: 1; }
-  100% { background-position: 0 -32px, 0 -38px, 0 -28px; opacity: 0; }
-}
-@keyframes memorialAura {
-  0%, 100% { opacity: 0.45; }
-  50%      { opacity: 1.0;  }
-}
-@keyframes memorialFloat {
-  0%, 100% { transform: translateY(0px) scale(1.0); }
-  50%      { transform: translateY(-3px) scale(1.05); }
-}
+/* T1.15 (2026-05-12): memorialDust / memorialAura / memorialFloat keyframes
+   deleted with the Cosmic Memorial Ch3 hub strip (Block 6.5 DEBT-9). Only
+   .a-hub-memorial-ghost referenced these; that selector + the strip are
+   gone now too. */
 @keyframes forgottenNamesBreathe {
   0%, 100% {
     box-shadow:

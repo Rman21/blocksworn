@@ -11,12 +11,13 @@
 //   - vRenderChapter()                 line 66827-66898   (chapter selector + nodes)
 //   - vRenderBossCard()                line 66900-66940   (boss preview card)
 //   - vRenderSquadDock()               line 66942-66972   (squad portraits dock)
-//   - vRenderCosmicMemorial()          line 66978-67012   (Ch3 memorial — DEAD per T1.15)
 //   - _vLastCounters / vCountUpNode    line 67402-67420   (topbar count-up helpers)
 //
 // Owns: home-screen rendering + the "Start battle" CTA dispatcher + V3.0
 // Vivid hub render helpers (topbar / chapter / boss card / squad dock /
-// whats-new / cosmic memorial — last is dead code, T1.15 will delete).
+// whats-new). vRenderCosmicMemorial deleted in T1.15 — Ch3 hub strip
+// (Block 6.5 DEBT-9) was removed from the home hub in v2.1 polish v0.1 Track B
+// (Roman: 2026-04-29); T1.15 completes the purge per v2.1 P5 §7.
 //
 // Does NOT own:
 //   - showScreen() / goToMenu() / goToSelect() — see router.js
@@ -81,7 +82,8 @@ export function renderMenu() {
   // visibility + auto-expire. No-ops if no Ch.1-unlock timestamp is set
   // or if the 3-day window has passed.
   try { vRenderWhatsNew(); }  catch(e){ log.warn('vRenderWhatsNew failed:', e); }
-  try { vRenderCosmicMemorial(); } catch(e){ log.warn('vRenderCosmicMemorial failed:', e); }
+  // T1.15 (2026-05-12): vRenderCosmicMemorial() call removed. Ch3 hub strip
+  // (Block 6.5 DEBT-9) was deleted per v2.1 P5 §7 Final Legacy Purge.
   // Legacy renderers — kept because they update other screens or are called from
   // many code paths. Their DOM hosts no longer exist in screenMenu, but each
   // function no-ops via null-guards when the target element is missing.
@@ -401,45 +403,11 @@ export function vRenderSquadDock() {
   }
 }
 
-// ─── vRenderCosmicMemorial (legacy 66978-67012) ─────────────────────────────
-// TODO(T1.15): Cosmic Memorial subsystem is slated for deletion per Execution
-// Plan §1.2 / CLAUDE.md §2.5 (v2.1 P5 §7 completion). Kept here as a
-// byte-perfect relocation so renderMenu() doesn't ReferenceError; the entire
-// function (plus its DOM scaffolding + ASSETS Boss_11..15 keys + chapterProgress[3]
-// gate) will be excised in T1.15. The wrap.style.display='none' gate means it
-// silently no-ops for any player without Ch3 progress, so this is harmless live.
-export function vRenderCosmicMemorial() {
-  const wrap  = document.getElementById('vCosmicMemorial');
-  const strip = document.getElementById('vMemorialStrip');
-  if (!wrap || !strip) return;
-  strip.innerHTML = '';
-  // Only show on the Home screen / Ch3 unlock requirement met.
-  const ch3Cleared = (typeof chapterProgress !== 'undefined' && chapterProgress && chapterProgress[3]) || 0;
-  if (!ch3Cleared || ch3Cleared <= 0) { wrap.style.display = 'none'; return; }
-  // Boss 11..15 — Chapter 3 roster. Image keys are Boss_11..Boss_15 per Block 6.1.
-  const ch3Bosses = [
-    { idx: 1, key: 'Boss_11', name: 'TWILIGHT VESSEL'    },
-    { idx: 2, key: 'Boss_12', name: 'STORMSHEPHERD'      },
-    { idx: 3, key: 'Boss_13', name: 'VOIDPRIESTESS'      },
-    { idx: 4, key: 'Boss_14', name: 'ROOT-OF-NOTHING'    },
-    { idx: 5, key: 'Boss_15', name: 'ARCHIVAL ETERNAL'   },
-  ];
-  let shown = 0;
-  for (const b of ch3Bosses) {
-    if (b.idx > ch3Cleared) break;
-    const ghost = document.createElement('div');
-    ghost.className = 'a-hub-memorial-ghost';
-    ghost.title = b.name + ' — guide of the forgotten';
-    if (typeof ASSETS !== 'undefined' && ASSETS[b.key]) {
-      const im = document.createElement('img');
-      im.src = ASSETS[b.key];
-      im.alt = b.name;
-      ghost.appendChild(im);
-    }
-    // Stagger animation start so each ghost floats slightly out-of-phase.
-    ghost.style.animationDelay = (shown * 0.4) + 's';
-    strip.appendChild(ghost);
-    shown++;
-  }
-  wrap.style.display = (shown > 0) ? '' : 'none';
-}
+// ─── vRenderCosmicMemorial — DELETED in T1.15 ───────────────────────────────
+// 2026-05-12 — T1.15 (TASK-023): Cosmic Memorial (Ch3 hub strip, Block 6.5
+// DEBT-9) deleted per v2.1 P5 §7 Final Legacy Purge. The renderer had been
+// inert since v2.1 polish v0.1 Track B (Roman: 2026-04-29) removed the
+// #vCosmicMemorial / #vMemorialStrip DOM hosts from the home hub markup —
+// the function null-guarded into a silent no-op. Migration shim
+// `migrateRemoveCosmicMemorial()` in src/services/migrate.js scrubs the
+// legacy localStorage keys this subsystem ever touched.

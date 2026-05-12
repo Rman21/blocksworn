@@ -36,7 +36,7 @@ import './styles/index.css';
 import { initSentry, captureException } from './services/sentry.js';
 import { initFirebase } from './services/firebase.js';
 import { initRevenueCat } from './services/revenuecat.js';
-import { migrateBareStringKeys, migrateRemoveArtifacts } from './services/migrate.js';
+import { migrateBareStringKeys, migrateRemoveArtifacts, migrateRemoveCosmicMemorial } from './services/migrate.js';
 import { log } from './services/logger.js';
 
 // Core state.
@@ -73,6 +73,19 @@ async function main() {
       log.info('[boot] artifact removal migration:', artifactsResult);
     } catch (err) {
       log.warn('[boot] migrateRemoveArtifacts:', err);
+    }
+
+    // 2c. T1.15 — DELETE Cosmic Memorial migration. Idempotent via its own
+    //     sentinel (`blocksworn_cosmic_memorial_removed_v1`). Removes the
+    //     hypothetical legacy cosmic-memorial localStorage keys + strips
+    //     `cosmicMemorial` / `cosmicMemorialEntries` / `memorialDefeats`
+    //     from the aggregated progress save. Must run BEFORE initProgression()
+    //     reads `blocksworn_progress` (mirrors T1.14 ordering).
+    try {
+      const memorialResult = migrateRemoveCosmicMemorial();
+      log.info('[boot] cosmic memorial removal migration:', memorialResult);
+    } catch (err) {
+      log.warn('[boot] migrateRemoveCosmicMemorial:', err);
     }
 
     // 3. Firebase (sync — binds from legacy window.* dispatch when present).

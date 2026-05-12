@@ -43,7 +43,7 @@ import { clearVoidfangTints } from '../core/reactivity-events.js';
 import { log } from '../services/logger.js';
 
 /* global vRenderTopbar, vRenderChapter, vRenderBossCard, vRenderSquadDock,
-   vRenderWhatsNew, vRenderCosmicMemorial,
+   vRenderWhatsNew,
    renderBossProgression, renderChapterToggle, renderEssenceStrip,
    activateNavFor,
    playContextMusic,

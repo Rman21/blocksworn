@@ -1818,88 +1818,12 @@ body.cosmetic-bg-eternal_dawn #screenMenu {
   outline-offset: 2px;
 }
 
-/* 2026-04-27 — Block 6.5 DEBT-9: Cosmic Memorial — defeated Chapter 3 bosses
-   as ethereal cosmetic guides on the home hub. Pure cosmetic per spec §12.3.
-   2026-04-29 — Polish pass: bumped ghost size 32→36, layered drop-shadow glow,
-   added particle-dust ::before that drifts upward, breathing aura on ::after,
-   memorial strip got a subtle starfield backdrop. Keeps the existing "fallen
-   guides" tone but reads as intentional premium cosmetic. */
-.a-hub-memorial {
-  margin: 8px 12px 0;
-  padding: 8px 10px;
-  border: 1px solid rgba(192,106,223,0.4);
-  border-radius: 10px;
-  background:
-    radial-gradient(ellipse at 20% 30%, rgba(192,106,223,0.10) 0%, transparent 45%),
-    radial-gradient(ellipse at 80% 70%, rgba(255,213,61,0.06) 0%, transparent 45%),
-    linear-gradient(180deg, rgba(192,106,223,0.10), rgba(0,0,0,0.30));
-  text-align: center;
-  box-shadow:
-    inset 0 0 12px rgba(192,106,223,0.10),
-    0 0 14px rgba(192,106,223,0.18);
-}
-.a-hub-memorial-lbl {
-  font-family: var(--a-font-display);
-  font-size: 9px;
-  letter-spacing: 1.8px;
-  color: rgba(220,180,250,0.95);
-  text-shadow:
-    0 0 6px rgba(192,106,223,0.65),
-    0 0 12px rgba(192,106,223,0.30);
-  display: block;
-  margin-bottom: 6px;
-}
-.a-hub-memorial-strip {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.a-hub-memorial-ghost {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid rgba(192,106,223,0.7);
-  background: rgba(0,0,0,0.45);
-  overflow: hidden;
-  position: relative;
-  filter:
-    grayscale(0.45) brightness(0.85)
-    drop-shadow(0 0 4px rgba(192,106,223,0.75))
-    drop-shadow(0 0 9px rgba(192,106,223,0.45));
-  animation: memorialFloat 4s ease-in-out infinite;
-}
-.a-hub-memorial-ghost img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: 0.78;
-}
-/* Particle dust — three small radial sparkles drifting upward inside the
- * portrait. Pure CSS, no asset. The drift loop staggers per-ghost via
- * animation-delay set on the parent. */
-.a-hub-memorial-ghost::before {
-  content: '';
-  position: absolute; inset: -4px;
-  background:
-    radial-gradient(circle at 18% 90%, rgba(220,180,250,0.85) 0px, transparent 1.2px),
-    radial-gradient(circle at 72% 95%, rgba(255,213,61,0.70) 0px, transparent 1.0px),
-    radial-gradient(circle at 50% 100%, rgba(220,180,250,0.65) 0px, transparent 1.4px);
-  background-repeat: no-repeat;
-  pointer-events: none;
-  animation: memorialDust 3.6s linear infinite;
-  opacity: 0.85;
-  z-index: 2;
-}
-/* Breathing aura — radial gradient that pulses in opacity. */
-.a-hub-memorial-ghost::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: radial-gradient(circle at 50% 50%, rgba(192,106,223,0.30), transparent 70%);
-  pointer-events: none;
-  animation: memorialAura 3.2s ease-in-out infinite;
-  z-index: 1;
-}
+/* 2026-05-12 — T1.15 (TASK-023): Cosmic Memorial Ch3 hub strip (Block 6.5
+   DEBT-9) deleted per v2.1 P5 §7 Final Legacy Purge. The .a-hub-memorial /
+   .a-hub-memorial-lbl / .a-hub-memorial-strip / .a-hub-memorial-ghost
+   selectors + memorialFloat / memorialDust / memorialAura keyframes
+   (animations.css 225-237) are removed in the same commit. Renderer
+   vRenderCosmicMemorial deleted from src/ui/menu.js. */
 
 /* Prevent body double-scroll on Arena screens (html already overflow:hidden) */
 .a-hub, .a-loadout, .a-shop { overflow-x: hidden; }

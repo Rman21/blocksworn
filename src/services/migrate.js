@@ -303,3 +303,124 @@ export function migrateRemoveArtifacts() {
   _stampArtifactsSentinel();
   return { removed, savePatched };
 }
+
+// ─── T1.15 — DELETE Cosmic Memorial subsystem ─────────────────────────────
+//
+// Background:
+//   v2.1 polish v0.1 Track B (2026-04-29, Roman) removed the Cosmic Memorial
+//   Ch3 hub strip (Block 6.5 DEBT-9) DOM hosts from the home hub. The
+//   renderer (vRenderCosmicMemorial) + CSS (.a-hub-memorial*, memorialDust /
+//   memorialAura / memorialFloat keyframes) lingered as dead code, guarded
+//   by null-check early-returns when `#vCosmicMemorial` was absent. T1.15
+//   completes the deletion per v2.1 P5 §7 Final Legacy Purge and ADR-004
+//   (Hybrid Runtime Coexistence — legacy now mutable for cleanup). This shim
+//   scrubs any localStorage residue the subsystem ever wrote, plus any
+//   aggregated `blocksworn_progress` fields that referenced memorial state.
+//
+//   The Cosmic Memorial pure-cosmetic strip was driven entirely by
+//   `chapterProgress[3]` (see deleted vRenderCosmicMemorial body) — it never
+//   persisted dedicated state of its own. The hypothetical keys below are
+//   listed for defense-in-depth so any future build that briefly experimented
+//   with persistence (or any external save importer carrying these names)
+//   cleans up to a deterministic shape.
+//
+// Algorithm: mirrors migrateRemoveArtifacts (T1.14) byte-for-byte.
+//   1. Idempotency sentinel — `blocksworn_cosmic_memorial_removed_v1`.
+//   2. Remove each well-known cosmic-memorial-related localStorage key.
+//   3. If the aggregated `blocksworn_progress` save has `cosmicMemorial` /
+//      `memorialDefeats` fields, strip them and write the save back.
+//   4. Stamp the sentinel.
+//
+// Failure modes: all storage I/O wrapped in try/catch. Corrupt JSON / quota
+// / SecurityError are swallowed; idempotency makes retries safe.
+
+export const COSMIC_MEMORIAL_REMOVED_SENTINEL_KEY = 'blocksworn_cosmic_memorial_removed_v1';
+
+// Frozen allow-list of cosmic-memorial-related localStorage keys. The
+// Cosmic Memorial Ch3 hub strip never shipped persistent state of its own —
+// the strip was a pure projection of `chapterProgress[3]`. These keys are
+// the names a hypothetical persistence experiment would have written; the
+// allow-list is conservative defense-in-depth, mirroring T1.14's pattern.
+export const LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS = Object.freeze([
+  'blocksworn_cosmic_memorial',
+  'blocksworn_cosmic_memorial_entries',
+  'blocksworn_cosmic_memorial_state',
+  'blocksworn_memorial_defeats',
+  'blocksworn_memorial_entries',
+]);
+
+function _cosmicMemorialSentinelStamped() {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem(COSMIC_MEMORIAL_REMOVED_SENTINEL_KEY) === '"true"';
+  } catch (_e) {
+    return false;
+  }
+}
+
+function _stampCosmicMemorialSentinel() {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(COSMIC_MEMORIAL_REMOVED_SENTINEL_KEY, '"true"');
+  } catch (_e) {
+    // Best-effort; next boot retries.
+  }
+}
+
+/**
+ * Remove the Cosmic Memorial subsystem from persistent storage. Safe to
+ * call on every boot — sentinel short-circuits after the first successful
+ * pass. Mirrors `migrateRemoveArtifacts` (T1.14).
+ *
+ * @returns {{ removed: number, savePatched: boolean, skipped?: 'sentinel' }}
+ */
+export function migrateRemoveCosmicMemorial() {
+  if (_cosmicMemorialSentinelStamped()) {
+    return { removed: 0, savePatched: false, skipped: 'sentinel' };
+  }
+  if (typeof localStorage === 'undefined') {
+    return { removed: 0, savePatched: false };
+  }
+
+  let removed = 0;
+  let savePatched = false;
+
+  // 1. Remove well-known cosmic-memorial localStorage keys.
+  for (const key of LEGACY_COSMIC_MEMORIAL_STORAGE_KEYS) {
+    try {
+      if (localStorage.getItem(key) !== null) {
+        localStorage.removeItem(key);
+        removed++;
+      }
+    } catch (_e) {
+      // Per-key SecurityError — skip + continue.
+    }
+  }
+
+  // 2. Strip cosmic-memorial fields from the aggregated progress save. The
+  //    Ch3 hub strip never wrote these in production — but any external save
+  //    importer / hypothetical persistence layer would have used these
+  //    field names. Symmetry with T1.14: defensive scrub on the canonical
+  //    aggregate save.
+  try {
+    const raw = localStorage.getItem('blocksworn_progress');
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data && typeof data === 'object'
+          && ('cosmicMemorial' in data
+              || 'cosmicMemorialEntries' in data
+              || 'memorialDefeats' in data)) {
+        delete data.cosmicMemorial;
+        delete data.cosmicMemorialEntries;
+        delete data.memorialDefeats;
+        localStorage.setItem('blocksworn_progress', JSON.stringify(data));
+        savePatched = true;
+      }
+    }
+  } catch (_e) {
+    // Corrupt JSON / SecurityError — silently ignored.
+  }
+
+  _stampCosmicMemorialSentinel();
+  return { removed, savePatched };
+}
