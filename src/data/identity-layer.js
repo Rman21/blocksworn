@@ -47,7 +47,12 @@ export const IDENTITY_BOSS_FX_KEYS = Object.freeze({
   // SAME identity key for BOTH `berserker` and `frenzy` archetypes (spec §3.3
   // field 1 — both are "build aggression over time" archetypes; same hook).
   BERSERKER_BLOODTIDE:   'berserker_bloodtide',
-  // Stubs for T2.10–T2.11 — added in subsequent tasks per spec §7.1 schedule.
+  // T2.10 — Engineer Lockdown Protocol (anti-Tetris 4-line crit counter,
+  // spec §3.4). Layered on top of sacred `engineer_p1_p2` phase-gate
+  // lockdown (40T, 4-cell — UNTOUCHED). On-crit handler ADDS a new 2×2
+  // lockdown instance via the same `engineerLockedCells` state.
+  ENGINEER_LOCKDOWN:     'engineer_lockdown',
+  // Stubs for T2.11 — added in subsequent task per spec §7.1 schedule.
 });
 
 // ─── Per-effect performance budgets (spec §5) ───────────────────────────
@@ -110,6 +115,21 @@ export const IDENTITY_BOSS_FX_BUDGETS = Object.freeze({
     steadyStateMs: 0,
     decayMs:       200,
     duration:      'one-shot',
+  }),
+  // Engineer Lockdown Protocol (spec §3.4 field 7):
+  //   - Initial trigger ≤10ms (4-cell placement ≤4ms + ratchet ≤6ms)
+  //   - Per-turn tick ≤1ms — existing engineer state machinery
+  //     (ui/archetype-ticks.js) decrements `engineerLockedCells` Map per
+  //     turn; T2.10 module-side mirror state is lifecycle accounting only.
+  //   - Decay: 600ms ratchet animation; lockdown itself persists 40 turns.
+  //   - Duration: '40 turns' — player-paced, NOT wall-clock (spec §3.4
+  //     field 4). Documented as the literal string so codex/tooling can
+  //     branch by namespace (matches the T2.08 '3 turns' precedent).
+  [IDENTITY_BOSS_FX_KEYS.ENGINEER_LOCKDOWN]: Object.freeze({
+    initialMs:     10,
+    steadyStateMs: 1,
+    decayMs:       600,
+    duration:      '40 turns',
   }),
 });
 
@@ -586,3 +606,113 @@ export const BLOODTIDE_PULSE_COLOR                    = '#E53935';  // red — d
 // Performance ceilings (spec §3.3 field 7) — mirrored from IDENTITY_BOSS_FX_BUDGETS
 // for direct named import in fx + tests.
 export const BLOODTIDE_INITIAL_BUDGET_MS              = 10;
+
+// ─── Engineer Lockdown Protocol constants (spec §3.4) ───────────────────
+// FOURTH boss-reactive identity mechanic — T2.10. The "anti-Tetris" mechanic
+// — punishes the maximalist Tetris-style 4-line crit clear by locking down
+// a 2×2 square of cells in the corner of the grid that received the most
+// cleared cells in the player's last fire.
+//
+// Mechanical contract (spec §3.4 fields 3-4):
+//   - Trigger: Player completes a 4-line crit clear (the "Tetris" max).
+//     `isTetrisCrit(linesCleared, comboTriggered)` returns true ONLY when
+//     `linesCleared === ENGINEER_LOCKDOWN_TRIGGER_LINES (4)` AND
+//     `comboTriggered === true`. 3-line clears + crit do NOT fire. 4-line
+//     non-crit (impossible by definition but defensive) does NOT fire.
+//   - Boss reaction (same-turn — NO 3000ms telegraph per spec §3.4 field 6:
+//     "Triumphant TETRIS celebration banner IMMEDIATELY followed by clanking
+//     metal lockdown" — celebration IS the reaction signal).
+//   - For 1 random 2×2 square (ENGINEER_LOCKDOWN_CELL_COUNT = 4 cells) at
+//     the corner of the grid that received the most cleared cells in the
+//     last fire (`pickMostClearedCorner`):
+//     * Lockdown cells get the existing engineer-lockdown CSS class
+//       (`.grid .cell.cell--engineer-welded` — RE-USED, not duplicated).
+//     * Cells CANNOT accept pieces for ENGINEER_LOCKDOWN_TURNS (40) turns.
+//       Matches the sacred `engineer_p1_p2` phase-gate handler duration
+//       byte-perfect — these two handlers populate the SAME underlying
+//       lockdown state (the legacy `engineerLockedCells` Map) but via
+//       different entry points (phase-gate vs on-crit).
+//   - Player counterplay (spec §3.4 field 5): avoid Tetris-stacking by
+//     clearing 2-3 lines; Shark Feeding Frenzy adjacent clears can offset
+//     locked cells; Pirate ember spawn-weight keeps non-locked corners
+//     viable.
+//   - Memorable moment (spec §3.4 field 6): Triumphant TETRIS celebration
+//     banner (ENGINEER_LOCKDOWN_CELEBRATION_MS = 400ms) IMMEDIATELY
+//     followed by clanking metal ratchet (ENGINEER_LOCKDOWN_RATCHET_DURATION_MS
+//     = 600ms) on the 4 newly-locked cells.
+//   - Decay: lockdown removed at turn (placedTurn + 40), CSS class stripped
+//     from the 4 cells.
+//
+// Sacred-cow safety (CLAUDE.md §2.1 + §2.5 + spec §3.4 field 8):
+//   - All 22 v2.1 P4 reactivity handlers UNTOUCHED — Engineer Lockdown
+//     Protocol adds a NEW handler in `src/core/reactivity-events.js` under
+//     namespace `identity_engineer_tetris_counter`, separate from the
+//     sacred `engineer_p1_p2` / `engineer_p2_p3` entries.
+//   - **`engineer_p1_p2` handler BYTE-PERFECT** — sacred 40T lockdown
+//     duration UNTOUCHED. T2.10 RE-USES the same `engineerLockedCells` Map
+//     state and the same `.cell--engineer-welded` CSS class — the on-crit
+//     handler ADDS a new lockdown instance to the existing state, never
+//     modifying the phase-gate handler's behavior.
+//   - **40T lockdown duration sacred** — ENGINEER_LOCKDOWN_TURNS = 40
+//     matches the sacred `engineer_p1_p2` handler's `engineerLockedCells.set(k, 40)`
+//     byte-perfect. Documented as the canonical source in this constant.
+//   - **4-cell 2×2 lockdown shape sacred** — ENGINEER_LOCKDOWN_CELL_COUNT = 4
+//     matches the sacred `engineer_p1_p2` handler's 4-cell loop byte-perfect.
+//     T2.10 places a contiguous 2×2 square (vs the phase-gate handler's
+//     random 4-cell scatter); both consume the same `engineerLockedCells`
+//     state predicate from grid.js.
+//   - **Combo Crit formula UNTOUCHED** — the 4-line crit trigger reads the
+//     post-formula result (lines cleared + comboTriggered flag) AFTER the
+//     sacred combo crit damage resolves. T2.10 never feeds combo crit input.
+//   - **NARRATOR_LINES untouched** — TETRIS banner copy ("TETRIS!" celebration
+//     + "LOCKDOWN" reaction) goes through existing `flashStateBanner` UI
+//     surface, NOT NARRATOR_LINES infrastructure.
+//   - **No new V_HAPTICS keys** — uses inline `vibrate(...)` like other
+//     boss-reactive handlers.
+//   - **REACTIVITY_TELEGRAPH_MS = 3000 UNTOUCHED** — Engineer Lockdown
+//     Protocol does NOT use the wind-up telegraph (action-based trigger,
+//     same precedent as T2.09 Bloodtide Pulse per REPORT-27). The TETRIS
+//     celebration banner IS the reaction signal per spec §3.4 field 6.
+//   - **Phoenix / Lich / Berserker invariants UNTOUCHED** — Engineer Lockdown
+//     Protocol adds alongside; T2.07/T2.08/T2.09 module state independent.
+//
+// Performance budget (spec §3.4 field 7):
+//   - 4-cell lockdown placement ≤ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS (4ms)
+//     — pure integer math (`compute2x2LockdownCells` returns 4 cell coords)
+//     + 4 CSS class swaps on grid cell DOM elements.
+//   - Ratchet/clanking animation ≤ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS (6ms)
+//     — single CSS keyframe overlay, no rAF, no per-frame DOM writes.
+//   - Total per-fire wall-time ≤ENGINEER_LOCKDOWN_INITIAL_BUDGET_MS (10ms).
+//   - Per-turn tick ≤ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS (1ms) —
+//     existing engineer state machinery (`ui/archetype-ticks.js`) already
+//     decrements `engineerLockedCells` per turn; T2.10 ADDS lockdown
+//     instances to the same Map (when CSS class state needs T2.B bridge
+//     wiring) but does NOT pay tick cost. Module-side mirror state
+//     (`_engineerLockdowns` array) is maintained for testability + lifecycle
+//     accounting in headless tests; the live runtime path defers to the
+//     existing tick.
+//
+// Architectural pattern (spec §1 hard rule 1 + REPORT-27 anti-precedent):
+//   - Identity Layer EXTENDS, never MODIFIES, v2.1 P4. The sacred
+//     `engineer_p1_p2` / `engineer_p2_p3` handlers stay byte-perfect; the
+//     new `identity_engineer_tetris_counter` handler runs IN PARALLEL via
+//     the T2.07-established `IDENTITY_BOSS_HANDLERS` registry +
+//     `triggerIdentityBossEvent` dispatcher.
+//   - Action-based trigger (no telegraph) — same architectural shape as
+//     T2.09 Bloodtide Pulse (count-based trigger, no telegraph). The
+//     `triggerIdentityBossEvent` dispatcher will still wrap the handler
+//     in its 3000ms wind-up by default; T2.B legacy bridge will skip the
+//     dispatcher and call the fx directly to satisfy the spec §3.4 field 6
+//     "IMMEDIATELY followed" requirement. Both code paths are exposed.
+export const ENGINEER_LOCKDOWN_TURNS                  = 40;    // HARD spec — MATCHES sacred engineer_p1_p2 duration byte-perfect (CLAUDE.md §2.5)
+export const ENGINEER_LOCKDOWN_CELL_COUNT             = 4;     // HARD spec — 2×2 square (spec §3.4 field 4)
+export const ENGINEER_LOCKDOWN_TRIGGER_LINES          = 4;     // HARD spec — Tetris crit threshold (spec §3.4 field 3)
+export const ENGINEER_LOCKDOWN_RATCHET_DURATION_MS    = 600;   // mechanical ratchet animation duration (spec §3.4 field 6)
+export const ENGINEER_LOCKDOWN_CELEBRATION_MS         = 400;   // TETRIS celebration banner duration (spec §3.4 field 6)
+export const ENGINEER_LOCKDOWN_COLOR                  = '#B87333';  // copper/bronze — MATCHES sacred engineer banner color byte-perfect (reactivity-events.js engineer_p1_p2 banner '#B87333')
+// Performance ceilings (spec §3.4 field 7) — mirrored from IDENTITY_BOSS_FX_BUDGETS
+// for direct named import in fx + tests.
+export const ENGINEER_LOCKDOWN_INITIAL_BUDGET_MS      = 10;
+export const ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS    = 4;
+export const ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS      = 6;
+export const ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS = 1;

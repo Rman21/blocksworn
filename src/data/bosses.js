@@ -99,5 +99,11 @@ export const BOSS_IDENTITY_FX = Object.freeze({
   // pulse, layered ON TOP of sacred BERSERKER_ENRAGE_MULT = 2.0.
   berserker:  'berserker_bloodtide',
   frenzy:     'berserker_bloodtide',
-  // T2.10–T2.11: engineer / grovewarden / void / uroboros
+  // T2.10 — Engineer Lockdown Protocol (Engineer archetype, Ch2 Boss 7
+  // GEARHEART + Ch5 Tower bosses). Anti-Tetris counter: 4-line crit clear
+  // → 2×2 lockdown for 40 turns in the most-cleared corner. Layered ON
+  // TOP of sacred `engineer_p1_p2` phase-gate lockdown (UNTOUCHED) via
+  // parallel handler in `IDENTITY_BOSS_HANDLERS`.
+  engineer:   'engineer_lockdown',
+  // T2.11: grovewarden / void / uroboros
 });

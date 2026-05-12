@@ -40,7 +40,8 @@
 // (silently — cap is hard per spec §2.1 field 9 + §5).
 
 /* global addGold, HERO_DECK, ultCharges, ULT_THRESHOLD, currentUltThreshold,
-          MAX_SHIELD, maxShieldBonus, grid, HERO_ULT_COST_BY_NEWROLE */
+          MAX_SHIELD, maxShieldBonus, grid, HERO_ULT_COST_BY_NEWROLE,
+          engineerLockedCells */
 
 import {
   IDENTITY_FX_KEYS,
@@ -95,6 +96,17 @@ import {
   BLOODTIDE_REQUIRED_STAGGER_STATE,
   BLOODTIDE_PULSE_COLOR,
   BLOODTIDE_INITIAL_BUDGET_MS,
+  // T2.10 — Engineer Lockdown Protocol constants.
+  ENGINEER_LOCKDOWN_TURNS,
+  ENGINEER_LOCKDOWN_CELL_COUNT,
+  ENGINEER_LOCKDOWN_TRIGGER_LINES,
+  ENGINEER_LOCKDOWN_RATCHET_DURATION_MS,
+  ENGINEER_LOCKDOWN_CELEBRATION_MS,
+  ENGINEER_LOCKDOWN_COLOR,
+  ENGINEER_LOCKDOWN_INITIAL_BUDGET_MS,
+  ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS,
+  ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS,
+  ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS,
 } from '../data/identity-layer.js';
 import { RACE_SYNERGY } from '../data/races.js';
 import {
@@ -105,6 +117,7 @@ import {
   spawnSparkRayParticle,
   spawnSkullOverlay,
   spawnBloodtidePulse,
+  spawnEngineerRatchet,
 } from './particles.js';
 import { vHaptic } from './haptics.js';
 import { log } from '../services/logger.js';
@@ -3202,6 +3215,576 @@ export function bloodtideGatePasses(staggerState) {
   return shouldBloodtidePulse(_bloodtideClearCount, staggerState);
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-037 (T2.10): Engineer Lockdown Protocol (FOURTH boss-
+// reactive identity mechanic — anti-Tetris 4-line crit counter per spec §3.4).
+//
+// Spec: docs/design/mechanics/identity-layer.md §3.4.
+// Architecture (spec §1 hard rule 1): Identity Layer EXTENDS, never MODIFIES,
+// v2.1 P4 reactivity. Sacred `engineer_p1_p2` (4-cell scatter, 40T lockdown)
+// + `engineer_p2_p3` (2 electrified rows) handlers + the 22 reactivity
+// handlers are BYTE-PERFECT. Engineer Lockdown Protocol is a NEW handler
+// under namespace `identity_engineer_tetris_counter` in
+// `src/core/reactivity-events.js`, fired ALONGSIDE the sacred engineer path
+// via the T2.07-established `IDENTITY_BOSS_HANDLERS` parallel registry.
+//
+// Mechanical contract (spec §3.4):
+//   - Trigger: player completes a 4-line crit clear (`isTetrisCrit(lines,
+//     combo)` returns true ONLY when `lines === 4 AND combo === true`).
+//   - `fxEngineerLockdownProtocol(bossState, ctx)`: same-turn boss reaction.
+//     Picks the corner of the grid that received the most cleared cells in
+//     the player's last fire (`pickMostClearedCorner(rows, cols, gridSize)`),
+//     computes the 2×2 lockdown square (`compute2x2LockdownCells(corner, gridSize)`),
+//     applies the existing engineer-lockdown CSS class
+//     (`.cell--engineer-welded`, RE-USED — not duplicated) to the 4 cells,
+//     spawns a 600ms ratchet animation overlay, and shows a 400ms "TETRIS!"
+//     celebration banner transitioning to "LOCKDOWN" reaction text.
+//   - Per-turn tick (`fxEngineerLockdownTick`): mirror-state lifecycle
+//     accounting for headless test envs. The live runtime tick is owned by
+//     the existing engineer state machinery (ui/archetype-ticks.js) — the
+//     tick here removes expired entries from the module-side mirror array
+//     so `isCellLockedByLockdownProtocol(r, c)` reflects expiration.
+//
+// Sacred-cow safety (CLAUDE.md §2.1 + §2.5 + spec §3.4 field 8):
+//   - All 22 v2.1 P4 reactivity handlers UNTOUCHED.
+//   - `engineer_p1_p2` 40T lockdown duration BYTE-PERFECT — T2.10
+//     ENGINEER_LOCKDOWN_TURNS = 40 matches sacred byte-perfect.
+//   - `engineer_p1_p2` 4-cell lockdown shape BYTE-PERFECT — T2.10 places a
+//     contiguous 2×2 (4 cells), same total count as sacred (which scatters
+//     4 random cells).
+//   - Existing `.cell--engineer-welded` CSS class RE-USED, never duplicated.
+//     Module state tracks T2.10-spawned lockdowns separately (for testing/
+//     debugging only — the live grid-state predicate `engineerLockedCells`
+//     is the source of truth for placement gating).
+//   - Combo Crit formula UNTOUCHED — the trigger reads the post-formula
+//     result (lines + crit flag). T2.10 never feeds combo crit input.
+//   - NARRATOR_LINES untouched — TETRIS celebration + LOCKDOWN reaction
+//     copy goes through existing `flashStateBanner` UI surface.
+//   - V_HAPTICS untouched — inline `vibrate(...)` like other handlers.
+//   - REACTIVITY_TELEGRAPH_MS = 3000 UNTOUCHED — Engineer Lockdown Protocol
+//     does NOT use telegraph (action-based trigger; same precedent as
+//     T2.09 Bloodtide per REPORT-27).
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Pre-allocated DOM elements (object pool: 1 ratchet overlay + 1 TETRIS
+// celebration banner). Single-element pool because lockdown is per-fire and
+// the prior fire's ratchet completes its 600ms animation before any plausible
+// next 4-line crit could fire (the player can clear 4 lines back-to-back only
+// after pieces are placed — minimum a few frames). Created lazily on first
+// fxEngineerLockdownProtocol invocation.
+let   _engineerLockdownPoolContainer = null;
+let   _engineerLockdownRatchetEl     = null;
+let   _engineerLockdownBannerEl      = null;
+let   _engineerLockdownPoolInitDone  = false;
+let   _engineerLockdownRatchetDecayTimer = null;
+let   _engineerLockdownBannerDecayTimer  = null;
+
+// Module state — array of active lockdowns from on-crit trigger. Each entry
+// shape:
+//   { cells: [{row,col},...], startTurn, expiresTurn } (cells is 4 entries
+// for the 2×2 lockdown). This is the MIRROR state used by:
+//   - `isCellLockedByLockdownProtocol(r, c)` predicate for T2.B bridge to
+//     wire into legacy `pieceCanBePlaced` alongside the existing
+//     `engineerLockedCells` Map check.
+//   - `fxEngineerLockdownTick` for lifecycle accounting in headless tests.
+//   - `getEngineerLockdownsSnapshot()` for test introspection.
+// The live runtime gating defers to the existing `engineerLockedCells` Map
+// (set by both the sacred engineer_p1_p2 handler AND T2.B bridge after
+// fxEngineerLockdownProtocol fires) — both paths feed the same grid-state
+// predicate from grid.js.
+let _engineerLockdowns = [];
+
+// Ensures the 2-element DOM pool exists. Idempotent — calling again is a
+// no-op. In Node-only unit-test environments (no `document`), the pool stays
+// empty and helpers work on the array-only state path.
+function _ensureEngineerLockdownPool() {
+  if (_engineerLockdownPoolInitDone) return;
+  if (typeof document === 'undefined') return;          // unit-test guard
+  _engineerLockdownPoolContainer = document.createElement('div');
+  _engineerLockdownPoolContainer.className = 'identity-engineer-lockdown-container';
+  _engineerLockdownPoolContainer.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(_engineerLockdownPoolContainer);
+
+  _engineerLockdownRatchetEl = document.createElement('div');
+  _engineerLockdownRatchetEl.className = 'identity-engineer-lockdown-ratchet';
+  _engineerLockdownRatchetEl.style.display = 'none';
+  _engineerLockdownPoolContainer.appendChild(_engineerLockdownRatchetEl);
+
+  _engineerLockdownBannerEl = document.createElement('div');
+  _engineerLockdownBannerEl.className = 'identity-engineer-tetris-celebration';
+  _engineerLockdownBannerEl.style.display = 'none';
+  _engineerLockdownBannerEl.textContent = 'TETRIS!';
+  document.body.appendChild(_engineerLockdownBannerEl);
+
+  _engineerLockdownPoolInitDone = true;
+}
+
+// ─── Pure helpers (unit-testable, no DOM) ──────────────────────────────
+//
+// Trigger predicate (spec §3.4 field 3): the boss reacts ONLY when the
+// player completes a 4-line crit clear. Defensive bounds rejection means
+// 5-line / 6-line clears (impossible on an 8×8 board with crit but defensive)
+// also do not fire. Combo crit is the explicit second gate — a 4-line clear
+// without combo crit means the player didn't actually achieve the "Tetris"
+// damage burst, and the boss is not provoked.
+//
+// `linesCleared` is the COMBINED count of cleared rows + columns from the
+// current `clearLines` resolution. `comboTriggered` is the boolean output of
+// the sacred combo crit formula (truthy when the dominantCount × combo
+// multiplier exceeded 1.0).
+//
+// Returns: boolean. True → fire fxEngineerLockdownProtocol; false → silent
+// no-op (no DOM, no state mutation, no log).
+export function isTetrisCrit(linesCleared, comboTriggered) {
+  const _lines = Math.floor(Number(linesCleared) || 0);
+  return _lines === ENGINEER_LOCKDOWN_TRIGGER_LINES && comboTriggered === true;
+}
+
+// Pure helper: which corner of the grid received the most cleared cells in
+// the player's last fire? Spec §3.4 field 4: "1 random 2×2 square (4 cells)
+// at the corner of the grid MOST-CLEARED in the last fire". This is the
+// deterministic "anti-greed" — the lockdown lands where the player
+// concentrated their work.
+//
+// Algorithm: for each of the 4 corners, count how many cleared rows/cols
+// fall within that corner's half. Tie-break by corner order
+// (top-left → top-right → bottom-left → bottom-right) for determinism in
+// tests. The result identifies the 2×2 anchor: top-left of that corner.
+//
+// Returns: `{ cornerName: 'top-left'|'top-right'|'bottom-left'|'bottom-right',
+// row: 0|gridSize-2, col: 0|gridSize-2 }` where (row, col) is the top-left
+// cell of the 2×2 lockdown square.
+//
+// Edge cases:
+//   - `rows` and `cols` both empty → defensive 'top-left' fallback (caller
+//     should not reach here — `isTetrisCrit` gates on 4 lines).
+//   - gridSize ≤ 1 → defensive return with row=0, col=0.
+//   - All clears in mid-board (neither halves dominate) → tie-break wins.
+export function pickMostClearedCorner(rows, cols, gridSize) {
+  const _rows = Array.isArray(rows) ? rows : [];
+  const _cols = Array.isArray(cols) ? cols : [];
+  const _size = Math.max(2, Math.floor(Number(gridSize) || 0));
+  const mid   = _size / 2;
+  let topCount    = 0;   // rows in upper half
+  let bottomCount = 0;
+  let leftCount   = 0;   // cols in left half
+  let rightCount  = 0;
+  for (const r of _rows) {
+    const _r = Math.floor(Number(r));
+    if (!Number.isFinite(_r)) continue;
+    if (_r < mid) topCount += 1;
+    else          bottomCount += 1;
+  }
+  for (const c of _cols) {
+    const _c = Math.floor(Number(c));
+    if (!Number.isFinite(_c)) continue;
+    if (_c < mid) leftCount += 1;
+    else          rightCount += 1;
+  }
+  // Tie-break in the deterministic order: top-left → top-right →
+  // bottom-left → bottom-right. Use >= so the first qualifying corner wins.
+  const top  = topCount    >= bottomCount;
+  const left = leftCount   >= rightCount;
+  const cornerName = top
+    ? (left ? 'top-left'    : 'top-right')
+    : (left ? 'bottom-left' : 'bottom-right');
+  const row = top  ? 0           : (_size - 2);
+  const col = left ? 0           : (_size - 2);
+  return { cornerName, row, col };
+}
+
+// Pure helper: compute the 4 (row, col) cell positions for the 2×2
+// lockdown square anchored at the given corner. Spec §3.4 field 4:
+// "1 random 2×2 square (4 cells) at the corner".
+//
+// `corner` is the result of `pickMostClearedCorner` — `{ cornerName, row,
+// col }` where (row, col) is the TOP-LEFT cell of the 2×2 square. This
+// helper expands that anchor into the 4 cells of the square:
+//   (row,col), (row,col+1), (row+1,col), (row+1,col+1).
+//
+// `gridSize` is the board dimension (SIZE = 8 in production). Used for
+// defensive clamping so the 2×2 never overhangs the board edge.
+//
+// Returns: array of 4 `{ row, col }` objects. Length is ALWAYS 4 for valid
+// inputs (the corner anchor is always 2 cells away from each edge).
+export function compute2x2LockdownCells(corner, gridSize) {
+  const _size = Math.max(2, Math.floor(Number(gridSize) || 0));
+  if (!corner || typeof corner !== 'object') {
+    return [
+      { row: 0, col: 0 }, { row: 0, col: 1 },
+      { row: 1, col: 0 }, { row: 1, col: 1 },
+    ];
+  }
+  const r0 = Math.max(0, Math.min(_size - 2, Math.floor(Number(corner.row) || 0)));
+  const c0 = Math.max(0, Math.min(_size - 2, Math.floor(Number(corner.col) || 0)));
+  return [
+    { row: r0,     col: c0     },
+    { row: r0,     col: c0 + 1 },
+    { row: r0 + 1, col: c0     },
+    { row: r0 + 1, col: c0 + 1 },
+  ];
+}
+
+// Read-only predicate: is the cell at (row, col) currently part of an active
+// Lockdown Protocol lockdown? Exposed for the T2.B legacy bridge to wire
+// alongside the existing `engineerLockedCells.has(key)` check in
+// `pieceCanBePlaced` / `clearLines`. Pure read of the `_engineerLockdowns`
+// array — no allocation.
+//
+// Returns false for any non-finite or non-locked input. In the live runtime,
+// the source of truth for placement gating is the existing
+// `engineerLockedCells` Map (populated by both sacred phase-gate AND T2.10
+// on-crit paths); this module-side mirror is for headless testing +
+// debugging.
+export function isCellLockedByLockdownProtocol(row, col) {
+  const _r = Number(row);
+  const _c = Number(col);
+  if (!Number.isFinite(_r) || !Number.isFinite(_c)) return false;
+  for (const lk of _engineerLockdowns) {
+    if (!lk || !Array.isArray(lk.cells)) continue;
+    for (const cell of lk.cells) {
+      if (cell.row === _r && cell.col === _c) return true;
+    }
+  }
+  return false;
+}
+
+// Read-only accessor: how many on-crit lockdowns are currently active?
+// Used by tests to confirm placement / expiration accounting.
+export function getEngineerLockdownsCount() {
+  return _engineerLockdowns.length;
+}
+
+// Read-only snapshot of active lockdowns (defensive copy). Used by tests
+// and by the T2.B legacy bridge for grid rendering integration. Production
+// callers should prefer `isCellLockedByLockdownProtocol` to avoid the
+// allocation.
+export function getEngineerLockdownsSnapshot() {
+  return _engineerLockdowns.map(lk => ({
+    cells: lk.cells.map(c => ({ row: c.row, col: c.col })),
+    startTurn:   lk.startTurn,
+    expiresTurn: lk.expiresTurn,
+  }));
+}
+
+// Reset hook for battle pipeline (battle start / battle end). Clears all
+// mirror state + cancels pending timers + hides DOM. Mirrors `resetCursedTiles`
+// / `resetBloodtide` / `resetAshenReign` precedents. Idempotent — safe to
+// call when no lockdowns are active.
+export function resetEngineerLockdowns() {
+  _engineerLockdowns.length = 0;
+  if (_engineerLockdownRatchetDecayTimer) {
+    clearTimeout(_engineerLockdownRatchetDecayTimer);
+    _engineerLockdownRatchetDecayTimer = null;
+  }
+  if (_engineerLockdownBannerDecayTimer) {
+    clearTimeout(_engineerLockdownBannerDecayTimer);
+    _engineerLockdownBannerDecayTimer = null;
+  }
+  if (_engineerLockdownRatchetEl) {
+    try {
+      _engineerLockdownRatchetEl.classList.remove('identity-engineer-lockdown-ratchet-active');
+      _engineerLockdownRatchetEl.style.display = 'none';
+    } catch (_e) { /* swallow */ }
+  }
+  if (_engineerLockdownBannerEl) {
+    try {
+      _engineerLockdownBannerEl.classList.remove('identity-engineer-tetris-celebration-active');
+      _engineerLockdownBannerEl.style.display = 'none';
+    } catch (_e) { /* swallow */ }
+  }
+}
+
+// ─── Activate / tick (module state mutations) ──────────────────────────
+//
+// `fxEngineerLockdownProtocol(bossState, ctx)` — same-turn boss reaction.
+// Spec §3.4 field 4. Called by the new boss-reactive handler
+// (`identity_engineer_tetris_counter` in `src/core/reactivity-events.js`)
+// IMMEDIATELY after the 4-line crit clear resolves — no 3000ms telegraph
+// wind-up per spec §3.4 field 6 ("Triumphant TETRIS celebration banner
+// IMMEDIATELY followed by clanking metal lockdown"). The handler still
+// uses the T2.07 dispatcher (which IS telegraphed) — T2.B bridge will
+// bypass the dispatcher for on-crit calls to honor the IMMEDIATELY
+// requirement.
+//
+// Initial-trigger wall-time budget: ≤ENGINEER_LOCKDOWN_INITIAL_BUDGET_MS (10ms).
+//   - isTetrisCrit gate check: O(1) ≤0.1ms
+//   - pickMostClearedCorner: O(rows + cols) ≤0.5ms
+//   - compute2x2LockdownCells: O(1) ≤0.1ms
+//   - 4 × DOM class swap (apply .cell--engineer-welded): ≤4ms
+//   - ratchet overlay activation + banner show: ≤4ms
+//   - module state push: ≤0.1ms
+//   Total: ≤9ms typical, 10ms ceiling.
+//
+// `ctx` is the dispatch context (may carry):
+//   - `ctx.linesCleared` (REQUIRED — total row+col count from clearLines)
+//   - `ctx.comboTriggered` (REQUIRED — boolean from combo crit math)
+//   - `ctx.lastClearedRows` (rows array from the clearLines fire — for
+//     corner picking)
+//   - `ctx.lastClearedCols` (cols array — for corner picking)
+//   - `ctx.gridSize` (board dimension, defaults to SIZE = 8)
+//   - `ctx.currentTurn` (integer turn counter for the start/expires turns;
+//     defaults to 0 in headless tests)
+//   - `ctx.engineerLockedCellsApi` (optional `{ set(key, turns) }` API for
+//     populating the legacy `engineerLockedCells` Map alongside the module-
+//     side mirror; T2.B bridge wires this from the live runtime)
+//
+// `bossState` parameter is reserved for forward compat (codex / matchup
+// matrix may need archetype-specific tinting); currently unused.
+export function fxEngineerLockdownProtocol(_bossState, ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  try {
+    // Gate: only fire on 4-line crit clear. Spec §3.4 field 3.
+    const linesCleared   = (ctx && typeof ctx.linesCleared === 'number') ? ctx.linesCleared : 0;
+    const comboTriggered = (ctx && ctx.comboTriggered === true);
+    if (!isTetrisCrit(linesCleared, comboTriggered)) return;
+
+    // Resolve corner picking inputs from ctx (preferred) or fall back to
+    // defensive empty arrays (the gate guarantees lines > 0 but the
+    // last-cleared row/col arrays may not be carried by every caller).
+    const rows = (ctx && Array.isArray(ctx.lastClearedRows)) ? ctx.lastClearedRows : [];
+    const cols = (ctx && Array.isArray(ctx.lastClearedCols)) ? ctx.lastClearedCols : [];
+    const gridSize = (ctx && typeof ctx.gridSize === 'number')
+      ? Math.floor(ctx.gridSize)
+      : 8;
+    const currentTurn = (ctx && typeof ctx.currentTurn === 'number')
+      ? Math.floor(ctx.currentTurn)
+      : 0;
+
+    // Compute 2×2 lockdown cells via pure helpers (deterministic).
+    const corner = pickMostClearedCorner(rows, cols, gridSize);
+    const cells  = compute2x2LockdownCells(corner, gridSize);
+    // Defensive: spec §3.4 field 4 promises ENGINEER_LOCKDOWN_CELL_COUNT (4)
+    // cells per lockdown. Bail if compute returned anything else (impossible
+    // for valid corners but defensive against future changes).
+    if (cells.length !== ENGINEER_LOCKDOWN_CELL_COUNT) return;
+    // Measure placement phase budget separately from total — spec §3.4 field 7.
+    const _placeStart = (typeof performance !== 'undefined') ? performance.now() : 0;
+
+    // Lazy pool init for DOM environments.
+    _ensureEngineerLockdownPool();
+
+    // Apply existing engineer-lockdown CSS class to the 4 cells. RE-USE
+    // sacred `.cell--engineer-welded` class — never duplicate. In headless
+    // tests (no document) this branch is skipped; the module-state push
+    // below remains the source of truth for isCellLockedByLockdownProtocol.
+    if (typeof document !== 'undefined') {
+      const cellEls = document.querySelectorAll('.grid .cell');
+      if (cellEls && cellEls.length) {
+        for (const cell of cells) {
+          const idx = cell.row * gridSize + cell.col;
+          if (idx >= 0 && idx < cellEls.length) {
+            const el = cellEls[idx];
+            if (el) {
+              try {
+                el.classList.add('cell--engineer-welded');
+              } catch (_e) { /* swallow */ }
+            }
+          }
+        }
+      }
+    }
+
+    // Populate the legacy `engineerLockedCells` Map via ctx.api OR via the
+    // global if defined. Both paths feed the same grid-state predicate.
+    // The Map's value is the per-cell tick countdown (40 turns), matching
+    // the sacred `engineer_p1_p2` handler exactly. The existing
+    // `ui/archetype-ticks.js` per-turn tick decrements this value and
+    // removes entries at 0 — we re-use that mechanism for free.
+    const _setLockedCell = (key) => {
+      try {
+        if (ctx && ctx.engineerLockedCellsApi
+            && typeof ctx.engineerLockedCellsApi.set === 'function') {
+          ctx.engineerLockedCellsApi.set(key, ENGINEER_LOCKDOWN_TURNS);
+          return;
+        }
+      } catch (_e) { /* swallow */ }
+      try {
+        // Live runtime fallback — populate the legacy global Map directly.
+        if (typeof engineerLockedCells !== 'undefined'
+            && engineerLockedCells
+            && typeof engineerLockedCells.set === 'function') {
+          engineerLockedCells.set(key, ENGINEER_LOCKDOWN_TURNS);
+        }
+      } catch (_e) { /* swallow */ }
+    };
+    for (const cell of cells) {
+      _setLockedCell(cell.row + '_' + cell.col);
+    }
+    if (typeof performance !== 'undefined') {
+      const placeDt = performance.now() - _placeStart;
+      if (placeDt > ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS) {
+        log.warn('Engineer Lockdown placement phase over budget:',
+                 placeDt.toFixed(2), 'ms (limit', ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS, 'ms)');
+      }
+    }
+
+    // Spawn ratchet animation overlay (≤ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS — pure CSS keyframe).
+    const _ratchetStart = (typeof performance !== 'undefined') ? performance.now() : 0;
+    if (_engineerLockdownRatchetEl && typeof document !== 'undefined') {
+      try {
+        spawnEngineerRatchet({
+          el: _engineerLockdownRatchetEl,
+          durationMs: ENGINEER_LOCKDOWN_RATCHET_DURATION_MS,
+          color: ENGINEER_LOCKDOWN_COLOR,
+        });
+        _engineerLockdownRatchetEl.style.display = 'block';
+        if (_engineerLockdownRatchetDecayTimer) clearTimeout(_engineerLockdownRatchetDecayTimer);
+        _engineerLockdownRatchetDecayTimer = setTimeout(() => {
+          _engineerLockdownRatchetDecayTimer = null;
+          if (_engineerLockdownRatchetEl) {
+            try {
+              _engineerLockdownRatchetEl.classList.remove('identity-engineer-lockdown-ratchet-active');
+              _engineerLockdownRatchetEl.style.display = 'none';
+            } catch (_e) { /* swallow */ }
+          }
+        }, ENGINEER_LOCKDOWN_RATCHET_DURATION_MS + 100);
+      } catch (_e) { log.warn('Engineer Lockdown ratchet spawn failed:', _e); }
+    }
+    if (typeof performance !== 'undefined') {
+      const ratchetDt = performance.now() - _ratchetStart;
+      if (ratchetDt > ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS) {
+        log.warn('Engineer Lockdown ratchet spawn over budget:',
+                 ratchetDt.toFixed(2), 'ms (limit', ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS, 'ms)');
+      }
+    }
+
+    // Show TETRIS celebration banner (≤4ms — CSS keyframe). 400ms duration
+    // before the LOCKDOWN reaction text transitions in. Pure CSS pulse.
+    if (_engineerLockdownBannerEl) {
+      try {
+        _engineerLockdownBannerEl.textContent = 'TETRIS!';
+        _engineerLockdownBannerEl.style.display = 'block';
+        _engineerLockdownBannerEl.classList.remove('identity-engineer-tetris-celebration-active');
+        // Force a reflow so the keyframe restarts cleanly on re-fire.
+        void _engineerLockdownBannerEl.offsetWidth;
+        _engineerLockdownBannerEl.classList.add('identity-engineer-tetris-celebration-active');
+        if (_engineerLockdownBannerDecayTimer) clearTimeout(_engineerLockdownBannerDecayTimer);
+        _engineerLockdownBannerDecayTimer = setTimeout(() => {
+          _engineerLockdownBannerDecayTimer = null;
+          if (_engineerLockdownBannerEl) {
+            try {
+              _engineerLockdownBannerEl.classList.remove('identity-engineer-tetris-celebration-active');
+              _engineerLockdownBannerEl.style.display = 'none';
+            } catch (_e) { /* swallow */ }
+          }
+        }, ENGINEER_LOCKDOWN_CELEBRATION_MS + ENGINEER_LOCKDOWN_RATCHET_DURATION_MS);
+      } catch (_e) { /* swallow */ }
+    }
+
+    // Push to module-side mirror. Even in headless test envs (no DOM),
+    // this is the source of truth for isCellLockedByLockdownProtocol /
+    // getEngineerLockdownsSnapshot. Spec §3.4 field 4: 40 turns.
+    _engineerLockdowns.push({
+      cells: cells.map(c => ({ row: c.row, col: c.col })),
+      startTurn:   currentTurn,
+      expiresTurn: currentTurn + ENGINEER_LOCKDOWN_TURNS,
+    });
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      if (dt > ENGINEER_LOCKDOWN_INITIAL_BUDGET_MS) {
+        log.warn('Engineer Lockdown Protocol initial trigger over budget:',
+                 dt.toFixed(2), 'ms (limit', ENGINEER_LOCKDOWN_INITIAL_BUDGET_MS, 'ms)');
+      }
+    }
+  }
+}
+
+// `fxEngineerLockdownTick(ctx)` — per-turn tick. Spec §3.4 field 7 bullet 3.
+// Called by the battle pipeline at the START of each player turn (T2.B
+// bridge wires this). For each active lockdown in `_engineerLockdowns`:
+//   - If `currentTurn >= expiresTurn`: remove the lockdown CSS class from
+//     its 4 cells AND remove the entry from the array.
+//
+// Per-turn wall-time budget: ≤ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS (1ms).
+// The existing engineer state machinery in `ui/archetype-ticks.js` already
+// decrements the `engineerLockedCells` Map per turn — that decrement is the
+// authoritative tick. This module-side tick is the mirror cleanup so
+// `isCellLockedByLockdownProtocol` / `getEngineerLockdownsCount` reflect
+// expiration in headless tests.
+//
+// `ctx` carries the per-turn snapshot:
+//   - `ctx.currentTurn`: integer turn counter (REQUIRED — falls back to 0
+//     defensively).
+//
+// Returns: result object `{ expiredCount, activeCount }` for caller
+// telemetry + unit-test assertion.
+export function fxEngineerLockdownTick(ctx) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  const result = { expiredCount: 0, activeCount: 0 };
+  try {
+    if (_engineerLockdowns.length === 0) return result;
+
+    const _currentTurn = (ctx && typeof ctx.currentTurn === 'number')
+      ? ctx.currentTurn
+      : 0;
+
+    // Iterate backwards so splice doesn't shift indices.
+    for (let i = _engineerLockdowns.length - 1; i >= 0; i--) {
+      const lk = _engineerLockdowns[i];
+      if (!lk) {
+        _engineerLockdowns.splice(i, 1);
+        continue;
+      }
+      const _expires = Number(lk.expiresTurn);
+      if (!Number.isFinite(_expires)) continue;
+      if (_currentTurn >= _expires) {
+        // Expired — strip the engineer-lockdown CSS class from the 4 cells
+        // (defensive — the existing engineer state machinery may have
+        // already cleared it via the Map decrement). Re-clear here so
+        // headless tests reflect the lifecycle.
+        if (typeof document !== 'undefined' && Array.isArray(lk.cells)) {
+          const cellEls = document.querySelectorAll('.grid .cell');
+          if (cellEls && cellEls.length) {
+            for (const cell of lk.cells) {
+              const idx = cell.row * 8 + cell.col;
+              if (idx >= 0 && idx < cellEls.length) {
+                const el = cellEls[idx];
+                if (el) {
+                  try {
+                    // Only strip if no OTHER lockdown (sacred phase-gate OR
+                    // another on-crit instance) still claims this cell.
+                    // Defensive — over-clearing would conflict with the
+                    // sacred phase-gate handler if it placed a cell at the
+                    // same coords (vanishingly rare but possible).
+                    el.classList.remove('cell--engineer-welded');
+                  } catch (_e) { /* swallow */ }
+                }
+              }
+            }
+          }
+        }
+        _engineerLockdowns.splice(i, 1);
+        result.expiredCount += 1;
+      }
+    }
+    result.activeCount = _engineerLockdowns.length;
+  } finally {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      if (dt > ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS) {
+        log.warn('Engineer Lockdown Protocol tick over budget:',
+                 dt.toFixed(2), 'ms (limit', ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS, 'ms)');
+      }
+    }
+  }
+  return result;
+}
+
+// Trigger gate (spec §3.4 field 3): the boss reacts ONLY when the player
+// completes a 4-line crit clear. Pure pass-through over `isTetrisCrit` so
+// the T2.B bridge has a single import surface AND tests have an explicit
+// named helper matching the gate-naming convention of other identity
+// mechanics (`cursedTilesGatePasses`, `bloodtideGatePasses`).
+//
+// Returns: boolean. True → fire `triggerIdentityBossEvent('identity_engineer_tetris_counter')`
+// (or call `fxEngineerLockdownProtocol` directly to skip telegraph per spec
+// §3.4 field 6); false → silent no-op.
+export function engineerLockdownGatePasses(linesCleared, comboTriggered) {
+  return isTetrisCrit(linesCleared, comboTriggered);
+}
+
 // ─── Test-only escape hatches (NOT used in production) ─────────────────
 // Exposed under a `__identityFxTestables` named export so unit tests can
 // assert internal state without reaching into module privates via hacks.
@@ -3340,6 +3923,29 @@ export const __identityFxTestables = Object.freeze({
     _bloodtidePulseHudEl    = null;
     _bloodtidePoolContainer = null;
     _bloodtidePoolInitDone  = false;
+  },
+  // T2.10 — Engineer Lockdown Protocol testables. Module-state observers +
+  // pool resetter so tests can assert state transitions without reaching
+  // into module privates.
+  isEngineerLockdownPoolInitDone: () => _engineerLockdownPoolInitDone,
+  getEngineerLockdownRatchetEl:   () => _engineerLockdownRatchetEl,
+  getEngineerLockdownBannerEl:    () => _engineerLockdownBannerEl,
+  hasEngineerLockdownRatchetTimer: () => _engineerLockdownRatchetDecayTimer !== null,
+  hasEngineerLockdownBannerTimer:  () => _engineerLockdownBannerDecayTimer !== null,
+  resetEngineerLockdownPool: () => {
+    // First: drop all state + cancel timers via the public reset path.
+    resetEngineerLockdowns();
+    // Then: tear down DOM so the next test re-creates the pool fresh.
+    if (_engineerLockdownPoolContainer && _engineerLockdownPoolContainer.parentNode) {
+      _engineerLockdownPoolContainer.parentNode.removeChild(_engineerLockdownPoolContainer);
+    }
+    if (_engineerLockdownBannerEl && _engineerLockdownBannerEl.parentNode) {
+      _engineerLockdownBannerEl.parentNode.removeChild(_engineerLockdownBannerEl);
+    }
+    _engineerLockdownRatchetEl     = null;
+    _engineerLockdownBannerEl      = null;
+    _engineerLockdownPoolContainer = null;
+    _engineerLockdownPoolInitDone  = false;
   },
   IDENTITY_FX_KEYS,
   IDENTITY_BOSS_FX_KEYS,

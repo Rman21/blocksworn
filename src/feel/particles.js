@@ -425,6 +425,47 @@ export function spawnBloodtidePulse({ el, fromX, fromY, toX, toY, color, decayMs
   return el;
 }
 
+// 2026-05-12 — TASK-037 (T2.10): Engineer Lockdown Protocol ratchet/clanking
+// animation factory. FOURTH boss-reactive identity mechanic — a brief 600ms
+// mechanical clanking overlay that fires when the boss locks down a 2×2
+// square after the player's 4-line crit clear. Pure CSS keyframe animation
+// — no rAF loop, no per-frame DOM writes.
+//
+// Architecture (spec §5 — object-pool requirement, no createElement per fire):
+// Single pre-allocated pool element re-used per ratchet. The element is a
+// fixed overlay (full-screen aria-hidden div) that simply pulses to draw
+// attention to the new lockdown — the cells themselves get the existing
+// `.cell--engineer-welded` class (RE-USED from v2.1 P4, NOT duplicated)
+// for the persistent visual.
+//
+// Visual reference (spec §3.4 field 6): "Triumphant TETRIS celebration banner
+// IMMEDIATELY followed by clanking metal lockdown of 4 cells." The
+// ratchet/clanking is the mechanical signature of the Engineer archetype
+// — copper/bronze color (#B87333) matches the sacred engineer_p1_p2 banner
+// color byte-perfect.
+//
+// SACRED-COW SAFETY: This factory ONLY configures the overlay element and
+// its CSS variables. It does NOT mutate grid cells, does NOT add or remove
+// the sacred `.cell--engineer-welded` class on individual cells (that's the
+// caller `fxEngineerLockdownProtocol`'s job, and the class itself is sacred
+// — RE-USED, never duplicated). It does NOT modify combat math, the sacred
+// `engineer_p1_p2` handler, or any sacred constant.
+export function spawnEngineerRatchet({ el, durationMs, color }) {
+  if (!el) return null;
+  // Expose duration + color as CSS variables so the
+  // `@keyframes identityEngineerRatchet` rule can read them.
+  el.style.setProperty('--engineer-ratchet-duration-ms', (durationMs || 600) + 'ms');
+  if (color) {
+    el.style.setProperty('--engineer-ratchet-color', color);
+  }
+  // Restart the keyframe deterministically (re-trigger on pool re-use).
+  el.classList.remove('identity-engineer-lockdown-ratchet-active');
+  // Force a synchronous reflow so the keyframe restarts cleanly.
+  void el.offsetWidth;
+  el.classList.add('identity-engineer-lockdown-ratchet-active');
+  return el;
+}
+
 // Spawns the 16-particle radial burst at the boss portrait centerpoint.
 // Returns nothing; the container auto-removes itself after 1600ms.
 // `wrap` is the #bossImgWrap element (caller passes its getBoundingClientRect

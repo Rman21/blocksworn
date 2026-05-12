@@ -188,6 +188,9 @@ import {
   resetCursedTiles     as _resetCursedTilesImpl,
   fxBerserkerBloodtidePulse as _fxBerserkerBloodtidePulseImpl,
   resetBloodtide            as _resetBloodtideImpl,
+  // T2.10 — Engineer Lockdown Protocol (anti-Tetris 4-line crit counter).
+  fxEngineerLockdownProtocol as _fxEngineerLockdownProtocolImpl,
+  resetEngineerLockdowns     as _resetEngineerLockdownsImpl,
 } from '../feel/identity-fx.js';
 
 // Feel layer (residual legacy-owned):
@@ -1466,6 +1469,39 @@ export const IDENTITY_BOSS_HANDLERS = {
     }
     try { if (typeof showReactivityFX === 'function') showReactivityFX('berserker', 'bloodtide'); } catch (e) {}
   },
+  // ── ENGINEER LOCKDOWN PROTOCOL (spec §3.4) ──────────────────────────
+  // Layered ALONGSIDE the sacred engineer handlers (`engineer_p1_p2` 4-cell
+  // scatter + 40T lockdown via `engineerLockedCells.set(k, 40)`,
+  // `engineer_p2_p3` 2 electrified rows — BOTH UNTOUCHED). Engineer Lockdown
+  // Protocol is the "anti-Tetris" counter referenced in spec §3.4: when the
+  // player completes a 4-line crit clear (the "Tetris" max), the Engineer
+  // boss reacts SAME-TURN by locking down a contiguous 2×2 square (4 cells)
+  // in the corner of the grid that received the most cleared cells in the
+  // last fire. The lockdown duration (40T) AND lockdown shape (4 cells) match
+  // the sacred phase-gate handler byte-perfect — T2.10 RE-USES the same
+  // `engineerLockedCells` Map state and the existing
+  // `.cell--engineer-welded` CSS class.
+  //
+  // T2.B legacy bridge will call this handler with a populated ctx
+  // (`linesCleared`, `comboTriggered`, `lastClearedRows`, `lastClearedCols`,
+  // `gridSize`, `currentTurn`) from the legacy `clearLines` site AFTER the
+  // sacred combo crit damage resolves. For the IMMEDIATELY-followed
+  // requirement (spec §3.4 field 6 — TETRIS celebration banner transitions
+  // directly into LOCKDOWN reaction with no 3000ms telegraph), T2.B bridge
+  // will call `fxEngineerLockdownProtocol` directly, bypassing the
+  // dispatcher's telegraph wind-up. Both paths are exposed; this handler
+  // is the dispatcher-compatible entry for FTUE / Codex preview routing.
+  //
+  // Banner color matches the sacred `engineer_p1_p2` palette (#B87333 copper)
+  // for visual consistency with the Engineer archetype's existing language.
+  identity_engineer_tetris_counter: function() {
+    try { flashStateBanner('TETRIS! · LOCKDOWN · 2×2 · 40T', '#B87333'); } catch (e) {}
+    try { vibrate([40, 20, 40, 20, 80]); } catch (e) {}
+    try { _fxEngineerLockdownProtocolImpl(null, null); } catch (e) {
+      log.error('[T2.10] Engineer Lockdown Protocol fx threw:', e);
+    }
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('engineer', 'lockdown_protocol'); } catch (e) {}
+  },
 };
 
 // Dispatch entry point — mirrors `triggerReactivityEvent` shape so the
@@ -1519,6 +1555,9 @@ export function resetIdentityBossState() {
   }
   try { _resetBloodtideImpl(); } catch (e) {
     log.warn('[T2.09] resetBloodtide threw:', e);
+  }
+  try { _resetEngineerLockdownsImpl(); } catch (e) {
+    log.warn('[T2.10] resetEngineerLockdowns threw:', e);
   }
 }
 

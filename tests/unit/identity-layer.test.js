@@ -79,6 +79,17 @@ import {
   bloodtideGatePasses,
   fxBerserkerBloodtidePulse,
   resetBloodtide,
+  // T2.10 — Engineer Lockdown Protocol helpers.
+  isTetrisCrit,
+  pickMostClearedCorner,
+  compute2x2LockdownCells,
+  engineerLockdownGatePasses,
+  isCellLockedByLockdownProtocol,
+  getEngineerLockdownsCount,
+  getEngineerLockdownsSnapshot,
+  fxEngineerLockdownProtocol,
+  fxEngineerLockdownTick,
+  resetEngineerLockdowns,
   __identityFxTestables,
 } from '../../src/feel/identity-fx.js';
 import {
@@ -140,6 +151,17 @@ import {
   BLOODTIDE_REQUIRED_STAGGER_STATE,
   BLOODTIDE_PULSE_COLOR,
   BLOODTIDE_INITIAL_BUDGET_MS,
+  // T2.10 — Engineer Lockdown Protocol constants.
+  ENGINEER_LOCKDOWN_TURNS,
+  ENGINEER_LOCKDOWN_CELL_COUNT,
+  ENGINEER_LOCKDOWN_TRIGGER_LINES,
+  ENGINEER_LOCKDOWN_RATCHET_DURATION_MS,
+  ENGINEER_LOCKDOWN_CELEBRATION_MS,
+  ENGINEER_LOCKDOWN_COLOR,
+  ENGINEER_LOCKDOWN_INITIAL_BUDGET_MS,
+  ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS,
+  ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS,
+  ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS,
 } from '../../src/data/identity-layer.js';
 import { HERO_ULT_COST_BY_NEWROLE } from '../../src/data/heroes.js';
 import { RACE_SYNERGY, RACE_IDENTITY_FX } from '../../src/data/races.js';
@@ -3106,5 +3128,589 @@ describe('identity-layer · Bloodtide Pulse · cross-mechanic regression (T2.02-
     expect(enragedPulse).toBeCloseTo(210, 10);
     // Sacred BERSERKER_ENRAGE_MULT untouched.
     expect(BERSERKER_ENRAGE_MULT).toBe(2.0);
+  });
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-037 (T2.10): Engineer Lockdown Protocol unit tests.
+// Spec: docs/design/mechanics/identity-layer.md §3.4. Pure math + helper
+// coverage. No DOM — Vitest runs in `node` env.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+describe('identity-layer · Engineer Lockdown Protocol · isTetrisCrit (trigger gate)', () => {
+  it('4 lines + comboTriggered=true → true (Tetris crit)', () => {
+    expect(isTetrisCrit(4, true)).toBe(true);
+  });
+
+  it('4 lines + comboTriggered=false → false (no crit means no Tetris)', () => {
+    expect(isTetrisCrit(4, false)).toBe(false);
+  });
+
+  it('3 lines + comboTriggered=true → false (not a Tetris)', () => {
+    expect(isTetrisCrit(3, true)).toBe(false);
+  });
+
+  it('2 lines + comboTriggered=true → false', () => {
+    expect(isTetrisCrit(2, true)).toBe(false);
+  });
+
+  it('5 lines + comboTriggered=true → false (defensive — impossible on 8x8 but bounded)', () => {
+    expect(isTetrisCrit(5, true)).toBe(false);
+  });
+
+  it('0 lines + comboTriggered=true → false', () => {
+    expect(isTetrisCrit(0, true)).toBe(false);
+  });
+
+  it('comboTriggered=truthy-but-not-true → false (strict boolean check)', () => {
+    expect(isTetrisCrit(4, 1)).toBe(false);
+    expect(isTetrisCrit(4, 'yes')).toBe(false);
+    expect(isTetrisCrit(4, {})).toBe(false);
+  });
+
+  it('defensive: nil / NaN lines → false', () => {
+    expect(isTetrisCrit(null, true)).toBe(false);
+    expect(isTetrisCrit(undefined, true)).toBe(false);
+    expect(isTetrisCrit(NaN, true)).toBe(false);
+    expect(isTetrisCrit('not-a-number', true)).toBe(false);
+  });
+
+  it('engineerLockdownGatePasses mirrors isTetrisCrit (gate-naming convention)', () => {
+    expect(engineerLockdownGatePasses(4, true)).toBe(true);
+    expect(engineerLockdownGatePasses(3, true)).toBe(false);
+    expect(engineerLockdownGatePasses(4, false)).toBe(false);
+  });
+});
+
+describe('identity-layer · Engineer Lockdown Protocol · pickMostClearedCorner', () => {
+  it('rows in upper half + cols in left half → top-left', () => {
+    const r = pickMostClearedCorner([0, 1, 2], [0, 1], 8);
+    expect(r.cornerName).toBe('top-left');
+    expect(r.row).toBe(0);
+    expect(r.col).toBe(0);
+  });
+
+  it('rows in upper half + cols in right half → top-right', () => {
+    const r = pickMostClearedCorner([0, 1], [5, 6, 7], 8);
+    expect(r.cornerName).toBe('top-right');
+    expect(r.row).toBe(0);
+    expect(r.col).toBe(6);  // gridSize - 2 = 6 for 8×8
+  });
+
+  it('rows in lower half + cols in left half → bottom-left', () => {
+    const r = pickMostClearedCorner([5, 6, 7], [0, 1], 8);
+    expect(r.cornerName).toBe('bottom-left');
+    expect(r.row).toBe(6);
+    expect(r.col).toBe(0);
+  });
+
+  it('rows in lower half + cols in right half → bottom-right', () => {
+    const r = pickMostClearedCorner([5, 6, 7], [5, 6, 7], 8);
+    expect(r.cornerName).toBe('bottom-right');
+    expect(r.row).toBe(6);
+    expect(r.col).toBe(6);
+  });
+
+  it('only rows cleared (no cols) → uses row halves to determine top/bottom', () => {
+    const top    = pickMostClearedCorner([0, 1, 2, 3], [], 8);
+    const bottom = pickMostClearedCorner([4, 5, 6, 7], [], 8);
+    expect(top.cornerName).toBe('top-left');     // tie-break left
+    expect(bottom.cornerName).toBe('bottom-left'); // tie-break left
+  });
+
+  it('empty rows + empty cols → defensive top-left fallback', () => {
+    const r = pickMostClearedCorner([], [], 8);
+    expect(r.cornerName).toBe('top-left');
+    expect(r.row).toBe(0);
+    expect(r.col).toBe(0);
+  });
+
+  it('non-array inputs → defensive empty handling (top-left fallback)', () => {
+    const r = pickMostClearedCorner(null, undefined, 8);
+    expect(r.cornerName).toBe('top-left');
+  });
+
+  it('non-integer gridSize falls back to safe default (≥2)', () => {
+    const r = pickMostClearedCorner([0], [0], 0);
+    expect(r.cornerName).toBe('top-left');
+    expect(r.row).toBe(0);
+    expect(r.col).toBe(0);
+  });
+
+  it('quad-line Tetris (rows=[0,1,6,7]) tie-breaks to top-left by convention', () => {
+    // 2 upper + 2 lower rows is a tie — should default to 'top' per >= rule.
+    const r = pickMostClearedCorner([0, 1, 6, 7], [], 8);
+    expect(r.cornerName).toBe('top-left');
+  });
+});
+
+describe('identity-layer · Engineer Lockdown Protocol · compute2x2LockdownCells', () => {
+  it('top-left corner → cells (0,0), (0,1), (1,0), (1,1)', () => {
+    const cells = compute2x2LockdownCells({ cornerName: 'top-left', row: 0, col: 0 }, 8);
+    expect(cells.length).toBe(4);
+    expect(cells).toEqual([
+      { row: 0, col: 0 }, { row: 0, col: 1 },
+      { row: 1, col: 0 }, { row: 1, col: 1 },
+    ]);
+  });
+
+  it('bottom-right corner → cells (6,6), (6,7), (7,6), (7,7)', () => {
+    const cells = compute2x2LockdownCells({ cornerName: 'bottom-right', row: 6, col: 6 }, 8);
+    expect(cells.length).toBe(4);
+    expect(cells).toEqual([
+      { row: 6, col: 6 }, { row: 6, col: 7 },
+      { row: 7, col: 6 }, { row: 7, col: 7 },
+    ]);
+  });
+
+  it('top-right corner → cells (0,6), (0,7), (1,6), (1,7)', () => {
+    const cells = compute2x2LockdownCells({ cornerName: 'top-right', row: 0, col: 6 }, 8);
+    expect(cells).toEqual([
+      { row: 0, col: 6 }, { row: 0, col: 7 },
+      { row: 1, col: 6 }, { row: 1, col: 7 },
+    ]);
+  });
+
+  it('bottom-left corner → cells (6,0), (6,1), (7,0), (7,1)', () => {
+    const cells = compute2x2LockdownCells({ cornerName: 'bottom-left', row: 6, col: 0 }, 8);
+    expect(cells).toEqual([
+      { row: 6, col: 0 }, { row: 6, col: 1 },
+      { row: 7, col: 0 }, { row: 7, col: 1 },
+    ]);
+  });
+
+  it('defensive clamp: corner with row beyond grid → clamped to gridSize-2', () => {
+    const cells = compute2x2LockdownCells({ cornerName: 'bottom-right', row: 99, col: 99 }, 8);
+    expect(cells).toEqual([
+      { row: 6, col: 6 }, { row: 6, col: 7 },
+      { row: 7, col: 6 }, { row: 7, col: 7 },
+    ]);
+  });
+
+  it('always returns exactly ENGINEER_LOCKDOWN_CELL_COUNT (4) cells', () => {
+    for (const cn of ['top-left', 'top-right', 'bottom-left', 'bottom-right']) {
+      const cells = compute2x2LockdownCells({ cornerName: cn, row: 0, col: 0 }, 8);
+      expect(cells.length).toBe(ENGINEER_LOCKDOWN_CELL_COUNT);
+    }
+  });
+
+  it('null/invalid corner → defensive top-left fallback (4 cells at origin)', () => {
+    expect(compute2x2LockdownCells(null, 8).length).toBe(4);
+    expect(compute2x2LockdownCells({}, 8)).toEqual([
+      { row: 0, col: 0 }, { row: 0, col: 1 },
+      { row: 1, col: 0 }, { row: 1, col: 1 },
+    ]);
+  });
+});
+
+describe('identity-layer · Engineer Lockdown Protocol · fxEngineerLockdownProtocol gate behavior', () => {
+  it('4-line crit clear → lockdown placed (4 cells in mirror state)', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4,
+      comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3],
+      lastClearedCols: [],
+      gridSize: 8,
+      currentTurn: 0,
+    });
+    expect(getEngineerLockdownsCount()).toBe(1);
+    const snap = getEngineerLockdownsSnapshot();
+    expect(snap.length).toBe(1);
+    expect(snap[0].cells.length).toBe(4);
+    expect(snap[0].startTurn).toBe(0);
+    expect(snap[0].expiresTurn).toBe(40);
+    resetEngineerLockdowns();
+  });
+
+  it('3-line clear with combo crit → silent no-op (no lockdown placed)', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 3,
+      comboTriggered: true,
+      lastClearedRows: [0, 1, 2],
+      lastClearedCols: [],
+      gridSize: 8,
+      currentTurn: 0,
+    });
+    expect(getEngineerLockdownsCount()).toBe(0);
+  });
+
+  it('4-line clear without combo crit → silent no-op (anti-Tetris is crit-gated)', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4,
+      comboTriggered: false,
+      lastClearedRows: [0, 1, 2, 3],
+      lastClearedCols: [],
+      gridSize: 8,
+      currentTurn: 0,
+    });
+    expect(getEngineerLockdownsCount()).toBe(0);
+  });
+
+  it('null/missing ctx → silent no-op (defensive guard)', () => {
+    resetEngineerLockdowns();
+    expect(() => fxEngineerLockdownProtocol(null, null)).not.toThrow();
+    expect(getEngineerLockdownsCount()).toBe(0);
+  });
+
+  it('lockdown cells land at corner most-cleared per pickMostClearedCorner', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4,
+      comboTriggered: true,
+      lastClearedRows: [5, 6, 7],
+      lastClearedCols: [5, 6, 7],   // dominant lower-right
+      gridSize: 8,
+      currentTurn: 10,
+    });
+    const snap = getEngineerLockdownsSnapshot();
+    expect(snap[0].cells).toEqual([
+      { row: 6, col: 6 }, { row: 6, col: 7 },
+      { row: 7, col: 6 }, { row: 7, col: 7 },
+    ]);
+    expect(snap[0].startTurn).toBe(10);
+    expect(snap[0].expiresTurn).toBe(50);  // 10 + 40
+    resetEngineerLockdowns();
+  });
+});
+
+describe('identity-layer · Engineer Lockdown Protocol · isCellLockedByLockdownProtocol predicate', () => {
+  it('after lockdown placed at top-left → 4 cells return true', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4,
+      comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3],
+      lastClearedCols: [],
+      gridSize: 8,
+      currentTurn: 0,
+    });
+    expect(isCellLockedByLockdownProtocol(0, 0)).toBe(true);
+    expect(isCellLockedByLockdownProtocol(0, 1)).toBe(true);
+    expect(isCellLockedByLockdownProtocol(1, 0)).toBe(true);
+    expect(isCellLockedByLockdownProtocol(1, 1)).toBe(true);
+    // Non-locked cells return false.
+    expect(isCellLockedByLockdownProtocol(0, 2)).toBe(false);
+    expect(isCellLockedByLockdownProtocol(2, 0)).toBe(false);
+    expect(isCellLockedByLockdownProtocol(7, 7)).toBe(false);
+    resetEngineerLockdowns();
+  });
+
+  it('after resetEngineerLockdowns → all cells return false', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4,
+      comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3],
+      lastClearedCols: [],
+      gridSize: 8,
+      currentTurn: 0,
+    });
+    expect(isCellLockedByLockdownProtocol(0, 0)).toBe(true);
+    resetEngineerLockdowns();
+    expect(isCellLockedByLockdownProtocol(0, 0)).toBe(false);
+    expect(getEngineerLockdownsCount()).toBe(0);
+  });
+
+  it('defensive: non-finite inputs return false', () => {
+    expect(isCellLockedByLockdownProtocol(null, 0)).toBe(false);
+    expect(isCellLockedByLockdownProtocol(0, undefined)).toBe(false);
+    expect(isCellLockedByLockdownProtocol('a', 'b')).toBe(false);
+  });
+});
+
+describe('identity-layer · Engineer Lockdown Protocol · 40-turn expiration lifecycle', () => {
+  it('lockdown placed at turn 5 → expires at turn 45 (5 + 40 = 45)', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4,
+      comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3],
+      lastClearedCols: [],
+      gridSize: 8,
+      currentTurn: 5,
+    });
+    const snap = getEngineerLockdownsSnapshot();
+    expect(snap[0].startTurn).toBe(5);
+    expect(snap[0].expiresTurn).toBe(45);
+
+    // Tick at turn 44 → still active.
+    const t44 = fxEngineerLockdownTick({ currentTurn: 44 });
+    expect(t44.activeCount).toBe(1);
+    expect(t44.expiredCount).toBe(0);
+
+    // Tick at turn 45 → expired.
+    const t45 = fxEngineerLockdownTick({ currentTurn: 45 });
+    expect(t45.activeCount).toBe(0);
+    expect(t45.expiredCount).toBe(1);
+    expect(getEngineerLockdownsCount()).toBe(0);
+    resetEngineerLockdowns();
+  });
+
+  it('multiple lockdowns (different start turns) tick independently', () => {
+    resetEngineerLockdowns();
+    // Lockdown 1 at turn 0 → expires at 40.
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    // Lockdown 2 at turn 10 → expires at 50.
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [4, 5, 6, 7], lastClearedCols: [],
+      gridSize: 8, currentTurn: 10,
+    });
+    expect(getEngineerLockdownsCount()).toBe(2);
+
+    // Tick at turn 40 → lockdown 1 expires, lockdown 2 still active.
+    const t40 = fxEngineerLockdownTick({ currentTurn: 40 });
+    expect(t40.expiredCount).toBe(1);
+    expect(t40.activeCount).toBe(1);
+
+    // Tick at turn 50 → lockdown 2 expires.
+    const t50 = fxEngineerLockdownTick({ currentTurn: 50 });
+    expect(t50.expiredCount).toBe(1);
+    expect(t50.activeCount).toBe(0);
+    resetEngineerLockdowns();
+  });
+
+  it('empty state → tick returns 0 expired, 0 active (no-op)', () => {
+    resetEngineerLockdowns();
+    const r = fxEngineerLockdownTick({ currentTurn: 99 });
+    expect(r.expiredCount).toBe(0);
+    expect(r.activeCount).toBe(0);
+  });
+
+  it('resetEngineerLockdowns clears all state to empty array', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    expect(getEngineerLockdownsCount()).toBe(1);
+    resetEngineerLockdowns();
+    expect(getEngineerLockdownsCount()).toBe(0);
+    expect(getEngineerLockdownsSnapshot()).toEqual([]);
+  });
+});
+
+describe('identity-layer · Engineer Lockdown Protocol · SACRED COW byte-perfect audit', () => {
+  it('ENGINEER_LOCKDOWN_TURNS === 40 (MATCHES sacred engineer_p1_p2 duration)', () => {
+    // Sacred reference: src/core/reactivity-events.js line ~604:
+    //   `engineerLockedCells.set(k, 40);` — 40T is the sacred lockdown
+    //   duration. T2.10 ENGINEER_LOCKDOWN_TURNS MUST match byte-perfect.
+    expect(ENGINEER_LOCKDOWN_TURNS).toBe(40);
+  });
+
+  it('ENGINEER_LOCKDOWN_CELL_COUNT === 4 (MATCHES sacred 4-cell shape)', () => {
+    // Sacred reference: src/core/reactivity-events.js line ~599:
+    //   `for (let i = 0; i < 4 && cells.length > 0; i++)` — 4 cells is
+    //   the sacred lockdown shape. T2.10 places contiguous 2×2 = 4 cells.
+    expect(ENGINEER_LOCKDOWN_CELL_COUNT).toBe(4);
+    expect(2 * 2).toBe(ENGINEER_LOCKDOWN_CELL_COUNT);
+  });
+
+  it('ENGINEER_LOCKDOWN_TRIGGER_LINES === 4 (Tetris crit threshold sacred)', () => {
+    expect(ENGINEER_LOCKDOWN_TRIGGER_LINES).toBe(4);
+  });
+
+  it('ENGINEER_LOCKDOWN_COLOR === #B87333 (MATCHES sacred engineer banner)', () => {
+    // Sacred reference: src/core/reactivity-events.js line ~606:
+    //   `flashStateBanner('LOCKDOWN · ' + locked + ' CELLS WELDED', '#B87333');`
+    //   — #B87333 is the sacred Engineer archetype color. T2.10 RE-USES.
+    expect(ENGINEER_LOCKDOWN_COLOR).toBe('#B87333');
+  });
+
+  it('Sacred 5-role HERO_ULT_COST_BY_NEWROLE byte-perfect after lockdown fx round-trip', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    fxEngineerLockdownTick({ currentTurn: 40 });
+    resetEngineerLockdowns();
+    // ULT thresholds untouched (lockdown protocol never writes to ULT).
+    expect(HERO_ULT_COST_BY_NEWROLE.warrior).toBe(80);
+    expect(HERO_ULT_COST_BY_NEWROLE.mage).toBe(100);
+    expect(HERO_ULT_COST_BY_NEWROLE.hunter).toBe(120);
+    expect(HERO_ULT_COST_BY_NEWROLE.tank).toBe(80);
+    expect(HERO_ULT_COST_BY_NEWROLE.captain).toBe(100);
+  });
+
+  it('Sacred BERSERKER_ENRAGE_MULT byte-perfect (T2.09 invariant maintained)', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    expect(BERSERKER_ENRAGE_MULT).toBe(2.0);
+    expect(BERSERKER_ENRAGE_HP_PCT).toBe(0.5);
+    resetEngineerLockdowns();
+  });
+
+  it('Sacred PHOENIX_REVIVE_HP_PCT / PHOENIX_IMMUNE_TURNS byte-perfect (T2.07 invariant maintained)', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    expect(PHOENIX_REVIVE_HP_PCT).toBe(0.6);
+    expect(PHOENIX_IMMUNE_TURNS).toBe(2);
+    resetEngineerLockdowns();
+  });
+
+  it('Sacred REACTIVITY_TELEGRAPH_MS untouched (T2.10 uses no telegraph per spec §3.4 field 6)', () => {
+    expect(REACTIVITY_TELEGRAPH_MS).toBe(3000);
+    expect(REACTIVITY_BANNER_DURATION_MS).toBe(1500);
+  });
+
+  it('Stagger Loop constants byte-perfect (T2.09 invariant maintained)', () => {
+    expect(BOSS_STATE_ACTIVE).toBe('active');
+    expect(BOSS_STATE_STAGGER).toBe('stagger');
+    expect(BOSS_STATE_RECOVERY).toBe('recovery');
+    expect(STAGGER_DURATION_TURNS).toBe(4);
+    expect(RECOVERY_DURATION_TURNS).toBe(2);
+  });
+});
+
+describe('identity-layer · Engineer Lockdown Protocol · constants & budgets', () => {
+  it('IDENTITY_BOSS_FX_KEYS.ENGINEER_LOCKDOWN registered', () => {
+    expect(IDENTITY_BOSS_FX_KEYS.ENGINEER_LOCKDOWN).toBe('engineer_lockdown');
+  });
+
+  it('BOSS_IDENTITY_FX.engineer → engineer_lockdown', () => {
+    expect(BOSS_IDENTITY_FX.engineer).toBe('engineer_lockdown');
+  });
+
+  it('IDENTITY_BOSS_FX_BUDGETS.engineer_lockdown has correct budget shape', () => {
+    const b = IDENTITY_BOSS_FX_BUDGETS[IDENTITY_BOSS_FX_KEYS.ENGINEER_LOCKDOWN];
+    expect(b).toBeDefined();
+    expect(b.initialMs).toBe(10);
+    expect(b.steadyStateMs).toBe(1);
+    expect(b.decayMs).toBe(600);
+    expect(b.duration).toBe('40 turns');
+  });
+
+  it('All per-fire wall-time budgets are positive integers', () => {
+    expect(ENGINEER_LOCKDOWN_INITIAL_BUDGET_MS).toBe(10);
+    expect(ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS).toBe(4);
+    expect(ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS).toBe(6);
+    expect(ENGINEER_LOCKDOWN_PER_TURN_TICK_BUDGET_MS).toBe(1);
+    // Placement + ratchet sum within initial budget.
+    expect(ENGINEER_LOCKDOWN_PLACEMENT_BUDGET_MS + ENGINEER_LOCKDOWN_RATCHET_BUDGET_MS)
+      .toBeLessThanOrEqual(ENGINEER_LOCKDOWN_INITIAL_BUDGET_MS);
+  });
+
+  it('ENGINEER_LOCKDOWN_RATCHET_DURATION_MS = 600 + ENGINEER_LOCKDOWN_CELEBRATION_MS = 400', () => {
+    expect(ENGINEER_LOCKDOWN_RATCHET_DURATION_MS).toBe(600);
+    expect(ENGINEER_LOCKDOWN_CELEBRATION_MS).toBe(400);
+  });
+});
+
+describe('identity-layer · Engineer Lockdown Protocol · cross-mechanic regression (T2.02-T2.09 invariants)', () => {
+  it('Engineer Lockdown active does NOT break Phoenix / Lich / Bloodtide coexistence', () => {
+    resetAshenReign();
+    resetCursedTiles();
+    resetBloodtide();
+    resetEngineerLockdowns();
+
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    grid[0][0] = 'umbra';
+    grid[0][1] = 'umbra';
+    grid[0][2] = 'umbra';
+
+    fxPhoenixAshenReign(null, null);
+    fxLichCursedTiles(null, { gridState: grid, currentTurn: 0 });
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    incrementBloodtideClearCount();
+    fxBerserkerBloodtidePulse(null, null);
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+
+    // All four boss-reactive states active independently.
+    expect(isAshenReignActive()).toBe(true);
+    expect(getCursedTilesCount()).toBeGreaterThan(0);
+    expect(isBloodtidePulsePending()).toBe(true);
+    expect(getEngineerLockdownsCount()).toBe(1);
+
+    // Cleanup.
+    fxPhoenixAshenReignRelease();
+    resetCursedTiles();
+    resetBloodtide();
+    resetEngineerLockdowns();
+    expect(isAshenReignActive()).toBe(false);
+    expect(getCursedTilesCount()).toBe(0);
+    expect(isBloodtidePulsePending()).toBe(false);
+    expect(getEngineerLockdownsCount()).toBe(0);
+  });
+
+  it('Engineer Lockdown does NOT block race FX dispatch (T2.02-T2.06 invariant)', () => {
+    __identityFxTestables.resetCoinPool();
+    __identityFxTestables.resetSharkBitePool();
+    __identityFxTestables.resetRockEchoPool();
+    __identityFxTestables.resetCrocFragmentPool();
+    __identityFxTestables.resetSparkRayPool();
+    resetCrocFragmentBank();
+    resetEngineerLockdowns();
+
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    expect(getEngineerLockdownsCount()).toBe(1);
+
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) grid[0][c] = 'solar';
+    for (let c = 0; c < 8; c++) grid[2][c] = 'grove';
+
+    const squad = [
+      { race: 'pirate' },
+      { race: 'shark' },
+      { race: 'shark' },
+      { race: 'rock' },
+      { race: 'crocodile' },
+      { race: 'spark' },
+    ];
+    const ctx = { gridState: grid, dominantElementsByLine: ['solar', 'grove'] };
+    expect(() => dispatchIdentityFx([0, 2], [], squad, null, ctx)).not.toThrow();
+    // Spark cascade still fired.
+    expect(ctx._dominantCountModifier).toBe(1);
+    resetEngineerLockdowns();
+  });
+
+  it('Sacred RACE_SYNERGY entries byte-perfect after Engineer Lockdown round-trip', () => {
+    resetEngineerLockdowns();
+    fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    fxEngineerLockdownTick({ currentTurn: 40 });
+    resetEngineerLockdowns();
+    expect(RACE_SYNERGY.lion[5].bonusDmg.solar).toBe(3);
+    expect(RACE_SYNERGY.rock[3].encore).toBe(true);
+    expect(RACE_SYNERGY.golem[2].maxShieldBonus).toBe(1);
+    expect(RACE_SYNERGY.golem[3].maxShieldBonus).toBe(2);
+    expect(RACE_SYNERGY.golem[5].maxShieldBonus).toBe(2);
+    // Race + boss identity sibling exports untouched.
+    expect(RACE_IDENTITY_FX.pirate).toBe('pirate_plunder');
+    expect(RACE_IDENTITY_FX.spark).toBe('spark_cascade');
+    expect(BOSS_IDENTITY_FX.phoenix).toBe('phoenix_ashen_reign');
+    expect(BOSS_IDENTITY_FX.assassin).toBe('lich_cursed_tiles');
+    expect(BOSS_IDENTITY_FX.berserker).toBe('berserker_bloodtide');
+    expect(BOSS_IDENTITY_FX.frenzy).toBe('berserker_bloodtide');
+    expect(BOSS_IDENTITY_FX.engineer).toBe('engineer_lockdown');
   });
 });

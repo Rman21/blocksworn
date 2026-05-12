@@ -2513,3 +2513,471 @@ test('fxBerserkerBloodtidePulse performance: initial trigger within ≤10ms budg
   expect(wallTime).toBeLessThan(30);
   expect(errors).toEqual([]);
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-037 (T2.10): Engineer Lockdown Protocol smoke tests.
+// Spec: docs/design/mechanics/identity-layer.md §3.4. FOURTH boss-reactive
+// identity mechanic — anti-Tetris 4-line crit counter.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+test('Engineer Lockdown Protocol: trigger gate fires for 4-line crit only', async ({ page }) => {
+  // Spec §3.4 field 3 boundary: 4 lines + combo crit → fire. Any other
+  // combination → silent no-op (anti-Tetris is strictly crit-gated).
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    return {
+      fourLineCrit:    mod.engineerLockdownGatePasses(4, true),
+      fourLineNoCrit:  mod.engineerLockdownGatePasses(4, false),
+      threeLineCrit:   mod.engineerLockdownGatePasses(3, true),
+      twoLineCrit:     mod.engineerLockdownGatePasses(2, true),
+      fiveLineCrit:    mod.engineerLockdownGatePasses(5, true),
+      zeroCrit:        mod.engineerLockdownGatePasses(0, true),
+    };
+  });
+
+  expect(result.fourLineCrit).toBe(true);
+  expect(result.fourLineNoCrit).toBe(false);
+  expect(result.threeLineCrit).toBe(false);
+  expect(result.twoLineCrit).toBe(false);
+  expect(result.fiveLineCrit).toBe(false);
+  expect(result.zeroCrit).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('Engineer Lockdown Protocol: 4-line Tetris crit → 4 cells locked, 40-turn lifecycle, RE-USES sacred CSS class', async ({ page }) => {
+  // Spec §3.4 field 4: 4-line crit clear → 2×2 lockdown (4 cells) in the
+  // corner of the grid most-cleared in the last fire. Cells get the
+  // existing sacred .cell--engineer-welded CSS class (RE-USED, not
+  // duplicated). 40-turn lifecycle.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetEngineerLockdownPool();
+    mod.resetEngineerLockdowns();
+
+    // Build a stub grid container with 64 cell DOM elements (mirroring the
+    // legacy `.grid .cell` selector). This is how the live runtime layout
+    // exposes individual cell elements; smoke verifies the class swap
+    // path against this canonical surface.
+    const gridEl = document.createElement('div');
+    gridEl.className = 'grid';
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.setAttribute('data-row', String(r));
+        cell.setAttribute('data-col', String(c));
+        gridEl.appendChild(cell);
+      }
+    }
+    document.body.appendChild(gridEl);
+
+    // Stub the engineerLockedCells Map so we can verify lockdown population.
+    const elc = new Map();
+    window.engineerLockedCells = elc;
+
+    // Fire: 4 lines cleared (rows 5-7) + cols 5-7 → bottom-right corner.
+    mod.fxEngineerLockdownProtocol(null, {
+      linesCleared: 4,
+      comboTriggered: true,
+      lastClearedRows: [5, 6, 7],
+      lastClearedCols: [5, 6, 7],
+      gridSize: 8,
+      currentTurn: 5,
+      engineerLockedCellsApi: { set: (k, v) => elc.set(k, v) },
+    });
+
+    const lockdowns = mod.getEngineerLockdownsSnapshot();
+    // Verify the 4 cells got the sacred .cell--engineer-welded class via
+    // the live grid surface (the CSS class itself is BYTE-PERFECT — we just
+    // RE-USE it via classList.add).
+    const lockedCells = Array.from(gridEl.querySelectorAll('.cell--engineer-welded'));
+    const lockedCoords = lockedCells.map(el => ({
+      row: Number(el.getAttribute('data-row')),
+      col: Number(el.getAttribute('data-col')),
+    }));
+
+    // Mirror state via engineerLockedCells API + Map.
+    const mapKeys = Array.from(elc.keys()).sort();
+    const mapVals = mapKeys.map(k => elc.get(k));
+
+    // Tick at turn 44 — still active.
+    const t44 = mod.fxEngineerLockdownTick({ currentTurn: 44 });
+    // Tick at turn 45 — expired.
+    const t45 = mod.fxEngineerLockdownTick({ currentTurn: 45 });
+    const lockedCellsAfterExpire = Array.from(gridEl.querySelectorAll('.cell--engineer-welded')).length;
+
+    mod.resetEngineerLockdowns();
+    gridEl.remove();
+    delete window.engineerLockedCells;
+
+    return {
+      lockdownsCount: lockdowns.length,
+      lockdownCells:  lockdowns[0] ? lockdowns[0].cells : [],
+      lockdownStart:  lockdowns[0] ? lockdowns[0].startTurn : null,
+      lockdownExpire: lockdowns[0] ? lockdowns[0].expiresTurn : null,
+      lockedCoords,
+      mapKeys,
+      mapVals,
+      t44,
+      t45,
+      lockedCellsAfterExpire,
+    };
+  });
+
+  // 1 lockdown placed, 4 cells, bottom-right (6-7) due to most-cleared corner.
+  expect(result.lockdownsCount).toBe(1);
+  expect(result.lockdownCells.length).toBe(4);
+  expect(result.lockdownStart).toBe(5);
+  expect(result.lockdownExpire).toBe(45);   // 5 + 40 = 45
+  // CSS class applied to 4 cells (sacred .cell--engineer-welded — RE-USED).
+  expect(result.lockedCoords.length).toBe(4);
+  // The 4 cells are in the bottom-right 2×2.
+  const expectedKeys = ['6_6', '6_7', '7_6', '7_7'];
+  expect(result.mapKeys).toEqual(expectedKeys);
+  // Map value = 40 (SACRED — matches engineer_p1_p2 byte-perfect).
+  for (const v of result.mapVals) {
+    expect(v).toBe(40);
+  }
+  // Turn 44 → still active (1 lockdown).
+  expect(result.t44.activeCount).toBe(1);
+  expect(result.t44.expiredCount).toBe(0);
+  // Turn 45 → expired.
+  expect(result.t45.activeCount).toBe(0);
+  expect(result.t45.expiredCount).toBe(1);
+  // After expire: cell class stripped.
+  expect(result.lockedCellsAfterExpire).toBe(0);
+
+  expect(errors).toEqual([]);
+});
+
+test('Engineer Lockdown Protocol: 3-line clear with crit + 4-line without crit → silent no-op', async ({ page }) => {
+  // Spec §3.4 field 3: anti-Tetris fires ONLY on 4-line crit. Verifies the
+  // exhaustive gate boundary in the live module.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.resetEngineerLockdowns();
+
+    // 3-line crit — no lockdown.
+    mod.fxEngineerLockdownProtocol(null, {
+      linesCleared: 3, comboTriggered: true,
+      lastClearedRows: [0, 1, 2], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    const after3LineCrit = mod.getEngineerLockdownsCount();
+
+    // 4-line non-crit — no lockdown.
+    mod.fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: false,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    const after4LineNoCrit = mod.getEngineerLockdownsCount();
+
+    // 4-line crit — lockdown fires.
+    mod.fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    const after4LineCrit = mod.getEngineerLockdownsCount();
+
+    mod.resetEngineerLockdowns();
+    return { after3LineCrit, after4LineNoCrit, after4LineCrit };
+  });
+
+  expect(result.after3LineCrit).toBe(0);
+  expect(result.after4LineNoCrit).toBe(0);
+  expect(result.after4LineCrit).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('Engineer Lockdown Protocol: sacred 40T duration + engineer_p1_p2 untouched + 4-cell shape sacred (byte-perfect audit)', async ({ page }) => {
+  // Sacred-cow audit: T2.10 constants MATCH the sacred engineer_p1_p2
+  // values byte-perfect. The sacred handler in reactivity-events.js stays
+  // BYTE-PERFECT — verified via the IDENTITY_BOSS_HANDLERS / REACTIVITY_HANDLERS
+  // shape audit below.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const idMod = await import('/src/data/identity-layer.js');
+    const bsMod = await import('/src/core/bosses.js');
+    const hMod  = await import('/src/data/heroes.js');
+    return {
+      lockdownTurns:    idMod.ENGINEER_LOCKDOWN_TURNS,
+      lockdownCells:    idMod.ENGINEER_LOCKDOWN_CELL_COUNT,
+      lockdownTrigger:  idMod.ENGINEER_LOCKDOWN_TRIGGER_LINES,
+      lockdownColor:    idMod.ENGINEER_LOCKDOWN_COLOR,
+      // T2.07/T2.08/T2.09 invariants still byte-perfect.
+      sacredTelegraph:      bsMod.REACTIVITY_TELEGRAPH_MS,
+      sacredBannerDuration: bsMod.REACTIVITY_BANNER_DURATION_MS,
+      phoenixReviveHpPct:   bsMod.PHOENIX_REVIVE_HP_PCT,
+      phoenixImmuneTurns:   bsMod.PHOENIX_IMMUNE_TURNS,
+      berserkerEnrageHpPct: bsMod.BERSERKER_ENRAGE_HP_PCT,
+      berserkerEnrageMult:  bsMod.BERSERKER_ENRAGE_MULT,
+      warrior: hMod.HERO_ULT_COST_BY_NEWROLE.warrior,
+      mage:    hMod.HERO_ULT_COST_BY_NEWROLE.mage,
+      hunter:  hMod.HERO_ULT_COST_BY_NEWROLE.hunter,
+      tank:    hMod.HERO_ULT_COST_BY_NEWROLE.tank,
+      captain: hMod.HERO_ULT_COST_BY_NEWROLE.captain,
+    };
+  });
+
+  // T2.10 sacred-byte-perfect constants.
+  expect(result.lockdownTurns).toBe(40);     // MATCHES sacred engineer_p1_p2 set(k, 40)
+  expect(result.lockdownCells).toBe(4);      // MATCHES sacred engineer_p1_p2 i < 4 loop
+  expect(result.lockdownTrigger).toBe(4);    // HARD Tetris trigger threshold
+  expect(result.lockdownColor).toBe('#B87333');  // MATCHES sacred engineer banner color
+  // Cross-mechanic sacred invariants — T2.07/T2.08/T2.09 byte-perfect.
+  expect(result.sacredTelegraph).toBe(3000);
+  expect(result.sacredBannerDuration).toBe(1500);
+  expect(result.phoenixReviveHpPct).toBe(0.6);
+  expect(result.phoenixImmuneTurns).toBe(2);
+  expect(result.berserkerEnrageHpPct).toBe(0.5);
+  expect(result.berserkerEnrageMult).toBe(2.0);
+  // Sacred ULT thresholds untouched.
+  expect(result.warrior).toBe(80);
+  expect(result.mage).toBe(100);
+  expect(result.hunter).toBe(120);
+  expect(result.tank).toBe(80);
+  expect(result.captain).toBe(100);
+  expect(errors).toEqual([]);
+});
+
+test('Engineer Lockdown Protocol: cross-mechanic regression — race FX + Phoenix + Lich + Bloodtide + Engineer Lockdown coexist', async ({ page }) => {
+  // Critical regression: activating Engineer Lockdown Protocol must NOT
+  // break the 5-race identity layer dispatch OR Phoenix Ashen Reign OR
+  // Lich Cursed Tiles OR Bloodtide Pulse — all are independent layers per
+  // spec §1 hard rule 3.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    // Stub all five race-layer APIs.
+    let goldDelta = 0;
+    window.addGold = (n) => { goldDelta += Number(n) || 0; };
+    window.ULT_THRESHOLD = { ember: 12, tide: 12, grove: 12, solar: 12, umbra: 12 };
+    window.ultCharges = { ember: 0, tide: 0, grove: 0, solar: 0, umbra: 0 };
+    window.shieldCount = 0;
+    window.MAX_SHIELD = 3;
+    window.maxShieldBonus = 2;
+
+    const grid = Array(8).fill(null).map(() => Array(8).fill(null));
+    for (let c = 0; c < 8; c++) grid[0][c] = 'solar';
+    for (let c = 0; c < 8; c++) grid[2][c] = 'grove';
+    grid[5][0] = 'umbra';
+    grid[5][1] = 'umbra';
+    grid[5][2] = 'umbra';
+    window.grid = grid;
+
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetCoinPool();
+    mod.__identityFxTestables.resetSharkBitePool();
+    mod.__identityFxTestables.resetRockEchoPool();
+    mod.__identityFxTestables.resetCrocFragmentPool();
+    mod.__identityFxTestables.resetSparkRayPool();
+    mod.__identityFxTestables.resetAshenReignPool();
+    mod.__identityFxTestables.resetCursedTilesPool();
+    mod.__identityFxTestables.resetBloodtidePool();
+    mod.__identityFxTestables.resetEngineerLockdownPool();
+    mod.resetCrocFragmentBank();
+    mod.resetAshenReign();
+    mod.resetCursedTiles();
+    mod.resetBloodtide();
+    mod.resetEngineerLockdowns();
+
+    // Activate ALL four boss-reactive layers.
+    mod.fxPhoenixAshenReign(null, null);
+    mod.fxLichCursedTiles(null, { gridState: window.grid, currentTurn: 0 });
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    mod.incrementBloodtideClearCount();
+    mod.fxBerserkerBloodtidePulse(null, null);
+    mod.fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+
+    // Race-layer dispatch (all 5 races alive) must still fire without
+    // interference.
+    const squad = [
+      { race: 'pirate' },
+      { race: 'shark' }, { race: 'shark' },
+      { race: 'rock' },
+      { race: 'crocodile' },
+      { race: 'spark' },
+    ];
+    const ctx = { gridState: window.grid, dominantElementsByLine: ['solar', 'grove'] };
+    let dispatchThrew = false;
+    try {
+      mod.dispatchIdentityFx([0, 2], [], squad, null, ctx);
+    } catch (_e) { dispatchThrew = true; }
+
+    const snapshot = {
+      ashenReignActive:    mod.isAshenReignActive(),
+      cursedTilesCount:    mod.getCursedTilesCount(),
+      bloodtidePending:    mod.isBloodtidePulsePending(),
+      lockdownsCount:      mod.getEngineerLockdownsCount(),
+      sparkModifier:       ctx._dominantCountModifier,
+      goldDelta,
+      dispatchThrew,
+    };
+
+    // Cleanup.
+    mod.fxPhoenixAshenReignRelease();
+    mod.resetCursedTiles();
+    mod.resetBloodtide();
+    mod.resetEngineerLockdowns();
+    return snapshot;
+  });
+
+  // All four boss-reactive layers active independently.
+  expect(result.ashenReignActive).toBe(true);
+  expect(result.cursedTilesCount).toBeGreaterThan(0);
+  expect(result.bloodtidePending).toBe(true);
+  expect(result.lockdownsCount).toBe(1);
+  // Spark cascade still fired (+1 dominantCount).
+  expect(result.sparkModifier).toBe(1);
+  // Pirate Plunder still awarded gold.
+  expect(result.goldDelta).toBeGreaterThan(0);
+  expect(result.dispatchThrew).toBe(false);
+
+  expect(errors).toEqual([]);
+});
+
+test('IDENTITY_BOSS_HANDLERS: registers identity_engineer_tetris_counter alongside sacred 22 + Phoenix + Lich + Bloodtide', async ({ page }) => {
+  // Verify the new T2.10 boss-reactive handler is wired correctly AND the
+  // sacred 22 REACTIVITY_HANDLERS entries + T2.07/T2.08/T2.09 entries are
+  // both still present. Confirms the parallel-namespace contract from spec
+  // §1 hard rule 1 continues to scale.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/core/reactivity-events.js');
+    const identityKeys = Object.keys(mod.IDENTITY_BOSS_HANDLERS || {});
+    const sacredKeys   = Object.keys(mod.REACTIVITY_HANDLERS || {});
+    return {
+      identityKeys,
+      sacredKeyCount: sacredKeys.length,
+      sacredKeys,
+      identityPhoenixType:    typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_phoenix_revive'],
+      identityLichType:       typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_assassin_shark_counter'],
+      identityBloodtideType:  typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_berserker_frenzy_pulse'],
+      identityLockdownType:   typeof (mod.IDENTITY_BOSS_HANDLERS || {})['identity_engineer_tetris_counter'],
+      triggerEventType:  typeof mod.triggerIdentityBossEvent,
+      resetIdentityType: typeof mod.resetIdentityBossState,
+      // Engineer_p1_p2 sacred handler exists + is a function.
+      engineerP1P2Type:  typeof (mod.REACTIVITY_HANDLERS || {})['engineer_p1_p2'],
+    };
+  });
+
+  // Sacred 22 still byte-perfect.
+  expect(result.sacredKeyCount).toBe(22);
+  // Identity registry now has Phoenix (T2.07) + Lich (T2.08) + Bloodtide
+  // (T2.09) + Engineer Lockdown (T2.10).
+  expect(result.identityKeys).toContain('identity_phoenix_revive');
+  expect(result.identityKeys).toContain('identity_assassin_shark_counter');
+  expect(result.identityKeys).toContain('identity_berserker_frenzy_pulse');
+  expect(result.identityKeys).toContain('identity_engineer_tetris_counter');
+  expect(result.identityPhoenixType).toBe('function');
+  expect(result.identityLichType).toBe('function');
+  expect(result.identityBloodtideType).toBe('function');
+  expect(result.identityLockdownType).toBe('function');
+  expect(result.triggerEventType).toBe('function');
+  expect(result.resetIdentityType).toBe('function');
+  // SACRED engineer_p1_p2 handler still exists + untouched (byte-perfect
+  // contract — T2.10 added a NEW handler in parallel, did not modify).
+  expect(result.engineerP1P2Type).toBe('function');
+  // Sacred 22 entries still explicitly present (key-name audit).
+  const expectedSacred = [
+    'berserker_p1_p2', 'berserker_p2_p3',
+    'armored_p1_p2',   'armored_p2_p3',
+    'phoenix_p1_p2',   'phoenix_p2_p3',
+    'assassin_p1_p2',  'assassin_p2_p3',
+    'bruiser_p1_p2',   'bruiser_p2_p3',
+    'hypnotist_p1_p2', 'hypnotist_p2_p3',
+    'engineer_p1_p2',  'engineer_p2_p3',
+    'frenzy_p1_p2',    'frenzy_p2_p3',
+    'tempo_disruptor_p1_p2', 'tempo_disruptor_p2_p3',
+    'battery_p1_p2',   'battery_p2_p3',
+    'tower_voidfang_p1_p2', 'tower_voidfang_p2_p3',
+  ];
+  for (const k of expectedSacred) {
+    expect(result.sacredKeys).toContain(k);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('fxEngineerLockdownProtocol performance: initial trigger within ≤10ms budget', async ({ page }) => {
+  // Spec §3.4 field 7: initial trigger ≤10ms wall-time. Pool init + 4-cell
+  // placement + 1 ratchet activation + banner show. Single-fire measurement.
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const errors = [];
+  page.on('pageerror', err => errors.push(err.message));
+
+  const wallTime = await page.evaluate(async () => {
+    const mod = await import('/src/feel/identity-fx.js');
+    mod.__identityFxTestables.resetEngineerLockdownPool();
+    mod.resetEngineerLockdowns();
+
+    // Warm-up call (pool init cost factored out).
+    mod.fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    mod.resetEngineerLockdowns();
+
+    const t0 = performance.now();
+    mod.fxEngineerLockdownProtocol(null, {
+      linesCleared: 4, comboTriggered: true,
+      lastClearedRows: [0, 1, 2, 3], lastClearedCols: [],
+      gridSize: 8, currentTurn: 0,
+    });
+    const dt = performance.now() - t0;
+    mod.resetEngineerLockdowns();
+    return dt;
+  });
+
+  // Spec §3.4 field 7: ≤10ms initial. Allow 3× CI headroom (30ms).
+  expect(wallTime).toBeLessThan(30);
+  expect(errors).toEqual([]);
+});

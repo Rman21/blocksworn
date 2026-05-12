@@ -6759,3 +6759,173 @@ button, .menu-btn, .btn, .hero-card, .piece, .cell, .roster-card, .tier-btn, .ba
   50%  { opacity: 0.9; transform: translate(calc(var(--bloodtide-dx, 0px) * 0.5), calc(var(--bloodtide-dy, 0px) * 0.5)); }
   100% { opacity: 0; transform: translate(var(--bloodtide-dx, 0px), var(--bloodtide-dy, 0px)); }
 }
+
+/* ───────────────────────────────────────────────────────────────────────
+ * 2026-05-12 — TASK-037 (T2.10): Engineer Lockdown Protocol styles.
+ *
+ * Spec: docs/design/mechanics/identity-layer.md §3.4.
+ * FOURTH boss-reactive identity mechanic — anti-Tetris 4-line crit counter.
+ * When the player completes a 4-line crit clear (the "Tetris" max), the
+ * Engineer boss reacts SAME-TURN by locking down a 2×2 square (4 cells)
+ * in the corner of the grid that received the most cleared cells in the
+ * last fire.
+ *
+ * Architecture:
+ *   - The 4 lockdown CELLS RE-USE the existing
+ *     `.grid .cell.cell--engineer-welded` class (sacred — defined above
+ *     at line ~5118). T2.10 does NOT add or modify any class on the
+ *     individual cells — it ONLY applies the existing sacred class.
+ *   - `.identity-engineer-lockdown-container` — fixed overlay layer,
+ *     pointer-events none, z-index 9993 (above Bloodtide pulse 9991, below
+ *     phoenix flame border 9994). Holds the ratchet overlay.
+ *   - `.identity-engineer-lockdown-ratchet` — base ratchet overlay (single
+ *     pool element, re-used across fires — only one ratchet is live at a
+ *     time per spec §3.4 field 6 "IMMEDIATELY followed by clanking metal
+ *     lockdown" = single visual signature per fire).
+ *   - `.identity-engineer-lockdown-ratchet-active` — active state with
+ *     600ms keyframe animation.
+ *   - `.identity-engineer-tetris-celebration` — TETRIS! banner element.
+ *   - `.identity-engineer-tetris-celebration-active` — active state with
+ *     400ms keyframe pulse.
+ *
+ * Sacred safety:
+ *   - The existing `.grid .cell.cell--engineer-welded` class is BYTE-PERFECT
+ *     UNTOUCHED. T2.10 only RE-USES it — never modifies, never duplicates.
+ *   - The existing `@keyframes engineerWeldPulse` is BYTE-PERFECT UNTOUCHED.
+ *   - All NEW classes here are `identity-engineer-*` prefixed (parallel
+ *     namespace per CLAUDE.md §2.5 + spec §1 hard rule 1).
+ *   - All 22 v2.1 P4 reactivity handlers untouched (parallel-namespace
+ *     mechanic, see CLAUDE.md §2.5 + spec §1 hard rule 1).
+ *   - 40T lockdown duration sacred — handled via existing engineer state
+ *     machinery (engineerLockedCells Map decrement in ui/archetype-ticks.js),
+ *     NOT by these CSS classes.
+ *   - Copper color #B87333 byte-perfect matches the sacred `engineer_p1_p2`
+ *     banner color in reactivity-events.js — no new color invented.
+ * ─────────────────────────────────────────────────────────────────────── */
+.identity-engineer-lockdown-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9993;
+}
+.identity-engineer-lockdown-ratchet {
+  position: fixed;
+  /* Full-viewport faint copper flash overlay — draws attention to the new
+   * 2×2 lockdown without obscuring the player's view of the cells (which
+   * carry the persistent sacred `.cell--engineer-welded` visual). The
+   * flash is brief (600ms) and pulses twice via the keyframe. */
+  inset: 0;
+  pointer-events: none;
+  z-index: 9993;
+  background: radial-gradient(
+    circle at center,
+    rgba(184, 115, 51, 0) 30%,
+    rgba(184, 115, 51, 0.15) 60%,
+    rgba(184, 115, 51, 0.35) 100%
+  );
+  border: 4px solid rgba(184, 115, 51, 0);
+  opacity: 0;
+  will-change: opacity, border-color;
+}
+.identity-engineer-lockdown-ratchet.identity-engineer-lockdown-ratchet-active {
+  animation: identityEngineerRatchet var(--engineer-ratchet-duration-ms, 600ms) ease-out forwards;
+}
+/* Brief 2-step ratchet keyframe — mechanical clanking visual signature.
+ * The double-pulse evokes the "click-click" of two welded panels snapping
+ * into place over the 2×2 square. Pure CSS — no rAF, no per-frame JS. */
+@keyframes identityEngineerRatchet {
+  0% {
+    opacity: 0;
+    border-color: rgba(184, 115, 51, 0);
+  }
+  25% {
+    opacity: 0.55;
+    border-color: rgba(184, 115, 51, 0.75);
+  }
+  45% {
+    opacity: 0.25;
+    border-color: rgba(140, 90, 40, 0.3);
+  }
+  70% {
+    opacity: 0.55;
+    border-color: rgba(184, 115, 51, 0.55);
+  }
+  100% {
+    opacity: 0;
+    border-color: rgba(184, 115, 51, 0);
+  }
+}
+
+/* TETRIS! celebration banner — fixed top-center of viewport, copper text
+ * over translucent dark background. Pulses briefly (400ms) then fades to
+ * make room for the persistent lockdown reaction (which is the sacred
+ * flashStateBanner 'TETRIS! · LOCKDOWN · 2×2 · 40T' surface). */
+.identity-engineer-tetris-celebration {
+  position: fixed;
+  top: 35%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 9993;
+  padding: 12px 28px;
+  background: rgba(20, 14, 6, 0.85);
+  color: #FFD75A;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border-radius: 8px;
+  border: 2px solid rgba(184, 115, 51, 0.85);
+  box-shadow:
+    0 0 18px rgba(184, 115, 51, 0.65),
+    0 2px 8px rgba(0, 0, 0, 0.7),
+    inset 0 0 14px rgba(74, 50, 20, 0.65);
+  text-shadow:
+    0 0 12px rgba(255, 215, 90, 0.85),
+    0 1px 0 rgba(0, 0, 0, 0.85);
+  display: none;
+  opacity: 0;
+  will-change: opacity, transform;
+}
+.identity-engineer-tetris-celebration.identity-engineer-tetris-celebration-active {
+  display: block;
+  animation: identityEngineerTetrisCelebration 400ms ease-out forwards;
+}
+@keyframes identityEngineerTetrisCelebration {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  40% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  100% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Reduced-motion: static copper indicator (no pulse / sweep animation),
+ * but the mechanical effect (4 cells locked, 40T duration) is preserved.
+ * The TETRIS banner still renders — only the kinetic energy is dialed back.
+ * The persistent `.cell--engineer-welded` visual on the 4 lockdown cells
+ * uses its own sacred reduced-motion handling (the existing
+ * `engineerWeldPulse` keyframe is sacred — UNTOUCHED). */
+@media (prefers-reduced-motion: reduce) {
+  .identity-engineer-lockdown-ratchet.identity-engineer-lockdown-ratchet-active {
+    animation: identityEngineerRatchetStatic var(--engineer-ratchet-duration-ms, 600ms) linear forwards;
+  }
+  .identity-engineer-tetris-celebration.identity-engineer-tetris-celebration-active {
+    animation: identityEngineerTetrisCelebrationStatic 400ms linear forwards;
+  }
+}
+@keyframes identityEngineerRatchetStatic {
+  0%   { opacity: 0; }
+  50%  { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+@keyframes identityEngineerTetrisCelebrationStatic {
+  0%   { opacity: 0; }
+  100% { opacity: 0.85; }
+}
