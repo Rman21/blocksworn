@@ -1508,6 +1508,76 @@ Design spec v1.0 → v1.1; §12 Roman ruling appendix added with quality gates. 
 
 ---
 
+## REPORT-20: T2.02 Pirate's Plunder — Phase 2 first implementation PASS
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Trigger:** Game Dev agent `a615d77e86f564645` returned PASS; CTO review confirmed.
+
+### Summary
+
+T2.02 lands clean: 1100 LoC across 9 files, +28 unit tests (37 → 65), 12/12 smoke pass × 2 projects, **0 sacred-cow modifications confirmed**, bundle delta negligible (205.87 kB JS / 369.41 kB CSS). Commit `6a6ad39`. CTO acceptance PASS.
+
+### Implementation contract met
+
+- **Mechanical:** `+5 gold per cleared cell × min(pirateCount, 5)` exact per spec §2.1
+- **Visual:** 32-coin DOM object pool (zero `createElement` per fire — meets spec §5 performance contract)
+- **Sound:** Re-use existing coin clink at 0.5× volume (per ESC-02 O4 RE-USE-FIRST ruling)
+- **Haptic:** Re-use existing legacy `vibrate(25)` (no double-pulse; established pattern for T2.03+)
+- **Wall-time budget:** ≤6ms per fire (verified in smoke perf test, ≤20ms even on quad-clear with 32 coins)
+- **Defensive try/catch** around dispatcher so any Identity Layer bug cannot regress sacred line-clear pipeline
+
+### 3 CTO rulings established as Phase 2 implementation precedent
+
+1. **`RACE_IDENTITY_FX` sibling export pattern** — never mutate `RACE_SYNERGY.<race>` literal. T2.03–T2.06 inherit pattern.
+2. **Per-hero `h.hp > 0` defensive coding** — absence-of-hp = alive; spec §2.1 field 10 wording acknowledged as imprecise vs reality. Designer to clarify pre-T2.11.
+3. **Single haptic re-use** — Identity Layer fx do NOT stack additional `vHaptic('clear')` on top of legacy `vibrate(25)`. Avoids double-pulse.
+
+### Deferred to T2.B (Legacy Bridge — batched end-of-Phase-2)
+
+Per ADR-004 hybrid coexistence, legacy `clearLines` (line 55929 in `docs/_legacy/_archive_v1/blocksworn_index_fixed.html`) is still primary runtime and does NOT route through new `src/core/grid.js#clearLines`. Pirate Plunder gold flows only via module dynamic-import contract test, NOT live in legacy gameplay.
+
+**Rationale for batched deferral:**
+- 11 sequential legacy mutations (one per T2.02–T2.12) would create noisy git history + cascading visual regression risk
+- Single batched bridge sub-task (T2.B) at end of Phase 2 is cleaner: one mutation point, one matchup-matrix gate, one visual baseline pass
+- Module-side correctness is contract-tested at each T2.0x → design validation happens incrementally
+- Matches T1.14-T1.18 batched-cleanup discipline from Phase 1
+
+**T2.B scope (when it runs):**
+1. Inject `window.__dispatchIdentityFx?.(rows, cols, squad, currentBoss)` call into legacy `clearLines` after existing line-clear resolution
+2. Export `dispatchIdentityFx` from `src/feel/identity-fx.js` to `window.__dispatchIdentityFx` (via `src/main.js` boot chain)
+3. Run **25-smoke matchup matrix** (5 races × 5 chapter-finale bosses) — mandatory gate per ESC-02 O3 ruling. If Spark pairing exceeds expected TTK by >15%, demote per §2.5 fallback.
+4. Update 14 visual baselines from spec §7.4 (regression contract)
+5. Verify all 22 sacred Reactivity handlers byte-perfect post-batch
+6. Run Bug Tester audit before Phase 2 PR opens
+
+### What this unblocks
+
+- T2.03 Shark Feeding Frenzy — module-side implementation can proceed immediately
+- T2.04–T2.06 race flavors — same pattern as T2.02
+- T2.07–T2.11 boss-reactive — narrator placeholders OK per ESC-02 O2
+
+### Quality bar maintained
+
+| Metric | Phase 1 baseline | Post-T2.02 | AAA+ target |
+|---|---|---|---|
+| Bundle size | 4.5 MB | ~4.5 MB (negligible delta) | <5 MB ✅ |
+| Unit tests | 37 | 65 | growing with features ✅ |
+| Smoke pass | 2 projects | 12/12 × 2 projects | golden paths green ✅ |
+| Lint warnings | 0 | 0 | 0 ✅ |
+| Sacred audit | 0 mods (Phase 1) | 0 mods (T2.02) | 0 mods always ✅ |
+
+### Engineering wins
+
+- Game Dev correctly identified ADR-004 hybrid gap as their #1 unexpected finding — exactly what one-question-rule discipline produces
+- Defensive `RACE_IDENTITY_FX` sibling export shows good sacred-cow paranoia
+- 65-test unit count (vs brief target ~42) shows agent went above bar on pure-math coverage — establishes solid foundation for T2.03+ regression testing
+- Try/catch around dispatcher is exactly the right protective wrapper for sacred-pipeline integration
+
+🟢 **T2.02 DONE. Next: T2.03 Shark Feeding Frenzy.**
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)

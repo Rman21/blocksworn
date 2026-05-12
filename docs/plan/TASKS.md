@@ -2785,9 +2785,17 @@ All 9 tests pass.
 
 ---
 
-### TASK-029 (T2.02) — REVIEW (2026-05-12) — Pirate's Plunder + Identity Layer dispatcher scaffold
+### TASK-029 (T2.02) — ✅ DONE 2026-05-12 — Pirate's Plunder + Identity Layer dispatcher scaffold
 
-**Status:** IN PROGRESS → **REVIEW** (Game Dev → CTO)
+**CTO acceptance 2026-05-12:** PASS. Implementation matches spec §2.1; 36-row sacred audit verified clean; 65/65 unit + 12/12 smoke; bundle delta negligible. Commit `6a6ad39`.
+
+**CTO rulings on Game Dev's reported ambiguities (precedent for T2.03+):**
+1. **`RACE_IDENTITY_FX` sibling export accepted as canonical pattern.** Game Dev chose to NOT mutate `RACE_SYNERGY.pirate` literal (sacred-defensive). T2.03–T2.06 follow same pattern: extend `RACE_IDENTITY_FX = { ... }`; never modify `RACE_SYNERGY.<race>` literal.
+2. **Per-hero `h.hp > 0` (spec §2.1 field 10) reconciled with squad-shared HP reality.** Game Dev's defensive treatment (absence-of-hp = alive; presence-of-hp<=0 = excluded) is canonical. Designer flagged to clarify spec wording before T2.11 close.
+3. **Single haptic (not double-pulse) accepted.** Legacy `clearLines` already fires `vibrate(25)`; Identity Layer race flavors reuse existing haptic, do NOT stack a second `vHaptic('clear')`. Established for T2.03–T2.06.
+4. **Legacy bridge deferred to T2.B (batched end-of-Phase-2).** Per ADR-004, legacy still owns `clearLines` at line 55929; Pirate Plunder gold currently fires only via module dynamic-import contract test. T2.B wires all races + bosses + Codex in one coherent legacy mutation post-T2.12. Module-side correctness is the sufficient gate to continue T2.03+.
+
+**Status:** IN PROGRESS → REVIEW → **DONE** (CTO sign-off 2026-05-12)
 **Started:** 2026-05-12
 **Completed:** 2026-05-12
 **Priority:** HIGH
