@@ -3849,6 +3849,83 @@ for (const h of HERO_ROSTER) {
   h.unlocked = STARTER_HEROES.has(h.id);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// T1.13.5 (2026-05-12): Mitigation helpers relocated from legacy.
+//
+// Source: docs/_legacy/_archive_v1/blocksworn_index_fixed.html
+//   - getHeroMitigationKey(hero)       lines 38691-38702
+//   - getSquadMitigation()             lines 38768-38790
+//
+// These were `/* global */` references in damage-channels.js + stagger-loop.js
+// per T1.10.5 closeout. T1.13.5 takes ownership in heroes.js (their logical
+// home — they read HERO_ROSTER + heroUpgrades + per-hero stats) and flips
+// the consumers to ES imports.
+//
+// /* global */ surface preserved for tokens still legacy-only:
+//   - getHeroStats (the full version sits in legacy line 38709-38763; T1.10.4
+//     left it deferred — extracting it would pull in ~30 legacy bindings).
+//   - MITIGATION_CAP — sacred constant exported from src/core/damage-channels.js
+//     and bridged on window via that module's window-exposure block. A direct
+//     ES import would create a circular (damage-channels imports heroes), so
+//     we read the window binding instead. Same byte-perfect value (0.70).
+// ═══════════════════════════════════════════════════════════════════════════
+// Note: `getHeroStats` is already in the file-wide /* global */ block above
+// (line ~200). Listed here only as documentation; no separate /* global */
+// directive needed (would trigger no-redeclare).
+/* global MITIGATION_CAP */
+/* global activeSquad */
+
+// 2026-05-02 — COMBAT v2.1 P1 §3.2: maps hero role+sub-role to MITIGATION_TABLE
+// key. Role split: striker → warrior | hunter; weaver → mage | captain. Reads
+// existing HERO_ROSTER properties — no schema change.
+//   - hero.subRole === 'hunter'                     → 'striker_hunter'
+//   - hero.role    === 'striker' (default)          → 'striker_warrior'
+//   - hero.isCaptain || hero.captainOf || newRole='captain' → 'weaver_captain'
+//   - hero.role    === 'weaver' (default)           → 'weaver_mage'
+//   - hero.role    === 'guard'                      → 'guard'
+export function getHeroMitigationKey(hero) {
+  if (!hero) return 'striker_warrior';
+  if (hero.role === 'guard') return 'guard';
+  if (hero.role === 'striker') {
+    return hero.subRole === 'hunter' ? 'striker_hunter' : 'striker_warrior';
+  }
+  if (hero.role === 'weaver') {
+    const isCaptain = hero.isCaptain || hero.captainOf || hero.newRole === 'captain';
+    return isCaptain ? 'weaver_captain' : 'weaver_mage';
+  }
+  return 'striker_warrior';
+}
+
+// 2026-05-02 — COMBAT v2.1 P1 §3.3: sums mitigation contributions across the
+// active squad, capped at MITIGATION_CAP (70%). applyChannelDamage() (PR #1.B)
+// reads this for all 4 channels.
+export function getSquadMitigation() {
+  let total = 0;
+  // HERO_DECK is the live squad reference set by computeSynergies(). Falls
+  // back to activeSquad ids if HERO_DECK not yet built (e.g. menu-time call).
+  const deck = (typeof HERO_DECK !== 'undefined' && Array.isArray(HERO_DECK)) ? HERO_DECK : null;
+  if (deck) {
+    for (const h of deck) {
+      if (!h) continue;
+      if (typeof getHeroStats !== 'function') continue;
+      const stats = getHeroStats(h);
+      total += stats.mitigationContribution || 0;
+    }
+  } else if (typeof activeSquad !== 'undefined' && Array.isArray(activeSquad)
+             && typeof HERO_ROSTER !== 'undefined') {
+    for (const id of activeSquad) {
+      if (!id) continue;
+      const h = HERO_ROSTER.find(x => x && x.id === id);
+      if (!h) continue;
+      if (typeof getHeroStats !== 'function') continue;
+      const stats = getHeroStats(h);
+      total += stats.mitigationContribution || 0;
+    }
+  }
+  const cap = (typeof MITIGATION_CAP !== 'undefined') ? MITIGATION_CAP : 0.70;
+  return Math.min(cap, total);
+}
+
 // ===== PUBLIC EXPORTS =====
 // Aliases / barrel exports so T1.10.9 wire-up can `import { ... } from
 // 'src/core/heroes.js'` without renaming legacy callsites. Mutable bindings

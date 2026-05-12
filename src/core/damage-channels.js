@@ -120,11 +120,14 @@
 /* eslint-disable no-empty, no-unused-vars */
 
 // T1.13.1: /* global */ → ES imports for resolved src/ exports.
+// T1.13.5 (2026-05-12): getSquadMitigation + getHeroMitigationKey relocated
+//   to heroes.js (their logical home); flipped from /* global */ to ES import.
 import {
   _getT2TankMitigationBoost,
   _computeTankPressureConversion, _maybeFireT2TankReactive,
   showAegisProtocolFXImpl as showAegisProtocolFX,
   showTankConversionFXImpl as showTankConversionFX,
+  getSquadMitigation, getHeroMitigationKey,
 } from './heroes.js';
 import { addPressure } from './stagger-loop.js';
 import { STIHIYA_COLORS } from '../data/elements.js';
@@ -133,7 +136,7 @@ import { logEvent } from '../services/analytics.js';
 import { log } from '../services/logger.js';
 
 // Residual legacy-owned tokens:
-/* global getSquadMitigation, _t2BonusInDeck,
+/* global _t2BonusInDeck,
    _getIronscaleIronHideMitBonus,
    aegisActive, aegisProtocolTurnsActive,
    maelenShieldNoDecay,
@@ -447,6 +450,11 @@ if (typeof window !== 'undefined') {
   window.MITIGATION_CAP                    = MITIGATION_CAP;
   window.MITIGATION_TABLE                  = MITIGATION_TABLE;
   window.LEVEL_MITIGATION_PER              = LEVEL_MITIGATION_PER;
+  // T1.13.5: bridge the relocated mitigation helpers so legacy code (which
+  // reads bare `getSquadMitigation` / `getHeroMitigationKey`) still resolves.
+  // Mirrors the legacy line 38791-38794 window-exposure block.
+  window.getSquadMitigation                = getSquadMitigation;
+  window.getHeroMitigationKey              = getHeroMitigationKey;
 }
 
 // Quiet T1.10.5 boot acknowledgement — confirms the module side-effects

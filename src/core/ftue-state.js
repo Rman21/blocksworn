@@ -100,6 +100,21 @@ import { log } from '../services/logger.js';
 // (matches legacy 24329 semantics: bypasses transition validation by design).
 let ftueBeat = 'not_started';
 
+// T1.13.5 (2026-05-12): window bridge for cross-module legacy-style reads.
+// battle.js (and a handful of other modules) still references `ftueBeat` as
+// a bare identifier per the legacy contract. Mirrors the T1.10.6/T1.10.7
+// Object.defineProperty pattern: get/set route through the module-private
+// `ftueBeat` binding so this stays the single source of truth. Writes via
+// window.ftueBeat bypass transition validation by design (legacy semantics
+// — same as resetFtue path).
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'ftueBeat', {
+    configurable: true,
+    get: () => ftueBeat,
+    set: (v) => { ftueBeat = v; },
+  });
+}
+
 // Battle-scoped flag — reset at every battle start (legacy 24117).
 // Exposed via getter/setter so battle code (T1.10.9) can flip it without
 // re-exporting the module-local binding.

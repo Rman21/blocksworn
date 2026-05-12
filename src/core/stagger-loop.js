@@ -158,7 +158,8 @@
 /* eslint-disable no-empty, no-unused-vars */
 
 // T1.13.1: /* global */ → ES imports for resolved src/ exports.
-import { getStaggerTriggerThreshold, HERO_ROSTER, tickAegisProtocol } from './heroes.js';
+// T1.13.5 (2026-05-12): getSquadMitigation flipped to ES import (was /* global */).
+import { getStaggerTriggerThreshold, HERO_ROSTER, tickAegisProtocol, getSquadMitigation } from './heroes.js';
 import { _getBossSignatureTier, CHANNEL_SIGNATURE_DMG, applyChannelDamage } from './damage-channels.js';
 import { getHeroLevel, saveProgress } from './progression.js';
 import { STIHIYAS } from '../data/elements.js';
@@ -181,7 +182,7 @@ import { log } from '../services/logger.js';
 // Heroes / tower references (residual legacy-owned):
 /* global HERO_DECK, activeSquad, heroUpgrades,
    ultCharges, currentUltThreshold, ULT_THRESHOLD, essences, towerState,
-   addTowerPoints, saveTowerState, getSquadMitigation */
+   addTowerPoints, saveTowerState */
 // Sacred constants (residual legacy-owned):
 /* global MAX_SHIELD */
 // FTUE dialog (residual legacy-owned):

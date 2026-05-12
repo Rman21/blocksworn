@@ -46,6 +46,14 @@ import { initFtueState, isFtueActive, routeByFtue } from './core/ftue-state.js';
 // UI router.
 import { setupRouting, showScreen } from './ui/router.js';
 
+// T1.13.5 (2026-05-12): bridge `showScreen` onto window so legacy inline
+// onclick="showScreen('menu')" handlers (still present in any scaffold the
+// new shell mounts) resolve. Cosmetic — required for compatibility with the
+// legacy-style call sites that survived the T1.12 switchover.
+if (typeof window !== 'undefined') {
+  window.showScreen = showScreen;
+}
+
 async function main() {
   // 1. Sentry first — every subsequent error goes to Sentry.
   try { initSentry(); } catch (err) { log.error('[boot] initSentry failed:', err); }

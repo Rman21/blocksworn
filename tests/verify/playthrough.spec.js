@@ -176,9 +176,19 @@ test('A.1+A.2 cold-boot + FTUE flow observation', async ({ page }) => {
       return ov && !ov.classList.contains('hidden');
     });
     if (dialogVisible) {
-      // try tap-to-continue
-      try { await page.click('#dialogOverlay', { timeout: 1000 }); }
-      catch (_e) { /* not clickable */ }
+      // T1.13.5 tweak: prefer #dialogCtaBtn when visible (lines with ctaLabel
+      // gate the overlay-tap advance). Fall back to overlay tap otherwise.
+      const ctaVisible = await page.evaluate(() => {
+        const b = document.getElementById('dialogCtaBtn');
+        return b && !b.hidden;
+      });
+      if (ctaVisible) {
+        try { await page.click('#dialogCtaBtn', { timeout: 1000 }); }
+        catch (_e) { /* not clickable */ }
+      } else {
+        try { await page.click('#dialogOverlay', { timeout: 1000 }); }
+        catch (_e) { /* not clickable */ }
+      }
     } else if (introVisible) {
       try { await page.click('#introVideoOverlay', { timeout: 1000 }); }
       catch (_e) { /* */ }
