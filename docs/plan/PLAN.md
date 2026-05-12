@@ -13,9 +13,11 @@
   - Cross-boundary deferrals (placePiece return, ~600 LoC dead hero code, getSquadMitigation ownership)
   - Future quality upgrade: re-import parent-dir PNG originals + re-capture baselines (currently using legacy JPEG-compressed `sips -Z 1024 q85`)
 - **CI status:** ✅ ALL GREEN (PR #158, 6 iterations to fix Node/lockfile/vitest/threshold/visual)
-- **T1.13 verdict:** **NO-GO for T1.14** — boot/shim/router work; renders empty (vRender* family + FTUE launcher wiring + mitigation extraction still needed). Lighthouse Performance 99/100 (AAA+ met); TTI 11s is empty-shell artifact.
-- **Active sub-task:** T1.13.5 — close 4 runtime gaps before T1.14 cleanup can start
-- **Last updated:** 2026-05-12 by CTO (after T1.13 verify)
+- **Architectural decision (ADR-004):** Phase 1 closes at INFRASTRUCTURE level, not "new shell plays game". Legacy stays primary runtime; src/ modules retire naturally via Phase 2-4 feature work. Approved by Roman 2026-05-12.
+- **T1.13 redefined:** "infrastructure verify" (CI green + bundle + smoke + visual + boot chain) — ✅ DONE. NOT "new shell full playthrough". That goal deferred to optional future switchover sprint.
+- **Active task:** T1.14 — DELETE artifact subsystem from legacy (v2.1 P1 §4 completion)
+- **Phase 1 endgame:** T1.14-T1.20 cleanup over legacy + Roman merge PR #158 → Phase 2 starts
+- **Last updated:** 2026-05-12 by CTO (after Roman approved Path A — Hybrid Coexistence)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -62,8 +64,8 @@
 - [x] T1.10 — Extract core game logic to `src/core/` — ✅ **DONE 2026-05-11** (9/9 sub-tasks; **12,164 LoC across 9 modules**; sacred v2.1 P1+P2+P4 all preserved byte-perfect; migration shim landed for 9 bare-string keys)
 - [x] T1.11 — Extract UI screens to `src/ui/` — **DONE 2026-05-11** (commits `e0fbb2c`, `f3ad6ef`; 10 modules / 3,021 LoC; onBossDefeated 545 LoC + 16 small ticks landed inline; 10 large ticks + Ch3 SM deferred to T1.11.1)
 - [x] T1.11.1 — Land deferred archetype tick handlers + Ch3 state machine — **DONE 2026-05-11** (commits `ca6d351`, `943018e`; src/ui/archetype-ticks.js 2,007 LoC; 11 owners + helpers; battle-screen.js dispatcher cleaned of `/* global */` tick stubs)
-- [x] T1.12 — Wire `src/main.js` entry point — **STRUCTURAL DONE 2026-05-11** (commits `b87a57e`, `4b9c790`; index.html 113 LoC scaffold + src/main.js 94 LoC boot + migration shim first-boot active; bundle 400KB; **functional wire-up of remaining `/* global */` → imports deferred to T1.13**)
-- [ ] T1.13 — Verify game runs identically + visual regression pass — IN PROGRESS (**expanded scope:** flip remaining `/* global */` → ES imports in router/menu/etc. so heavy modules tree-shake correctly; manual playthrough; Lighthouse ≥90; bundle audit; cross-boundary deferrals; optional baseline re-capture against new shell)
+- [x] T1.12 — Wire `src/main.js` entry point — **STRUCTURAL DONE 2026-05-11** (commits `b87a57e`, `4b9c790`; index.html 113 LoC scaffold + src/main.js 94 LoC boot + migration shim first-boot active; bundle 400KB)
+- [x] T1.13 — Verify (INFRASTRUCTURE only per ADR-004) — **DONE 2026-05-12** (commits `c49bbce`, `52c3999`; Lighthouse Perf 99/100; CI green; smoke 4/4 on Linux; visual 11/11 chromium; bundle 4.5MB under cap; cross-boundary deferrals audited; **NEW shell full-playthrough goal moved to optional future switchover sprint per ADR-004 Hybrid Coexistence**)
 
 **Week 4-5: Logic + UI extraction**
 - [ ] T1.09 — Extract feel layer (haptics, animations, particles, narrator) — TODO

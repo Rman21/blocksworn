@@ -1139,6 +1139,68 @@ After T1.13: T1.14-T1.20 cleanup (Artifact subsystem DELETE, Cosmic Memorial DEL
 
 ---
 
+## REPORT-16: ADR-004 Path A — Hybrid Runtime Coexistence (Roman approved)
+
+**Date:** 2026-05-12
+**Author:** CTO
+**Phase:** 1 — endgame scope clarification
+**Trigger:** T1.13.6 agent stall + diminishing returns on T1.13.N wire-up iterations + CTO Path A recommendation + Roman approval
+
+### Summary
+
+**Phase 1 scope formally redefined.** New shell at `/` ships as INFRASTRUCTURE-only milestone. Legacy URL remains primary runtime through Phase 1 endgame. New features in Phase 2-4 land **only** in `src/`. Legacy retires naturally via attrition (or future dedicated switchover sprint).
+
+ADR-004 documents the decision: `/Users/rm/Downloads/game file/.claude/worktrees/dreamy-bouman-f8e247/docs/adr/004-hybrid-runtime-coexistence.md`.
+
+### Reasoning
+
+Execution Plan T1.12-T1.13 expected end-of-pure-relocation switchover. In execution, 6 iterations (T1.13.1-.5 + .6 attempt) progressively closed wire-up gaps but each fix revealed next layer. Legacy was monolithic scope — no clean seam. AAA+ migration patterns (Discord, VS Code, Slack, GitHub) routinely maintain hybrid runtimes for substantial time.
+
+Per CLAUDE.md §7.4 "No parallel feature work во время Phase 1" — keeping Phase 1 focused on foundation + cleanup, not also a full UI rewrite, aligns with discipline.
+
+### What changes operationally
+
+1. **Legacy byte-identity rule retires (controlled):** T1.14-T1.20 cleanup tasks may modify legacy to delete dead code. Smoke + visual + CI gates remain authoritative. SHA-256 audit trail moves to git commit history.
+2. **PR #158** stays open as "Phase 1 milestone PR"; merges when 20/20 + GO.
+3. **T1.14 starts now** (DELETE artifact subsystem).
+4. **Phase 2 Identity Layer** activates `src/feel/identity-fx.js` etc. — first live feature using new architecture. Per-feature switchover replaces all-at-once switchover.
+
+### What doesn't change
+
+- Sacred cows (CLAUDE.md §2) — still byte-perfect required
+- Test gates — smoke + visual + unit + lint + build still authoritative
+- AAA+ standards (CLAUDE.md §3) — still apply
+- Phase 2-4 scope per Execution Plan
+- Migration shim (`src/services/migrate.js`) — still active when new shell eventually becomes primary
+
+### Risks accepted
+
+- Two runtime paths coexist for Phase 2-4 (small overhead for new contributors)
+- "New shell IS the game" moment is deferred (no Phase 1 endgame switchover celebration)
+- Legacy mutations during T1.14-T1.20 lose SHA-256 invariant (replaced by git audit trail)
+- Future switchover sprint required at some point (could be late Phase 4 or post-launch)
+
+### Sequencing forward (Phase 1 endgame)
+
+| Task | Output | Scope |
+|---|---|---|
+| T1.14 | DELETE artifact subsystem | Legacy + verify zero src/ refs |
+| T1.15 | DELETE Cosmic Memorial | Legacy + zero src/ refs |
+| T1.16 | DELETE legacy `--v-*` CSS tokens | Already partial; verify final |
+| T1.17 | Replace 100-hearts UI in combat top bar | Legacy + maybe new baseline |
+| T1.18 | Consolidate shop pack systems | Legacy + src/data/monetization-config.js cleanup |
+| T1.19 | Complete v2.1 Mythic ability framework | Verify (T1.10.4 confirmed 25/25 descriptors) |
+| T1.20 | Complete v2.1 Player Segments | Implement getPlayerSegment in src/services/analytics.js |
+
+ETA at current pace: 3-5 sessions to Phase 1 100%.
+
+### Roman next actions (none blocking)
+
+- Merge PR #158 when 20/20 OR keep iterating on branch until done
+- Sign-off on ADR-004 (already approved verbally; this REPORT-16 documents it)
+
+---
+
 ## ESCALATIONS
 
 ### ESCALATION ESC-01: Node.js / npm not installed on host
