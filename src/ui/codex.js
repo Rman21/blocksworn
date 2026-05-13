@@ -46,6 +46,7 @@
 // + boss thumbnails (spec §4.8 — "no new asset budget needed for MVP").
 
 /* eslint-disable no-empty */
+/* global flashStateBanner */
 
 import {
   CODEX_LOCALSTORAGE_KEY,
@@ -56,6 +57,16 @@ import {
   CODEX_STATE,
   CODEX_TABS,
   CODEX_DEFAULT_TAB,
+  // Phase 2.5 FTUE polish — F-03 Codex on-discover toast templates (TASK-045).
+  CODEX_TOAST_RACE_ENCOUNTERED_PLACEHOLDER,
+  CODEX_TOAST_RACE_MASTERED_PLACEHOLDER,
+  CODEX_TOAST_BOSS_ENCOUNTERED_PLACEHOLDER,
+  CODEX_TOAST_BOSS_DEFEATED_PLACEHOLDER,
+  CODEX_TOAST_MOMENT_WITNESSED_PLACEHOLDER,
+  CODEX_TOAST_PARCHMENT_COLOR,
+  CODEX_TOAST_GOLD_COLOR,
+  CODEX_TOAST_ENCOUNTER_DURATION_MS,
+  CODEX_TOAST_MASTERY_DURATION_MS,
 } from '../data/identity-layer.js';
 import { RACE_SYNERGY, RACE_IDENTITY_FX, RACE_TO_STIHIYA } from '../data/races.js';
 import { BOSS_IDENTITY_FX } from '../data/bosses.js';
@@ -218,6 +229,9 @@ export function recordRaceTrigger(raceKey) {
   try {
     const state = getCodexState();
     const races = state.races;
+    const prevEntry = races[raceKey];
+    const wasEncountered = !!(prevEntry && prevEntry.encountered);
+    const wasMastered = !!(prevEntry && prevEntry.mastered);
     if (!races[raceKey]) {
       races[raceKey] = { encountered: true, mastered: false, triggerCount: 0 };
     }
@@ -228,6 +242,17 @@ export function recordRaceTrigger(raceKey) {
       entry.mastered = true;
     }
     saveCodexState(state);
+
+    // Phase 2.5 FTUE polish — F-03 on-discover toast emit (TASK-045).
+    // Detect transitions AFTER state write so the toast fires alongside
+    // the persisted promotion. Each branch is defensive (try/catch around
+    // the toast helper call — toast must NEVER regress recording).
+    if (!wasEncountered) {
+      _emitCodexToast('race_encountered', raceKey);
+    }
+    if (!wasMastered && entry.mastered) {
+      _emitCodexToast('race_mastered', raceKey);
+    }
   } catch (_e) { /* defensive — recording must never throw */ }
 }
 
@@ -236,12 +261,19 @@ export function recordBossEncounter(bossKey) {
   try {
     const state = getCodexState();
     const bosses = state.bosses;
+    const prevEntry = bosses[bossKey];
+    const wasEncountered = !!(prevEntry && prevEntry.encountered);
     if (!bosses[bossKey]) {
       bosses[bossKey] = { encountered: true, mastered: false, defeatedCount: 0, firstSeenAt: _firstSeenStamp() };
     } else {
       bosses[bossKey].encountered = true;
     }
     saveCodexState(state);
+
+    // Phase 2.5 FTUE polish — F-03 boss-encountered toast (TASK-045).
+    if (!wasEncountered) {
+      _emitCodexToast('boss_encountered', bossKey);
+    }
   } catch (_e) { /* defensive */ }
 }
 
@@ -250,6 +282,8 @@ export function recordBossDefeat(bossKey) {
   try {
     const state = getCodexState();
     const bosses = state.bosses;
+    const prevEntry = bosses[bossKey];
+    const wasMastered = !!(prevEntry && prevEntry.mastered);
     if (!bosses[bossKey]) {
       bosses[bossKey] = { encountered: true, mastered: false, defeatedCount: 0, firstSeenAt: _firstSeenStamp() };
     }
@@ -260,6 +294,12 @@ export function recordBossDefeat(bossKey) {
       entry.mastered = true;
     }
     saveCodexState(state);
+
+    // Phase 2.5 FTUE polish — F-03 boss-defeated toast on first defeat
+    // (TASK-045). CODEX_BOSS_MASTERY_DEFEATS = 1 → fires on first defeat.
+    if (!wasMastered && entry.mastered) {
+      _emitCodexToast('boss_defeated', bossKey);
+    }
   } catch (_e) { /* defensive */ }
 }
 
@@ -281,7 +321,83 @@ export function recordMomentTrigger(momentKey) {
       moments.push({ id: momentKey, firstSeenAt: _firstSeenStamp(), count: 1 });
     }
     saveCodexState(state);
+
+    // Phase 2.5 FTUE polish — F-03 moment-witnessed toast on first append
+    // (TASK-045). `found` is null on first encounter; truthy on subsequent.
+    if (!found) {
+      _emitCodexToast('moment_witnessed', momentKey);
+    }
   } catch (_e) { /* defensive */ }
+}
+
+// ─── F-03 Codex on-discover toast helper (Phase 2.5, TASK-045) ─────────
+//
+// Emit a 1-line dopamine toast via `flashStateBanner` (legacy global) on
+// each first-time Codex discovery transition. Re-uses the existing UI
+// surface — no new component. Per Designer spec §3.3.
+//
+// Sacred safety:
+//   - `flashStateBanner` signature `(text, color, durationMs)` UNCHANGED.
+//   - Codex state schema UNTOUCHED — this is read-only (transitions detected
+//     by capturing prev state before write).
+//   - try/catch swallows all errors — toast MUST NEVER regress recording
+//     (sacred-adjacent path: recording → save → toast).
+//   - FTUE Chronicle silence guard: `flashStateBanner` legacy impl returns
+//     silently when `ftueBeat === 'chronicle_fight'` (matches §3.3.9).
+function _emitCodexToast(discoveryType, key) {
+  try {
+    // Resolve display name. Race/boss/moment have different lookup paths.
+    let name = '???';
+    let template = '';
+    let color = CODEX_TOAST_PARCHMENT_COLOR;
+    let duration = CODEX_TOAST_ENCOUNTER_DURATION_MS;
+    if (discoveryType === 'race_encountered') {
+      name = _resolveRaceDisplayName(key);
+      template = CODEX_TOAST_RACE_ENCOUNTERED_PLACEHOLDER;
+    } else if (discoveryType === 'race_mastered') {
+      name = _resolveRaceDisplayName(key);
+      template = CODEX_TOAST_RACE_MASTERED_PLACEHOLDER;
+      color = CODEX_TOAST_GOLD_COLOR;
+      duration = CODEX_TOAST_MASTERY_DURATION_MS;
+    } else if (discoveryType === 'boss_encountered') {
+      name = _resolveBossDisplayName(key);
+      template = CODEX_TOAST_BOSS_ENCOUNTERED_PLACEHOLDER;
+    } else if (discoveryType === 'boss_defeated') {
+      name = _resolveBossDisplayName(key);
+      template = CODEX_TOAST_BOSS_DEFEATED_PLACEHOLDER;
+      color = CODEX_TOAST_GOLD_COLOR;
+      duration = CODEX_TOAST_MASTERY_DURATION_MS;
+    } else if (discoveryType === 'moment_witnessed') {
+      name = _momentDisplayName(key);
+      template = CODEX_TOAST_MOMENT_WITNESSED_PLACEHOLDER;
+    } else {
+      return;
+    }
+    const text = template.replace('{NAME}', name);
+    // `flashStateBanner` is a legacy global (window-bound by the original
+    // single-HTML). Defensive typeof check — silent no-op in Node test envs.
+    if (typeof flashStateBanner !== 'undefined' && typeof flashStateBanner === 'function') {
+      flashStateBanner(text, color, duration);
+    } else if (typeof window !== 'undefined' && typeof window.flashStateBanner === 'function') {
+      window.flashStateBanner(text, color, duration);
+    }
+  } catch (_e) { /* defensive — toast must never throw */ }
+}
+
+function _resolveRaceDisplayName(raceKey) {
+  if (!raceKey) return '???';
+  for (let i = 0; i < CODEX_RACES.length; i++) {
+    if (CODEX_RACES[i].key === raceKey) return CODEX_RACES[i].label || raceKey.toUpperCase();
+  }
+  return String(raceKey).toUpperCase();
+}
+
+function _resolveBossDisplayName(bossKey) {
+  if (!bossKey) return '???';
+  for (let i = 0; i < CODEX_BOSSES.length; i++) {
+    if (CODEX_BOSSES[i].key === bossKey) return CODEX_BOSSES[i].name || bossKey.toUpperCase();
+  }
+  return String(bossKey).toUpperCase();
 }
 
 // "First seen" stamp — current day-of-month ISO-ish marker. Spec §4.4 example

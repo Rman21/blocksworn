@@ -1,0 +1,115 @@
+/* identity-fx-tutorial.css — Phase 2.5 FTUE polish (TASK-045).
+ *
+ * First-time tutorial overlay for Sun Cascade / Cursed Tiles / Bloodtide
+ * Pulse mechanics. Parchment-card styling per Designer spec §3.x.4
+ * (docs/design/phase2-5-ftue-polish.md).
+ *
+ * Z-index strategy: above battle layer (battle uses ~z 1-100), below
+ * modals (#infoModal uses z 10001). 5000 sits cleanly between.
+ *
+ * Accessibility: prefers-reduced-motion fallback replaces slide-in with
+ * static fade (matches Designer §2.4).
+ */
+
+.identity-fx-tutorial {
+  /* Layered card — non-modal (player can keep playing while reading). */
+  position: fixed;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%) translateY(20px);
+  z-index: 5000;
+  display: none;
+  width: min(380px, 92vw);
+  padding: 14px 16px 14px 14px;
+  box-sizing: border-box;
+
+  /* Parchment-card visual — beige bg, gold-leaf border per accent color. */
+  background: linear-gradient(180deg, #E8DAB6 0%, #D9C898 100%);
+  color: #2B1B0A;
+  border: 2px solid var(--identity-fx-tutorial-accent, #FFD700);
+  border-radius: 8px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.55),
+    0 0 18px var(--identity-fx-tutorial-accent, rgba(255, 215, 0, 0.45));
+
+  /* Layout — emblem left, body right. */
+  display: none;  /* re-asserted (rule above sets it) */
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  transition: transform 200ms ease-out, opacity 200ms ease-out;
+}
+
+.identity-fx-tutorial--visible {
+  display: flex !important;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+.identity-fx-tutorial--exiting {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
+}
+
+.identity-fx-tutorial__emblem {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+}
+
+.identity-fx-tutorial__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.identity-fx-tutorial__title {
+  font-family: var(--a-font-display, 'Cinzel', 'Georgia', serif);
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--identity-fx-tutorial-accent, #8A6A1F);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+  margin: 0 0 2px 0;
+}
+
+.identity-fx-tutorial__line {
+  font-family: 'Georgia', 'Cambria', serif;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #2B1B0A;
+  margin: 0;
+}
+
+.identity-fx-tutorial__line-1 {
+  font-weight: 700;
+}
+
+.identity-fx-tutorial__line-2 {
+  font-style: italic;
+  color: #4A3520;
+}
+
+/* Reduced-motion fallback: replace slide-in with static fade. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-fx-tutorial {
+    transition: opacity 200ms ease-out;
+    transform: translateX(-50%) translateY(0);
+  }
+  .identity-fx-tutorial--visible {
+    transform: translateX(-50%) translateY(0);
+  }
+  .identity-fx-tutorial--exiting {
+    transform: translateX(-50%) translateY(0);
+  }
+}

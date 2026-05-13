@@ -909,3 +909,72 @@ export const CODEX_TABS = Object.freeze(['races', 'bosses', 'moments']);
 
 // Default tab opened on first nav per spec §4.2.
 export const CODEX_DEFAULT_TAB = 'races';
+
+// ─── Phase 2.5 FTUE polish (TASK-044 design / TASK-045 wire) ────────────
+// FIRST-TIME-ONLY tutorial overlay lines. Each fires exactly once per
+// player (gated by localStorage key). Lives OUTSIDE sacred NARRATOR_LINES
+// table per CLAUDE.md §2.3 — same isolation pattern as
+// ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER above.
+//
+// Spec: docs/design/phase2-5-ftue-polish.md (Designer, 2026-05-13).
+// Architecture: Option C split — rich overlay for F-01/F-02/F-04 (tutorials)
+// + flashStateBanner toast for F-03 (Codex dopamine beats).
+//
+// FINAL COPY: pending Roman approval (ESC-02 O2 placeholder-first ruling).
+
+// F-01 Sun Cascade — first promotion ("modifier > 0" first time).
+export const SUN_CASCADE_FIRST_PROMOTION_LINE_1_PLACEHOLDER = 'Your strike was promoted.';
+export const SUN_CASCADE_FIRST_PROMOTION_LINE_2_PLACEHOLDER = 'Solar burns brighter when solar is plentiful.';
+export const SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_LOCALSTORAGE_KEY = 'blocksworn_sun_cascade_seen';
+export const SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_TITLE = 'SUN CASCADE';
+export const SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_ACCENT = '#FFD700';  // gold
+export const SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_EMBLEM = 'spark';
+
+// F-02 Lich Cursed Tiles — first fire ("picks.length > 0" first time).
+export const CURSED_TILES_FIRST_FIRE_LINE_1_PLACEHOLDER = 'You hunt with sharks.';
+export const CURSED_TILES_FIRST_FIRE_LINE_2_PLACEHOLDER = 'The deep hunts hunters.';
+export const CURSED_TILES_FIRST_FIRE_TUTORIAL_LOCALSTORAGE_KEY = 'blocksworn_cursed_tiles_seen';
+export const CURSED_TILES_FIRST_FIRE_TUTORIAL_TITLE = 'CURSED TILES';
+export const CURSED_TILES_FIRST_FIRE_TUTORIAL_ACCENT = '#9D40C4';  // purple (CURSED_TILES_SKULL_COLOR family)
+export const CURSED_TILES_FIRST_FIRE_TUTORIAL_EMBLEM = 'lich';
+
+// F-04 Berserker Bloodtide Pulse — first fire.
+export const BLOODTIDE_PULSE_FIRST_FIRE_LINE_1_PLACEHOLDER = 'The dragon counts your strikes.';
+export const BLOODTIDE_PULSE_FIRST_FIRE_LINE_2_PLACEHOLDER = 'Every third, it answers.';
+export const BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_LOCALSTORAGE_KEY = 'blocksworn_bloodtide_seen';
+export const BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_TITLE = 'BLOODTIDE PULSE';
+export const BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_ACCENT = '#FF4D1F';  // red (BLOODTIDE_PULSE_COLOR family)
+export const BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_EMBLEM = 'pyredrake';
+
+// Auto-dismiss timing (matches ROOT_SURGE_ACTIVE_WINDOW_MS / Phoenix Ashen
+// Reign "read window" precedent). 5 seconds is long enough for two-line
+// poetic copy + still feels non-blocking. Spec §2.3 performance budget.
+export const IDENTITY_FX_TUTORIAL_AUTO_DISMISS_MS = 5000;
+
+// Performance budget for single-fire overlay component (gate check + DOM
+// activation + localStorage write). Per spec §2.3 aggregate ≤3.5ms.
+export const IDENTITY_FX_TUTORIAL_FIRST_FIRE_BUDGET_MS = 6;  // p99 ceiling
+export const IDENTITY_FX_TUTORIAL_STEADY_STATE_BUDGET_MS = 1;  // gate-check only
+
+// ─── F-03 Codex on-discover toast templates ─────────────────────────────
+// Composed at fire-time with `{NAME}` placeholder substitution. Re-uses
+// existing `flashStateBanner(text, color, durationMs)` UI surface — NO
+// new component needed. Spec §3.3.
+//
+// Dopamine-beat copy: 1 line, 4-8 words, Chronicler voice anchors
+// "the Codex remembers / grows" / "its name is now known" thread.
+export const CODEX_TOAST_RACE_ENCOUNTERED_PLACEHOLDER = '{NAME} — recorded in the Codex.';
+export const CODEX_TOAST_RACE_MASTERED_PLACEHOLDER    = '{NAME} mastered. The Codex remembers.';
+export const CODEX_TOAST_BOSS_ENCOUNTERED_PLACEHOLDER = '{NAME} — its name is now known.';
+export const CODEX_TOAST_BOSS_DEFEATED_PLACEHOLDER    = '{NAME} falls. The Codex grows.';
+export const CODEX_TOAST_MOMENT_WITNESSED_PLACEHOLDER = 'NEW MOMENT — {NAME}.';
+
+// Toast accent colors. Parchment for encounter (calm); gold for mastery
+// (celebratory parity with race-mastery dopamine weight).
+export const CODEX_TOAST_PARCHMENT_COLOR = '#E8DAB6';  // race/boss encountered + moment witnessed
+export const CODEX_TOAST_GOLD_COLOR      = '#FFD700';  // race mastered + boss defeated
+
+// Toast durations. Encounter-tier 1800ms (peripheral ack); mastery-tier
+// 2200ms (reads slightly longer, important beat).
+export const CODEX_TOAST_ENCOUNTER_DURATION_MS = 1800;
+export const CODEX_TOAST_MASTERY_DURATION_MS   = 2200;

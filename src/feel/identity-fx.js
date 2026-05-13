@@ -118,6 +118,25 @@ import {
   ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER,
   ROOT_SURGE_INITIAL_BUDGET_MS,
   ROOT_SURGE_PER_TURN_TICK_BUDGET_MS,
+  // Phase 2.5 FTUE polish — tutorial overlay placeholders (TASK-045).
+  SUN_CASCADE_FIRST_PROMOTION_LINE_1_PLACEHOLDER,
+  SUN_CASCADE_FIRST_PROMOTION_LINE_2_PLACEHOLDER,
+  SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_LOCALSTORAGE_KEY,
+  SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_TITLE,
+  SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_ACCENT,
+  SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_EMBLEM,
+  CURSED_TILES_FIRST_FIRE_LINE_1_PLACEHOLDER,
+  CURSED_TILES_FIRST_FIRE_LINE_2_PLACEHOLDER,
+  CURSED_TILES_FIRST_FIRE_TUTORIAL_LOCALSTORAGE_KEY,
+  CURSED_TILES_FIRST_FIRE_TUTORIAL_TITLE,
+  CURSED_TILES_FIRST_FIRE_TUTORIAL_ACCENT,
+  CURSED_TILES_FIRST_FIRE_TUTORIAL_EMBLEM,
+  BLOODTIDE_PULSE_FIRST_FIRE_LINE_1_PLACEHOLDER,
+  BLOODTIDE_PULSE_FIRST_FIRE_LINE_2_PLACEHOLDER,
+  BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_LOCALSTORAGE_KEY,
+  BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_TITLE,
+  BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_ACCENT,
+  BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_EMBLEM,
 } from '../data/identity-layer.js';
 import { RACE_SYNERGY } from '../data/races.js';
 import {
@@ -1930,6 +1949,26 @@ export function fxSparkLineClear(rows, cols, squad, ctx) {
       ctx._dominantCountModifier = prev + modifier;
     }
 
+    // ── F-01 Sun Cascade first-promotion tutorial overlay (TASK-045) ──
+    // Persists via localStorage[SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_LOCALSTORAGE_KEY]
+    // so it fires exactly once per player. Lives OUTSIDE sacred NARRATOR_LINES
+    // table per CLAUDE.md §2.3. Wrapped in try/catch — tutorial MUST NEVER
+    // regress the sacred fx pipeline. Designer spec §3.1.
+    if (modifier > 0) {
+      try {
+        if (typeof window !== 'undefined' && typeof window.showFirstTimeTutorialOverlay === 'function') {
+          window.showFirstTimeTutorialOverlay({
+            emblem:         SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_EMBLEM,
+            title:          SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_TITLE,
+            line1:          SUN_CASCADE_FIRST_PROMOTION_LINE_1_PLACEHOLDER,
+            line2:          SUN_CASCADE_FIRST_PROMOTION_LINE_2_PLACEHOLDER,
+            accentColor:    SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_ACCENT,
+            persistenceKey: SUN_CASCADE_FIRST_PROMOTION_TUTORIAL_LOCALSTORAGE_KEY,
+          });
+        }
+      } catch (_e) { /* defensive — tutorial is non-essential to gameplay */ }
+    }
+
     // ── VISUAL PATH (always fires when gate passes; runs even when
     // SPARK_CASCADE_ENABLED is `false` — pure-FX fallback path) ──
     // Build the set of cleared cell (r,c) coords AND the subset of those
@@ -2728,6 +2767,26 @@ export function fxLichCursedTiles(_bossState, ctx) {
       });
     }
 
+    // ── F-02 Cursed Tiles first-fire tutorial overlay (TASK-045) ──
+    // Persists via localStorage[CURSED_TILES_FIRST_FIRE_TUTORIAL_LOCALSTORAGE_KEY]
+    // so it fires exactly once per player. Lives OUTSIDE sacred NARRATOR_LINES
+    // table per CLAUDE.md §2.3. Fires AFTER skull-placement loop completes —
+    // player has seen cause, overlay explains effect. Per-fire boss line via
+    // PR #160 fires alongside (~200ms stagger) on first fire; only boss line
+    // fires on subsequent. Designer spec §3.2 + §4.4 choreography.
+    try {
+      if (typeof window !== 'undefined' && typeof window.showFirstTimeTutorialOverlay === 'function') {
+        window.showFirstTimeTutorialOverlay({
+          emblem:         CURSED_TILES_FIRST_FIRE_TUTORIAL_EMBLEM,
+          title:          CURSED_TILES_FIRST_FIRE_TUTORIAL_TITLE,
+          line1:          CURSED_TILES_FIRST_FIRE_LINE_1_PLACEHOLDER,
+          line2:          CURSED_TILES_FIRST_FIRE_LINE_2_PLACEHOLDER,
+          accentColor:    CURSED_TILES_FIRST_FIRE_TUTORIAL_ACCENT,
+          persistenceKey: CURSED_TILES_FIRST_FIRE_TUTORIAL_LOCALSTORAGE_KEY,
+        });
+      }
+    } catch (_e) { /* defensive — tutorial is non-essential to gameplay */ }
+
     // T2.12 (2026-05-12): Codex recording — Lich Cursed Tiles moment witnessed.
     try { recordMomentTrigger('lich_cursed_tiles'); } catch (_e) { /* defensive */ }
   } finally {
@@ -3167,6 +3226,26 @@ export function resetBloodtide() {
 export function fxBerserkerBloodtidePulse(_bossState, ctx) {
   const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
   try {
+    // ── F-04 Bloodtide Pulse first-fire tutorial overlay (TASK-045) ──
+    // Persists via localStorage[BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_LOCALSTORAGE_KEY]
+    // so it fires exactly once per player (in practice: during FTUE Pyredrake
+    // fight — Ch1 Boss 1 is berserker). Fires BEFORE red-pulse VFX spawn so
+    // player has ~200ms heads-up before the visual punch. Wrapped in
+    // try/catch — tutorial MUST NEVER regress the sacred fx pipeline.
+    // Designer spec §3.4. Lives OUTSIDE sacred NARRATOR_LINES per CLAUDE.md §2.3.
+    try {
+      if (typeof window !== 'undefined' && typeof window.showFirstTimeTutorialOverlay === 'function') {
+        window.showFirstTimeTutorialOverlay({
+          emblem:         BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_EMBLEM,
+          title:          BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_TITLE,
+          line1:          BLOODTIDE_PULSE_FIRST_FIRE_LINE_1_PLACEHOLDER,
+          line2:          BLOODTIDE_PULSE_FIRST_FIRE_LINE_2_PLACEHOLDER,
+          accentColor:    BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_ACCENT,
+          persistenceKey: BLOODTIDE_PULSE_FIRST_FIRE_TUTORIAL_LOCALSTORAGE_KEY,
+        });
+      }
+    } catch (_e) { /* defensive — tutorial is non-essential to gameplay */ }
+
     // Set the one-shot pending flag. Per spec §3.3 field 4 "one-shot buff,
     // not stacking with itself": if a previous pulse is still pending (player
     // hadn't been attacked yet), we leave the flag true — there's no scalar
