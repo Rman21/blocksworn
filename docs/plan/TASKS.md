@@ -7,6 +7,163 @@
 
 ## GAME DEVELOPER
 
+### TASK-047 (T3.07) — REVIEW (2026-05-13) — FIRST Phase 3 implementation task — Replay capture infrastructure
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev portion delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** CRITICAL — Phase 3 first implementation; Designer's strategic recommendation per T3.01
+**Phase:** 3 (Endgame Social) — 1/N
+**Estimated complexity:** L — backend module + 6 legacy hooks + 71 unit + 18 smoke
+**Depends on:** ✅ T3.01 design spec + ESC-03 Q2 ruling (storage tier wiring) + Phase 2 PR merged
+
+**Implementation summary:**
+
+T3.07 ships the replay capture BACKEND per docs/design/endgame-social.md §4.1 (per-spec, lateral dependency unblocking Codex Replay button = visible Phase 2 → Phase 3 bridge). Backend-only: T3.08 viewer UI follows, T3.09 wires the Codex button.
+
+**New module — `src/services/replay-backend.js` (+577 LoC):**
+
+- Rolling 60-sec in-memory buffer: 240 frames @ 4 fps (REPLAY_CAPTURE_INTERVAL_MS = 250, REPLAY_BUFFER_MAX_FRAMES = 240)
+- Lightweight state snapshots (JSON, NOT screen recording) per spec §4.1
+- 9 capture trigger predicates (7 LIVE + 2 deferred stubs):
+  | # | Trigger | Status |
+  |---|---|---|
+  | 1 | `onBossDefeatedTrigger` (always) | LIVE ✅ |
+  | 2 | `onTetrisCritTrigger` (rows + cols === 4) | LIVE ✅ |
+  | 3 | `onIdentityFxTrigger` (1-in-5 deterministic sample) | LIVE ✅ |
+  | 4 | `onIdentityBossReactivityTrigger` (always) | LIVE ✅ |
+  | 5 | `onBigComboTrigger` (combo ≥ 4) | LIVE ✅ |
+  | 6 | `onStaggerEntryTrigger` (Active → Stagger) | LIVE ✅ |
+  | 7 | `onTowerMilestoneTrigger` (floors 25/50/75/100) | LIVE ✅ |
+  | 8 | `onAdventureWeeklyDefeatTrigger` | STUB — deferred to T3.04 |
+  | 9 | `onPartyTowerRunClearTrigger` | STUB — deferred to T3.13 |
+
+- Pure helpers (unit-tested in isolation):
+  - `captureFrameSnapshot(state)` → `{ grid, pieceQueue, squad, boss, identityFxState, ultCharges, t }`
+  - `appendFrameToBuffer(buf, frame, max)` — PURE FIFO ring buffer (input never mutated)
+  - `extractSliceAroundTrigger(buf, t, windowMs)` — 5-sec window extraction
+  - `compressFrames(frames)` — JSON.stringify with circular-reference guard
+  - `computeReplaySize(jsonStr)` — UTF-8 byte length (Buffer + TextEncoder fallbacks)
+  - `generateReplayId(jsonStr)` — 12-char content hash (djb2-ish + ms timestamp)
+
+- Storage tier per ESC-03 Q2 (`STORAGE_QUOTA_MB_BY_SEGMENT` — frozen + sacred):
+  - F2P → 100 MB
+  - Minnow → 100 MB
+  - Dolphin → 250 MB
+  - Whale → 500 MB
+  - ALL PERMANENT (no TTL anywhere)
+  - `getStorageTier()` reads from sacred T1.20 `getPlayerSegment()` — READ-ONLY
+
+- Lifecycle (idempotent): `startReplayCapture` / `stopReplayCapture` / `resetReplayBuffer`
+- Firebase Storage interface: `uploadReplay(json, replayId, segment)` + `fetchReplay(replayId)` — async, fire-and-forget, gracefully no-op when SDK absent (T3.07.1 follow-up wires live SDK if needed)
+
+**Firebase helpers — `src/services/firebase.js` (+103 LoC additive):**
+
+- `getStorageRef(path)` — supports modular SDK `ref()` + legacy compat `getRef()`
+- `uploadStorageBlob(path, blob, metadata)` — `put` / `putString` shape detection
+- `downloadStorageBlob(path)` — `getDownloadURL` + fetch fallback or `getString`
+- All defensive — return null / `{ok:false, reason:'no-sdk'}` when SDK absent
+
+**Window-bridge exposure — `src/main.js` (+38 LoC additive after 26 T2.B bridges):**
+
+- Lifecycle (3): `__startReplayCapture`, `__stopReplayCapture`, `__resetReplayBuffer`
+- Triggers (9): `__onBossDefeatedTrigger`, `__onTetrisCritTrigger`, `__onIdentityFxTrigger`, `__onIdentityBossReactivityTrigger`, `__onBigComboTrigger`, `__onStaggerEntryTrigger`, `__onTowerMilestoneTrigger`, `__onAdventureWeeklyDefeatTrigger` (stub), `__onPartyTowerRunClearTrigger` (stub)
+- **12 NEW window bridges** (38 total after T3.07 vs 26 after T2.B). The 26 T2.B bridges remain UNTOUCHED.
+
+**Legacy mutations — `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` (+99 LoC, 0 deletions, additive only):**
+
+| # | Site (line) | Hook | Trigger |
+|---|---|---|---|
+| 1 | `startBossBattle` (~55468 + ~55641) | `__resetReplayBuffer` + `__startReplayCapture` | Lifecycle start (both training-dummy + main battle branches) |
+| 2 | `clearLines` (~56164) | `__onTetrisCritTrigger` + `__onBigComboTrigger` | #2 + #5 (after T2.B identity-bridge close) |
+| 3 | `onBossDefeated` (~57641) | `__onBossDefeatedTrigger` | #1 (after T2.B `__recordBossDefeat`) |
+| 4 | `enterStaggerState` (~39264) | `__onStaggerEntryTrigger` | #6 (after stagger_entered logEvent) |
+| 5 | `applyFloorClearedRewards` (~32098) | `__onTowerMilestoneTrigger` | #7 (after tower_floor_cleared logEvent; predicate gates 25/50/75/100) |
+| 6 | `showVictoryModal` (~58140) + `showDefeatModal` (~58294) | `__stopReplayCapture` | Lifecycle stop (both win + loss paths) |
+
+All bridge call sites wrapped in `try { ... } catch (e) {}` — sacred boss/clear/stagger/tower pipelines MUST NOT regress if replay throws (ADR-004 hybrid coexistence discipline). All hooks inserted AFTER existing T2.B insertions — T2.B contract preserved.
+
+**Unit tests — `tests/unit/replay-backend.test.js` (+524 LoC, 71 tests):**
+
+1. Constants — 8 tests (spec §4.1 + §4.6 + §15 Q2 values byte-perfect)
+2. `captureFrameSnapshot` — 5 tests (shape, defensive, never-mutates, perf < 2ms/call avg)
+3. `appendFrameToBuffer` — 6 tests (FIFO, ring buffer 240-cap, PURE, defensive)
+4. `extractSliceAroundTrigger` — 5 tests (5-sec window, edge cases, perf < 4ms/extract)
+5. `compressFrames` — 4 tests (round-trip, circular-ref guard, defensive)
+6. `computeReplaySize` — 3 tests (UTF-8, defensive)
+7. `generateReplayId` — 2 tests (12-char, defensive)
+8. `getStorageQuotaForSegment` — 6 tests (sacred ESC-03 Q2 thresholds)
+9. `getStorageTier` — 4 tests (F2P default + Minnow/Dolphin/Whale wiring)
+10. 9 trigger predicates — 9 tests (predicate gates + deferred stubs)
+11. Defensive: triggers never throw on adversarial input — 4 tests
+12. Lifecycle: start/stop/reset idempotent + capture-tick survives state-provider throw — 5 tests
+13. Upload no-SDK path — 5 tests (graceful no-op, oversized rejection)
+14. Sacred audit — 3 tests (no Identity FX / Codex imports leaked, T1.20 thresholds preserved)
+15. Emit pipeline — 2 tests
+
+**Smoke tests — `tests/smoke/replay.spec.js` (+218 LoC, 9 tests × 2 projects = 18 runs):**
+
+1. Legacy no-regression (sacred contract — no pageerrors with replay hooks present)
+2. Vite shell boots with all 12 replay window bridges
+3. Tetris crit predicate (rows + cols === 4) gate verified
+4. Identity FX 1-in-5 sampling: 25 fires → exactly 5 uploads (deterministic)
+5. Tower milestone predicate (25/50/75/100) gating verified
+6. Storage tier wiring per ESC-03 Q2 (F2P 100 / Minnow 100 / Dolphin 250 / Whale 500)
+7. Deferred stubs return early — T3.04 Adventures + T3.13 Party Tower
+8. Capture lifecycle: start → tick → buffer populates → stop
+9. Performance: capture overhead < 4ms/frame averaged (sacred AAA+ §3.1 budget)
+
+**Sacred cow audit (verified explicitly):**
+
+| Sacred system | Status | Verification |
+|---|---|---|
+| Combo crit formula `critMult = 1 + domCount * count * CRIT_MULT_K` | byte-perfect ✅ | line 64005 grep returns identity |
+| `CRIT_MULT_K = 0.1` / `CRIT_MIN_COMBO = 2` | byte-perfect ✅ | no edits |
+| 22 v2.1 P4 reactivity handlers | byte-perfect ✅ | `git diff src/core/reactivity-events.js` empty |
+| All 10 Identity Layer fx mechanical contracts | byte-perfect ✅ | `git diff src/feel/identity-fx.js` empty |
+| `NARRATOR_LINES` sacred table | byte-perfect ✅ | `git diff src/feel/narrator-lines.js` empty |
+| `getPlayerSegment()` thresholds (sacred T1.20) | READ-ONLY ✅ | `setPlayerSegment` not exported by replay-backend |
+| Codex localStorage isolation (`blocksworn_codex_state`) | maintained ✅ | replay writes to Firebase only |
+| 26 T2.B window-bridge functions | untouched ✅ | T3.07 additive after 26 existing exports |
+| `V_HAPTICS` / `GEM_PACKS` / Tower retry / Battle Pass / MAX_HP / TIER_COSTS_V18 | byte-perfect ✅ | no edits |
+| Legacy diff (HTML) | additive only ✅ | `git diff \| grep '^-[^-]' \| wc -l = 0` (zero deletions) |
+
+**Quality bar:**
+
+| Metric | Before T3.07 | After T3.07 | Notes |
+|---|---|---|---|
+| Unit tests | 581 | **652** | +71 (replay-backend.test.js) |
+| Smoke tests | 150 → 204 | **222** | +18 (replay.spec.js × 2 projects) |
+| Build size JS | 272.17 KB | **278.06 KB** | +5.89 KB (replay-backend + Firebase Storage helpers) |
+| Build size CSS | 394.86 KB | **394.86 KB** | unchanged (no UI in T3.07) |
+| Lint | clean | clean | 0 errors, 0 warnings |
+| Legacy file diff | additive only | **+99 / -0** | zero deletions; 6 hook sites all AFTER T2.B inserts |
+| Capture overhead/frame | n/a | **< 4 ms** (1000-iter avg) | sacred §3.1 AAA+ feel budget |
+
+**Performance verified:**
+
+- `captureFrameSnapshot` 1000-iter avg: < 2 ms/call (well under 4 ms budget)
+- `extractSliceAroundTrigger` (240 frames): < 4 ms/extract
+- Frame-time overhead (combined snapshot + ring-buffer append): < 4 ms/frame averaged
+- Memory: 240 frames × ~10 KB = ~2.4 MB max in-memory (spec §4.1)
+
+**Phase 3 first-task green-lit per ESC-03 ruling §15:**
+
+- Lateral dependency unblocks Codex Replay button (T3.09)
+- Read-only output enables T3.08 viewer UI development in parallel (next wave)
+- Storage tier wiring per Q2 ruling — F2P/Minnow/Dolphin/Whale ALL PERMANENT
+
+**Deferred follow-ups (not blocking):**
+
+- T3.07.1 — Live Firebase Storage SDK wire-up (currently graceful no-op when `window.fbStorage` absent — backend ready, just needs legacy CDN module dispatch to bind `window.fbStorage`)
+- T3.04 — Adventures Cloud Function wires `__onAdventureWeeklyDefeatTrigger`
+- T3.13 — Party Tower onComplete wires `__onPartyTowerRunClearTrigger`
+
+**Awaiting CTO review.**
+
+Commit: `[T3.07] Replay capture infrastructure — 9 triggers + 4fps rolling buffer + storage tier wiring`
+
+---
+
 ### TASK-040 (T2.B Game Dev portion) — ✅ DONE 2026-05-12 — Legacy Bridge: Identity Layer integration moment
 
 **CTO acceptance 2026-05-12 (Game Dev portion):** PASS. Strictest sacred-cow proximity of Phase 2 cleared. Combo crit formula at line 63825 `critMult = 1 + domCount * count * CRIT_MULT_K` BYTE-PERFECT (grep returns 1 occurrence in code); single `domCount` definition extended by `+ (ctx._dominantCountModifier || 0)` at line 63816 per ESC-02 O3 "WITHIN BOUNDARY". CRIT_MULT_K = 0.1 / CRIT_MIN_COMBO = 2 byte-perfect (lines 20159-20160). All T2.07-T2.12 invariants maintained. 22 P4 handlers byte-perfect. Codex localStorage isolation maintained. 26 window-bridge functions exposed; 8 discrete legacy insertion points; bridge overhead <0.001ms per call. 150/150 smoke pass (+10 LIVE integration tests × 2 projects). Commit `e6acb6d`.

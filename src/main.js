@@ -102,6 +102,24 @@ import {
   resetIdentityBossState,
 } from './core/reactivity-events.js';
 
+// 2026-05-13 — TASK-047 (T3.07): Replay capture backend bridge.
+// First Phase 3 task. Read-only of game state. See
+// src/services/replay-backend.js for the full contract + spec §4.1 / §15.
+import {
+  startReplayCapture,
+  stopReplayCapture,
+  resetReplayBuffer,
+  onBossDefeatedTrigger,
+  onTetrisCritTrigger,
+  onIdentityFxTrigger,
+  onIdentityBossReactivityTrigger,
+  onBigComboTrigger,
+  onStaggerEntryTrigger,
+  onTowerMilestoneTrigger,
+  onAdventureWeeklyDefeatTrigger,
+  onPartyTowerRunClearTrigger,
+} from './services/replay-backend.js';
+
 // T1.13.5 (2026-05-12): bridge `showScreen` onto window so legacy inline
 // onclick="showScreen('menu')" handlers (still present in any scaffold the
 // new shell mounts) resolve. Cosmetic — required for compatibility with the
@@ -162,6 +180,26 @@ if (typeof window !== 'undefined') {
   window.__recordBossEncounter              = recordBossEncounter;
   window.__recordBossDefeat                 = recordBossDefeat;
   window.__recordMomentTrigger              = recordMomentTrigger;
+
+  // 2026-05-13 — TASK-047 (T3.07): Replay capture backend bridge surface.
+  // Phase 3 FIRST task. Read-only of game state — never mutates sacred
+  // tables. All bridge call sites in legacy are wrapped in try/catch so the
+  // sacred boss/clear/stagger pipelines never regress if replay throws.
+  // Additive — leaves the 26 T2.B bridges above untouched.
+  // ── Lifecycle (called from legacy startBossBattle + battle-end hooks) ──
+  window.__startReplayCapture               = startReplayCapture;
+  window.__stopReplayCapture                = stopReplayCapture;
+  window.__resetReplayBuffer                = resetReplayBuffer;
+  // ── 9 trigger predicates (7 live + 2 deferred stubs for T3.04 / T3.13) ──
+  window.__onBossDefeatedTrigger            = onBossDefeatedTrigger;
+  window.__onTetrisCritTrigger              = onTetrisCritTrigger;
+  window.__onIdentityFxTrigger              = onIdentityFxTrigger;
+  window.__onIdentityBossReactivityTrigger  = onIdentityBossReactivityTrigger;
+  window.__onBigComboTrigger                = onBigComboTrigger;
+  window.__onStaggerEntryTrigger            = onStaggerEntryTrigger;
+  window.__onTowerMilestoneTrigger          = onTowerMilestoneTrigger;
+  window.__onAdventureWeeklyDefeatTrigger   = onAdventureWeeklyDefeatTrigger;
+  window.__onPartyTowerRunClearTrigger      = onPartyTowerRunClearTrigger;
 }
 
 // T1.20 — Read lifetime USD spend from the canonical legacy key
