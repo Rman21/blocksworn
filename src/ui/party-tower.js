@@ -464,7 +464,7 @@ export function renderYourPartiesTab(bodyEl, parties, opts) {
 
   bodyEl.innerHTML = [
     '<ul class="pt-party-list" role="list">',
-    list.map(p => _renderPartyCard(p, viewerId)).join(''),
+    list.filter(p => p && typeof p === 'object').map(p => _renderPartyCard(p, viewerId)).join(''),
     '</ul>',
     `<button type="button" class="pt-cta-btn pt-cta-btn--inline" id="ptCreateBtn">+ Create new party</button>`,
   ].join('');

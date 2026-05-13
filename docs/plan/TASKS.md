@@ -7,6 +7,75 @@
 
 ## GAME DEVELOPER
 
+### TASK-057 (T3.13) — REVIEW (2026-05-13) — TWELFTH Phase 3 implementation task — Party Tower UI (Wave-5 closer)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** CRITICAL — closes Wave 5 (Party Tower); Wave 6 (Tower seasons T3.14–T3.15) unblocked next
+**Phase:** 3 (Endgame Social) — Wave-5 closer
+**Branch:** `claude/phase3-endgame-design`
+
+**Files created:**
+  - `src/ui/party-tower.js` (~770 LoC) — 2-tab screen + party detail + 4 sub-renderers
+  - `src/styles/screens/party-tower.css` (~675 LoC) — parchment aesthetic
+  - `tests/unit/party-tower-ui.test.js` (40 tests, all pass)
+  - `tests/smoke/party-tower-ui.spec.js` (7 tests × 2 projects = 14, all pass)
+
+**Files modified (additive only):**
+  - `src/ui/router.js` — `'party-tower'` route + dynamic import
+  - `src/ui/menu.js` — `vRenderPartyTowerDrawerEntry` + renderMenu call
+  - `index.html` — `<div id="screenPartyTower">` container
+  - `src/styles/index.css` — `@import './screens/party-tower.css';`
+
+**What this delivers:**
+  1. Mobile-first 2-tab screen (Your Parties / Browse) + parchment aesthetic
+     matching Codex / Adventures / Replay viewer.
+  2. Create-party modal — name input (3-30) + 3 timeout-mode radios
+     (Competitive 4h / Standard 24h default / Casual 7-day per ESC-03 Q3).
+  3. Party detail view — turn-countdown banner with severity bands
+     (safe/warn/danger/expired), hearts pool indicator, selected pacts list,
+     members roster with current-turn highlight, role-gated action buttons
+     (Start Run / End Turn / Share Invite / Leave).
+  4. Async social hooks per §3.5 — emoji react row (👍/🔥/💀 locked set;
+     8-per-turn cap honored at the data layer), turn-took activity feed.
+  5. navigator.share invite (mobile) with clipboard fallback (desktop).
+  6. Client-side auto-skip on detail open (calls maybeAutoSkipExpiredTurn).
+  7. Countdown ticker (1Hz setInterval) — updates banner severity in-place;
+     auto-refreshes whole detail on expire so server-side skip can take.
+
+**Sacred safety (CLAUDE.md §2 audit):**
+  - `src/services/party-tower-backend.js` NOT in diff — UI is consumer only.
+  - 22 v2.1 P4 reactivity-events handlers byte-perfect (file not in diff).
+  - NARRATOR_LINES table NOT modified (functional labels only — no
+    Chronicler-voice copy in Party Tower per CTO precedent on Adventures).
+  - V_HAPTICS table NOT modified — no new keys (UI screen, not feel layer).
+  - TOWER_PACTS_BASE / TOWER_PACTS_MYTHIC NOT touched — UI READS sacred ids.
+  - BALANCE.pinch.towerDeath gemCostLadder [100, 200, 400] NOT touched —
+    UI displays hearts pool but never modifies retry ladder.
+  - ADR-002 async-only honored — NO real-time presence indicators (player
+    names + last-active timestamps OK; no live cursors, no typing).
+  - ADR-003 no-P2W honored — NO paid party-size expansion surfaced, NO paid
+    timeout reduction, NO paid revives in UI. Pure cosmetic surface.
+  - Direct-imports from backend (zero new window-bridges; smoke test #7
+    asserts createParty/joinParty/endTurn/leaveParty NOT on window).
+
+**Tests delivered:**
+  - Unit: 40 tests covering validateCreateForm (6) + formatCountdown (5) +
+    resolveCurrentPlayerId (3) + renderYourPartiesTab (5) + renderBrowseTab (1)
+    + renderPartyDetail (12) + renderCreatePartyModal (3) + __partyTowerTestables (4).
+  - Smoke: 7 flows (route mount + empty/modal + create + detail + start-run +
+    emoji react + 40-bridge regression) — pass on chromium + mobile-chrome.
+
+**Verification:**
+  - `npm run lint` — clean (0 warnings, 0 errors).
+  - `npm run test:unit` — 1325/1325 pass (up from 1285; +40 new).
+  - `npm run test:smoke` — 384/384 pass on chromium + mobile-chrome.
+  - `npm run build` — clean; party-tower-*.js chunk = 18.99 kB (gzip: 6.28 kB).
+
+**Pass to CTO for review.**
+
+---
+
 ### TASK-047 (T3.07) — REVIEW (2026-05-13) — FIRST Phase 3 implementation task — Replay capture infrastructure
 
 **Status:** IN PROGRESS → **REVIEW** (Game Dev portion delivered 2026-05-13)
