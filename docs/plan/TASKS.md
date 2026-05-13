@@ -7,6 +7,102 @@
 
 ## GAME DEVELOPER
 
+### TASK-045 (Phase 2.5 Wire) — REVIEW 2026-05-13 — FTUE polish overlays wire (F-01 Sun Cascade + F-02 Cursed Tiles + F-03 Codex toasts + F-04 Bloodtide)
+
+**Status:** TODO → IN PROGRESS → **REVIEW** (awaiting CTO sign-off + post-merge Roman copy approval per ESC-02 O2)
+**Started:** 2026-05-13
+**Completed:** 2026-05-13
+**Priority:** HIGH (Phase 2.5 polish patch, Stage 3 of 4)
+**Phase:** 2.5 (FTUE polish)
+**Estimated complexity:** M
+**Depends on:**
+- ✅ TASK-043 (Bug Tester Phase 2 polish audit) — DONE 2026-05-13
+- ✅ TASK-044 (Designer FTUE polish design specs) — DONE 2026-05-13
+
+**Implementation per Designer Option C architecture** (`docs/design/phase2-5-ftue-polish.md`):
+
+Files created (4):
+- `src/ui/identity-fx-tutorial.js` (~270 LoC) — reusable parchment-card overlay component. Shared DOM node, localStorage gate, click/Escape/auto-dismiss, prefers-reduced-motion fallback, `__identityFxTutorialTestables` escape hatch.
+- `src/styles/components/identity-fx-tutorial.css` (~110 LoC) — parchment card visual + slide-in keyframe + reduced-motion fallback.
+- `tests/unit/identity-fx-tutorial.test.js` (~245 LoC) — 26 new unit tests covering gate logic, defensive paths, sacred audit, no-op behavior in Node env.
+- `tests/smoke/phase2-5-ftue-polish.spec.js` (~445 LoC) — 10 new smoke tests (chromium × mobile-chrome = 20 effective): F-01 / F-02 / F-04 overlays + 5 F-03 toast scenarios + mixed scenario + performance budget.
+
+Files modified additively (5):
+- `src/data/identity-layer.js` (+69 LoC) — 4 placeholder constants × 3 overlays (lines + key + title + accent + emblem) + 5 codex toast template constants + accent colors + durations + auto-dismiss timing + perf budgets. ZERO existing constants touched.
+- `src/feel/identity-fx.js` (+79 LoC) — F-01 wired in `fxSparkLineClear` AFTER line-1930 `_dominantCountModifier` write (gated by `modifier > 0`). F-02 wired in `fxLichCursedTiles` AFTER skull-placement loop completes (line 2729). F-04 wired in `fxBerserkerBloodtidePulse` at function entry (before pending-flag set so player has ~200ms heads-up before red-pulse VFX). All 3 wrapped in defensive try/catch — tutorial MUST NEVER regress fx pipeline. ZERO deletions.
+- `src/ui/codex.js` (+116 LoC) — `_emitCodexToast(discoveryType, key)` helper + 5 toast emit sites in `recordRaceTrigger` (encounter + mastery transitions) / `recordBossEncounter` / `recordBossDefeat` / `recordMomentTrigger`. Transition detection via captured `wasEncountered`/`wasMastered` flags BEFORE state write. ZERO deletions.
+- `src/main.js` (+17 LoC) — `import { showFirstTimeTutorialOverlay, hideFirstTimeTutorialOverlay }` + window-bridge exposure alongside existing 26 Identity Layer window-bridge exports.
+- `src/styles/index.css` (+1 LoC) — `@import './components/identity-fx-tutorial.css';`
+
+**Sacred cow audit (MANDATORY confirmation):**
+
+- ✅ **NARRATOR_LINES sacred table UNTOUCHED** — `git diff HEAD -- src/feel/narrator-lines.js` returns empty
+- ✅ **22 v2.1 P4 reactivity handlers byte-perfect** — `git diff HEAD -- src/core/reactivity-events.js` returns empty
+- ✅ **All 10 identity fx mechanical contracts unchanged** — `git diff HEAD -- src/feel/identity-fx.js | grep '^-[^-]'` returns empty (zero deletions)
+- ✅ **Codex localStorage schema isolation maintained** — Codex still writes ONLY to `blocksworn_codex_state`. Tutorial keys (`blocksworn_sun_cascade_seen`, `blocksworn_cursed_tiles_seen`, `blocksworn_bloodtide_seen`) are NEW isolated localStorage entries. Codex schema v1 fields byte-perfect.
+- ✅ **V_HAPTICS UNTOUCHED** — `git diff HEAD -- src/feel/haptics.js` returns empty. No new haptic keys.
+- ✅ **Combo crit formula UNTOUCHED** — Sun Cascade tutorial fires AFTER `_dominantCountModifier` write (read-only on fx state).
+- ✅ **PHOENIX_* / BERSERKER_* / ENGINEER_* / ROOT_SURGE_* / HERO_ULT_COST / RACE_SYNERGY / TIER_COSTS_V18 / MAX_HP** — byte-perfect (additive constants only).
+- ✅ **No magic numbers in logic** — all values via named exports from `src/data/identity-layer.js`.
+- ✅ **Performance budget** — smoke test verifies overlay first-fire wall-time ≤15ms (target ≤6ms p99 per Designer §2.3; measured runs typically <2ms).
+- ✅ **Tutorial does NOT block fx execution** — every overlay call wrapped in try/catch at fx site PLUS internal try/catch in component (defense-in-depth).
+- ✅ **Single-tutorial-at-a-time contract** — `_overlayActive` flag drops second concurrent fire silently (per-fire localStorage key not consumed when dropped).
+
+**Test results:**
+
+- ESLint: clean (`npm run lint` — 0 errors, 0 warnings)
+- Unit: **607 / 607 pass** (581 existing + 26 new — overall +26 net new tests across 7 files)
+- Smoke: **240 / 240 pass** (230 existing + 10 new × 2 projects = 20 effective; cross-mechanic regression sweep PASS)
+- Build: `npm run build` clean — bundle 277.66 kB JS gzipped + 396.62 kB CSS gzipped (CSS +0.4 kB raw, JS +5 kB raw, negligible).
+
+**Performance measurements (from smoke test):**
+
+- Overlay first-fire wall-time: typically <2ms median (well within ≤6ms p99 budget per Designer §2.3).
+- `flashStateBanner` toast cost: <0.3ms (re-uses legacy implementation per Codex toast precedent).
+- Identity perf probe regression: NONE — all existing budgets respected (median 0.10ms aggregate; over-frame 0/10 = 0%).
+
+**EMBLEM_REGISTRY note:**
+
+Designer spec mentioned re-using `EMBLEM_REGISTRY` from PR #157, but that registry lives in `site/public/assets/emblems/` (separate site directory) and is opt-in via legacy painterly toggle. The active codebase uses simple `/images/emblems/<key>.png` lookups (matches `src/ui/codex.js _thumbHTML` precedent). Tutorial overlay follows the same simpler pattern with onerror visibility fallback. Emblem keys `spark` / `lich` / `pyredrake` are stored as named constants; if any PNG is missing the emblem silently hides (non-fatal).
+
+**Bloodtide × Phoenix Ashen Reign conflict check:**
+
+No conflict. Bloodtide fires for Berserker archetype boss (e.g., Pyredrake, Ch1 Boss 1). Ashen Reign fires for Phoenix archetype boss (different chapter/boss). Two different bosses → tutorials cannot stack. Confirmed by inspecting `_bloodtidePulsePending` (boolean, isolated state) vs `_ashenReignEndsAt` (different module state).
+
+**F-04 implementation decision:**
+
+Wired as per Designer recommendation (SHIP). Marginal cost minimal — re-uses F-01/F-02 component. FTUE quality lift significant since Pyredrake = berserker = fires during FTUE (~120-180s mark).
+
+**Implementation order followed (Designer §5.6):**
+
+1. ✅ Placeholders added to `src/data/identity-layer.js` (no behavior change).
+2. ✅ `src/ui/identity-fx-tutorial.js` + CSS file created (overlay exists but unused).
+3. ✅ F-03 toasts wired in `src/ui/codex.js` (uses existing `flashStateBanner`).
+4. ✅ F-01 wired in `fxSparkLineClear`.
+5. ✅ F-02 wired in `fxLichCursedTiles`.
+6. ✅ F-04 wired in `fxBerserkerBloodtidePulse`.
+7. ✅ 26 unit tests added (gate, defensive paths, sacred audit).
+8. ✅ 10 smoke tests added (F-01/F-02/F-04 fire-once + F-03 5 scenarios + mixed + perf budget).
+
+**Замечено рядом (not actioned, reported):**
+
+- `flashStateBanner` is accessed via legacy global typeof check (matches existing precedent in identity-fx.js line 4344). Long-term Phase 3 cleanup could convert this to ES module surface — left untouched per Phase 2.5 minimal-disruption contract.
+- The Bloodtide tutorial fires at function entry rather than at the end (Designer §3.4.3) so player gets ~200ms heads-up before the visual punch. Consistent with the spec recommendation.
+- Cursed Tiles tutorial wired BEFORE the `recordMomentTrigger('lich_cursed_tiles')` call (which now emits the F-03 moment toast). Per Designer §4.4 choreography, ideal ordering is tutorial first (~200ms) → boss line (~400ms via PR #160) → moment toast (~500ms via F-03). Sequential execution within `fxLichCursedTiles` confirms this ordering.
+- The F-03 race-mastered transition fires only on the precise 25th trigger (not subsequent). Verified by unit + smoke test asserting `callsAfter25.length === callsAfter26.length === 2`.
+
+**For CTO review:**
+
+Files to spot-check:
+- `src/ui/identity-fx-tutorial.js` — overlay component contract + defensive paths
+- `src/feel/identity-fx.js` lines around 1930, 2729, 3167 — fx trigger sites (verify try/catch is OUTERMOST, sacred fx untouched)
+- `src/ui/codex.js` — 4 recorder functions + `_emitCodexToast` helper
+- `tests/smoke/phase2-5-ftue-polish.spec.js` — 10 acceptance scenarios
+
+**Commit:** pending — will land as `[Phase 2.5 Wire] FTUE polish overlays — F-01 Sun Cascade + F-02 Cursed Tiles + F-03 Codex toasts + F-04 Bloodtide tutorial`
+
+---
+
 ### TASK-040 (T2.B Game Dev portion) — ✅ DONE 2026-05-12 — Legacy Bridge: Identity Layer integration moment
 
 **CTO acceptance 2026-05-12 (Game Dev portion):** PASS. Strictest sacred-cow proximity of Phase 2 cleared. Combo crit formula at line 63825 `critMult = 1 + domCount * count * CRIT_MULT_K` BYTE-PERFECT (grep returns 1 occurrence in code); single `domCount` definition extended by `+ (ctx._dominantCountModifier || 0)` at line 63816 per ESC-02 O3 "WITHIN BOUNDARY". CRIT_MULT_K = 0.1 / CRIT_MIN_COMBO = 2 byte-perfect (lines 20159-20160). All T2.07-T2.12 invariants maintained. 22 P4 handlers byte-perfect. Codex localStorage isolation maintained. 26 window-bridge functions exposed; 8 discrete legacy insertion points; bridge overhead <0.001ms per call. 150/150 smoke pass (+10 LIVE integration tests × 2 projects). Commit `e6acb6d`.
@@ -3991,6 +4087,119 @@ Sibling export `RACE_IDENTITY_FX` added to `src/data/races.js` (NOT inside `RACE
 ---
 
 ## GAME DESIGNER
+
+### TASK-044 (Phase 2.5 Spec) — REVIEW 2026-05-13 — Phase 2.5 FTUE polish design specs (F-01 / F-02 / F-03 / F-04)
+
+**Status:** TODO → IN PROGRESS → **REVIEW** (awaiting CTO sign-off + Roman copy approval per ESC-02 O2 placeholder-first pattern)
+**Started:** 2026-05-13
+**Completed:** 2026-05-13
+**Priority:** HIGH (Phase 2.5 polish patch — parallel to Phase 3 kickoff per `docs/design/phase2-polish-audit.md` recommendation)
+**Phase:** 2.5 (FTUE polish)
+**Estimated complexity:** M (Design only)
+**Depends on:**
+- ✅ TASK-041 (T2.B.QA Bug Tester audit) — DONE 2026-05-12
+- ✅ TASK-043 (Phase 2 polish audit `phase2-polish-audit.md`) — DONE 2026-05-13 (Bug Tester drafted 3 placeholder copy lines for F-01/F-02 + bonus F-04)
+- ✅ Phase 2 PR #159 merged (HEAD `6545b57`)
+- (Parallel) PR #160 Phoenix + Lich on-every-fire narrator lines — does NOT block this spec (this spec is COMPLEMENTARY first-time-only tutorial overlays)
+
+**Output:**
+- Document: `docs/design/phase2-5-ftue-polish.md` (~960 LoC)
+- 3 SHOULD-FIX overlay specs at full 10-field detail (F-01 Sun Cascade / F-02 Cursed Tiles / F-03 Codex on-discover toast)
+- 1 OPTIONAL overlay spec at full 10-field detail (F-04 Bloodtide Pulse FTUE) — Designer recommends SHIP given marginal cost
+- Reusable overlay component architecture recommendation: **Option C** (split by purpose — tutorial overlay for F-01/F-02/F-04, `flashStateBanner` re-use for F-03)
+- Each overlay spec includes: identity name, trigger condition, persistence key, visual surface choice, copy refinement (4 placeholder constants + 5 toast templates), trigger timing, dismissal contract, performance budget (≤3.5ms first-fire / ≤0.5ms steady-state), sacred cow safety, acceptance criteria
+- Bug Tester acceptance test outline: ~38 test scenarios across 8-10 spec files
+- Game Dev handoff: 5 file insertion points + step-by-step implementation order + LoC estimate (~225 source + ~160 tests = ~385 total)
+- Sacred cow audit: 14-row table confirms **0 modifications** (NARRATOR_LINES byte-perfect; codex schema v1 byte-perfect; all 10 fx mechanical contracts untouched)
+- Open questions section: 4 questions for Roman (3 copy approvals + 1 scope decision on F-04)
+
+**Refined copy (REDLINED from Bug Tester drafts):**
+- F-01 Sun Cascade: `['Your strike was promoted.', 'Solar burns brighter when solar is plentiful.']` (REDLINED — replaces "Combo climbs — solar remembers solar" which didn't bridge to visible damage number)
+- F-02 Cursed Tiles: `['You hunt with sharks.', 'The deep hunts hunters.']` (REDLINED — tightened from 3 sentences to 2; removed coach-speak "wait them out, or vary your squad"; anchored vocabulary to PR #160's "the deep remembers")
+- F-03 Codex 5 templates: 4 KEEP, 1 REDLINE — boss-defeated redlined from "A page is added" → "The Codex grows" (mirrors race-mastery vocabulary thread)
+- F-04 Bloodtide Pulse: `['The dragon counts your strikes.', 'Every third, it answers.']` (REDLINED — tightened from 2 sentences; removed coach-speak "read the tempo, time your guard")
+
+**Sacred cows respected (CLAUDE.md §2.1–§2.3, §7.7):**
+- `NARRATOR_LINES` table: UNTOUCHED. All 4 tutorial placeholder constants + 5 codex toast templates live in `src/data/identity-layer.js` parallel to existing `ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER` at line 858.
+- `V_HAPTICS`: UNTOUCHED. Re-uses existing `clear` key only.
+- Combat math, ULT thresholds, MAX_HP, TIER_COSTS_V18, TTK formula, RACE_SYNERGY tiers, 22 v2.1 P4 reactivity handlers: UNTOUCHED.
+- 10 Identity Layer fx mechanical contracts: UNTOUCHED. Tutorial fires are READ-ONLY side-effects after existing mechanical writes.
+- Sun Cascade ESC-02 O3 sacred-adjacent combo-crit input mutation: UNTOUCHED.
+- `CODEX_LOCALSTORAGE_KEY` schema v1: UNTOUCHED. New tutorial localStorage keys (`blocksworn_sun_cascade_seen` / `_cursed_tiles_seen` / `_bloodtide_seen`) live in SEPARATE keys — no collision.
+- `flashStateBanner` UI surface signature: UNTOUCHED. Re-used as-is for F-03 dopamine toasts.
+- FTUE Chronicle silence guard: respected (F-03 toasts inherit silence guard via flashStateBanner legacy impl).
+
+**Self-check:**
+
+- [x] 3 (or 4) FTUE overlay specs at full 10-field detail
+- [x] Each overlay has trigger condition, persistence key, copy, dismissal, performance budget, sacred safety, acceptance criteria
+- [x] Reusable overlay component architecture recommendation (A/B/C) with rationale, performance budget, accessibility considerations
+- [x] Game Dev handoff section: implementation order + file insertion points + LoC estimates
+- [x] Bug Tester acceptance test outline: ~38 scenarios + cross-cutting choreography + sacred regression + perf regression + visual regression
+- [x] Sacred cow audit confirms 0 modifications (14-row table)
+- [x] Open questions section for Roman copy approval (4 questions in batch ESC-02 O2 pattern)
+- [x] Bug Tester placeholder lines refined (REDLINED with rationale) per CLAUDE.md §2.3 narrative voice
+- [x] No code written (Design only)
+- [x] No `src/` files modified
+- [x] No test files / baselines / CI / husky touched
+- [x] No push to remote
+
+**Замечено рядом (NOT actioned, reported):**
+
+1. **F-04 Bloodtide Pulse FTUE-window mechanic.** Designer recommends INCLUDE in Phase 2.5 patch (low marginal cost ~15 LoC; high FTUE-readiness lift since Pyredrake = berserker = fires during FTUE). If Roman or CTO declines for scope, defer rationale documented in §3.4.2 (B-ranked, not C-ranked; HUD label already partial-telegraphs).
+
+2. **PR #160 + F-02 choreography on first Cursed Tiles fire.** Both surfaces fire on FIRST fire (tutorial overlay at ~200ms via new `#identity-fx-tutorial` DOM node, then PR #160 boss line at ~400ms via existing `#stateBanner`). Subsequent fires: PR #160 only. Non-conflicting because surfaces use isolated DOM nodes. Bug Tester should add a smoke test verifying the ordering — captured in §4.4 + §8.
+
+3. **F-03 + PR #160 ordering on boss-moment fires.** F-03 codex moment toast fires from `recordMomentTrigger` AT END of fx invocations; PR #160 fires earlier in the same fx. Both use `flashStateBanner` (single DOM node) — the F-03 toast naturally replaces the PR #160 line on `#stateBanner`. Desired UX: boss-line atmospheric beat first, then dopamine acknowledgment ("NEW MOMENT — ...") last. Captured in §4.5.
+
+4. **Bug Tester estimate vs Designer estimate.** Bug Tester estimated F-01/F-02 at ~30+50 LoC each + F-03 at ~20+30 LoC. Designer reconciled: total ~225 source LoC across 5 files (within original estimate) + ~160 test LoC + ~50 CSS. Total ~385 LoC.
+
+5. **F-01/F-02/F-04 use a SHARED overlay component (Option C architecture)** — 3 fires of `showFirstTimeTutorialOverlay` instead of 3 bespoke overlays. Estimated marginal cost per new tutorial (post-component) is ~12 LoC trigger site + 1 placeholder constant. Future tutorial polish passes (Phase 3+) can re-use the component for free.
+
+**Open questions for Roman (4 — see spec §6):**
+
+- **Q1** — F-01 Sun Cascade copy approval: `'Your strike was promoted.' / 'Solar burns brighter when solar is plentiful.'`
+- **Q2** — F-02 Cursed Tiles copy approval: `'You hunt with sharks.' / 'The deep hunts hunters.'`
+- **Q3** — F-03 Codex 5 toast templates approval (4 keep + 1 redline)
+- **Q4** — F-04 Bloodtide Pulse inclusion in Phase 2.5 scope (Designer recommends SHIP; copy: `'The dragon counts your strikes.' / 'Every third, it answers.'`)
+
+**For Game Developer (post-CTO + Roman approval):**
+
+- Implementation order (§5.6): (1) placeholders in identity-layer.js → (2) overlay component + CSS → (3) F-03 toasts → (4) F-01 → (5) F-02 → (6) F-04 → (7-8) unit + smoke tests
+- New files: `src/ui/identity-fx-tutorial.js` (~80 LoC), `src/styles/components/identity-fx-tutorial.css` (~50 LoC), `tests/unit/identity-fx-tutorial.spec.js` (~60 LoC), `tests/smoke/identity-fx-tutorial.spec.js` (~100 LoC)
+- Additive modifications: `src/data/identity-layer.js` (~30 LoC — 4 placeholder constants + 5 toast templates + 3 localStorage key constants), `src/feel/identity-fx.js` (~40 LoC — 3 trigger sites in fxSparkLineClear / fxLichCursedTiles / fxBerserkerBloodtidePulse), `src/ui/codex.js` (~25 LoC — 1 helper + 5 toast emit sites)
+- Estimated complexity: **2-3 days** (single-track Phase 2.5 task)
+- Defensive try/catch on EVERY tutorial fire (overlay/toast must NEVER regress fx pipeline)
+- All localStorage operations guarded by `typeof localStorage !== 'undefined'` (private mode + Node test envs)
+
+**For Bug Tester (post-Game-Dev implementation):**
+
+- ~38 per-overlay test scenarios (F-01: 11, F-02: 8, F-03: 12, F-04: 7 if shipped)
+- Cross-cutting tests: PR #160 + F-02 choreography ordering, F-03 + PR #160 boss-moment ordering, sacred regression sweep (NARRATOR_LINES + codex schema v1 byte-perfect), perf regression (re-run identity-perf-probe), visual regression (4-5 new baselines + existing 14 unchanged)
+- Verify localStorage gate is the ONLY source of truth — clearing localStorage should re-trigger all 4 overlays on next play
+
+**Files touched (this task — DESIGN ONLY):**
+
+- `docs/design/phase2-5-ftue-polish.md` (new, ~960 LoC)
+- `docs/plan/TASKS.md` (this entry)
+
+**Files NOT touched (per strict constraints):**
+
+- ALL `src/` files (Design only)
+- ALL CSS files
+- ALL test files / baselines / CI / husky
+- Sacred `NARRATOR_LINES` table (`src/feel/narrator-lines.js`)
+- Existing `src/data/identity-layer.js` content (new constants only via spec)
+- All 10 fx mechanical contracts in `src/feel/identity-fx.js`
+- `docs/_legacy/` (read-only reference)
+- No npm packages installed
+- No push to remote
+
+**Time:** ~2.5 hours (audit re-read → sacred-cow verification → 4 overlay specs at 10-field detail → architecture decision rationale → copy redlines → Game Dev handoff → open questions formulation → TASKS.md entry).
+
+**Commit:** see git log — `[Phase 2.5 Spec] Designer FTUE polish specs — F-01/F-02/F-03 overlay design`
+
+---
 
 ### TASK-028 (T2.01) — ✅ DONE 2026-05-12 — Identity Layer design spec (Phase 2 start)
 

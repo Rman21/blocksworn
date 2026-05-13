@@ -86,12 +86,17 @@
 
 ## Phase 2: Identity Layer
 
-**Status:** ✅ **COMPLETE 14/14** 2026-05-12 — Bug Tester GO verdict (`216371a`). Awaiting Roman merge.
+**Status:** ✅ **COMPLETE 14/14** 2026-05-12 — Bug Tester GO verdict (`216371a`). **MERGED to main 2026-05-13 06:00 UTC** (squash `6545b57`, PR #159).
 **Goal:** Реализовать mechanics × race/boss identity — per-race line-clear flavor + boss-reactive mechanics. **ACHIEVED.**
 **Actual duration:** 2026-05-12 (single intensive session — same day as Phase 1 close)
 **Tasks:** T2.01 — T2.12 + T2.B + T2.B.QA = 14/14 done
 **Phase 1 milestone:** ✅ MERGED to main 2026-05-12 12:26 UTC (squash `4aea3ce`)
-**Phase 2 branch:** `claude/phase2-identity-layer` — ready for Phase 2 PR
+**Phase 2 milestone:** ✅ MERGED to main 2026-05-13 06:00 UTC (squash `6545b57`, PR #159)
+
+### Phase 2.5 polish patches (2026-05-13)
+
+- **PR #160** (`claude/phase2-5-narrator-polish`) — Phoenix + Lich Darkest-Dungeon narrator lines wired per ESC-02 O2 (fire on EVERY mechanic activation). Awaiting Roman copy-pass + merge.
+- **PR (TBD)** (`claude/phase2-polish-audit`) — **AAA+ Polish Audit + FTUE overlays.** Stage 1 Bug Tester audit (`1cda065`): CONDITIONAL GO TO PHASE 3 verdict; 3 SHOULD-FIX + 0 SHIP-BLOCKER; perf 26-100× headroom. Stage 2 Designer specs (`0aca515`): Option C architecture; 4 overlay specs (F-01 Sun Cascade newbie tutorial, F-02 Cursed Tiles causal overlay, F-03 Codex on-discover toasts ×5 types, F-04 Bloodtide first-fire tutorial); 4 copy redlines from Bug Tester drafts. Stage 3 Game Dev wiring (`f9b545c`): new `src/ui/identity-fx-tutorial.js` component + 4 overlays + 5 toast emit sites; +1522 LoC; unit 581→607; smoke 230→240; 0 sacred modifications. Awaiting Roman copy-pass on 4 new placeholder strings + merge.
 
 ### High-level Tasks
 - [x] T2.01 — Identity Layer design doc (Designer) — **DONE 2026-05-12** (`b325c30`; 1189 LoC spec `docs/design/mechanics/identity-layer.md` v1.1 with Roman ruling appendix; 5 race flavors + 7 boss mechanics + Codex + 36-row sacred audit)

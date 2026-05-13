@@ -59,6 +59,17 @@ import {
   recordMomentTrigger,
 } from './ui/codex.js';
 
+// 2026-05-13 — TASK-045 (Phase 2.5 FTUE polish): First-time tutorial overlay
+// component. Powers F-01 (Sun Cascade) / F-02 (Cursed Tiles) / F-04
+// (Bloodtide Pulse) per docs/design/phase2-5-ftue-polish.md. Exposed on
+// window so feel/identity-fx.js can call it without a direct module
+// dependency (matches the legacy bridge pattern below — UI surface
+// indirected via window-bridge so fx module stays UI-decoupled).
+import {
+  showFirstTimeTutorialOverlay,
+  hideFirstTimeTutorialOverlay,
+} from './ui/identity-fx-tutorial.js';
+
 // T2.B (2026-05-12): Legacy Bridge — Identity Layer integration moment.
 // Expose all 10 mechanics' dispatcher + predicates + reset hooks onto window
 // under the `__` prefix (matching the existing `__dispatchIdentityFx` /
@@ -162,6 +173,12 @@ if (typeof window !== 'undefined') {
   window.__recordBossEncounter              = recordBossEncounter;
   window.__recordBossDefeat                 = recordBossDefeat;
   window.__recordMomentTrigger              = recordMomentTrigger;
+
+  // ── Phase 2.5 FTUE polish — first-time tutorial overlay (TASK-045) ──
+  // The fx module calls window.showFirstTimeTutorialOverlay({...}) at the
+  // F-01/F-02/F-04 trigger sites. Window-bridge keeps fx UI-decoupled.
+  window.showFirstTimeTutorialOverlay       = showFirstTimeTutorialOverlay;
+  window.hideFirstTimeTutorialOverlay       = hideFirstTimeTutorialOverlay;
 }
 
 // T1.20 — Read lifetime USD spend from the canonical legacy key
