@@ -102,6 +102,47 @@ import {
   resetIdentityBossState,
 } from './core/reactivity-events.js';
 
+// 2026-05-13 — TASK-047 (T3.07): Replay capture backend bridge.
+// First Phase 3 task. Read-only of game state. See
+// src/services/replay-backend.js for the full contract + spec §4.1 / §15.
+import {
+  startReplayCapture,
+  stopReplayCapture,
+  resetReplayBuffer,
+  onBossDefeatedTrigger,
+  onTetrisCritTrigger,
+  onIdentityFxTrigger,
+  onIdentityBossReactivityTrigger,
+  onBigComboTrigger,
+  onStaggerEntryTrigger,
+  onTowerMilestoneTrigger,
+  onAdventureWeeklyDefeatTrigger,
+  onPartyTowerRunClearTrigger,
+} from './services/replay-backend.js';
+
+// 2026-05-13 — TASK-050 (T3.02): Adventures backend bridge (MINIMAL — +1 entry).
+// Wave-3 Phase 3 task. Backend-only — see src/services/clan-backend.js for
+// the full contract + spec §2 / §15. T3.03 UI consumes the 8 pure helpers +
+// 9 CRUD ops via DIRECT-IMPORT (mirrors T3.08/T3.09 precedent — keeps the
+// window-bridge surface at 38 + 1 = 39 total, NOT 38 + 9 CRUD). The single
+// minimal entry below lets the legacy menu badge surface "is player in any
+// clan?" without dragging the full clan-backend module into legacy.
+import {
+  listClansForPlayer as _listClansForPlayer_t302,
+} from './services/clan-backend.js';
+
+// 2026-05-13 — TASK-055 (T3.10): Party Tower backend bridge (MINIMAL — +1 entry).
+// Wave-5 Phase 3 task. Backend-only — see src/services/party-tower-backend.js
+// for the full contract + spec §3 / §15 ESC-03 Q3 (24h Standard default).
+// T3.11+ UI consumes the 10 pure helpers + 10 async CRUD ops via DIRECT-IMPORT
+// (mirrors T3.02/T3.06 precedent — keeps the window-bridge surface at 39 + 1
+// = 40 total, NOT 39 + 10 CRUD). The single minimal entry below lets the
+// legacy menu badge surface "is player in any Party Tower run?" without
+// dragging the full party-tower-backend module into legacy.
+import {
+  listPartiesForPlayer as _listPartiesForPlayer_t310,
+} from './services/party-tower-backend.js';
+
 // T1.13.5 (2026-05-12): bridge `showScreen` onto window so legacy inline
 // onclick="showScreen('menu')" handlers (still present in any scaffold the
 // new shell mounts) resolve. Cosmetic — required for compatibility with the
@@ -162,6 +203,57 @@ if (typeof window !== 'undefined') {
   window.__recordBossEncounter              = recordBossEncounter;
   window.__recordBossDefeat                 = recordBossDefeat;
   window.__recordMomentTrigger              = recordMomentTrigger;
+
+  // 2026-05-13 — TASK-047 (T3.07): Replay capture backend bridge surface.
+  // Phase 3 FIRST task. Read-only of game state — never mutates sacred
+  // tables. All bridge call sites in legacy are wrapped in try/catch so the
+  // sacred boss/clear/stagger pipelines never regress if replay throws.
+  // Additive — leaves the 26 T2.B bridges above untouched.
+  // ── Lifecycle (called from legacy startBossBattle + battle-end hooks) ──
+  window.__startReplayCapture               = startReplayCapture;
+  window.__stopReplayCapture                = stopReplayCapture;
+  window.__resetReplayBuffer                = resetReplayBuffer;
+  // ── 9 trigger predicates (7 live + 2 deferred stubs for T3.04 / T3.13) ──
+  window.__onBossDefeatedTrigger            = onBossDefeatedTrigger;
+  window.__onTetrisCritTrigger              = onTetrisCritTrigger;
+  window.__onIdentityFxTrigger              = onIdentityFxTrigger;
+  window.__onIdentityBossReactivityTrigger  = onIdentityBossReactivityTrigger;
+  window.__onBigComboTrigger                = onBigComboTrigger;
+  window.__onStaggerEntryTrigger            = onStaggerEntryTrigger;
+  window.__onTowerMilestoneTrigger          = onTowerMilestoneTrigger;
+  window.__onAdventureWeeklyDefeatTrigger   = onAdventureWeeklyDefeatTrigger;
+  window.__onPartyTowerRunClearTrigger      = onPartyTowerRunClearTrigger;
+
+  // 2026-05-13 — TASK-050 (T3.02): Adventures backend — MINIMAL bridge.
+  // ONE function exposed: legacy menu badge ("is player in any Adventure?")
+  // needs cheap async lookup without importing the full clan-backend module.
+  // All 9 CRUD operations + 8 pure helpers stay direct-import (T3.03 UI
+  // mirrors T3.08/T3.09 precedent). Bridge count: 38 → 39 (1 minimal entry).
+  // ── Player-clan membership probe (called from legacy menu badge) ────────
+  window.__getPlayerClanCount               = async function _getPlayerClanCountBridge(playerId) {
+    try {
+      const result = await _listClansForPlayer_t302(playerId);
+      if (result && result.ok && Array.isArray(result.clans)) return result.clans.length;
+    } catch (_e) { /* swallow — badge defaults to 0 on any failure */ }
+    return 0;
+  };
+
+  // 2026-05-13 — TASK-055 (T3.10): Party Tower backend — MINIMAL bridge.
+  // ONE function exposed: legacy menu badge ("is player in any Party Tower
+  // run?") needs cheap async lookup without importing the full
+  // party-tower-backend module. All 10 CRUD operations + 10 pure helpers
+  // stay direct-import (T3.11+ UI mirrors T3.02/T3.06 precedent).
+  // Bridge count: 39 → 40 (1 minimal entry).
+  // Per ADR-002: async-only; no presence channel. Per ADR-003: badge is
+  // segment-agnostic — never reads spend / segment / paid tier.
+  // ── Player-party membership probe (called from legacy menu badge) ───────
+  window.__getPlayerPartyCount              = async function _getPlayerPartyCountBridge(playerId) {
+    try {
+      const result = await _listPartiesForPlayer_t310(playerId);
+      if (result && result.ok && Array.isArray(result.parties)) return result.parties.length;
+    } catch (_e) { /* swallow — badge defaults to 0 on any failure */ }
+    return 0;
+  };
 }
 
 // T1.20 — Read lifetime USD spend from the canonical legacy key
@@ -201,6 +293,35 @@ if (typeof window !== 'undefined') {
       if (e && e.key === 'blocksworn_p5_spending') _refreshPlayerSegment();
     });
   } catch (_e) { /* swallow */ }
+}
+
+// T3.08 (2026-05-13): Read `?replay=<id>` query parameter for the deeplink
+// handler. Pure read of window.location.search — never mutates anything.
+// Returns empty string when no query, no match, or in non-browser context.
+function _readReplayDeeplinkId() {
+  try {
+    if (typeof window === 'undefined' || !window.location || !window.location.search) return '';
+    const m = /[?&]replay=([^&]+)/.exec(window.location.search);
+    if (!m || !m[1]) return '';
+    return decodeURIComponent(m[1]);
+  } catch (_e) {
+    return '';
+  }
+}
+
+// T3.06 (2026-05-13): Read `?invite=<token>` query parameter for the friend
+// invite deeplink handler. Pure read — never mutates. Returns empty when
+// no query, no match, or in non-browser context. Additive to T3.08
+// replay deeplink (does NOT modify _readReplayDeeplinkId).
+function _readInviteDeeplinkToken() {
+  try {
+    if (typeof window === 'undefined' || !window.location || !window.location.search) return '';
+    const m = /[?&]invite=([^&]+)/.exec(window.location.search);
+    if (!m || !m[1]) return '';
+    return decodeURIComponent(m[1]);
+  } catch (_e) {
+    return '';
+  }
 }
 
 async function main() {
@@ -267,11 +388,47 @@ async function main() {
     // 8. FTUE-aware initial screen. Per-render errors are contained so the
     //    bootstrap chain completes cleanly even when legacy /* global */
     //    render helpers (vRenderTopbar, etc.) are undefined in the new shell.
+    //
+    // T3.08 (2026-05-13): `?replay=<id>` deeplink handler. When present, the
+    // initial screen becomes the Replay viewer with the captured replay
+    // pre-loaded. Mirrors the server-side `/r/<id>` URL rewrite (production
+    // deploy rewrites `/r/<id>` → `/?replay=<id>`). FTUE-blocking takes
+    // precedence so a fresh install still goes through the tutorial.
     try {
-      if (isFtueActive()) {
+      const replayDeeplinkId = _readReplayDeeplinkId();
+      const inviteDeeplinkToken = _readInviteDeeplinkToken();
+      if (replayDeeplinkId && !isFtueActive()) {
+        try {
+          window.__replayViewerCurrentId = replayDeeplinkId;
+          // Default return target — back-button returns to menu (Codex flow
+          // wires its own __replayViewerReturnTo in T3.09).
+          window.__replayViewerReturnTo = 'menu';
+        } catch (_e) { /* swallow */ }
+        showScreen('replay-viewer');
+      } else if (isFtueActive()) {
         routeByFtue();
       } else {
         showScreen('menu');
+      }
+      // T3.06 (2026-05-13): `?invite=<token>` friend-invite deeplink handler.
+      // Runs AFTER the initial screen is set (so the toast lands on top of
+      // the menu, not a transient first-render frame). FTUE-blocking takes
+      // precedence — fresh installs still go through tutorial; the invite
+      // is consumed silently when FTUE is active so the token isn't lost.
+      if (inviteDeeplinkToken && !isFtueActive()) {
+        import('./services/friend-graph-backend.js').then(mod => {
+          try {
+            mod.parseAndConsumeInvite(inviteDeeplinkToken).then(result => {
+              try {
+                if (result && result.ok) {
+                  import('./ui/friend-leaderboard.js').then(ui => {
+                    try { ui.showFriendToast('Friend added!'); } catch (_e) { /* swallow */ }
+                  }).catch(() => { /* swallow — dynamic import failure non-fatal */ });
+                }
+              } catch (_e) { /* swallow */ }
+            }).catch(() => { /* swallow — invite consumption failure non-fatal */ });
+          } catch (_e) { /* swallow */ }
+        }).catch(() => { /* swallow — dynamic import failure non-fatal */ });
       }
     } catch (err) {
       log.warn('[boot] initial screen render:', err);

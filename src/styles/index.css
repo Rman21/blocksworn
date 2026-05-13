@@ -21,6 +21,7 @@
 @import './components/icon.css';
 @import './components/hero-card.css';
 @import './components/modal.css';
+@import './components/friend-leaderboard.css';
 
 /* Utilities — generic helpers / cross-cutting rules that don't belong
  * to a single component or screen. */
@@ -37,3 +38,7 @@
 @import './screens/profile.css';
 @import './screens/dailies.css';
 @import './screens/codex.css';
+@import './screens/replay-viewer.css';
+@import './screens/adventures.css';
+@import './screens/party-tower.css';
+@import './screens/tower-season.css';

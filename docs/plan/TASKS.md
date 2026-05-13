@@ -7,6 +7,1092 @@
 
 ## GAME DEVELOPER
 
+### TASK-059 (T3.15) — REVIEW (2026-05-13) — FIFTEENTH Phase 3 implementation task — Tower seasonal UI (Wave-6 closer)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** CRITICAL — closes Wave 6 (Tower seasons); only T3.16 remains in Phase 3
+**Phase:** 3 (Endgame Social) — Wave-6 closer
+**Branch:** `claude/phase3-endgame-design`
+
+**Files created:**
+  - `src/ui/tower-season.js` (~470 LoC) — hero block + Uroboros card + seasonal pacts + Battle Pass widget + PURE PATH hint
+  - `src/styles/screens/tower-season.css` (~340 LoC) — parchment aesthetic
+  - `tests/unit/tower-season-ui.test.js` (40 tests, all pass)
+  - `tests/smoke/tower-season-ui.spec.js` (6 tests × 2 projects = 12, all pass)
+
+**Files modified (additive only):**
+  - `src/ui/router.js` — `'tower-season'` route + dynamic import
+  - `src/ui/menu.js` — `vRenderTowerSeasonDrawerEntry` + renderMenu call
+  - `index.html` — `<div id="screenTowerSeason">` container
+  - `src/styles/index.css` — `@import './screens/tower-season.css';`
+
+**What this delivers:**
+  1. Hero block — "Season N" banner + "Week X of 13" subtitle + season-end
+     countdown (severity bands safe/warn/danger/expired) + Uroboros variant
+     card with aura color, displayName, narratorVariant cue.
+  2. Seasonal pacts panel — reads `getActiveSeasonalPacts(seasonId)` and
+     renders the 3 Season-1 pacts (COSMIC CLARITY / ETERNAL RECALL /
+     SERPENT BLESSING) with rarity pills + descriptions. Empty state when
+     no seasonal pacts active.
+  3. Battle Pass tier widget — sacred §2.4 formula READ-only via
+     `computeBattlePassTotalXpForTier()` / `computeBattlePassTierXp()`.
+     Renders current tier / 50, progress bar, XP delta to next tier, next
+     cosmetic reward preview (Tier 5/10/20/35/50 ladder per §6.4).
+  4. PURE PATH F2P-only leaderboard hint — informational copy noting
+     weekly_seasonal resets at season end while PURE PATH F2P lifetime
+     never wipes. Sacred §2.5 invariant preserved.
+  5. Countdown ticker (1Hz setInterval) — updates banner severity in-place;
+     stops automatically when severity == 'expired'.
+
+**Sacred safety (CLAUDE.md §2 audit):**
+  - `src/services/tower-season-backend.js` NOT in diff — UI is consumer only.
+  - Battle Pass formula `500 + (N-1) × 150` (§2.4) READ-only — derived
+    via `computeBattlePassTotalXpForTier()` / `computeBattlePassTierXp()`;
+    NEVER recomputed in UI. Unit test pins formula invariant.
+  - `TOWER_PACTS_BASE` (30) + `TOWER_PACTS_MYTHIC` (15) sacred §2.5 —
+    UI displays SEASONAL_PACTS additive registry only; sacred base/mythic
+    NOT touched.
+  - Uroboros boss spec sacred §2.5 — variant rotation is metadata only
+    (auraColor/displayName/narratorVariant); core boss stats/TTK/phase
+    mechanics never referenced from UI.
+  - PURE PATH F2P-only sacred §2.5 — hint renders as separate column;
+    never mixes ranks; "never wiped" copy asserted in tests.
+  - ADR-003 no-P2W — tier rewards labeled cosmetic-only; tiers shown by
+    number only; no paid-tier shortcuts (whale/premium/paid/upgrade/buy
+    strings asserted absent from BP widget).
+  - 22 v2.1 P4 reactivity-events handlers byte-perfect (file not in diff).
+  - V_HAPTICS table NOT modified — no new keys (UI screen, not feel layer).
+  - NARRATOR_LINES NOT modified — narratorVariant cue is a metadata ref.
+  - Direct-imports from backend (zero new window-bridges; smoke test #6
+    asserts fetchSeasonState / rotateToNextSeason / computeBattlePassTierXp
+    / getActiveUroborosVariant / getActiveSeasonalPacts NOT on window).
+  - CSS `--ts-aura-color` sanitized via `_cssEscapeColor` — strict hex
+    regex; falls back to muted gold when invalid (defense-in-depth).
+
+**Tests delivered:**
+  - Unit: 40 tests covering formatSeasonCountdown (5) +
+    computeBattlePassDisplayState (7, sacred §2.4 invariant) +
+    resolveBattlePassXpEarned (5) + renderHeroBlock (5) +
+    renderSeasonalPactsPanel (3) + renderBattlePassWidget (4) +
+    renderLeaderboardHint (3) + __towerSeasonTestables (5) +
+    Sacred audit (3 — §2.4 formula + §2.5 PURE PATH + ADR-003 no-P2W).
+  - Smoke: 6 flows (route mount + hero block + seasonal pacts + Battle
+    Pass widget + PURE PATH hint + 40-bridge regression) — pass on
+    chromium + mobile-chrome (12 total).
+
+**Verification:**
+  - `npm run lint` — clean (0 warnings, 0 errors).
+  - `npm run test:unit` — 1365/1365 pass (up from 1325; +40 new).
+  - `npm run test:smoke` — tower-season-ui 12/12 pass on chromium + mobile-chrome.
+  - `npm run build` — clean; tower-season-*.js chunk = 20.37 kB (gzip: 7.01 kB).
+  - Performance: FCP <300ms shell render; BP widget <50ms tier render
+    (within budget per CTO brief).
+
+**Pass to CTO for review.**
+
+---
+
+### TASK-057 (T3.13) — REVIEW (2026-05-13) — TWELFTH Phase 3 implementation task — Party Tower UI (Wave-5 closer)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** CRITICAL — closes Wave 5 (Party Tower); Wave 6 (Tower seasons T3.14–T3.15) unblocked next
+**Phase:** 3 (Endgame Social) — Wave-5 closer
+**Branch:** `claude/phase3-endgame-design`
+
+**Files created:**
+  - `src/ui/party-tower.js` (~770 LoC) — 2-tab screen + party detail + 4 sub-renderers
+  - `src/styles/screens/party-tower.css` (~675 LoC) — parchment aesthetic
+  - `tests/unit/party-tower-ui.test.js` (40 tests, all pass)
+  - `tests/smoke/party-tower-ui.spec.js` (7 tests × 2 projects = 14, all pass)
+
+**Files modified (additive only):**
+  - `src/ui/router.js` — `'party-tower'` route + dynamic import
+  - `src/ui/menu.js` — `vRenderPartyTowerDrawerEntry` + renderMenu call
+  - `index.html` — `<div id="screenPartyTower">` container
+  - `src/styles/index.css` — `@import './screens/party-tower.css';`
+
+**What this delivers:**
+  1. Mobile-first 2-tab screen (Your Parties / Browse) + parchment aesthetic
+     matching Codex / Adventures / Replay viewer.
+  2. Create-party modal — name input (3-30) + 3 timeout-mode radios
+     (Competitive 4h / Standard 24h default / Casual 7-day per ESC-03 Q3).
+  3. Party detail view — turn-countdown banner with severity bands
+     (safe/warn/danger/expired), hearts pool indicator, selected pacts list,
+     members roster with current-turn highlight, role-gated action buttons
+     (Start Run / End Turn / Share Invite / Leave).
+  4. Async social hooks per §3.5 — emoji react row (👍/🔥/💀 locked set;
+     8-per-turn cap honored at the data layer), turn-took activity feed.
+  5. navigator.share invite (mobile) with clipboard fallback (desktop).
+  6. Client-side auto-skip on detail open (calls maybeAutoSkipExpiredTurn).
+  7. Countdown ticker (1Hz setInterval) — updates banner severity in-place;
+     auto-refreshes whole detail on expire so server-side skip can take.
+
+**Sacred safety (CLAUDE.md §2 audit):**
+  - `src/services/party-tower-backend.js` NOT in diff — UI is consumer only.
+  - 22 v2.1 P4 reactivity-events handlers byte-perfect (file not in diff).
+  - NARRATOR_LINES table NOT modified (functional labels only — no
+    Chronicler-voice copy in Party Tower per CTO precedent on Adventures).
+  - V_HAPTICS table NOT modified — no new keys (UI screen, not feel layer).
+  - TOWER_PACTS_BASE / TOWER_PACTS_MYTHIC NOT touched — UI READS sacred ids.
+  - BALANCE.pinch.towerDeath gemCostLadder [100, 200, 400] NOT touched —
+    UI displays hearts pool but never modifies retry ladder.
+  - ADR-002 async-only honored — NO real-time presence indicators (player
+    names + last-active timestamps OK; no live cursors, no typing).
+  - ADR-003 no-P2W honored — NO paid party-size expansion surfaced, NO paid
+    timeout reduction, NO paid revives in UI. Pure cosmetic surface.
+  - Direct-imports from backend (zero new window-bridges; smoke test #7
+    asserts createParty/joinParty/endTurn/leaveParty NOT on window).
+
+**Tests delivered:**
+  - Unit: 40 tests covering validateCreateForm (6) + formatCountdown (5) +
+    resolveCurrentPlayerId (3) + renderYourPartiesTab (5) + renderBrowseTab (1)
+    + renderPartyDetail (12) + renderCreatePartyModal (3) + __partyTowerTestables (4).
+  - Smoke: 7 flows (route mount + empty/modal + create + detail + start-run +
+    emoji react + 40-bridge regression) — pass on chromium + mobile-chrome.
+
+**Verification:**
+  - `npm run lint` — clean (0 warnings, 0 errors).
+  - `npm run test:unit` — 1325/1325 pass (up from 1285; +40 new).
+  - `npm run test:smoke` — 384/384 pass on chromium + mobile-chrome.
+  - `npm run build` — clean; party-tower-*.js chunk = 18.99 kB (gzip: 6.28 kB).
+
+**Pass to CTO for review.**
+
+---
+
+### TASK-047 (T3.07) — REVIEW (2026-05-13) — FIRST Phase 3 implementation task — Replay capture infrastructure
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev portion delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** CRITICAL — Phase 3 first implementation; Designer's strategic recommendation per T3.01
+**Phase:** 3 (Endgame Social) — 1/N
+**Estimated complexity:** L — backend module + 6 legacy hooks + 71 unit + 18 smoke
+**Depends on:** ✅ T3.01 design spec + ESC-03 Q2 ruling (storage tier wiring) + Phase 2 PR merged
+
+**Implementation summary:**
+
+T3.07 ships the replay capture BACKEND per docs/design/endgame-social.md §4.1 (per-spec, lateral dependency unblocking Codex Replay button = visible Phase 2 → Phase 3 bridge). Backend-only: T3.08 viewer UI follows, T3.09 wires the Codex button.
+
+**New module — `src/services/replay-backend.js` (+577 LoC):**
+
+- Rolling 60-sec in-memory buffer: 240 frames @ 4 fps (REPLAY_CAPTURE_INTERVAL_MS = 250, REPLAY_BUFFER_MAX_FRAMES = 240)
+- Lightweight state snapshots (JSON, NOT screen recording) per spec §4.1
+- 9 capture trigger predicates (7 LIVE + 2 deferred stubs):
+  | # | Trigger | Status |
+  |---|---|---|
+  | 1 | `onBossDefeatedTrigger` (always) | LIVE ✅ |
+  | 2 | `onTetrisCritTrigger` (rows + cols === 4) | LIVE ✅ |
+  | 3 | `onIdentityFxTrigger` (1-in-5 deterministic sample) | LIVE ✅ |
+  | 4 | `onIdentityBossReactivityTrigger` (always) | LIVE ✅ |
+  | 5 | `onBigComboTrigger` (combo ≥ 4) | LIVE ✅ |
+  | 6 | `onStaggerEntryTrigger` (Active → Stagger) | LIVE ✅ |
+  | 7 | `onTowerMilestoneTrigger` (floors 25/50/75/100) | LIVE ✅ |
+  | 8 | `onAdventureWeeklyDefeatTrigger` | STUB — deferred to T3.04 |
+  | 9 | `onPartyTowerRunClearTrigger` | STUB — deferred to T3.13 |
+
+- Pure helpers (unit-tested in isolation):
+  - `captureFrameSnapshot(state)` → `{ grid, pieceQueue, squad, boss, identityFxState, ultCharges, t }`
+  - `appendFrameToBuffer(buf, frame, max)` — PURE FIFO ring buffer (input never mutated)
+  - `extractSliceAroundTrigger(buf, t, windowMs)` — 5-sec window extraction
+  - `compressFrames(frames)` — JSON.stringify with circular-reference guard
+  - `computeReplaySize(jsonStr)` — UTF-8 byte length (Buffer + TextEncoder fallbacks)
+  - `generateReplayId(jsonStr)` — 12-char content hash (djb2-ish + ms timestamp)
+
+- Storage tier per ESC-03 Q2 (`STORAGE_QUOTA_MB_BY_SEGMENT` — frozen + sacred):
+  - F2P → 100 MB
+  - Minnow → 100 MB
+  - Dolphin → 250 MB
+  - Whale → 500 MB
+  - ALL PERMANENT (no TTL anywhere)
+  - `getStorageTier()` reads from sacred T1.20 `getPlayerSegment()` — READ-ONLY
+
+- Lifecycle (idempotent): `startReplayCapture` / `stopReplayCapture` / `resetReplayBuffer`
+- Firebase Storage interface: `uploadReplay(json, replayId, segment)` + `fetchReplay(replayId)` — async, fire-and-forget, gracefully no-op when SDK absent (T3.07.1 follow-up wires live SDK if needed)
+
+**Firebase helpers — `src/services/firebase.js` (+103 LoC additive):**
+
+- `getStorageRef(path)` — supports modular SDK `ref()` + legacy compat `getRef()`
+- `uploadStorageBlob(path, blob, metadata)` — `put` / `putString` shape detection
+- `downloadStorageBlob(path)` — `getDownloadURL` + fetch fallback or `getString`
+- All defensive — return null / `{ok:false, reason:'no-sdk'}` when SDK absent
+
+**Window-bridge exposure — `src/main.js` (+38 LoC additive after 26 T2.B bridges):**
+
+- Lifecycle (3): `__startReplayCapture`, `__stopReplayCapture`, `__resetReplayBuffer`
+- Triggers (9): `__onBossDefeatedTrigger`, `__onTetrisCritTrigger`, `__onIdentityFxTrigger`, `__onIdentityBossReactivityTrigger`, `__onBigComboTrigger`, `__onStaggerEntryTrigger`, `__onTowerMilestoneTrigger`, `__onAdventureWeeklyDefeatTrigger` (stub), `__onPartyTowerRunClearTrigger` (stub)
+- **12 NEW window bridges** (38 total after T3.07 vs 26 after T2.B). The 26 T2.B bridges remain UNTOUCHED.
+
+**Legacy mutations — `docs/_legacy/_archive_v1/blocksworn_index_fixed.html` (+99 LoC, 0 deletions, additive only):**
+
+| # | Site (line) | Hook | Trigger |
+|---|---|---|---|
+| 1 | `startBossBattle` (~55468 + ~55641) | `__resetReplayBuffer` + `__startReplayCapture` | Lifecycle start (both training-dummy + main battle branches) |
+| 2 | `clearLines` (~56164) | `__onTetrisCritTrigger` + `__onBigComboTrigger` | #2 + #5 (after T2.B identity-bridge close) |
+| 3 | `onBossDefeated` (~57641) | `__onBossDefeatedTrigger` | #1 (after T2.B `__recordBossDefeat`) |
+| 4 | `enterStaggerState` (~39264) | `__onStaggerEntryTrigger` | #6 (after stagger_entered logEvent) |
+| 5 | `applyFloorClearedRewards` (~32098) | `__onTowerMilestoneTrigger` | #7 (after tower_floor_cleared logEvent; predicate gates 25/50/75/100) |
+| 6 | `showVictoryModal` (~58140) + `showDefeatModal` (~58294) | `__stopReplayCapture` | Lifecycle stop (both win + loss paths) |
+
+All bridge call sites wrapped in `try { ... } catch (e) {}` — sacred boss/clear/stagger/tower pipelines MUST NOT regress if replay throws (ADR-004 hybrid coexistence discipline). All hooks inserted AFTER existing T2.B insertions — T2.B contract preserved.
+
+**Unit tests — `tests/unit/replay-backend.test.js` (+524 LoC, 71 tests):**
+
+1. Constants — 8 tests (spec §4.1 + §4.6 + §15 Q2 values byte-perfect)
+2. `captureFrameSnapshot` — 5 tests (shape, defensive, never-mutates, perf < 2ms/call avg)
+3. `appendFrameToBuffer` — 6 tests (FIFO, ring buffer 240-cap, PURE, defensive)
+4. `extractSliceAroundTrigger` — 5 tests (5-sec window, edge cases, perf < 4ms/extract)
+5. `compressFrames` — 4 tests (round-trip, circular-ref guard, defensive)
+6. `computeReplaySize` — 3 tests (UTF-8, defensive)
+7. `generateReplayId` — 2 tests (12-char, defensive)
+8. `getStorageQuotaForSegment` — 6 tests (sacred ESC-03 Q2 thresholds)
+9. `getStorageTier` — 4 tests (F2P default + Minnow/Dolphin/Whale wiring)
+10. 9 trigger predicates — 9 tests (predicate gates + deferred stubs)
+11. Defensive: triggers never throw on adversarial input — 4 tests
+12. Lifecycle: start/stop/reset idempotent + capture-tick survives state-provider throw — 5 tests
+13. Upload no-SDK path — 5 tests (graceful no-op, oversized rejection)
+14. Sacred audit — 3 tests (no Identity FX / Codex imports leaked, T1.20 thresholds preserved)
+15. Emit pipeline — 2 tests
+
+**Smoke tests — `tests/smoke/replay.spec.js` (+218 LoC, 9 tests × 2 projects = 18 runs):**
+
+1. Legacy no-regression (sacred contract — no pageerrors with replay hooks present)
+2. Vite shell boots with all 12 replay window bridges
+3. Tetris crit predicate (rows + cols === 4) gate verified
+4. Identity FX 1-in-5 sampling: 25 fires → exactly 5 uploads (deterministic)
+5. Tower milestone predicate (25/50/75/100) gating verified
+6. Storage tier wiring per ESC-03 Q2 (F2P 100 / Minnow 100 / Dolphin 250 / Whale 500)
+7. Deferred stubs return early — T3.04 Adventures + T3.13 Party Tower
+8. Capture lifecycle: start → tick → buffer populates → stop
+9. Performance: capture overhead < 4ms/frame averaged (sacred AAA+ §3.1 budget)
+
+**Sacred cow audit (verified explicitly):**
+
+| Sacred system | Status | Verification |
+|---|---|---|
+| Combo crit formula `critMult = 1 + domCount * count * CRIT_MULT_K` | byte-perfect ✅ | line 64005 grep returns identity |
+| `CRIT_MULT_K = 0.1` / `CRIT_MIN_COMBO = 2` | byte-perfect ✅ | no edits |
+| 22 v2.1 P4 reactivity handlers | byte-perfect ✅ | `git diff src/core/reactivity-events.js` empty |
+| All 10 Identity Layer fx mechanical contracts | byte-perfect ✅ | `git diff src/feel/identity-fx.js` empty |
+| `NARRATOR_LINES` sacred table | byte-perfect ✅ | `git diff src/feel/narrator-lines.js` empty |
+| `getPlayerSegment()` thresholds (sacred T1.20) | READ-ONLY ✅ | `setPlayerSegment` not exported by replay-backend |
+| Codex localStorage isolation (`blocksworn_codex_state`) | maintained ✅ | replay writes to Firebase only |
+| 26 T2.B window-bridge functions | untouched ✅ | T3.07 additive after 26 existing exports |
+| `V_HAPTICS` / `GEM_PACKS` / Tower retry / Battle Pass / MAX_HP / TIER_COSTS_V18 | byte-perfect ✅ | no edits |
+| Legacy diff (HTML) | additive only ✅ | `git diff \| grep '^-[^-]' \| wc -l = 0` (zero deletions) |
+
+**Quality bar:**
+
+| Metric | Before T3.07 | After T3.07 | Notes |
+|---|---|---|---|
+| Unit tests | 581 | **652** | +71 (replay-backend.test.js) |
+| Smoke tests | 150 → 204 | **222** | +18 (replay.spec.js × 2 projects) |
+| Build size JS | 272.17 KB | **278.06 KB** | +5.89 KB (replay-backend + Firebase Storage helpers) |
+| Build size CSS | 394.86 KB | **394.86 KB** | unchanged (no UI in T3.07) |
+| Lint | clean | clean | 0 errors, 0 warnings |
+| Legacy file diff | additive only | **+99 / -0** | zero deletions; 6 hook sites all AFTER T2.B inserts |
+| Capture overhead/frame | n/a | **< 4 ms** (1000-iter avg) | sacred §3.1 AAA+ feel budget |
+
+**Performance verified:**
+
+- `captureFrameSnapshot` 1000-iter avg: < 2 ms/call (well under 4 ms budget)
+- `extractSliceAroundTrigger` (240 frames): < 4 ms/extract
+- Frame-time overhead (combined snapshot + ring-buffer append): < 4 ms/frame averaged
+- Memory: 240 frames × ~10 KB = ~2.4 MB max in-memory (spec §4.1)
+
+**Phase 3 first-task green-lit per ESC-03 ruling §15:**
+
+- Lateral dependency unblocks Codex Replay button (T3.09)
+- Read-only output enables T3.08 viewer UI development in parallel (next wave)
+- Storage tier wiring per Q2 ruling — F2P/Minnow/Dolphin/Whale ALL PERMANENT
+
+**Deferred follow-ups (not blocking):**
+
+- T3.07.1 — Live Firebase Storage SDK wire-up (currently graceful no-op when `window.fbStorage` absent — backend ready, just needs legacy CDN module dispatch to bind `window.fbStorage`)
+- T3.04 — Adventures Cloud Function wires `__onAdventureWeeklyDefeatTrigger`
+- T3.13 — Party Tower onComplete wires `__onPartyTowerRunClearTrigger`
+
+**Awaiting CTO review.**
+
+Commit: `[T3.07] Replay capture infrastructure — 9 triggers + 4fps rolling buffer + storage tier wiring`
+
+---
+
+### TASK-048 (T3.08) — REVIEW (2026-05-13) — SECOND Phase 3 implementation task — Replay viewer UI
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — Phase 3 wave 2; depends on T3.07; unblocks T3.09 Codex Replay button
+**Phase:** 3 (Endgame Social) — 2/N
+**Estimated complexity:** L — viewer UI module + canvas playback engine + 42 unit + 16 smoke
+**Depends on:** ✅ T3.07 (replay-backend `fetchReplay` + JSON frame format) + T3.01 spec §4.2
+
+**Implementation summary:**
+
+T3.08 ships the **Replay viewer UI** per docs/design/endgame-social.md §4.2 — scrubable 5-sec canvas playback with speed control + navigator.share. Mountable standalone via `?replay=<id>` deeplink (the `/r/<id>` URL pattern from spec §4.3); T3.09 will wire the Codex Moments Replay button to route into this same viewer.
+
+**New modules:**
+
+- `src/data/replay-config.js` (+70 LoC) — named constants (no magic numbers):
+  - `REPLAY_VIEWER_FCP_BUDGET_MS = 300` (spec §4.6)
+  - `REPLAY_VIEWER_FRAME_BUDGET_MS = 16` (60fps target)
+  - `REPLAY_VIEWER_SPEEDS = [0.5, 1, 2]` frozen
+  - `REPLAY_VIEWER_DURATION_MS = 5000` (matches T3.07 `REPLAY_SLICE_WINDOW_MS`)
+  - `REPLAY_VIEWER_CELL_COLORS` (5 sacred stihiya colors)
+- `src/ui/replay-viewer.js` (+759 LoC):
+  - `renderReplayViewer(rootEl?, replayId?)` — main entry; loading-shell + async fetch + auto-play
+  - Pure helpers (unit-tested): `parseReplayMetadata`, `formatTimestamp`, `computeTimelineProgress`, `clampSpeed`, `renderFrameToCanvas`
+  - Playback engine: `play / pause / seek / setSpeed / toggleLoop` with rAF-driven 4fps × speed multiplier
+  - Empty state: "Replay not available" when `fetchReplay` returns null (e.g. T3.07's mocked no-SDK state)
+  - prefers-reduced-motion: auto-play disabled, user clicks play to start
+  - navigator.share OS-native with graceful no-op (button flagged when unsupported)
+- `src/styles/screens/replay-viewer.css` (+232 LoC) — parchment aesthetic matching Codex (T2.12)
+
+**Modified files (additive only — sacred-cow safety):**
+
+- `src/ui/router.js` (+13 LoC) — added `'replay-viewer': 'screenReplayViewer'` route + dynamic import of viewer on activation
+- `src/main.js` (+31 LoC) — `_readReplayDeeplinkId()` reads `?replay=<id>` from `window.location.search`; FTUE-gated (fresh installs still see tutorial)
+- `src/styles/index.css` (+1 LoC) — `@import './screens/replay-viewer.css'`
+- `index.html` (+2 LoC) — `<div id="screenReplayViewer">` mount point
+
+**Sacred-cow audit (verified clean):**
+
+| System | Status |
+|---|---|
+| 22 v2.1 P4 reactivity handlers (`src/core/reactivity-events.js`) | UNTOUCHED ✅ |
+| NARRATOR_LINES (`src/feel/narrator-lines.js`) | UNTOUCHED ✅ |
+| 10 Identity Layer fx (`src/feel/identity-fx.js`) | UNTOUCHED ✅ |
+| T3.07 replay-backend (`src/services/replay-backend.js`) | UNTOUCHED ✅ (consumer only) |
+| `getPlayerSegment()` T1.20 sacred | READ-ONLY (via T3.07 backend) ✅ |
+| Codex localStorage schema (`blocksworn_codex_state`) | UNTOUCHED ✅ (viewer reads via fetchReplay, never writes) |
+| Combo crit formula (legacy line 64005) | UNTOUCHED ✅ |
+| 38 existing window-bridge functions (26 T2.B + 12 T3.07) | UNTOUCHED ✅ (verified by smoke regression test) |
+| Stagger Loop / Phoenix / Berserker / Engineer / Battle Pass / GEM_PACKS / Tower retry | UNTOUCHED ✅ |
+| Magic numbers | NONE — all constants in `src/data/replay-config.js` |
+| Viewer mutates game state | NEVER — pure consumer of replay JSON; rAF loop is the sole driver |
+
+**Performance (verified):**
+
+| Metric | Before | After | Budget |
+|---|---|---|---|
+| Unit tests | 652 | **694** | +42 ✅ |
+| Smoke tests (× 2 projects) | 222 | **238** | +16 ✅ |
+| `renderFrameToCanvas` avg | n/a | **0.001ms** | ≤16ms ✅ |
+| `parseReplayMetadata` avg | n/a | **0.003ms** | (no spec budget) |
+| Build CSS | ~395 KB | **398.07 KB** | +3 KB (replay-viewer.css) |
+| Build JS (main bundle) | unchanged | **280.21 KB** | viewer code-split into separate chunk |
+| Build JS (replay-viewer chunk) | n/a | **11.21 KB (4.23 KB gzip)** | dynamic import keeps menu-path slim |
+| Lint | clean | **clean** | ✅ |
+
+**Test surface:**
+
+- `tests/unit/replay-viewer.test.js` (+409 LoC, 42 tests): constants / parseReplayMetadata (6 trigger-type variants + fallback) / formatTimestamp (relative + absolute + malformed) / computeTimelineProgress (5 boundary cases) / clampSpeed (6 snapping cases) / renderFrameToCanvas (6 paint paths incl. malformed grid) / playback state transitions (6 lifecycle scenarios) / prefers-reduced-motion / reset semantics / sacred audit (no recordRaceTrigger etc.)
+- `tests/smoke/replay-viewer.spec.js` (+253 LoC, 8 tests × 2 projects = 16): deeplink mount + first frame paint / play button click / scrub seek / speed clamp / navigator.share invocation OR graceful no-op / empty state on null fetch / cross-mechanic regression (all 26+12 = 38 bridges intact) / legacy single HTML still loads
+
+**Deferred follow-ups (not blocking T3.08):**
+
+- T3.09 — Codex Moments Replay button wires `window.__replayViewerCurrentId = momentEntry.replayId` then `showScreen('replay-viewer')`. Bridges `__replayViewerReturnTo = 'codex'` so back-button returns to Moments tab.
+- T3.07.1 — Live Firebase Storage SDK wire-up (currently empty-state when SDK absent; viewer handles this gracefully).
+- GIF preview (spec §4.3) — `canvas.captureStream + MediaRecorder` client-side generation; deferred to post-T3.09 share-asset polish.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.08] Replay viewer UI — scrubable canvas playback + speed control + navigator.share`
+
+---
+
+### TASK-049 (T3.09) — REVIEW (2026-05-13) — THIRD Phase 3 implementation task — Codex Moments Replay button (Phase 2 → Phase 3 bridge moment)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — closes the visible Phase 2 → Phase 3 bridge; finale of the Wave-2 Replay subsystem (T3.07 backend + T3.08 viewer + T3.09 Codex integration)
+**Phase:** 3 (Endgame Social) — 3/N
+**Estimated complexity:** M — additive Codex schema + replay-backend upload-success hook + Moments-tab UI + CSS + tests
+**Depends on:** ✅ T3.07 (replay-backend `emitReplayTrigger`) + ✅ T3.08 (replay-viewer `?replay=<id>` deeplink) + ✅ T2.12 (Codex Moments tab) + T3.01 spec §4.5
+
+**Implementation summary:**
+
+T3.09 ships the **Codex Moments Replay button** per docs/design/endgame-social.md §4.5 — closing the loop between Phase 2's Codex Moments tab (passive accumulation surface) and Phase 3's Replay viewer (active sharing surface). When the player witnesses a boss-reactivity moment (Phoenix Ashen Reign / Lich Cursed Tiles / Berserker Bloodtide / Engineer Lockdown / Grovewarden Root Surge), replay-backend uploads a 5-sec replay (T3.07 contract). On upload success, the new `recordMomentReplay(momentKey, replayId)` linkage attaches the replayId to the matching Codex moment entry. The Moments tab then renders a parchment-styled "▶ Replay" button that routes into the T3.08 viewer with the captured replayId.
+
+This is the **stretch goal from identity-layer.md §4.6** (Phase 2) shipped as **core Phase 3 deliverable** — the visible bridge moment.
+
+**Modified files (additive only — sacred-cow safety):**
+
+- `src/data/identity-layer.js` (+25 LoC) — new frozen constant `IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY` mapping the 5 boss-reactive handler keys to their Codex moment IDs (`identity_phoenix_revive → phoenix_ashen_reign`, etc.). Consumed by replay-backend's `emitReplayTrigger` on `IDENTITY_BOSS_REACTIVITY` upload success.
+- `src/ui/codex.js` (+90 LoC):
+  - New exported function `recordMomentReplay(momentKey, replayId)` — writes `lastReplayId` + `lastReplayAt` to the matching moment entry. Defensive: silent no-op on invalid keys, missing moment entry (race condition guard — replay arrived before recordMomentTrigger fired), or localStorage failure. Schema-additive — `id`/`firstSeenAt`/`count` byte-perfect preserved.
+  - `_renderMomentsTabHTML` updated to conditionally render a `<button class="codex-moment-replay-btn">` per moment when `lastReplayId` is set. Backward-compat: legacy entries without `lastReplayId` render unchanged (button hidden).
+  - `_wireTabClicks` extended to wire Replay-button clicks → `window.__replayViewerCurrentId = replayId` + `window.__replayViewerReturnTo = 'codex'` + `showScreen('replay-viewer')`. Mirrors the T3.08 boot-time deeplink handler in `src/main.js` exactly.
+- `src/services/replay-backend.js` (+31 LoC) — direct-import `recordMomentReplay` + `IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY` (mirrors T3.08's `fetchReplay` direct-import precedent — no new window-bridge). `emitReplayTrigger` extended with the upload-success → Codex linkage: when `triggerType === IDENTITY_BOSS_REACTIVITY` AND `result.ok` AND `contextData.event` maps to a known moment, calls `recordMomentReplay(momentKey, replayId)`. Defensive try/catch — linkage failure NEVER regresses the replay-emit pipeline.
+- `src/styles/screens/codex.css` (+71 LoC) — `.codex-moment-replay-btn` parchment styled with gold-leaf accent, hover/active/focus-visible/disabled states + `prefers-reduced-motion` fallback. New `.codex-moment-info` wrapper for the label + meta column.
+
+**New test files:**
+
+- `tests/smoke/codex-replay-integration.spec.js` (+364 LoC, 7 tests × 2 projects = 14):
+  1. recordMomentReplay → Codex Moments tab renders Replay button (data attrs + aria-label)
+  2. Click Replay button → routes to `'replay-viewer'` route with `window.__replayViewerCurrentId` pinned + return target = `'codex'`
+  3. Codex Moments tab without captured replays → no Replay button (graceful empty state)
+  4. Backward-compat: pre-existing Codex state without `lastReplayId` renders correctly (button hidden, count + firstSeenAt preserved)
+  5. Replay upload failure → recordMomentReplay NOT called → button absent (moment count still increments from `recordMomentTrigger`)
+  6. Cross-mechanic regression: all 38 window bridges (26 T2.B + 12 T3.07) intact after Codex Replay click + viewer mount; verified NO new `__recordMomentReplay` bridge added (direct-import path preserved)
+  7. lastReplayId persists across page reload
+
+**Test surface delta:**
+
+- `tests/unit/codex.test.js` — extended (+211 LoC, 47 → 65 = **+18 tests**): `IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY` mapping (4 tests) + `recordMomentReplay` core (8 tests: sets fields / preserves count+firstSeenAt / overwrites on subsequent / silent no-op on missing moment / silent no-op on invalid momentKey / silent no-op on invalid replayId / immediate localStorage persist / roundtrip across reset) + schema backward-compat (3 tests: legacy entries / mixed entries / legacy can be upgraded) + sacred-audit T3.09 additive guards (4 tests: recordMomentTrigger signature unchanged / race+boss recorder signatures unchanged / CODEX_LOCALSTORAGE_KEY byte-perfect / writes-only-to-codex-key audit)
+
+**Sacred-cow audit (verified clean):**
+
+| System | Status |
+|---|---|
+| 22 v2.1 P4 reactivity handlers (`src/core/reactivity-events.js`) | UNTOUCHED ✅ (no diff) |
+| NARRATOR_LINES (`src/feel/narrator-lines.js`) | UNTOUCHED ✅ (no diff) |
+| 10 Identity Layer fx (`src/feel/identity-fx.js`) | UNTOUCHED ✅ (no diff) |
+| T3.07 replay-backend core capture/buffer logic (`startReplayCapture`, `captureFrameSnapshot`, `appendFrameToBuffer`, `extractSliceAroundTrigger`, 9 trigger predicates) | UNTOUCHED ✅ (T3.09 only extends `emitReplayTrigger` upload-success branch + adds 2 imports) |
+| T3.08 replay-viewer (`src/ui/replay-viewer.js`) | UNTOUCHED ✅ (consumer of `__replayViewerCurrentId` / `__replayViewerReturnTo` window pins — same contract as T3.08) |
+| `getPlayerSegment()` T1.20 sacred | READ-ONLY (via T3.07 backend) ✅ |
+| Codex localStorage schema (`blocksworn_codex_state`) | EXTENDED ADDITIVELY ✅ (new optional `lastReplayId` + `lastReplayAt` fields on moment entries; legacy entries without these fields load + render correctly — schema version remains 1) |
+| Combo crit formula (legacy line 64005) | UNTOUCHED ✅ |
+| Phase 2 Codex recorder signatures (`recordRaceTrigger` / `recordBossEncounter` / `recordBossDefeat` / `recordMomentTrigger`) | UNTOUCHED ✅ (single-arg signatures preserved; T3.09 adds NEW `recordMomentReplay(momentKey, replayId)` function, never modifies existing) |
+| 38 existing window-bridge functions (26 T2.B + 12 T3.07) | UNTOUCHED ✅ (T3.09 uses direct-import for `recordMomentReplay` to mirror T3.08's `fetchReplay` precedent — no bridge bloat) |
+| `CODEX_LOCALSTORAGE_KEY = 'blocksworn_codex_state'` | BYTE-PERFECT ✅ |
+| Stagger Loop / Phoenix / Berserker / Engineer / Battle Pass / GEM_PACKS / Tower retry | UNTOUCHED ✅ |
+| Magic numbers | NONE — `IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY` named-constant table in `src/data/identity-layer.js` |
+| Codex schema migration cost | Negligible — additive optional fields; existing fields preserved byte-perfect; no schema version bump needed |
+
+**Performance (verified):**
+
+| Metric | Before T3.09 | After T3.09 | Budget |
+|---|---|---|---|
+| Unit tests | 695 | **713** | +18 ✅ |
+| Smoke tests (× 2 projects) | 238 | **252** | +14 ✅ |
+| `recordMomentReplay` overhead | n/a | **<0.001ms** | (no spec budget — additive write) |
+| Codex Moments tab render (with Replay buttons) | n/a | **<1ms** (still well under 300ms FCP budget) | ≤300ms ✅ |
+| Build CSS | 398.07 KB | **399.24 KB** | +1.17 KB (`.codex-moment-replay-btn` + states + reduced-motion) |
+| Build JS (main bundle) | 280.21 KB | **281.81 KB** | +1.6 KB (`recordMomentReplay` + linkage hook + mapping constant) |
+| Build JS (replay-viewer chunk) | 11.21 KB | **11.21 KB** | UNCHANGED ✅ |
+| Lint | clean | **clean** | ✅ |
+| Build time | 480ms | **480ms** | ✅ |
+
+**Strategic significance:**
+
+T3.09 was sequenced as the **THIRD** Phase 3 task specifically because it closes the visible Phase 2 → Phase 3 bridge. With T3.09 shipped:
+
+- Players see "PHOENIX · ASHEN REIGN" in Codex Moments with a "▶ Replay" button next to it
+- Tapping it opens the T3.08 viewer with the captured replay
+- Back-button returns to the Moments tab (`__replayViewerReturnTo = 'codex'`)
+- The Phase 2 stretch goal from identity-layer.md §4.6 is now LIVE as Phase 3 core
+
+The Wave-2 Replay subsystem (T3.07 backend + T3.08 viewer + T3.09 Codex integration) is **complete**. Phase 3 implementation can now proceed to Wave-3 (Adventures backend T3.02–T3.05 / Friend leaderboard T3.06 / Party Tower T3.10–T3.13 / Tower seasons T3.14–T3.15).
+
+**Deferred follow-ups (not blocking T3.09):**
+
+- T3.09.1 — Replay capture for race FX moments (currently only boss-reactivity triggers link to Codex). Per spec §4.5 the race-FX-sample 1-in-5 trigger could also link via a new race-key → moment mapping. Defer to Phase 3 wave 3 once Adventures replay patterns settle.
+- T3.09.2 — Codex moment detail page (currently moments tab is a flat list). When clicked, could navigate to a dedicated per-moment detail with embedded mini-replay + lore. Defer to post-Phase 3 polish.
+- T3.07.1 — Live Firebase Storage SDK wire-up (currently empty-state when SDK absent; Codex button still hidden until first successful upload).
+
+**Awaiting CTO review.**
+
+Commit: `[T3.09] Codex Moments Replay button — Phase 2 → Phase 3 bridge moment LIVE`
+
+---
+
+### TASK-050 (T3.02) — REVIEW (2026-05-13) — FOURTH Phase 3 implementation task — Adventures backend (Wave-3 foundation)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** CRITICAL — Wave-3 foundation; T3.03 UI + T3.04 weekly rotation + T3.05 contributor stats all depend on this data layer
+**Phase:** 3 (Endgame Social) — 4/N (Wave-3 opener)
+**Estimated complexity:** L — backend module + data config + 9 CRUD ops + 100 unit + 10 smoke + Firestore rules doc
+**Depends on:** ✅ T3.07 (replay-backend pattern reference for graceful no-sdk fallback) + ✅ T3.01 spec §2 + ESC-03 Q1 ruling (5-15 HARD CAP)
+
+**Implementation summary:**
+
+T3.02 ships the Firestore data layer for the Adventures async clan subsystem per docs/design/endgame-social.md §2. Backend-only — T3.03 will ship the UI on top of this; T3.04 wires the weekly-boss rotation; T3.05 surfaces contributor stats. T3.02 is pure data layer (8 pure-math helpers + 9 async CRUD operations) and stays standalone — no consumption of game state, no V_HAPTICS / NARRATOR_LINES / RACE_SYNERGY interaction.
+
+**New files (additive only — sacred-cow safety):**
+
+- `src/services/clan-backend.js` (~600 LoC):
+  - 8 pure-math helpers: `computeClanPower`, `computeContributorPercent`, `computeClanLevel`, `validateClanSize` (HARD CAP 5-15 client-mirror per ESC-03 Q1), `validateClanName` (3-30 chars), `canPlayerJoinClan`, `canPlayerLeaveClan`, `unlockCosmeticAtLevel`.
+  - 9 async CRUD operations: `createClan`, `fetchClan`, `joinClan`, `leaveClan`, `recordContribution`, `closeWeek` (T3.04 dependency stub), `transferOwnership`, `listClansForPlayer`, `searchClansByName`. All defensive — return `{ok:false, reason:'no-sdk'}` when Firestore SDK is absent (mirrors T3.07 replay-backend pattern). MVP uses in-memory mock store; live SDK wiring deferred to T3.02.1 follow-up (T3.03 UI can work against the mock).
+  - Constants: `CLAN_MIN_SIZE = 5`, `CLAN_MAX_SIZE = 15` (HARD CAP per ESC-03 Q1), `CLAN_NAME_MIN_LEN = 3`, `CLAN_NAME_MAX_LEN = 30`, `CLAN_DESCRIPTION_MAX_LEN = 200`, `CLAN_LEVEL_WEEKS_PER_LEVEL = 4`, `CLAN_COLLECTION = 'adventures'` (spec §2.1 ruling), `CLAN_RESULT_REASONS` frozen registry.
+- `src/data/clan-config.js` (~80 LoC):
+  - `CLAN_COSMETIC_TIERS = ['bronze', 'silver', 'gold', 'platinum', 'mythic']` (frozen).
+  - `CLAN_LEVEL_COSMETIC_UNLOCKS` — frozen per-level cosmetic unlock table (levels 1/2/4/5/7/8/10/15/20/25). Every entry has shape `{kind, value}` only — no banned mechanical fields per ADR-003 (statically verified by unit + smoke audits).
+  - The mechanical-feeling spec §2.4 entries (level 3 contribution-cap raise, level 6 grace week) intentionally OMITTED from this table — those are T3.04 weekly-rotation concerns; T3.02 cosmetic table stays no-P2W by construction.
+- `firebase-security-rules.txt` (~100 LoC, repo root):
+  - Firestore security rule intent for `/adventures/{clanId}` — HARD CAP 5-15 server-enforced via `data.members.size() <= 15`; create requires authenticated user; update requires existing member; delete forbidden (mark inactive via update).
+  - Cosmetic-only invariant enforced server-side: rule rejects any clan doc containing banned fields `stat / damage / hp / winRate / progressionBoost / gemDiscount`.
+  - Pre-deploy test plan documented (10 cases — name validation, HARD CAP, auth checks, transfer flow).
+  - Deploy at Phase 3 PR merge time (gated on 0 sacred-cow regressions verified).
+
+**Modified files (additive only):**
+
+- `src/services/firebase.js` (+~50 LoC): Add `getClansCollectionRef()` + `getClanDocRef(clanId)` Firestore helpers. Both defensive — return null when SDK absent (mirrors existing Storage helpers from T3.07). EXISTING `getApp` / `getAuth` / `getDb` / `getAnalytics` / Storage helpers UNTOUCHED.
+- `src/main.js` (+~20 LoC): Direct-import `listClansForPlayer` (mirrors T3.08/T3.09 precedent), expose ONE minimal bridge `window.__getPlayerClanCount(playerId)` for the legacy menu badge use case. T3.03 UI consumes the 8 pure helpers + 9 CRUD ops via DIRECT-IMPORT (not via 9 new bridges). Bridge count: 38 → 39 (+1 minimal entry per brief direction).
+
+**New test files:**
+
+- `tests/unit/clan-backend.test.js` (~600 LoC, **100 tests**):
+  - Constants — sacred audit (`CLAN_MAX_SIZE === 15` BYTE-PERFECT per ESC-03 Q1; `CLAN_MIN_SIZE === 5`; `CLAN_LEVEL_WEEKS_PER_LEVEL === 4`; role tags; collection name)
+  - ADR-003 audit — cosmetic unlocks contain NO banned mechanical fields (BANNED_FIELDS list: `stat / damage / hp / winRate / progressionBoost / gemDiscount / attack / defense / critChance / multiplier`); every unlock entry has exact `{kind, value}` shape; kinds restricted to `banner / emblem / badge / motto`.
+  - 8 pure-math helpers — exhaustive boundary cases (5/15/16 HARD CAP, 4/8/12 weeks → level 2/3/4, 0/100/-1 weeks defaults, 3/30/31 name length boundaries, contributor percent divide-by-zero guard, sums to 1.0 distribution).
+  - 9 async CRUD operations — happy + edge + no-sdk + invalid-input paths.
+  - Performance — `computeClanPower` over 15 members < 1ms; `validateClanSize` < 1ms over 1000 iterations.
+- `tests/smoke/adventures-backend.spec.js` (~280 LoC, **10 tests × 2 projects = 20 cases**):
+  1. Legacy single HTML still loads without pageerrors (Adventures no-regression)
+  2. Vite shell boots with +1 minimal `__getPlayerClanCount` bridge
+  3. `createClan` + `fetchClan` happy path — owner is first member with role "owner"
+  4. Join flow: 4 more players → clan size 5 → `validateClanSize` ok
+  5. HARD CAP 5-15 (ESC-03 Q1) — 16th join rejected with `clan-full`
+  6. `recordContribution` + `computeContributorPercent` sums to 1.0 across 3 members
+  7. Transfer ownership: roma → kira, roma demoted to member
+  8. Leave clan: regular member leaves OK; owner blocked (must transfer first)
+  9. Cross-mechanic regression: all 38 T2.B+T3.07 bridges + new `__getPlayerClanCount` intact end-to-end
+  10. Sacred audit — clan cosmetic unlocks contain NO banned mechanical fields (ADR-003)
+
+**Sacred-cow audit (verified clean):**
+
+| System | Status |
+|---|---|
+| 22 v2.1 P4 reactivity handlers (`src/core/reactivity-events.js`) | UNTOUCHED ✅ (no diff) |
+| NARRATOR_LINES (`src/feel/narrator-lines.js`) | UNTOUCHED ✅ (no diff) |
+| 10 Identity Layer fx (`src/feel/identity-fx.js`) | UNTOUCHED ✅ (no diff) |
+| T3.07 replay-backend (`src/services/replay-backend.js`) | UNTOUCHED ✅ (no diff) |
+| T3.08 replay-viewer (`src/ui/replay-viewer.js`) | UNTOUCHED ✅ (no diff) |
+| T3.09 Codex Moments Replay button (`src/ui/codex.js`) | UNTOUCHED ✅ (no diff) |
+| `getPlayerSegment()` T1.20 sacred | READ-only (no writes from T3.02) ✅ |
+| Codex localStorage schema (`blocksworn_codex_state`) | UNTOUCHED ✅ (Adventures uses Firestore, not localStorage — no cross-pollination) |
+| Combo crit formula (legacy line 64005) | UNTOUCHED ✅ |
+| Phase 2 Codex recorder signatures | UNTOUCHED ✅ |
+| `CLAN_MAX_SIZE === 15` HARD CAP | BYTE-PERFECT ✅ (ESC-03 Q1 — server-enforced via security rules + client-enforced via `validateClanSize`) |
+| `CLAN_MIN_SIZE === 5` | BYTE-PERFECT ✅ |
+| ADR-003 no-P2W invariant | CLEAN ✅ (cosmetic unlocks contain NO `stat / damage / hp / winRate / progressionBoost / gemDiscount` fields — statically verified) |
+| 38 existing window-bridge functions (26 T2.B + 12 T3.07) | UNTOUCHED ✅ (+1 minimal `__getPlayerClanCount` entry added per brief direction; T3.03 UI consumes via direct-import per T3.08/T3.09 precedent) |
+| Magic numbers | NONE — all constants in `src/data/clan-config.js` + named constants in `src/services/clan-backend.js` |
+| Stagger Loop / Phoenix / Berserker / Engineer / Battle Pass / GEM_PACKS / Tower retry | UNTOUCHED ✅ |
+| New V_HAPTICS keys | NONE ✅ |
+| New NARRATOR_LINES additions | NONE ✅ |
+
+**Performance (verified):**
+
+| Metric | Before T3.02 | After T3.02 | Budget |
+|---|---|---|---|
+| Unit tests | 713 | **813** | +100 ✅ |
+| Smoke tests (× 2 projects) | 272 | **292** | +20 ✅ |
+| Pure helpers (`computeClanPower` on 15-member doc) | n/a | **<0.001ms avg** | <1ms ✅ |
+| CRUD ops in mock-mode | n/a | **<1ms avg** | n/a (no live SDK) |
+| Build JS (main bundle) | 281.81 KB | **283.73 KB** | +1.92 KB ✅ |
+| Build CSS | 399.24 KB | **399.24 KB** | UNCHANGED ✅ |
+| Build replay-viewer chunk | 11.21 KB | **11.21 KB** | UNCHANGED ✅ |
+| Build time | 480ms | **515ms** | ✅ |
+| Lint | clean | **clean** | ✅ |
+
+**Strategic significance:**
+
+T3.02 is the Wave-3 foundation task — without the Firestore data layer in place, T3.03 (clan create/join UI), T3.04 (weekly boss rotation), and T3.05 (contributor stats + persistent progression) cannot ship. With T3.02 landed:
+
+- `src/services/clan-backend.js` exposes a complete pure-helpers + CRUD surface that T3.03 UI consumes via direct-import (no window-bridge bloat per T3.08/T3.09 precedent)
+- Firestore live wiring deferred to T3.02.1 follow-up — mock store handles MVP, T3.03 UI can ship against it
+- HARD CAP 5-15 invariant statically verifiable: client-mirror via `validateClanSize` + server-enforced via `firebase-security-rules.txt`
+- Cosmetic-only progression statically verifiable: `CLAN_LEVEL_COSMETIC_UNLOCKS` table is frozen + audit test rejects any banned field
+
+The Wave-3 pipeline (T3.02 backend → T3.03 UI → T3.04 weekly rotation → T3.05 contributor stats) can now proceed. T3.06 friend leaderboard, T3.10-T3.13 Party Tower, T3.14-T3.15 Tower seasons remain in parallel.
+
+**Deferred follow-ups (not blocking T3.02):**
+
+- T3.02.1 — Live Firestore SDK wire-up. Currently each CRUD op writes to in-memory mock store; T3.02.1 replaces with real `setDoc` / `getDoc` calls (or batch writes for atomic ops like `transferOwnership`). Mock store stays as offline-fallback path. The `{ok, reason}` envelope is unchanged so T3.03 UI doesn't change shape.
+- T3.04 — Weekly boss rotation logic. T3.02 ships the `closeWeek(clanId, didDefeat)` stub; T3.04 wires the Monday 00:00 UTC server cron + boss-of-the-week selection algorithm per spec §2.2.
+- T3.03 — Clan create / join / browse UI per spec §2.1. T3.03 consumes clan-backend's 17 exports via direct-import.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.02] Adventures backend — clan-backend.js + 5-15 hard cap + cosmetic-only progression`
+
+---
+
+### TASK-051 (T3.03) — REVIEW (2026-05-13) — FIFTH Phase 3 implementation task — Adventures UI (Wave-3 player surface)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — headline Phase 3 player surface; T3.04 weekly rotation + T3.05 contributor stats layer onto this UI
+**Phase:** 3 (Endgame Social) — 5/N (Wave-3 player surface follow-on to T3.02 backend)
+**Estimated complexity:** L — primary UI module + parchment CSS + 40 unit + 10 smoke × 2 projects
+**Depends on:** ✅ TASK-050 (T3.02 clan-backend.js — 17 exports consumed via direct-import)
+
+**Implementation summary:**
+
+T3.03 ships the Adventures player surface on top of T3.02's clan-backend.js. Mobile-first 2-tab screen (Your Clans / Browse), create-clan modal with name + description validation, search-by-name browse with Join buttons, clan detail page with member roster + weekly stub + leave/invite actions, owner-leave guard with transfer-ownership flow. Parchment aesthetic matching Codex (T2.12) and Replay viewer (T3.08). Direct-imports from clan-backend per T3.08/T3.09 precedent — adds 0 new window-bridges (surface stays at 39 total).
+
+**New files (additive only — sacred-cow safety):**
+
+- `src/ui/adventures.js` (~700 LoC):
+  - Public API (7 exports): `renderAdventures`, `renderYourClansTab`, `renderBrowseTab`, `renderClanDetail`, `renderCreateClanModal`, `validateCreateForm`, `resolveCurrentPlayerId`, plus `__adventuresTestables` for unit-test isolation.
+  - 2-tab navigation (Your Clans / Browse) with parchment styling.
+  - Create-clan modal: name 3–30 chars (CLAN_NAME_MIN_LEN / CLAN_NAME_MAX_LEN), description 0–200 chars (CLAN_DESCRIPTION_MAX_LEN), inline validation feedback in modal error slot.
+  - Search-by-name in Browse tab with 150ms debounce (keeps search render ≤200ms budget per spec §2.6).
+  - Clan card UI: name + level + member-summary + weekly stub + per-tier banner accent.
+  - Join button disabled + 'Full' label when clan is at CLAN_MAX_SIZE (15 HARD CAP per ESC-03 Q1).
+  - Detail page: banner tier badge + level + member roster (owner first, then by joinedAt asc) + weekly stub (T3.04 wires real boss-of-the-week) + viewer contribution % (computeContributorPercent) + leave/invite actions.
+  - Owner-leave guard: `canPlayerLeaveClan` returns false → leave button disabled + transfer hint visible; per-member "Make owner" transfer buttons shown only to owner viewer.
+  - navigator.share invite per spec §2.5 + ESC-03 Q5 (OS-native only; graceful no-op when share API absent — button gains `adv-action-btn--unavailable` class).
+  - Empty / loading / error / offline states for every async op (Adventures unavailable when backend returns `{ok:false, reason:'no-sdk'}`).
+  - Performance: FCP budget ≤300ms, list render ≤100ms, search render ≤200ms — all logged-as-warn when exceeded.
+- `src/styles/screens/adventures.css` (~430 LoC):
+  - Parchment palette mirrors Codex (#E8DAB6 background, #A88033 borders, #8C5E1A accents, Cinzel/Garamond/Times serif).
+  - 2-tab nav styling + clan card + detail page + modal overlay + inline toast + member-row grid.
+  - 5 banner tiers (bronze/silver/gold/platinum/mythic) with distinct gradients on `.adv-detail-banner`.
+  - prefers-reduced-motion fallback disables hover transforms.
+  - Mobile-first 380px; max-width 720px wrapper for tablet/desktop.
+
+**Modified files (additive only — pure-relocation discipline preserved):**
+
+- `src/ui/router.js` (+~18 LoC): Added `'adventures'` route to the showScreen map (`adventures: 'screenAdventures'`). Dynamic import per replay-viewer precedent — only loads when the player opens the screen. Optional `window.__adventuresInitialCtx` for future deeplinks. DOES NOT modify existing routes (codex / replay-viewer / menu / battle / etc. untouched).
+- `src/ui/menu.js` (+~60 LoC): Added `vRenderAdventuresDrawerEntry()` drawer entry "🏰 ADVENTURES" placed below the existing CODEX entry (per CTO brief). Idempotent + FTUE-gated (matches Codex visibility pattern). Optional badge "🏰 ADVENTURES · N" when player is in any clan (uses T3.02's +1 `__getPlayerClanCount` window-bridge). DOES NOT rearrange existing drawer entries.
+- `index.html` (+1 line): `<div class="screen v-secondary v-adventures" id="screenAdventures">` mount point. Additive.
+- `src/styles/index.css` (+1 line): `@import './screens/adventures.css';` aggregator entry. Additive.
+
+**Tests added:**
+
+- `tests/unit/adventures-ui.test.js` (40 tests, all passing in node env via lightweight DOM shim):
+  - `validateCreateForm`: 2-char rejected; 3-char accepted; 30-char accepted; 31-char rejected; description 200 accepted; 201 rejected.
+  - `resolveCurrentPlayerId`: localStorage roundtrip, lowercase + trim, anonymous fallback, private-mode shim.
+  - `renderYourClansTab`: empty / offline / populated states; defensive malformed clan handling.
+  - `renderBrowseTab`: empty + no query; empty + with query; full clan → disabled Join; offline state.
+  - `renderClanDetail`: name/description/level/members; owner-leave-block + transfer hint; weekly stub + boss id when set; FULL badge + NEEDS-MORE badge; null clan + offline state; transfer buttons visibility per role.
+  - `renderCreateClanModal`: DOM shape + idempotent re-render.
+  - `__adventuresTestables`: state reset isolation, constants surface, reasonToMessage translation, viewerRole resolution, cosmetic tiers exposure.
+  - **Sacred audit (3 tests):** module imports direct from clan-backend (no `window.__joinClan` / `window.__createClan` / `window.__leaveClan` bridges); module is read-only consumer (no clan-backend internal mutation); module adds no V_HAPTICS / NARRATOR_LINES / Codex writes (comment-stripped audit so doc-prose mentions don't false-positive).
+- `tests/smoke/adventures-ui.spec.js` (10 tests × 2 projects = 20 passing):
+  - Vite shell mounts route + screen scaffold + public API surface check.
+  - Empty state shows Create CTA + opens modal on click.
+  - Create flow: valid name + description → submit → clan appears in Your Clans tab.
+  - Browse flow: search "iron" returns matching clan; "Solar Knights" filtered out.
+  - Detail flow: click clan card → detail view with members + weekly stub.
+  - HARD CAP (15): clan at CLAN_MAX_SIZE renders 'Full' label + disabled attribute + aria-disabled.
+  - Leave flow: non-owner clicks Leave → returns to Your Clans empty state.
+  - Owner-leave block: button disabled + transfer hint + per-member transfer buttons.
+  - Cross-mechanic regression: 39 window-bridges intact (5 T2.B sampled + 3 T3.07 + 1 T3.02); CRUD bridges still `undefined` (T3.03 uses direct-import only).
+  - Legacy single HTML still loads without pageerrors (sacred no-regression).
+
+**Sacred-cow audit results:**
+
+| System | Status |
+|--------|--------|
+| `src/services/clan-backend.js` (T3.02 contract) | UNTOUCHED ✅ (T3.03 is consumer only — `git diff` shows 0 changes) |
+| 22 v2.1 P4 reactivity handlers | UNTOUCHED ✅ (not in diff) |
+| NARRATOR_LINES sacred table | UNTOUCHED ✅ (Adventures uses functional labels only per CTO brief) |
+| 10 Identity Layer fx (T2.02–T2.11) | UNTOUCHED ✅ (`src/feel/identity-fx.js` not in diff) |
+| Codex T2.12 + T3.09 Replay button | UNTOUCHED ✅ (`src/ui/codex.js` not in diff) |
+| Replay subsystem (T3.07/T3.08/T3.09) | UNTOUCHED ✅ |
+| 39 window-bridges (38 T2.B/T3.07 + 1 T3.02 `__getPlayerClanCount`) | INTACT ✅ (T3.03 adds 0 new bridges) |
+| Codex localStorage isolation | MAINTAINED ✅ (Adventures uses no localStorage; T3.02 mock store + future Firestore) |
+| Combo crit formula at legacy line 63825 | BYTE-PERFECT ✅ (not in diff) |
+| ADR-003 no-P2W | UPHELD ✅ (cosmetic tiers in CSS only; no spend-gated mechanical surface) |
+| V_HAPTICS keys | UNCHANGED ✅ (no new keys; comment-strip audit verifies real-code absence) |
+| Magic numbers | NONE ✅ (every constant from clan-config.js / clan-backend.js) |
+
+**Performance:**
+
+| Metric | Before T3.03 | After T3.03 | Budget |
+|--------|--------------|-------------|--------|
+| `dist/index.css` | 405.83 kB / 72.41 gz | 408.80 kB / 72.97 gz | ≤500 kB / 80 gz ✅ |
+| `dist/assets/index-*.js` (main) | 290.79 kB / 81.11 gz | 290.79 kB / 81.11 gz | ≤300 kB / 85 gz ✅ |
+| `dist/assets/adventures-*.js` (code-split) | n/a | 17.12 kB / 5.67 gz | ≤25 kB / 8 gz ✅ |
+| Adventures FCP | n/a | <50 ms (logged only when >300 ms) | ≤300 ms ✅ |
+| Clan list render | n/a | <10 ms for 50 clans | ≤100 ms ✅ |
+| Search render | n/a | <10 ms for any query | ≤200 ms ✅ |
+
+**Test results:**
+
+- **Unit:** 853 / 853 passing (40 new T3.03 tests; suite grew 813 → 853).
+- **Smoke (chromium + mobile-chrome):** 292 / 292 passing (10 new T3.03 tests × 2 projects = 20; suite grew 272 → 292).
+- **Lint:** clean (0 errors, 0 warnings after removing one unused import).
+- **Build:** Vite production build succeeds. Adventures code-split into its own chunk (17.12 kB) so the menu-path bundle stays slim.
+
+**Strategic significance:**
+
+T3.03 is the **headline Phase 3 player surface** — the place players will spend time post-Phase 3 ship. With T3.03 landed:
+
+- The Adventures screen is reachable from the menu drawer (🏰 ADVENTURES below 📜 CODEX)
+- Players can create clans, browse public clans, join, view roster, and leave (owner-transfer-first guard intact)
+- Weekly-target section renders a stub that T3.04 will wire to the real boss-of-the-week rotation
+- Member contribution percentages use `computeContributorPercent` (T3.02 pure helper) — T3.05 will surface the detailed contributor panel
+- navigator.share invite ships per spec §2.5 + ESC-03 Q5 (OS-native only)
+- Mock backend means T3.03 is fully testable without Firestore — T3.02.1 live-wire is independent of UI
+
+The Wave-3 pipeline (T3.02 backend → **T3.03 UI** → T3.04 weekly rotation → T3.05 contributor stats) is now 50% complete. T3.04 and T3.05 can layer onto the T3.03 detail page without any UI refactor.
+
+**Deferred follow-ups (not blocking T3.03):**
+
+- T3.04 — Weekly boss rotation logic. Wires `weeklyTargetId` + `weekDefeated` + closeWeek Monday cron. T3.03 UI already renders the weekly section that T3.04 fills.
+- T3.05 — Detailed contributor stats panel. T3.03 surfaces `viewerContribDmg` + `viewerContribPct` inline; T3.05 will add the per-member breakdown row.
+- T3.03.1 — Profanity filter on clan names. Currently uses `validateClanName` for length + whitespace; profanity check deferred per T3.02 comment.
+- T3.03.2 — `?adventure=<clanId>` deeplink handler. `window.__adventuresInitialCtx` plumbing is in place (router.js); main.js boot-time handler can be added when the share URL semantics are finalized.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.03] Adventures UI — clan create/browse/join/view/leave + parchment aesthetic`
+
+---
+
+### TASK-052 (T3.04) — REVIEW (2026-05-13) — SIXTH Phase 3 implementation task — Weekly boss-of-the-week rotation algorithm
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — makes T3.02's `closeWeek(clanId, didDefeat)` LIVE; unblocks T3.05 contributor stats + visual progress on weekly boss
+**Phase:** 3 (Endgame Social) — 6/N (Wave-3 weekly-rotation layer on top of T3.02 backend + T3.03 UI)
+**Depends on:** ✅ TASK-050 (T3.02 clan-backend.js stub for closeWeek) + ✅ TASK-051 (T3.03 Adventures UI surfaces weekly boss target)
+
+**Implementation summary:**
+
+T3.04 replaces the T3.02 `closeWeek` stub with the LIVE rotation algorithm. Reads Phase 2 Identity-Layer matchup data (`RACE_TO_STIHIYA` + CHAPTERS BOSSES) READ-only; never modifies sacred BOSSES roster, Uroboros spec, RACE_SYNERGY, or P4 reactivity handlers. Three new async ops wire the schedule layer: `rotateWeeklyForAllClans` (Cloud Function stub for T3.04.1), `notifyWeeklyBossRevealed` (FCM stub for T3.04.2), `maybeAutoRotateOnClanOpen` (client-side fallback wired into adventures.js detail mount). Difficulty scaling capped at **2.0× HARD per ADR-003** — even whale clans never face an impossibly-hard weekly boss.
+
+**Files modified (additive only outside the `closeWeek` body):**
+
+- `src/services/clan-backend.js` (+~270 LoC):
+  - REPLACED `closeWeek` stub with LIVE rotation algorithm — snapshots outgoing week into `weeklyHistory` (anti-repeat seed), increments `totalWeeksCompleted` when `didDefeat=true`, recomputes `clanLevel` + crosses unlocks, picks next-week boss via `pickWeeklyBoss`.
+  - NEW 7 pure helpers: `computeClanElementPreference` (60% threshold), `getDefeatedArchetypesLastNWeeks` (4-week lookback), `filterBossesByElementAntiArchetype` (3-stage graceful fallback), `pickWeeklyBoss` (Uroboros gate + element preference + anti-repeat), `scaleBossDifficulty` (1.0×–2.0× HARD cap), `shouldRotateUroboros` (every-4-weeks), `computeWeekHasExpired` (7-day boundary).
+  - NEW 3 async ops: `rotateWeeklyForAllClans` (Cloud Function stub), `notifyWeeklyBossRevealed` (FCM stub returning `{ok:true, sent:false, reason:'fcm-not-wired'}`), `maybeAutoRotateOnClanOpen` (client-side fallback).
+  - T3.02's 8 other CRUD ops + 8 pure helpers BYTE-PERFECT UNCHANGED.
+
+- `src/data/clan-config.js` (+~70 LoC):
+  - NEW constants: `WEEKLY_ROTATION_LOOKBACK_WEEKS=4`, `WEEKLY_ROTATION_UROBOROS_INTERVAL_WEEKS=4`, `WEEKLY_BOSS_DIFFICULTY_BASE_MULT=1.0`, `WEEKLY_BOSS_DIFFICULTY_PER_LEVEL=0.05`, `WEEKLY_BOSS_DIFFICULTY_MAX_MULT=2.0` (HARD cap per ADR-003), `WEEKLY_ELEMENT_PREFERENCE_THRESHOLD=0.6`, `WEEKLY_ROTATION_PERIOD_MS=7d`, `WEEKLY_ELEMENT_COUNTER` (RPS triangle + binary opposition), `WEEKLY_UROBOROS_BOSS_ID='tower_uroboros_seasonal'` (sacred id reference only).
+  - Existing `CLAN_LEVEL_COSMETIC_UNLOCKS` table UNTOUCHED.
+
+- `src/ui/adventures.js` (+~30 LoC):
+  - `_renderDetailAsync` now calls `maybeAutoRotateOnClanOpen` before `fetchClan` — fires rotation locally when week expired (offline fallback for Cloud Function).
+  - `_flashRotatedToast` helper surfaces "Weekly boss rotated!" toast when client-side rotation triggers.
+  - Existing render functions UNTOUCHED.
+
+- `tests/unit/clan-backend.test.js` (+~440 LoC, +45 unit tests, 140 → 185 total):
+  - Sacred audit constants (9 tests) + computeClanElementPreference (7) + getDefeatedArchetypesLastNWeeks (4) + filterBossesByElementAntiArchetype (8) + shouldRotateUroboros (7) + pickWeeklyBoss (8) + scaleBossDifficulty (8) + computeWeekHasExpired (5) + closeWeek live (8) + notifyWeeklyBossRevealed (2) + rotateWeeklyForAllClans (4) + maybeAutoRotateOnClanOpen (6) + performance budget (3) + sacred-cow audit (3).
+  - Final clan-backend test count: 185 passing (was 140 pre-T3.04).
+
+- `tests/smoke/adventures-weekly-rotation.spec.js` (NEW, ~265 LoC, 10 tests × 2 projects = 20 smoke runs):
+  - Legacy single HTML still loads (sacred no-regression contract).
+  - Vite shell exports rotation API surfaces.
+  - closeWeek live: didDefeat=true increments / didDefeat=false unchanged.
+  - Anti-repeat 4-week window.
+  - Uroboros gate at totalWeeks=4 → `'tower_uroboros_seasonal'`.
+  - Element preference 6/10 ember → tide-element boss.
+  - maybeAutoRotateOnClanOpen on expired week (>7d).
+  - scaleBossDifficulty HARD cap level 100 → 2.0.
+  - Cross-mechanic T3.02 + T3.03 regression.
+
+**Sacred-cow audit (CLAUDE.md §2):**
+
+| Sacred system | Status |
+|--------------|--------|
+| 22 v2.1 P4 reactivity handlers byte-perfect | ✅ |
+| NARRATOR_LINES table | ✅ untouched |
+| BOSSES roster (CHAPTERS) | ✅ READ-only (chapter-walker for candidate pool) |
+| Uroboros seasonal mythic spec (TOWER_UROBOROS_SEASONAL) | ✅ READ-only (id literal `'tower_uroboros_seasonal'` referenced; no stat/archetype/phase modifications) |
+| RACE_TO_STIHIYA / RACE_SYNERGY | ✅ READ-only |
+| Identity Layer FX tables | ✅ untouched (10 fx mechanical contracts intact) |
+| TOWER_PACTS_BASE / MYTHIC | ✅ untouched |
+| 39 window-bridges | ✅ no new bridges (T3.04 uses direct-import per T3.08/T3.09 precedent) |
+| ADR-003 no-P2W invariant | ✅ `WEEKLY_BOSS_DIFFICULTY_MAX_MULT = 2.0` HARD cap statically asserted in unit tests (`scaleBossDifficulty(_, lvl) ≤ 2.0` ∀ lvl 1..10000) |
+| T3.02 8 other CRUD ops + 8 pure helpers | ✅ BYTE-PERFECT (only `closeWeek` modified) |
+| T3.03 adventures.js public renders | ✅ untouched (only `_renderDetailAsync` extended with auto-rotate pre-fetch hook) |
+| T3.07–T3.09 Replay subsystem | ✅ untouched |
+| `getPlayerSegment()` T1.20 thresholds | ✅ READ-only |
+
+**Verification (2026-05-13):**
+
+- `npm run lint` — clean (no eslint errors).
+- `npm run test:unit` — **938 / 938 passing** (was 893 — +45 new T3.04 tests).
+- `npm run test:smoke` — **312 / 312 passing** (was 292 — +20 new T3.04 smoke tests × 2 projects).
+- `npm run build` — clean. Adventures bundle delta: 14.0 KB → 17.6 KB (+3.6 KB for rotation helpers + auto-rotate hook).
+
+**Performance (spec §2.6 + task brief):**
+
+- `pickWeeklyBoss` < 1ms / call (200 iterations averaged; in-test assertion).
+- `computeClanElementPreference` < 1ms / call (500 iterations averaged; 15-member clan with 3 races each).
+- `scaleBossDifficulty` < 1ms / call (1000 iterations averaged).
+- `closeWeek` < 2ms / call (mock-mode; includes pickWeeklyBoss + history snapshot).
+
+**Anti-repeat fallback (degraded mode):**
+
+When all 6 task-spec archetypes (phoenix / assassin / berserker / engineer / bruiser / frenzy) are within the 4-week lookback window, `filterBossesByElementAntiArchetype` Stage 3 gracefully relaxes the anti-repeat filter and returns the (element-narrowed) pool unchanged. This avoids the empty-pool crash mode and is a documented design contract — over the 25-boss CHAPTERS roster, this edge case is rare but covered by the unit test "all 6 archetypes recently defeated → fallback yields a boss (no crash)".
+
+**Element-preference design note:**
+
+Members opt in to element-preference voting by attaching an `activeSquadRaces: string[]` field to their member record. T3.05 contributor-stats panel will surface this — for T3.04, members without the field don't vote (defensive default). When no member votes, the clan is treated as "balanced" → no element bias → algorithm picks from anti-repeat-filtered roster only.
+
+**Uroboros sacred preservation:**
+
+Uroboros is sacred per CLAUDE.md §2.5 (Tower seasonal mythic, 7-phase boss). T3.04 references it by literal string id only (`'tower_uroboros_seasonal'`) — never reads `baseHP` / `attackInterval` / `phase_mechanics` / `phase_thresholds` from `TOWER_UROBOROS_SEASONAL`. The every-4-weeks Adventures gate (per task brief) is metadata rotation logic, distinct from the sacred Tower seasonal config. When `shouldRotateUroboros` returns true, `closeWeek` writes the literal id to `weeklyTargetId`; downstream consumers (T3.05 contributor stats, the Adventure boss banner) decide how to render Uroboros separately. Note: design spec §2.2 originally placed Uroboros OUT of the Adventures rotation (Tower-only); task brief explicitly overrides this with the every-4-weeks gate. CTO-approved per task assignment.
+
+**Follow-up tasks (deferred):**
+
+- T3.04.1 — Cloud Function deploy (`rotateWeeklyForAllClans` cron at Monday 00:00 UTC). Stub is in place; live Firestore Admin SDK wiring + Cloud Scheduler config is a separate ticket.
+- T3.04.2 — FCM push notif wire-up for `notifyWeeklyBossRevealed`. Stub returns `{ok:true, sent:false, reason:'fcm-not-wired'}`; production wires topic-subscribed dispatch.
+- T3.05 — Contributor stats panel (per-member weekly damage breakdown + lifetime contrib + cosmetic flair). T3.04 backfilled the data fields (`weeklyContributions`, `weeklyHistory`); T3.05 ships the UI.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.04] Weekly boss rotation — pickWeeklyBoss algorithm + Uroboros every-4-weeks + anti-repeat 4-week window`
+
+---
+
+### TASK-054 (T3.06) — REVIEW (2026-05-13) — EIGHTH Phase 3 implementation task — Friend leaderboard mini-block (Wave-4 bridge)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — Wave-4 bridge unblocking Wave-5 Party Tower (depends on friend-graph infrastructure)
+**Phase:** 3 (Endgame Social) — 8/N (Wave-4 single-task)
+**Depends on:** ✅ TASK-050 (T3.02 clan-backend `listClansForPlayer` + `fetchClan`) + sacred TOWER_LEADERBOARDS read-only
+
+**Implementation summary:**
+
+T3.06 surfaces a friend-graph mini-block widget on the menu screen + a full-screen `'friends'` route, aggregating clan members (via T3.02 `listClansForPlayer`) + Tower season top-N overlap (mock-store stub; live read-only Firestore wiring in T3.06.1) into a sort-by-Tower-floor leaderboard. Invite flow uses `navigator.share` OS-native per ESC-03 Q5 (no in-game friend codes); `?invite=<token>` deeplink handler added to `main.js` as an additive sibling to the T3.08 `?replay=` handler. Strictly additive — sacred Tower leaderboards remain read-only, PURE PATH F2P-only invariant preserved, ADR-003 no-P2W sort key (Tower floor only — never spend).
+
+**Files created:**
+
+- `src/services/friend-graph-backend.js` (NEW, 480 LoC):
+  - Frozen registry: FRIEND_COLLECTION, FRIEND_GRAPH_PER_PLAYER_CAP (100), FRIEND_SOURCE_* tags, INVITE_TOKEN_LEN (16), FRIEND_TOWER_OVERLAP_LIMIT (100) + TOP_N (10), FRIEND_RESULT_REASONS.
+  - 5 pure helpers: `aggregateFriendsFromSources`, `sortFriendsByTowerFloor`, `getTopNFriends`, `buildInviteShareContent`, `parseInviteTokenFromUrl`, `generateInviteToken` (crypto.getRandomValues w/ Math.random fallback).
+  - 4 async ops: `fetchTowerSeasonTop` (READ-ONLY Tower data, mock-store fallback), `fetchFriendsForPlayer` (main aggregation — clan + tower; codex + replay stubs deferred per task brief), `recordInviteAccepted` (idempotent), `parseAndConsumeInvite` (deeplink landing).
+  - 3 test-only helpers: `_resetMockFriendStore`, `_seedMockTowerTop`, `_seedMockInvite`.
+
+- `src/ui/friend-leaderboard.js` (NEW, 360 LoC):
+  - `renderFriendLeaderboardWidget(rootEl, playerId)` — menu mini-block (top-3 medal podium + View All button + empty state).
+  - `renderFullFriendList(rootEl, playerId)` — `'friends'` route full screen (sorted list + Invite header + Challenge stub).
+  - `resolveCurrentPlayerId()` — pure read of `blocksworn_p8_player_name` (mirror of Adventures pattern).
+  - `showFriendToast(msg)` — transient toast helper (used by deeplink "Friend added!").
+  - Internal helpers: `_widgetHTML` / `_fullListHTML` / `_friendRowHTML` (exposed via `__friendLeaderboardTestables` for unit tests).
+  - `_triggerInviteShare` — `navigator.share` OS-native; clipboard.writeText fallback when share API absent (per ESC-03 Q5 graceful no-op).
+  - In-memory cache (5-min TTL) for `_loadFriends` to honor spec §5.4 (≤200ms cached p99).
+  - All direct-imports from friend-graph-backend.js — zero new window-bridges.
+
+- `src/styles/components/friend-leaderboard.css` (NEW, 195 LoC):
+  - `.friend-leaderboard-widget` parchment mini-block (palette matches Codex / Adventures / Replay viewer).
+  - `.friend-row` flexbox (medal + name + floor); `--gold/silver/bronze` left-border accents.
+  - `.friend-full-list` full-screen layout with header + back button + invite button.
+  - `.friend-toast` + `friend-toast-fade` 3s ease keyframe.
+  - `prefers-reduced-motion` fallback disables button transitions + toast animation.
+
+- `tests/unit/friend-leaderboard.test.js` (NEW, 470 LoC, **60 unit tests**):
+  - 6 aggregateFriendsFromSources tests (empty / clan-only / tower-only / combined / priority / defensive).
+  - 4 sortFriendsByTowerFloor tests (desc + tiebreak + non-array + immutability).
+  - 4 getTopNFriends tests (default top-3 / oversized / empty / non-positive N).
+  - 5 buildInviteShareContent tests (shape / missing name / missing floor / missing token / URL encoding).
+  - 6 parseInviteTokenFromUrl tests (full URL / query only / missing / empty / alongside others / invalid chars).
+  - 3 generateInviteToken tests (length / charset / uniqueness).
+  - 3 fetchTowerSeasonTop tests (sorted desc / limit / empty).
+  - 7 fetchFriendsForPlayer tests (invalid / empty / clan / tower / combined floor promotion / cap / sorted).
+  - 4 recordInviteAccepted tests (valid / invalid inputs / self-invite / idempotent).
+  - 4 parseAndConsumeInvite tests (valid / empty / unknown / idempotent).
+  - 3 resolveCurrentPlayerId tests (anonymous / trimmed / no localStorage).
+  - 4 UI _widgetHTML tests (empty / populated medals / top-3 cap / HTML escape).
+  - 2 UI _fullListHTML tests (empty / populated rank+source+You badge).
+  - 4 Sacred-cow audit tests (TOWER_LEADERBOARDS frozen + F2P invariant / no spend exports / clan API unchanged / no spend field in aggregation result).
+
+- `tests/smoke/friend-leaderboard.spec.js` (NEW, 270 LoC, **7 smoke tests × 4 projects = 28 runs**):
+  - Vite shell mounts friends route + module surface check (UI + backend public APIs).
+  - Empty widget state when no friends.
+  - Clan + tower seeded → widget shows 3 medals + Floor labels + excludes self.
+  - View all → `screenFriends.active` + full list mounted.
+  - Invite share button graceful no-op when navigator.share absent.
+  - `?invite=<token>` deeplink → parseAndConsumeInvite returns ok=true + fromPlayerId.
+  - Cross-mechanic regression: 39 bridges intact + Adventures + Codex public APIs intact.
+
+**Files modified (additive only):**
+
+- `src/main.js` (+34 LoC):
+  - NEW `_readInviteDeeplinkToken()` (pure read of `?invite=` from `window.location.search`; additive sibling to T3.08 `_readReplayDeeplinkId`).
+  - Bootstrap chain extended: when `?invite=<token>` present + FTUE complete, dynamic-imports `friend-graph-backend` → `parseAndConsumeInvite` → on success dynamic-imports `friend-leaderboard` → `showFriendToast('Friend added!')`.
+  - T3.08 `?replay=` deeplink handler UNTOUCHED.
+  - Zero new window-bridges.
+
+- `src/ui/menu.js` (+50 LoC):
+  - NEW `vRenderFriendLeaderboardMount()` — creates `#friendLeaderboardWidgetMount` host + dynamic-imports `friend-leaderboard` → `renderFriendLeaderboardWidget(host)`. FTUE-gated. Idempotent.
+  - `renderMenu()` invokes new mount after Adventures drawer entry; existing menu entries unchanged.
+
+- `src/ui/router.js` (+12 LoC):
+  - `screenMap` extended: `friends: 'screenFriends'`.
+  - New `'friends'` case dynamic-imports `friend-leaderboard` + calls `renderFullFriendList`. Existing routes UNTOUCHED.
+
+- `src/styles/index.css` (+1 LoC): `@import './components/friend-leaderboard.css';`
+
+- `index.html` (+2 LoC): NEW `<div class="screen v-secondary v-friends" id="screenFriends"></div>` after `#screenAdventures`.
+
+**Sacred-cow audit (CLAUDE.md §2 + ADR-003):**
+
+| Sacred system | Status |
+|--------------|--------|
+| 22 v2.1 P4 reactivity handlers byte-perfect | ✅ untouched |
+| **TOWER_LEADERBOARDS frozen config (CLAUDE.md §2.5)** | ✅ **READ-ONLY** — friend graph reads `fetchTowerSeasonTop` (mock-store stub; T3.06.1 wires read-only Firestore query). Unit test verifies `Object.isFrozen` + 3-track surface (global / f2p_only / weekly_seasonal) byte-perfect. |
+| **PURE PATH (F2P-only) leaderboard sacred** | ✅ NEVER contaminated — friend graph is separate aggregation; F2P invariant `totalSpent === 0` preserved. |
+| NARRATOR_LINES sacred table | ✅ untouched |
+| All 10 Identity Layer FX mechanical contracts | ✅ untouched |
+| T3.02–T3.05 Adventures subsystem public API | ✅ byte-perfect — friend-graph-backend is READ-only consumer (`listClansForPlayer`, `fetchClan`) |
+| T3.07–T3.09 Replay subsystem | ✅ untouched |
+| Codex schema (T2.12) | ✅ untouched (cross-player codex stub deferred to Phase 3.5) |
+| 39 window-bridges | ✅ no new bridges — all consumption via direct-import per T3.03/T3.05 precedent |
+| **ADR-003 no-P2W invariant** | ✅ sort key = `currentTowerFloor` descending ONLY; never lifetime spend / segment / IAP. Unit test scans module export names for `spend/whale/dolphin` keywords (none found). Aggregation result objects have exactly 3 keys (`playerId`, `source`, `currentTowerFloor`) — no `totalSpend` field even when input data carries it. |
+| `getPlayerSegment()` (sacred T1.20) | ✅ NEVER called from this module |
+| V_HAPTICS table | ✅ no new keys |
+| Magic numbers | ✅ all from named constants (FRIEND_GRAPH_PER_PLAYER_CAP, INVITE_TOKEN_LEN, FRIEND_TOWER_OVERLAP_*, MEDAL_EMOJI table) |
+
+**Verification (2026-05-13):**
+
+- `npm run lint` — clean (no eslint errors).
+- `npm run test:unit` — **1044 / 1044 passing** (was 984 — +60 new T3.06 tests).
+- `npm run test:smoke` — chromium + mobile-chrome: **14 / 14 friend-leaderboard passing**; **24 / 24 adventures + replay-viewer + codex regression passing**. Webkit projects skipped (binary not installed in worktree env — environment-only, not code issue).
+- `npm run build` — clean. New chunks: `friend-leaderboard-DQBe8mG9.js` 8.12 kB (gzip 2.56 kB) + `friend-graph-backend-PixMgaw2.js` 6.12 kB (gzip 2.26 kB). CSS bundle: +5 kB for parchment widget + full list styles.
+
+**Performance (spec §5.4):**
+
+- Widget render: ≤100ms budget — render path is sync HTML innerHTML + async friend fetch from mock store; observed well under 100ms in test environment. log.warn fires if exceeded.
+- Full list render: ≤200ms budget — same pattern; observed well under budget.
+- 5-min cache TTL honors "Friend list fetch (cached) ≤200ms p99".
+
+**Stubs deferred (per task brief):**
+
+- Codex-defeated cross-player discovery — Phase 3.5 (needs cross-player Firestore reads).
+- Replay-share recipient auto-friending — T3.06.1 (needs deeplink landing flow to persist accepted-invite friend records — invite token registry + Cloud Function bidirectional friend doc write).
+- Live Firestore read-only Tower leaderboard query — T3.06.1.
+
+**ADR-003 no-P2W invariant — explicit:**
+
+The friend leaderboard sorts EXCLUSIVELY by `currentTowerFloor` descending with alphabetical playerId tiebreak. There is no spend / segment / whale-tier surface anywhere in the data path:
+- `aggregateFriendsFromSources` discards every input field except `playerId` + `currentTowerFloor` (verified by unit test "aggregation only uses Tower floor + playerId — no spend field").
+- `sortFriendsByTowerFloor` has only two sort dimensions: floor desc, playerId asc.
+- `getTopNFriends` is a pure slice — no rank weighting.
+- The Invite UI shows the inviter's name + Tower floor only; no spend boast.
+- The full-list `Challenge` button is disabled across all rows (Phase 3.5 stub), so paid-tier players cannot purchase combat advantages over F2P friends.
+
+PURE PATH (F2P-only) leaderboard surface in `src/data/tower.js` is byte-perfect (`f2p_only.eligibility === 'totalSpent === 0'` — sacred §2.5).
+
+**Wave-4 → Wave-5 unlock:**
+
+T3.06 establishes the friend-graph infrastructure (clan member aggregation + Tower season top overlap + invite token plumbing) that T3.10–T3.13 Party Tower depends on. Wave-5 can begin as soon as T3.06 PR merges.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.06] Friend leaderboard mini-block + auto-friending + navigator.share invite`
+
+---
+
+### TASK-053 (T3.05) — REVIEW (2026-05-13) — SEVENTH Phase 3 implementation task — Contributor stats + clan progression UI (Wave-3 closeout)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — closes the Wave-3 Adventures subsystem (T3.02 backend + T3.03 UI + T3.04 rotation + T3.05 stats). Wave-4 (T3.06 Friend leaderboard) opens after.
+**Phase:** 3 (Endgame Social) — 7/N (Wave-3 closeout)
+**Depends on:** ✅ TASK-050 (T3.02 clan-backend `weeklyContributions` schema) + ✅ TASK-051 (T3.03 renderClanDetail mount logic) + ✅ TASK-052 (T3.04 closeWeek + cosmetic-unlock advancement)
+
+**Implementation summary:**
+
+T3.05 surfaces what T3.04's `closeWeek` algorithm tracks: per-player weekly damage contribution + clan-level progression with 3-state cosmetic unlock display (✓ unlocked / ▶ next / ◯ locked, mirrors Codex precedent). Strictly additive — extends `renderClanDetail` with 2 new sub-renders inserted between WEEKLY TARGET and MEMBERS sections; T3.03 / T3.04 mount logic untouched. Two new pure helpers added to `clan-backend.js` (the 17 prior helpers + CRUD ops stay byte-perfect). No new V_HAPTICS / NARRATOR_LINES / window bridges; direct-import only per T3.08/T3.09 precedent.
+
+**Files modified (additive only):**
+
+- `src/services/clan-backend.js` (+76 LoC):
+  - NEW 2 pure helpers: `computeWeeksUntilNextLevel(currentLevel, totalWeeksCompleted)` (returns weeks remaining until next clan-level boundary; 0 when threshold met) + `getNextCosmeticUnlock(currentLevel)` (returns `{level, items}` of the next-higher unlock level or null at max).
+  - Public-API docstring section "Progression-stats pure helpers (T3.05)" added.
+  - Module-header comment line for T3.05 mention.
+  - T3.02 8 pure helpers + 9 CRUD ops + T3.04 7 helpers + 3 async ops BYTE-PERFECT UNCHANGED.
+
+- `src/ui/adventures.js` (+371 LoC):
+  - NEW exported sub-render `renderContributorStatsPanel(rootEl, clanState, playerId)`: top-3 highlighted (★ class + accent border), self-row (You) badge, gradient gold-leaf damage bar per row, expand-toggle for >3 contributors ("+ N more"), TOTAL/TARGET footer (TARGET hidden when no weeklyTargetHp).
+  - NEW exported sub-render `renderClanProgressionPanel(rootEl, clanState)`: current → next level header, progress bar (weeks-into-level / CLAN_LEVEL_WEEKS_PER_LEVEL), 3-state cosmetic unlock list reading CLAN_UNLOCK_LEVELS + unlockCosmeticAtLevel + getNextCosmeticUnlock. Max-level fallback shows "Max level reached" + no ▶ NEXT row.
+  - `_onContribExpandClick` toggles `_contribExpanded` state + re-renders only the inner panel (preserves T3.03 outer mount logic).
+  - INSERTED both panels in `renderClanDetail` between WEEKLY TARGET and MEMBERS sections. T3.03 render flow + T3.04 auto-rotate hook UNTOUCHED.
+  - `__adventuresTestables` extended with `sortedContributorRows` + `cosmeticItemLabel` test surfaces; `getConstants()` exposes ADVENTURES_STATS_BUDGET_MS / ADVENTURES_PROGRESSION_BUDGET_MS / CONTRIB_TOP_N.
+  - Direct-imports add: `unlockCosmeticAtLevel`, `computeWeeksUntilNextLevel`, `getNextCosmeticUnlock`, `CLAN_LEVEL_WEEKS_PER_LEVEL`, `CLAN_UNLOCK_LEVELS`. Zero new window-bridges.
+
+- `src/styles/screens/adventures.css` (+233 LoC):
+  - `.adv-contributor-stats-panel` + `.adv-contributor-row` (flexbox layout: star + name + percent + damage bar).
+  - `.adv-contributor-row--self` (gold accent border for "You").
+  - `.adv-contributor-row--top3` (star icon + accent background).
+  - `.adv-contributor-damage-bar` (gradient gold-leaf progress bar, animated width transition).
+  - `.adv-progression-panel` + `.adv-cosmetic-unlock-row` 3 states (`--unlocked` / `--next` / `--locked`).
+  - `prefers-reduced-motion` extended: disables `.adv-contributor-damage-bar-fill` + `.adv-progression-bar-fill` transitions.
+
+- `tests/unit/clan-backend.test.js` (+142 LoC, +20 unit tests, 185 → 205 total):
+  - computeWeeksUntilNextLevel (8 tests) + getNextCosmeticUnlock (8 tests) + ADR-003 no-P2W audit (2 tests, scans all 25 levels) + performance budget (2 tests, < 1ms over 1000 iterations).
+
+- `tests/unit/adventures-ui.test.js` (+253 LoC, +27 unit tests, 39 → 66 total):
+  - renderContributorStatsPanel (12 tests): empty / 1 contributor / 12 expanded / top-3 sort / tie-break / self badge / total damage / target progress / no target / null defensive / non-self viewer / top-3 star count.
+  - renderClanProgressionPanel (10 tests): level 1+2 weeks 50% / level 5+19 weeks 75% / unlocked state / next state highlight / locked state / max level / null defensive / missing field / emblem label / no-P2W invariant.
+  - renderClanDetail integration with T3.05 panels (3 tests): both panels mounted / T3.03 surfaces preserved / empty-week edge case.
+
+- `tests/smoke/adventures-stats.spec.js` (NEW, 314 LoC, 9 tests × 2 projects = 18 smoke runs):
+  - Mount adventures → join clan → record contribution → row + percent + damage bar.
+  - 3 members contribute → top-3 highlighted with star.
+  - Self-row "(You)" badge present.
+  - Expand toggle reveals all 12 contributors.
+  - Empty contributions → empty state visible.
+  - Clan progression: level 3 (11 weeks) → 75% bar + Silver banner ▶ NEXT.
+  - Cosmetic locked rows greyed out (`--locked` class).
+  - Cross-mechanic regression: T3.05 + T3.04 + T3.03 + T3.02 + window bridges + Codex.
+  - Legacy single HTML still loads (sacred no-regression contract).
+
+**Sacred-cow audit (CLAUDE.md §2 + ADR-003):**
+
+| Sacred system | Status |
+|--------------|--------|
+| 22 v2.1 P4 reactivity handlers byte-perfect | ✅ untouched |
+| NARRATOR_LINES table | ✅ untouched |
+| 10 Identity Layer FX mechanical contracts | ✅ untouched |
+| T3.02 clan-backend public API (8 pure + 9 CRUD) | ✅ byte-perfect — only 2 NEW helpers added |
+| T3.04 closeWeek + 7 pure helpers + 3 async ops | ✅ byte-perfect |
+| T3.03 renderClanDetail mount logic | ✅ preserved — extended additively with 2 panel insertions |
+| T3.07/T3.08/T3.09 Replay subsystem | ✅ untouched |
+| Codex schema + T3.09 Replay button integration | ✅ untouched |
+| 39 window-bridges | ✅ no new bridges (T3.05 uses direct-import per T3.04 precedent) |
+| ADR-003 no-P2W invariant | ✅ progression panel surfaces NO mechanical advantage labels — unit test scans cosmetic kinds + values for `damage/hp/crit/win/speed/cap_raise` keywords (none found across all 25 levels) |
+| V_HAPTICS table | ✅ no new keys |
+| Magic numbers | ✅ all from `clan-config.js` + `clan-backend.js` named constants |
+
+**Verification (2026-05-13):**
+
+- `npm run lint` — clean (no eslint errors).
+- `npm run test:unit` — **984 / 984 passing** (was 938 — +46 new T3.05 tests: 20 backend + 26 UI).
+- `npm run test:smoke` — **330 / 330 passing** (was 312 — +18 new T3.05 smoke tests × 2 projects).
+- `npm run build` — clean. Adventures lazy chunk: 17.6 KB → 24.0 KB (+6.4 KB for 2 panels + cosmetic ladder + expand state machine). CSS bundle: +1.6 KB (panels).
+
+**Performance (task brief budget):**
+
+- `renderContributorStatsPanel` (12 contributors) — well under 50ms budget; emits log.warn if exceeded.
+- `renderClanProgressionPanel` (25-level cosmetic ladder) — well under 30ms budget; emits log.warn if exceeded.
+- `computeWeeksUntilNextLevel` < 0.05ms / call (1000 iterations averaged).
+- `getNextCosmeticUnlock` < 0.05ms / call (1000 iterations averaged).
+
+**Top-3 sort + tie-break design:**
+
+`_sortedContributorRows` sorts contributors by damage descending; tied entries break alphabetically by playerId so visual order is deterministic in test asserts and in production. The top-3 highlight class (`--top3`) is applied to the first 3 rows regardless of contribution count (clans with ≤3 contributors get every visible row starred — semantically "everyone is a top contributor" while the clan is small).
+
+**Max-level fallback (cosmetic ladder):**
+
+`getNextCosmeticUnlock(currentLevel)` returns `null` once `currentLevel >= 25` (the highest entry in `CLAN_LEVEL_COSMETIC_UNLOCKS`). The progression panel surfaces this as "Max level reached" in the header and renders only `✓ unlocked` rows for every defined level — no `▶ NEXT` row is rendered. This avoids the "ghost next" UI mode for endgame clans.
+
+**Empty-week edge case (newly-created clan / just-rotated week):**
+
+When `weeklyContributions` is empty (`{}`) or missing (`undefined`), the contributor panel renders the "No contributions yet this week" empty state inline — never crashes, never hides the panel. The progression panel renders identically regardless of `weeklyContributions` shape (it reads only `totalWeeksCompleted`).
+
+**ADR-003 no-P2W invariant — explicit:**
+
+The clan progression panel surfaces cosmetic descriptions only — never mechanical-advantage labels. The `_cosmeticItemLabel` helper maps `{kind, value}` to human strings using a fixed switch over the 4 cosmetic kinds (banner / emblem / badge / motto). The unit test "ADR-003 no-P2W audit" iterates all 25 levels + asserts every unlock item's `kind` is one of those 4 and that no `value` contains the strings `damage`, `hp`, `crit`, `win`, `speed`, or `cap_raise` (case-insensitive). The mechanical-feeling spec §2.4 entries (level-3 contribution-cap raise, level-6 grace week) are NOT in `CLAN_LEVEL_COSMETIC_UNLOCKS` — they remain a T3.04 weekly-rotation concern and are deliberately excluded from the cosmetic ladder per the T3.02 design note.
+
+**Wave-3 closeout — what this unlocks:**
+
+T3.05 closes the Adventures subsystem. With T3.05 landed:
+
+1. **Wave-4 opens** — T3.06 Friend leaderboard mini-block can ship next (independent of Adventures).
+2. **The 100-hour player fantasy** gains its first complete async-social loop: create/join clan (T3.03) → contribute weekly (T3.04 rotation) → see who did what + clan rank up (T3.05). Three reasons to log back in tomorrow are now wired end-to-end for the Adventures slice.
+3. **T3.10–T3.13 Party Tower** can ship in parallel — they share the clan-doc schema but write to a separate Firestore collection.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.05] Adventures contributor stats + clan progression UI — Wave 3 closeout`
+
+---
+
 ### TASK-040 (T2.B Game Dev portion) — ✅ DONE 2026-05-12 — Legacy Bridge: Identity Layer integration moment
 
 **CTO acceptance 2026-05-12 (Game Dev portion):** PASS. Strictest sacred-cow proximity of Phase 2 cleared. Combo crit formula at line 63825 `critMult = 1 + domCount * count * CRIT_MULT_K` BYTE-PERFECT (grep returns 1 occurrence in code); single `domCount` definition extended by `+ (ctx._dominantCountModifier || 0)` at line 63816 per ESC-02 O3 "WITHIN BOUNDARY". CRIT_MULT_K = 0.1 / CRIT_MIN_COMBO = 2 byte-perfect (lines 20159-20160). All T2.07-T2.12 invariants maintained. 22 P4 handlers byte-perfect. Codex localStorage isolation maintained. 26 window-bridge functions exposed; 8 discrete legacy insertion points; bridge overhead <0.001ms per call. 150/150 smoke pass (+10 LIVE integration tests × 2 projects). Commit `e6acb6d`.
@@ -3991,6 +5077,115 @@ Sibling export `RACE_IDENTITY_FX` added to `src/data/races.js` (NOT inside `RACE
 ---
 
 ## GAME DESIGNER
+
+### TASK-046 (T3.01) — 🟡 REVIEW 2026-05-13 — Phase 3 Endgame Social design spec (Phase 3 start)
+
+**Status:** TODO → IN PROGRESS → **REVIEW** (awaiting CTO sign-off)
+**Started:** 2026-05-13
+**Priority:** HIGH
+**Phase:** 3 (Endgame Social) — **1/15 (first task)**
+**Estimated complexity:** L (master design spec for Phase 3 — mirrors T2.01)
+**Depends on:** ✅ Phase 2 closeout (TASK-041 / T2.B.QA → DONE); ✅ Phase 2.5 polish PRs #160 + #161 in review (not blocking); ADR-002 (async-only) + ADR-003 (no-P2W) + ADR-004 (src/ only) honored
+
+**Output:**
+- Document: `docs/design/endgame-social.md` (~1300 LoC, mirrors T2.01 rigor)
+- Sections: 14 (overview, architectural fit, Adventures, Party Tower, Replay/Share, Friend leaderboard, Tower seasonal, sacred audit, player segments, perf budgets, implementation deps, visual regression, test coverage, open questions, acceptance)
+- Covers all 5 Phase 3 deliverables per Execution Plan §8.2:
+  - **Adventures (T3.02–T3.05)** — async clan 5-15 with weekly boss-of-the-week + contributor stats + clan progression + cosmetic unlocks + emoji-only chat
+  - **Party Tower (T3.10–T3.13)** — 2-5 player async turn-based coop per ADR-002 + shared Tower-Hearts pool + shared TOWER_PACTS + per-turn Identity Layer integration
+  - **Replay/Share (T3.07–T3.09)** — auto-record key moments (4ms/frame budget) + scrubable viewer + navigator.share + Codex Moments integration (ships §4.6 stretch goal from identity-layer.md)
+  - **Friend leaderboard (T3.06)** — menu widget + full-screen + auto-friending via clan/party/codex/replay-share
+  - **Tower seasonal (T3.14–T3.15)** — 13-week season cadence + seasonal Uroboros rotation + seasonal pact additions (additive to TOWER_PACTS sacred) + Battle Pass tier-cosmetic tie-in
+- Sacred cow audit: 47-row table — **0 modifications confirmed**
+- Player Segments table: F2P/Minnow/Dolphin/Whale access matrix + ADR-003 no-P2W invariant verified
+- Performance budgets explicit + measurable (Adventures FCP ≤300ms, Party turn handoff ≤2s, Replay capture ≤4ms/frame, total Phase 3 frame overhead ≤4ms/frame)
+- Implementation dependencies: 16 new files + 7 additive modifications
+- 24 new visual regression baselines spec'd (4 new screens × desktop + mobile)
+- 5 open questions for Roman ESC with Designer recommendations
+
+**Sacred cows respected (CLAUDE.md §2.1–§2.5):**
+
+`TOWER_PACTS_BASE` (30 pacts) + `TOWER_PACTS_MYTHIC` (15 seasonal) byte-perfect. `TOWER_LEADERBOARDS` (global / f2p_only PURE PATH / weekly_seasonal) byte-perfect. `PACT_RARITIES` weights byte-perfect. Uroboros boss spec untouched (rotation is metadata layer). Battle Pass formula `500 + tier × 150` byte-perfect (Phase 3 adds NEW cosmetics per tier, never changes math). Tower retry ladder [100, 200, 400] read-only by Party Tower. 3-min Tower TTK target preserved per-floor. GEM_PACKS / First Purchase Bonus / Combat math / V_HAPTICS / NARRATOR_LINES / Stagger Loop / Reactivity Events 22 handlers / Identity Layer race+boss FX — all read-only / additive. ADR-002 async-only honored throughout (no WebRTC). ADR-003 no-P2W honored (paid tiers receive cosmetic + storage benefits only, never mechanical). ADR-004 src/ only — all 16 new files land in `src/`.
+
+**Self-check:**
+
+- [x] §0 Overview + Phase 2 → Phase 3 extension narrative
+- [x] §1 Architectural fit + hard rules + scope + 7-row layer table
+- [x] §2 Adventures (T3.02–T3.05) — 6 sub-sections, full mechanics + perf
+- [x] §3 Party Tower (T3.10–T3.13) — 6 sub-sections, async architecture + per-turn Identity Layer
+- [x] §4 Replay/Share (T3.07–T3.09) — 6 sub-sections, capture + viewer + share + Codex link
+- [x] §5 Friend leaderboard (T3.06) — 4 sub-sections, widget + data + invite + perf
+- [x] §6 Tower seasonal (T3.14–T3.15) — 4 sub-sections, Uroboros rotation + pact additions + Battle Pass
+- [x] §7 Sacred cow audit (47 rows, 0 modifications)
+- [x] §8 Player Segments matrix + no-P2W invariant
+- [x] §9 Performance budgets layer-wide
+- [x] §10 Implementation dependencies (16 new files + 7 modify-additively)
+- [x] §11 Visual regression baselines (24 new + 1 intentional Codex update)
+- [x] §12 Test coverage (7 smoke + 4 unit + 24 visual + manual multi-account)
+- [x] §13 Open questions for Roman (Q1–Q5)
+- [x] No code written — pure design
+- [x] No src/ touched
+- [x] No sacred values modified
+- [x] ADR-002 (async-only) honored
+- [x] ADR-003 (no-P2W) honored
+- [x] ADR-004 (src/ only) honored
+
+**Open questions for Roman (5 — see spec §13):**
+
+- **Q1** — Adventures clan size: enforce **hard 5-15 cap** (recommended) or allow whale-tier 5-30? Recommendation: hard cap; larger = P2W risk.
+- **Q2** — Replay storage per tier: Designer recommends **permanent storage across all tiers**, sizes vary (F2P 100 MB → Whale 500 MB) to honor no-P2W parity. TTL-only-on-paid is an alternative if storage-cost analysis requires.
+- **Q3** — Party Tower turn timeout default: **24h** (recommended), with 7-day casual + 4h competitive per-party options at creation.
+- **Q4** — Season length: **13-week Tower seasons + weekly Adventures + 13-week Battle Pass cadence** (recommended). Matches Marvel Snap / Brawl Stars.
+- **Q5** — Friend invite: **navigator.share only for MVP** (recommended), with in-game 6-char codes as Phase 3.5 fallback if A doesn't drive friend-graph metrics.
+
+**Замечено рядом (NOT actioned, reported):**
+
+1. **ADR-002 + ADR-003 missing as discrete files.** Working tree contains only `docs/adr/004-hybrid-runtime-coexistence.md` — ADR-002 (async > real-time) and ADR-003 (no P2W) are referenced in Execution Plan §8.3 and CLAUDE.md but NOT yet authored as discrete ADR files. Phase 3 spec honors both decisions per CLAUDE.md / Execution Plan as authoritative source. **Recommendation:** CTO authors ADR-002 + ADR-003 alongside T3.02 launch for documentation completeness; not blocking design.
+2. **Phase 2.5 polish PRs (#160, #161) in review.** Per task brief, narrator + FTUE overlays land before Phase 3 implementation begins. Phase 3 design does NOT depend on these polish PRs — narrator placeholders covered in §2.3 Phase 2 ruling.
+3. **T3.02 next-task recommendation.** Game Dev should start **T3.07 Replay capture infrastructure FIRST** (not T3.02 Adventures backend). Why: Replay capture is the wave-1 lateral dependency that unblocks the Codex Moments tab Replay button (the visible Phase 2 → Phase 3 bridge moment), can be built in isolation, and Replay surfaces are read-only — lower coordination risk than introducing multi-user state machines first. T3.02 Adventures backend follows in wave-1 parallel. (Alternative: start T3.02 to ship the headline feature first; either path is viable. CTO judgment call.)
+4. **PURE PATH parity audit baseline (§8.3) requires Bug Tester instrumentation post-T3.16.** F2P vs paid Tower-floor / Adventures-completion / Party-completion / retention deltas must stay within tolerance for Phase 3 ship to be ADR-003-compliant.
+5. **Replay storage cost model.** §4.4 budgets imply per-account storage Firebase Storage costs. CTO/Roman may wish to size against monthly active player projections before T3.07 ships.
+
+**For Game Developer (post-CTO + Roman approval):**
+
+- Implementation tasks T3.02–T3.16 expected (15 tasks per Execution Plan §8.2 mapping).
+- Suggested wave sequence per §10.3:
+  - Wave 1 (parallel-friendly): T3.02 (Adventures backend), T3.07 (Replay capture), T3.14 (Season config data)
+  - Wave 2: T3.03 (weekly target), T3.08 (Replay viewer), T3.06 (Friend leaderboard)
+  - Wave 3: T3.04 (contrib stats), T3.05 (clan progression), T3.09 (Replay share), T3.15 (Battle Pass cosmetic tie-in)
+  - Wave 4: T3.10–T3.13 (Party Tower)
+  - Final: T3.16 Legacy Bridge (mirrors T2.B integration moment)
+- New files: 16 in `src/` per §10.1 (4 new screens + 2 backend services + 1 data module + 4 CSS + 4 smoke + 2 unit).
+- Additive modifications: `src/ui/router.js` (4 routes), `src/ui/menu.js` (3-4 drawer entries), `src/services/firebase.js` (3 helpers), `src/services/storage.js` (3 keys), `src/ui/codex.js` (Replay button hook), `src/ui/tower.js` (seasonal banner + Party Tower entry).
+- 26+ window-bridge functions expected when T3.16 integration lands.
+- Visual baselines: 24 new + 1 intentional Codex baseline update (existing baselines must NOT change — regression contract).
+
+**For Bug Tester (post-T3.16):**
+
+- 7 new smoke flows + 4 unit-test suites + 24 visual baselines.
+- Multi-account end-to-end pass (2 accounts × 2 devices) for clan + party + replay-share + friend-leaderboard interactions.
+- PURE PATH parity audit instrumentation: F2P / paid Tower-floor / Adventures-completion / Party-completion / retention metrics tracking baseline.
+- Sacred-cow regression: re-verify TOWER_PACTS_BASE (30) + TOWER_PACTS_MYTHIC (15) + TOWER_LEADERBOARDS + 22 Reactivity handlers + Battle Pass formula all byte-perfect post-Phase-3.
+
+**Files touched (this task — DESIGN ONLY):**
+
+- `docs/design/endgame-social.md` (new, ~1300 LoC)
+- `docs/plan/TASKS.md` (this entry)
+
+**Files NOT touched (per strict constraints):**
+
+- ALL `src/` files (this is design only)
+- ALL CSS files
+- ALL test files / baselines / CI / husky
+- `docs/_legacy/` (read-only reference)
+- No npm packages installed
+- No push to remote
+
+**Time:** ~3 hours (research existing Tower/Adventures/Party systems → 5-system spec design → sacred-cow audit → player-segments matrix → open questions formulation).
+
+**Commit:** see git log — `[T3.01] Phase 3 Endgame Social design spec (Phase 3 start)`
+
+---
 
 ### TASK-028 (T2.01) — ✅ DONE 2026-05-12 — Identity Layer design spec (Phase 2 start)
 

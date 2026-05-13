@@ -1,0 +1,232 @@
+/* 2026-05-13 — TASK-048 (T3.08): Replay viewer styling.
+ *
+ * Spec: docs/design/endgame-social.md §4.2 (Replay viewer UI surface).
+ * Parchment aesthetic mirrors Codex (T2.12) — same Chronicler voice +
+ * gold-leaf accents (#A88033 / #D9B25C) over aged-paper background.
+ *
+ * Sacred safety:
+ *   - All selectors scoped under `.rv-*` — never touches existing
+ *     selectors (battle, menu, codex, profile, shop, tower, season).
+ *   - prefers-reduced-motion fallback present (static frame on mount —
+ *     viewer JS reads matchMedia and disables auto-play, no CSS animation).
+ *
+ * Layout: mobile 380px first (CLAUDE.md UX standard).
+ */
+
+/* ===== Screen container ===== */
+.screen.v-replay-viewer { display: none; }
+.screen.v-replay-viewer.active { display: flex; flex-direction: column; }
+
+#screenReplayViewer {
+  background: #E8DAB6;
+  color: #2C2014;
+  font-family: 'Cinzel', 'Garamond', 'Times New Roman', serif;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+/* ===== Wrap ===== */
+.rv-wrap {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 14px 14px 32px;
+}
+
+/* ===== Header ===== */
+.rv-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0 12px;
+  border-bottom: 2px solid #A88033;
+  background: linear-gradient(180deg, rgba(216,192,140,0.5) 0%, transparent 100%);
+}
+.rv-back-btn {
+  background: rgba(168,128,51,0.18);
+  border: 1px solid #A88033;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+  color: #2C2014;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.rv-title {
+  font-size: 18px;
+  letter-spacing: 0.14em;
+  margin: 0;
+  color: #2C2014;
+  text-shadow: 0 1px 0 rgba(216,192,140,0.8);
+  text-transform: uppercase;
+  flex: 1;
+}
+
+/* ===== Loading + empty states ===== */
+.rv-loading {
+  padding: 48px 18px;
+  text-align: center;
+  font-style: italic;
+  color: #5C4520;
+}
+.rv-empty {
+  padding: 36px 18px;
+  text-align: center;
+}
+.rv-empty-title {
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  color: #5C4520;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+.rv-empty-sub {
+  font-size: 13px;
+  color: #5C4520;
+  margin: 0;
+}
+
+/* ===== Canvas ===== */
+.rv-canvas-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 10px;
+}
+.rv-canvas {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  background: #0d0a08;
+  border: 1px solid #A88033;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(255,213,120,0.25) inset, 0 2px 8px rgba(168,128,51,0.25);
+  image-rendering: pixelated;
+}
+
+/* ===== Timeline scrubber ===== */
+.rv-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.rv-timeline-track {
+  position: relative;
+  height: 8px;
+  background: rgba(168,128,51,0.18);
+  border: 1px solid rgba(168,128,51,0.5);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.rv-timeline-progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, #A88033 0%, #D9B25C 100%);
+  transition: width 80ms linear;
+}
+.rv-timeline-handle {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  background: #FFE07A;
+  border: 1px solid #8C5E1A;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: left 80ms linear;
+}
+.rv-timeline-label {
+  font-size: 11px;
+  color: #5C4520;
+  text-align: right;
+  letter-spacing: 0.04em;
+}
+
+/* ===== Controls ===== */
+.rv-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0;
+  flex-wrap: wrap;
+}
+.rv-btn {
+  background: rgba(168,128,51,0.18);
+  border: 1px solid #A88033;
+  border-radius: 4px;
+  width: 40px;
+  height: 36px;
+  font-size: 14px;
+  color: #2C2014;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rv-btn:hover {
+  background: rgba(168,128,51,0.32);
+}
+.rv-btn--active {
+  background: linear-gradient(180deg, #FFE07A 0%, #C8A93C 100%);
+  border-color: #8C5E1A;
+  color: #2C2014;
+}
+.rv-btn--share-unavailable {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.rv-speed-label {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: #2C2014;
+  min-width: 36px;
+  text-align: center;
+}
+
+/* ===== Bottom info panel ===== */
+.rv-info {
+  padding: 12px 4px 0;
+  border-top: 1px solid rgba(168,128,51,0.3);
+}
+.rv-info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(168,128,51,0.18);
+}
+.rv-info-row:last-child {
+  border-bottom: none;
+}
+.rv-info-label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: #8C5E1A;
+  text-transform: uppercase;
+  min-width: 56px;
+}
+.rv-info-val {
+  font-size: 13px;
+  color: #2C2014;
+  flex: 1;
+}
+
+/* ===== prefers-reduced-motion: no progress transitions ===== */
+@media (prefers-reduced-motion: reduce) {
+  .rv-timeline-progress,
+  .rv-timeline-handle {
+    transition: none;
+  }
+}
