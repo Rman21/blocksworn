@@ -7,6 +7,92 @@
 
 ## GAME DEVELOPER
 
+### TASK-059 (T3.15) — REVIEW (2026-05-13) — FIFTEENTH Phase 3 implementation task — Tower seasonal UI (Wave-6 closer)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** CRITICAL — closes Wave 6 (Tower seasons); only T3.16 remains in Phase 3
+**Phase:** 3 (Endgame Social) — Wave-6 closer
+**Branch:** `claude/phase3-endgame-design`
+
+**Files created:**
+  - `src/ui/tower-season.js` (~470 LoC) — hero block + Uroboros card + seasonal pacts + Battle Pass widget + PURE PATH hint
+  - `src/styles/screens/tower-season.css` (~340 LoC) — parchment aesthetic
+  - `tests/unit/tower-season-ui.test.js` (40 tests, all pass)
+  - `tests/smoke/tower-season-ui.spec.js` (6 tests × 2 projects = 12, all pass)
+
+**Files modified (additive only):**
+  - `src/ui/router.js` — `'tower-season'` route + dynamic import
+  - `src/ui/menu.js` — `vRenderTowerSeasonDrawerEntry` + renderMenu call
+  - `index.html` — `<div id="screenTowerSeason">` container
+  - `src/styles/index.css` — `@import './screens/tower-season.css';`
+
+**What this delivers:**
+  1. Hero block — "Season N" banner + "Week X of 13" subtitle + season-end
+     countdown (severity bands safe/warn/danger/expired) + Uroboros variant
+     card with aura color, displayName, narratorVariant cue.
+  2. Seasonal pacts panel — reads `getActiveSeasonalPacts(seasonId)` and
+     renders the 3 Season-1 pacts (COSMIC CLARITY / ETERNAL RECALL /
+     SERPENT BLESSING) with rarity pills + descriptions. Empty state when
+     no seasonal pacts active.
+  3. Battle Pass tier widget — sacred §2.4 formula READ-only via
+     `computeBattlePassTotalXpForTier()` / `computeBattlePassTierXp()`.
+     Renders current tier / 50, progress bar, XP delta to next tier, next
+     cosmetic reward preview (Tier 5/10/20/35/50 ladder per §6.4).
+  4. PURE PATH F2P-only leaderboard hint — informational copy noting
+     weekly_seasonal resets at season end while PURE PATH F2P lifetime
+     never wipes. Sacred §2.5 invariant preserved.
+  5. Countdown ticker (1Hz setInterval) — updates banner severity in-place;
+     stops automatically when severity == 'expired'.
+
+**Sacred safety (CLAUDE.md §2 audit):**
+  - `src/services/tower-season-backend.js` NOT in diff — UI is consumer only.
+  - Battle Pass formula `500 + (N-1) × 150` (§2.4) READ-only — derived
+    via `computeBattlePassTotalXpForTier()` / `computeBattlePassTierXp()`;
+    NEVER recomputed in UI. Unit test pins formula invariant.
+  - `TOWER_PACTS_BASE` (30) + `TOWER_PACTS_MYTHIC` (15) sacred §2.5 —
+    UI displays SEASONAL_PACTS additive registry only; sacred base/mythic
+    NOT touched.
+  - Uroboros boss spec sacred §2.5 — variant rotation is metadata only
+    (auraColor/displayName/narratorVariant); core boss stats/TTK/phase
+    mechanics never referenced from UI.
+  - PURE PATH F2P-only sacred §2.5 — hint renders as separate column;
+    never mixes ranks; "never wiped" copy asserted in tests.
+  - ADR-003 no-P2W — tier rewards labeled cosmetic-only; tiers shown by
+    number only; no paid-tier shortcuts (whale/premium/paid/upgrade/buy
+    strings asserted absent from BP widget).
+  - 22 v2.1 P4 reactivity-events handlers byte-perfect (file not in diff).
+  - V_HAPTICS table NOT modified — no new keys (UI screen, not feel layer).
+  - NARRATOR_LINES NOT modified — narratorVariant cue is a metadata ref.
+  - Direct-imports from backend (zero new window-bridges; smoke test #6
+    asserts fetchSeasonState / rotateToNextSeason / computeBattlePassTierXp
+    / getActiveUroborosVariant / getActiveSeasonalPacts NOT on window).
+  - CSS `--ts-aura-color` sanitized via `_cssEscapeColor` — strict hex
+    regex; falls back to muted gold when invalid (defense-in-depth).
+
+**Tests delivered:**
+  - Unit: 40 tests covering formatSeasonCountdown (5) +
+    computeBattlePassDisplayState (7, sacred §2.4 invariant) +
+    resolveBattlePassXpEarned (5) + renderHeroBlock (5) +
+    renderSeasonalPactsPanel (3) + renderBattlePassWidget (4) +
+    renderLeaderboardHint (3) + __towerSeasonTestables (5) +
+    Sacred audit (3 — §2.4 formula + §2.5 PURE PATH + ADR-003 no-P2W).
+  - Smoke: 6 flows (route mount + hero block + seasonal pacts + Battle
+    Pass widget + PURE PATH hint + 40-bridge regression) — pass on
+    chromium + mobile-chrome (12 total).
+
+**Verification:**
+  - `npm run lint` — clean (0 warnings, 0 errors).
+  - `npm run test:unit` — 1365/1365 pass (up from 1325; +40 new).
+  - `npm run test:smoke` — tower-season-ui 12/12 pass on chromium + mobile-chrome.
+  - `npm run build` — clean; tower-season-*.js chunk = 20.37 kB (gzip: 7.01 kB).
+  - Performance: FCP <300ms shell render; BP widget <50ms tier render
+    (within budget per CTO brief).
+
+**Pass to CTO for review.**
+
+---
+
 ### TASK-057 (T3.13) — REVIEW (2026-05-13) — TWELFTH Phase 3 implementation task — Party Tower UI (Wave-5 closer)
 
 **Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
