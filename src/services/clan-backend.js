@@ -1,4 +1,10 @@
 // 2026-05-13 — TASK-050 (T3.02): Adventures backend — clan data layer.
+// 2026-05-13 — TASK-052 (T3.04): Weekly boss-of-the-week rotation algorithm
+//   — replaces the T3.02 closeWeek stub with the live rotation + adds 7 new
+//   pure helpers (computeClanElementPreference / getDefeatedArchetypesLastNWeeks
+//   / filterBossesByElementAntiArchetype / pickWeeklyBoss / scaleBossDifficulty
+//   / shouldRotateUroboros / computeWeekHasExpired) + 3 new async ops
+//   (rotateWeeklyForAllClans / notifyWeeklyBossRevealed / maybeAutoRotateOnClanOpen).
 //
 // Spec: docs/design/endgame-social.md §2 (Adventures — async clan 5–15)
 //       + §15 ESC-03 Q1 ruling — clan size 5–15 HARD CAP, no exceptions.
@@ -80,10 +86,22 @@
 //     - joinClan(clanId, playerId)
 //     - leaveClan(clanId, playerId)
 //     - recordContribution(clanId, playerId, damage)
-//     - closeWeek(clanId, didDefeat)
+//     - closeWeek(clanId, didDefeat)                  [LIVE in T3.04]
 //     - transferOwnership(clanId, fromId, toId)
 //     - listClansForPlayer(playerId)
 //     - searchClansByName(query, limit?)
+//   Weekly rotation pure helpers (T3.04):
+//     - computeClanElementPreference(clanState)
+//     - getDefeatedArchetypesLastNWeeks(clanState, n?)
+//     - filterBossesByElementAntiArchetype(allBosses, clanElement, defeated)
+//     - pickWeeklyBoss(clanState, opts?)
+//     - scaleBossDifficulty(boss, clanLevel)          [HARD cap 2.0× — ADR-003]
+//     - shouldRotateUroboros(clanState)
+//     - computeWeekHasExpired(clanState, now?)
+//   Weekly rotation async ops (T3.04):
+//     - rotateWeeklyForAllClans(opts?)                [Cloud-Function stub]
+//     - notifyWeeklyBossRevealed(clanId, bossKey)     [FCM stub]
+//     - maybeAutoRotateOnClanOpen(clanId, opts?)      [client-side fallback]
 //   Test-only helpers:
 //     - _resetMockClanStore()                  — clear mock store
 //     - _getMockClanStoreForTest()             — read mock store snapshot
@@ -94,7 +112,18 @@ import { log } from './logger.js';
 import {
   CLAN_DEFAULT_BANNER_TIER,
   CLAN_LEVEL_COSMETIC_UNLOCKS,
+  WEEKLY_ROTATION_LOOKBACK_WEEKS,
+  WEEKLY_ROTATION_UROBOROS_INTERVAL_WEEKS,
+  WEEKLY_BOSS_DIFFICULTY_BASE_MULT,
+  WEEKLY_BOSS_DIFFICULTY_PER_LEVEL,
+  WEEKLY_BOSS_DIFFICULTY_MAX_MULT,
+  WEEKLY_ELEMENT_PREFERENCE_THRESHOLD,
+  WEEKLY_ROTATION_PERIOD_MS,
+  WEEKLY_ELEMENT_COUNTER,
+  WEEKLY_UROBOROS_BOSS_ID,
 } from '../data/clan-config.js';
+import { CHAPTERS } from '../data/chapters.js';
+import { RACE_TO_STIHIYA } from '../data/races.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Constants — frozen registry. NO MAGIC NUMBERS in logic.
@@ -363,6 +392,301 @@ export function unlockCosmeticAtLevel(clanLevel) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// 2026-05-13 — TASK-052 (T3.04): Weekly boss-of-the-week rotation helpers.
+//
+// Spec: docs/design/endgame-social.md §2.2 (Weekly target — Boss-of-the-Week)
+//       + ESC-03 Q4 ruling — 1-week Adventures rotation cadence.
+//       + ADR-003 — no-P2W; difficulty scaling capped 2.0× HARD.
+//       + CLAUDE.md §2.5 — Uroboros sacred seasonal mythic (READ-ONLY).
+//
+// Public helpers (all pure, < 1ms each):
+//   - computeClanElementPreference(clanState)
+//   - getDefeatedArchetypesLastNWeeks(clanState, n?)
+//   - filterBossesByElementAntiArchetype(allBosses, clanElement, defeatedArchetypes)
+//   - pickWeeklyBoss(clanState, opts?)
+//   - scaleBossDifficulty(boss, clanLevel)
+//   - shouldRotateUroboros(clanState)
+//   - computeWeekHasExpired(clanState, now?)
+//
+// All BOSSES roster reads use CHAPTERS (`src/data/chapters.js`) — sacred,
+// READ-ONLY. Uroboros reference is by id only (no stat reads).
+// ──────────────────────────────────────────────────────────────────────────
+
+/** Aggregate every chapter's boss roster into a single READ-ONLY array used
+ *  as the candidate pool for weekly rotation. CHAPTERS is sacred + frozen;
+ *  this helper never mutates it, only spreads via slice(). */
+function _allCandidateBosses() {
+  const out = [];
+  try {
+    if (!Array.isArray(CHAPTERS)) return out;
+    for (let ci = 0; ci < CHAPTERS.length; ci++) {
+      const ch = CHAPTERS[ci];
+      if (!ch || !Array.isArray(ch.bosses)) continue;
+      for (let bi = 0; bi < ch.bosses.length; bi++) {
+        const b = ch.bosses[bi];
+        if (!b || typeof b !== 'object') continue;
+        // Add a `bossKey` synthesised from name (stable across roster
+        // changes) + img (disambiguates name collisions across chapters).
+        const bossKey = `${(b.img || '').toLowerCase()}_${String(b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        out.push({
+          bossKey,
+          name: b.name,
+          archetype: b.archetype || null,
+          stihiya: b.stihiya || null,
+          hp: (typeof b.hp === 'number' && isFinite(b.hp)) ? b.hp : 0,
+          roleTier: b.roleTier || null,
+          chapterId: (typeof ch.id === 'number') ? ch.id : (ci + 1),
+        });
+      }
+    }
+  } catch (_e) { /* swallow — defensive aggregation */ }
+  return out;
+}
+
+/**
+ * Compute the clan's aggregate element preference from active members'
+ * squad race composition. Returns a stihiya string ('ember' / 'tide' /
+ * 'grove' / 'solar' / 'umbra') when ≥ WEEKLY_ELEMENT_PREFERENCE_THRESHOLD
+ * of members share an element; otherwise returns `null` (balanced clan).
+ *
+ * Squad composition is opt-in: members may carry an `activeSquadRaces`
+ * array of race ids on their member-record. When the field is missing,
+ * the member doesn't vote (defensive — early adopters pre-T3.05 just
+ * don't bias the rotation).
+ *
+ * Pure — never mutates the clan state.
+ *
+ * @param {object} clanState
+ * @returns {string|null}
+ */
+export function computeClanElementPreference(clanState) {
+  if (!clanState || typeof clanState !== 'object') return null;
+  const members = Array.isArray(clanState.members) ? clanState.members : [];
+  if (members.length === 0) return null;
+
+  const tally = Object.create(null);
+  let votingMembers = 0;
+  try {
+    for (let i = 0; i < members.length; i++) {
+      const m = members[i];
+      if (!m || typeof m !== 'object') continue;
+      const races = Array.isArray(m.activeSquadRaces) ? m.activeSquadRaces : [];
+      if (races.length === 0) continue;
+      // Each member casts a single vote — their squad's MODE stihiya.
+      const memberTally = Object.create(null);
+      for (let r = 0; r < races.length; r++) {
+        const raceId = races[r];
+        const stih = RACE_TO_STIHIYA[raceId];
+        if (!stih) continue;
+        memberTally[stih] = (memberTally[stih] | 0) + 1;
+      }
+      let topStih = null;
+      let topCount = 0;
+      for (const k in memberTally) {
+        if (!Object.prototype.hasOwnProperty.call(memberTally, k)) continue;
+        if (memberTally[k] > topCount) {
+          topStih = k;
+          topCount = memberTally[k];
+        }
+      }
+      if (topStih) {
+        tally[topStih] = (tally[topStih] | 0) + 1;
+        votingMembers++;
+      }
+    }
+  } catch (_e) { /* swallow */ }
+
+  if (votingMembers === 0) return null;
+  let preferredStih = null;
+  let preferredCount = 0;
+  for (const k in tally) {
+    if (!Object.prototype.hasOwnProperty.call(tally, k)) continue;
+    if (tally[k] > preferredCount) {
+      preferredStih = k;
+      preferredCount = tally[k];
+    }
+  }
+  if (preferredStih === null) return null;
+  const share = preferredCount / votingMembers;
+  if (share + 1e-9 < WEEKLY_ELEMENT_PREFERENCE_THRESHOLD) return null;
+  return preferredStih;
+}
+
+/**
+ * Returns a `Set<string>` of archetypes the clan defeated in the last N
+ * weeks (where N defaults to WEEKLY_ROTATION_LOOKBACK_WEEKS = 4). Reads
+ * the clan's `weeklyHistory` array (each entry shape:
+ * `{ bossArchetype, bossKey, didDefeat, weekIndex }`) — present when
+ * `closeWeek` has run; empty for fresh clans. Pure.
+ *
+ * @param {object} clanState
+ * @param {number} [n=WEEKLY_ROTATION_LOOKBACK_WEEKS]
+ * @returns {Set<string>}
+ */
+export function getDefeatedArchetypesLastNWeeks(clanState, n) {
+  const out = new Set();
+  if (!clanState || typeof clanState !== 'object') return out;
+  const lookback = (typeof n === 'number' && isFinite(n) && n > 0)
+    ? Math.floor(n)
+    : WEEKLY_ROTATION_LOOKBACK_WEEKS;
+  const history = Array.isArray(clanState.weeklyHistory) ? clanState.weeklyHistory : [];
+  if (history.length === 0) return out;
+  const start = Math.max(0, history.length - lookback);
+  for (let i = start; i < history.length; i++) {
+    const entry = history[i];
+    if (!entry || typeof entry !== 'object') continue;
+    if (typeof entry.bossArchetype === 'string' && entry.bossArchetype.length > 0) {
+      out.add(entry.bossArchetype);
+    }
+  }
+  return out;
+}
+
+/**
+ * Filter the boss roster by clan-element preference + anti-repeat archetype.
+ * - When `clanElement` is non-null, narrows to bosses whose `stihiya` is
+ *   STRONG vs the clan element per WEEKLY_ELEMENT_COUNTER.
+ * - Excludes bosses whose archetype is in `defeatedArchetypes` (anti-repeat).
+ * - When the resulting set is empty, gracefully relaxes the anti-repeat
+ *   filter (returns element-matched roster without archetype exclusion).
+ * - When still empty, returns the full input array (defensive — no crash).
+ *
+ * Never returns Uroboros (Uroboros is handled separately via the
+ * shouldRotateUroboros gate). Pure.
+ *
+ * @param {Array<object>} allBosses
+ * @param {string|null} clanElement
+ * @param {Set<string>} defeatedArchetypes
+ * @returns {Array<object>}
+ */
+export function filterBossesByElementAntiArchetype(allBosses, clanElement, defeatedArchetypes) {
+  if (!Array.isArray(allBosses) || allBosses.length === 0) return [];
+  const defeated = (defeatedArchetypes instanceof Set) ? defeatedArchetypes : new Set();
+
+  let pool = allBosses.slice();
+  // Stage 1: element-preference filter (counter-element narrowing).
+  if (typeof clanElement === 'string' && clanElement.length > 0) {
+    const counter = WEEKLY_ELEMENT_COUNTER[clanElement];
+    if (typeof counter === 'string' && counter.length > 0) {
+      const narrowed = pool.filter((b) => b && b.stihiya === counter);
+      if (narrowed.length > 0) pool = narrowed;
+      // If counter narrowing yields empty, keep the full pool (balanced fallback).
+    }
+  }
+
+  // Stage 2: anti-repeat archetype filter.
+  const filtered = pool.filter((b) => b && b.archetype && !defeated.has(b.archetype));
+  if (filtered.length > 0) return filtered;
+
+  // Stage 3 (graceful): if all archetypes in pool are recently defeated,
+  // relax anti-repeat — return the pool unchanged. Avoids empty-pool crash
+  // when clan defeats every archetype within the lookback horizon.
+  if (pool.length > 0) return pool.slice();
+
+  return allBosses.slice();
+}
+
+/**
+ * Does the clan rotate onto Uroboros this week? True when totalWeeksCompleted
+ * is a positive multiple of WEEKLY_ROTATION_UROBOROS_INTERVAL_WEEKS (every 4
+ * weeks by default). Sacred Uroboros is preserved BYTE-PERFECT — this gate
+ * only references its id. Pure.
+ *
+ * @param {object} clanState
+ * @returns {boolean}
+ */
+export function shouldRotateUroboros(clanState) {
+  if (!clanState || typeof clanState !== 'object') return false;
+  const w = (typeof clanState.totalWeeksCompleted === 'number' && isFinite(clanState.totalWeeksCompleted))
+    ? Math.max(0, Math.floor(clanState.totalWeeksCompleted))
+    : 0;
+  if (w <= 0) return false;
+  const interval = (WEEKLY_ROTATION_UROBOROS_INTERVAL_WEEKS | 0) || 4;
+  return (w % interval) === 0;
+}
+
+/**
+ * Pick the next weekly boss for the clan. Combines all helpers above:
+ *   1. Uroboros gate — totalWeeksCompleted % 4 === 0 → 'tower_uroboros_seasonal'
+ *   2. Anti-repeat — exclude archetypes defeated in last 4 weeks
+ *   3. Element preference — narrow to counter-element when ≥60% share
+ *   4. Deterministic selection — picks the first candidate by chapter+roster
+ *      order (the test seam `opts.rng` can substitute a different selector
+ *      for randomised picks; production is deterministic for reproducibility).
+ *
+ * Returns the bossKey string (or WEEKLY_UROBOROS_BOSS_ID for Uroboros).
+ * Pure. Never reads/writes mutable state.
+ *
+ * @param {object} clanState
+ * @param {{rng?: function}} [opts]
+ * @returns {string}
+ */
+export function pickWeeklyBoss(clanState, opts) {
+  try {
+    if (shouldRotateUroboros(clanState)) {
+      return WEEKLY_UROBOROS_BOSS_ID;
+    }
+    const all = _allCandidateBosses();
+    if (all.length === 0) return WEEKLY_UROBOROS_BOSS_ID; // defensive fallback
+    const clanElement = computeClanElementPreference(clanState);
+    const defeated = getDefeatedArchetypesLastNWeeks(clanState);
+    const filtered = filterBossesByElementAntiArchetype(all, clanElement, defeated);
+    if (filtered.length === 0) return all[0].bossKey;
+    const rng = (opts && typeof opts.rng === 'function') ? opts.rng : null;
+    if (rng) {
+      const idx = Math.max(0, Math.min(filtered.length - 1, Math.floor(rng(filtered.length))));
+      return filtered[idx].bossKey;
+    }
+    // Deterministic default: tie-break by chapter index then by bossKey for
+    // reproducibility across mock + Firestore runs. Index 0 of the post-filter
+    // pool after stable insertion order from `_allCandidateBosses`.
+    return filtered[0].bossKey;
+  } catch (e) {
+    try { log.warn('[clan-backend] pickWeeklyBoss failed:', e); } catch (_e) { /* swallow */ }
+    return WEEKLY_UROBOROS_BOSS_ID;
+  }
+}
+
+/**
+ * Scale boss difficulty by clan level. Returns a multiplier in
+ * [WEEKLY_BOSS_DIFFICULTY_BASE_MULT, WEEKLY_BOSS_DIFFICULTY_MAX_MULT].
+ * Level 1 → BASE (1.0); each level adds PER_LEVEL (0.05); HARD-capped at
+ * MAX_MULT (2.0) per ADR-003 no-P2W invariant. Pure.
+ *
+ * @param {object} boss - unused for now; reserved for archetype-specific tweaks
+ * @param {number} clanLevel
+ * @returns {number}
+ */
+export function scaleBossDifficulty(boss, clanLevel) {
+  const lvl = (typeof clanLevel === 'number' && isFinite(clanLevel))
+    ? Math.max(1, Math.floor(clanLevel))
+    : 1;
+  const raw = WEEKLY_BOSS_DIFFICULTY_BASE_MULT + (lvl - 1) * WEEKLY_BOSS_DIFFICULTY_PER_LEVEL;
+  // HARD cap per ADR-003 — even level-100 whale clans don't break 2.0×.
+  if (raw > WEEKLY_BOSS_DIFFICULTY_MAX_MULT) return WEEKLY_BOSS_DIFFICULTY_MAX_MULT;
+  if (raw < WEEKLY_BOSS_DIFFICULTY_BASE_MULT) return WEEKLY_BOSS_DIFFICULTY_BASE_MULT;
+  return raw;
+}
+
+/**
+ * Has the current week expired? True when `now - weekStartedAt >
+ * WEEKLY_ROTATION_PERIOD_MS`. Pure.
+ *
+ * @param {object} clanState
+ * @param {number} [now=Date.now()]
+ * @returns {boolean}
+ */
+export function computeWeekHasExpired(clanState, now) {
+  if (!clanState || typeof clanState !== 'object') return false;
+  const started = (typeof clanState.weekStartedAt === 'number' && isFinite(clanState.weekStartedAt))
+    ? clanState.weekStartedAt
+    : 0;
+  if (started <= 0) return false;
+  const t = (typeof now === 'number' && isFinite(now)) ? now : Date.now();
+  return (t - started) > WEEKLY_ROTATION_PERIOD_MS;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Internal helpers (build a clean clan doc + Firestore-or-mock dispatch).
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -383,6 +707,7 @@ function _buildFreshClanDoc(clanId, ownerId, name, description) {
     weekStartedAt: now,
     weekDefeated: false,
     totalWeeksCompleted: 0,
+    weeklyHistory: [],       // T3.04 — append per closeWeek, used by anti-repeat
     clanLevel: 1,
     cosmetics: {
       bannerTier: CLAN_DEFAULT_BANNER_TIER,
@@ -630,14 +955,24 @@ export async function recordContribution(clanId, playerId, damage) {
 }
 
 /**
- * Close the current week. Increments `totalWeeksCompleted` when `didDefeat`
- * is true; resets `weeklyContributions` + `weekDefeated` + bumps `weekStartedAt`.
- * Recomputes `clanLevel` from the new totalWeeksCompleted. T3.04 will wire
- * this to the Monday 00:00 UTC server cron; T3.02 ships the stub.
+ * Close the current week — LIVE rotation algorithm (T3.04).
+ *
+ * Steps (in order):
+ *   1. Snapshot the closing week's outgoing boss into `weeklyHistory` (so
+ *      `getDefeatedArchetypesLastNWeeks` can read it on the NEXT call).
+ *   2. Increment `totalWeeksCompleted` when `didDefeat === true`.
+ *   3. Recompute `clanLevel`; collect cosmetic unlocks crossed.
+ *   4. Reset `weeklyContributions` + `weekDefeated`; bump `weekStartedAt`.
+ *   5. Pick next-week boss via `pickWeeklyBoss` (honors anti-repeat +
+ *      element preference + Uroboros every-4-weeks gate).
+ *   6. Persist.
+ *
+ * Replaces the T3.02 stub. Sacred-cow safety: BOSSES roster + Uroboros spec
+ * are READ-ONLY (no writes to CHAPTERS, RACE_SYNERGY, TOWER_UROBOROS_SEASONAL).
  *
  * @param {string} clanId
  * @param {boolean} didDefeat
- * @returns {Promise<{ok: boolean, newLevel?: number, unlocks?: Array, reason?: string}>}
+ * @returns {Promise<{ok: boolean, newLevel?: number, unlocks?: Array, weeklyTargetId?: string, isUroboros?: boolean, reason?: string}>}
  */
 export async function closeWeek(clanId, didDefeat) {
   try {
@@ -649,29 +984,183 @@ export async function closeWeek(clanId, didDefeat) {
       if (!_firestoreAvailable()) return { ok: false, reason: CLAN_RESULT_REASONS.NO_SDK };
       return { ok: false, reason: CLAN_RESULT_REASONS.NOT_FOUND };
     }
+
+    // ─── Snapshot outgoing week into history (anti-repeat needs this) ──
+    const outgoingTargetId = (typeof doc.weeklyTargetId === 'string') ? doc.weeklyTargetId : null;
+    let outgoingArchetype = null;
+    if (outgoingTargetId) {
+      // Look up the outgoing boss in CHAPTERS to recover its archetype.
+      // Uroboros has no chapter slot — its archetype is 'choice_seasonal'
+      // (READ-only literal mirror of TOWER_UROBOROS_SEASONAL.archetype).
+      if (outgoingTargetId === WEEKLY_UROBOROS_BOSS_ID) {
+        outgoingArchetype = 'choice_seasonal';
+      } else {
+        const all = _allCandidateBosses();
+        for (let i = 0; i < all.length; i++) {
+          if (all[i].bossKey === outgoingTargetId) {
+            outgoingArchetype = all[i].archetype;
+            break;
+          }
+        }
+      }
+    }
+    if (!Array.isArray(doc.weeklyHistory)) doc.weeklyHistory = [];
+    if (outgoingTargetId) {
+      doc.weeklyHistory.push({
+        bossKey: outgoingTargetId,
+        bossArchetype: outgoingArchetype || null,
+        didDefeat: !!didDefeat,
+        weekIndex: (doc.totalWeeksCompleted | 0),
+        closedAt: Date.now(),
+      });
+      // Trim to the last 2× lookback to keep doc small (T3.04 only reads
+      // the most recent WEEKLY_ROTATION_LOOKBACK_WEEKS entries; the extra
+      // buffer protects against lookback-config changes mid-flight).
+      const cap = WEEKLY_ROTATION_LOOKBACK_WEEKS * 2;
+      if (doc.weeklyHistory.length > cap) {
+        doc.weeklyHistory = doc.weeklyHistory.slice(-cap);
+      }
+    }
+
     const prevLevel = computeClanLevel(doc.totalWeeksCompleted | 0);
     if (didDefeat === true) {
       doc.totalWeeksCompleted = ((doc.totalWeeksCompleted | 0) + 1);
     }
     const newLevel = computeClanLevel(doc.totalWeeksCompleted | 0);
-    // Collect cosmetic unlocks crossed since previous level (defensive —
-    // closeWeek may bump by 0 or 1 levels; loop handles either).
+
+    // Collect cosmetic unlocks crossed since previous level.
     const unlocks = [];
     for (let lvl = prevLevel + 1; lvl <= newLevel; lvl++) {
       const list = unlockCosmeticAtLevel(lvl);
       for (let i = 0; i < list.length; i++) unlocks.push(list[i]);
     }
     doc.clanLevel = newLevel;
+    // weekDefeated records the outcome of the JUST-closed week — preserves
+    // T3.02 contract (consumers like adventures.js read this to render
+    // "DEFEATED ✓" on the previous week's banner). The contributions reset
+    // implicitly marks the new week's progress as empty.
     doc.weekDefeated = !!didDefeat;
     doc.weeklyContributions = {};
     doc.weekStartedAt = Date.now();
-    doc.weeklyTargetId = null; // T3.04 picks next week's boss
+
+    // ─── Pick next-week boss via rotation algorithm ────────────────────
+    const nextBossKey = pickWeeklyBoss(doc);
+    doc.weeklyTargetId = nextBossKey;
+    const isUroboros = (nextBossKey === WEEKLY_UROBOROS_BOSS_ID);
+
     doc.updatedAt = Date.now();
     _mockClanStore.set(clanId, doc);
-    return { ok: true, newLevel, unlocks };
+
+    return {
+      ok: true,
+      newLevel,
+      unlocks,
+      weeklyTargetId: nextBossKey,
+      isUroboros,
+    };
   } catch (e) {
     try { log.warn('[clan-backend] closeWeek failed:', e); } catch (_e) { /* swallow */ }
     return { ok: false, reason: CLAN_RESULT_REASONS.EXCEPTION };
+  }
+}
+
+/**
+ * Push notification stub — surfaces a "weekly boss revealed" event for the
+ * given clan. T3.04 MVP: logs + returns `{ok:true, sent:false, reason:'fcm-not-wired'}`.
+ * T3.04.2 follow-up wires real FCM dispatch.
+ *
+ * @param {string} clanId
+ * @param {string} bossKey
+ * @returns {Promise<{ok: boolean, sent: boolean, reason?: string}>}
+ */
+export async function notifyWeeklyBossRevealed(clanId, bossKey) {
+  try {
+    if (!clanId || typeof clanId !== 'string' || !bossKey || typeof bossKey !== 'string') {
+      return { ok: false, sent: false, reason: CLAN_RESULT_REASONS.INVALID_INPUT };
+    }
+    try { log.debug && log.debug('[clan-backend] weekly boss revealed:', clanId, bossKey); } catch (_e) { /* swallow */ }
+    // T3.04.2: dispatch FCM topic message to `adventures/${clanId}` here.
+    return { ok: true, sent: false, reason: 'fcm-not-wired' };
+  } catch (e) {
+    try { log.warn('[clan-backend] notifyWeeklyBossRevealed failed:', e); } catch (_e) { /* swallow */ }
+    return { ok: false, sent: false, reason: CLAN_RESULT_REASONS.EXCEPTION };
+  }
+}
+
+/**
+ * Cloud Function stub — iterates every active clan and runs closeWeek on the
+ * ones whose week has expired. T3.04 MVP: in-process iteration over the mock
+ * store (or Firestore query when SDK is wired in T3.04.1).
+ *
+ * Returns a summary of clans rotated this pass + the bosses chosen.
+ *
+ * @param {{now?: number}} [opts] - injected clock for tests
+ * @returns {Promise<{ok: boolean, rotated: Array<{clanId, weeklyTargetId, isUroboros}>, reason?: string}>}
+ */
+export async function rotateWeeklyForAllClans(opts) {
+  try {
+    const now = (opts && typeof opts.now === 'number' && isFinite(opts.now)) ? opts.now : Date.now();
+    const rotated = [];
+    for (const [clanId, doc] of _mockClanStore.entries()) {
+      if (!doc || typeof doc !== 'object') continue;
+      if (!computeWeekHasExpired(doc, now)) continue;
+      const result = await closeWeek(clanId, !!doc.weekDefeated);
+      if (result && result.ok) {
+        rotated.push({
+          clanId,
+          weeklyTargetId: result.weeklyTargetId,
+          isUroboros: !!result.isUroboros,
+        });
+        // Fire-and-forget the notification stub.
+        try { await notifyWeeklyBossRevealed(clanId, result.weeklyTargetId); } catch (_e) { /* swallow */ }
+      }
+    }
+    return { ok: true, rotated };
+  } catch (e) {
+    try { log.warn('[clan-backend] rotateWeeklyForAllClans failed:', e); } catch (_e) { /* swallow */ }
+    return { ok: false, rotated: [], reason: CLAN_RESULT_REASONS.EXCEPTION };
+  }
+}
+
+/**
+ * Client-side fallback — when a player opens the Adventures detail view, check
+ * if the clan's week has expired and trigger rotation locally if so. Returns
+ * `{ok:true, rotated:true, ...}` when a rotation fired, `{ok:true, rotated:false}`
+ * when the week is still in-progress.
+ *
+ * @param {string} clanId
+ * @param {{now?: number}} [opts] - injected clock for tests
+ * @returns {Promise<{ok: boolean, rotated: boolean, weeklyTargetId?: string, isUroboros?: boolean, reason?: string}>}
+ */
+export async function maybeAutoRotateOnClanOpen(clanId, opts) {
+  try {
+    if (!clanId || typeof clanId !== 'string') {
+      return { ok: false, rotated: false, reason: CLAN_RESULT_REASONS.INVALID_INPUT };
+    }
+    const doc = _mockClanStore.get(clanId);
+    if (!doc) {
+      if (!_firestoreAvailable()) return { ok: false, rotated: false, reason: CLAN_RESULT_REASONS.NO_SDK };
+      return { ok: false, rotated: false, reason: CLAN_RESULT_REASONS.NOT_FOUND };
+    }
+    const now = (opts && typeof opts.now === 'number' && isFinite(opts.now)) ? opts.now : Date.now();
+    if (!computeWeekHasExpired(doc, now)) {
+      return { ok: true, rotated: false };
+    }
+    const result = await closeWeek(clanId, !!doc.weekDefeated);
+    if (!result || !result.ok) {
+      return { ok: false, rotated: false, reason: result && result.reason };
+    }
+    // Fire-and-forget the notification stub.
+    try { await notifyWeeklyBossRevealed(clanId, result.weeklyTargetId); } catch (_e) { /* swallow */ }
+    return {
+      ok: true,
+      rotated: true,
+      weeklyTargetId: result.weeklyTargetId,
+      isUroboros: !!result.isUroboros,
+    };
+  } catch (e) {
+    try { log.warn('[clan-backend] maybeAutoRotateOnClanOpen failed:', e); } catch (_e) { /* swallow */ }
+    return { ok: false, rotated: false, reason: CLAN_RESULT_REASONS.EXCEPTION };
   }
 }
 

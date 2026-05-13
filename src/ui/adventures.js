@@ -65,6 +65,8 @@ import {
   listClansForPlayer,
   searchClansByName,
   transferOwnership,
+  // T3.04 — client-side weekly rotation fallback
+  maybeAutoRotateOnClanOpen,
   // Pure helpers
   computeClanLevel,
   computeContributorPercent,
@@ -621,6 +623,21 @@ async function _renderDetailAsync(root, clanId) {
   ].join('');
   _wireDetailBack(root);
 
+  // T3.04 — client-side weekly rotation fallback. When the player opens
+  // the clan detail more than 7 days after `weekStartedAt`, trigger
+  // closeWeek locally + pick the next-week boss. The Monday 00:00 UTC
+  // server cron is the canonical path (T3.04.1); this is the defensive
+  // fallback when push notifications haven't fired or the client is offline.
+  let rotated = false;
+  try {
+    const rotateResult = await maybeAutoRotateOnClanOpen(clanId);
+    if (rotateResult && rotateResult.ok && rotateResult.rotated === true) {
+      rotated = true;
+    }
+  } catch (e) {
+    try { log.warn('maybeAutoRotateOnClanOpen failed:', e); } catch (_e) {}
+  }
+
   let clan = null;
   let backendOk = true;
   let reason = null;
@@ -638,6 +655,31 @@ async function _renderDetailAsync(root, clanId) {
   }
   if (root !== _rootEl) return;
   renderClanDetail(root, clan, _viewerPlayerId, { backendOk, reason });
+  if (rotated) {
+    _flashRotatedToast();
+  }
+}
+
+/**
+ * Surface a "Weekly boss rotated!" toast when the client-side fallback
+ * triggers a rotation on detail-mount. Lightweight + auto-dismissing.
+ * T3.04 — distinct from `_flashError` so the styling can be opt-in
+ * neutral (not red error).
+ */
+function _flashRotatedToast() {
+  if (!_rootEl) return;
+  try {
+    const prior = _rootEl.querySelector('.adv-toast');
+    if (prior && prior.parentNode) prior.parentNode.removeChild(prior);
+    const toast = document.createElement('div');
+    toast.className = 'adv-toast adv-toast--info';
+    toast.setAttribute('role', 'status');
+    toast.textContent = 'Weekly boss rotated!';
+    _rootEl.appendChild(toast);
+    setTimeout(() => {
+      try { if (toast.parentNode) toast.parentNode.removeChild(toast); } catch (_e) {}
+    }, 3000);
+  } catch (_e) { /* swallow */ }
 }
 
 function _renderDetailHeaderShell() {

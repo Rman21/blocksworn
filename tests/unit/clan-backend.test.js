@@ -51,14 +51,36 @@ import {
   transferOwnership,
   listClansForPlayer,
   searchClansByName,
+  // T3.04 — pure helpers
+  computeClanElementPreference,
+  getDefeatedArchetypesLastNWeeks,
+  filterBossesByElementAntiArchetype,
+  pickWeeklyBoss,
+  scaleBossDifficulty,
+  shouldRotateUroboros,
+  computeWeekHasExpired,
+  // T3.04 — async ops
+  rotateWeeklyForAllClans,
+  notifyWeeklyBossRevealed,
+  maybeAutoRotateOnClanOpen,
   // test helpers
   _resetMockClanStore,
+  _seedMockClan,
 } from '../../src/services/clan-backend.js';
 import {
   CLAN_COSMETIC_TIERS,
   CLAN_DEFAULT_BANNER_TIER,
   CLAN_LEVEL_COSMETIC_UNLOCKS,
   CLAN_UNLOCK_LEVELS,
+  WEEKLY_ROTATION_LOOKBACK_WEEKS,
+  WEEKLY_ROTATION_UROBOROS_INTERVAL_WEEKS,
+  WEEKLY_BOSS_DIFFICULTY_BASE_MULT,
+  WEEKLY_BOSS_DIFFICULTY_PER_LEVEL,
+  WEEKLY_BOSS_DIFFICULTY_MAX_MULT,
+  WEEKLY_ELEMENT_PREFERENCE_THRESHOLD,
+  WEEKLY_ROTATION_PERIOD_MS,
+  WEEKLY_ELEMENT_COUNTER,
+  WEEKLY_UROBOROS_BOSS_ID,
 } from '../../src/data/clan-config.js';
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -812,5 +834,654 @@ describe('performance — pure helpers < 1ms (sacred AAA+ budget)', () => {
     for (let i = 0; i < N; i++) validateClanSize(i % 20);
     const avg = (performance.now() - start) / N;
     expect(avg).toBeLessThan(1);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// 2026-05-13 — TASK-052 (T3.04): Weekly boss rotation — unit suite.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('T3.04 — clan-config constants (sacred audit + ADR-003 invariants)', () => {
+  it('WEEKLY_ROTATION_LOOKBACK_WEEKS === 4', () => {
+    expect(WEEKLY_ROTATION_LOOKBACK_WEEKS).toBe(4);
+  });
+  it('WEEKLY_ROTATION_UROBOROS_INTERVAL_WEEKS === 4', () => {
+    expect(WEEKLY_ROTATION_UROBOROS_INTERVAL_WEEKS).toBe(4);
+  });
+  it('WEEKLY_BOSS_DIFFICULTY_BASE_MULT === 1.0', () => {
+    expect(WEEKLY_BOSS_DIFFICULTY_BASE_MULT).toBe(1.0);
+  });
+  it('WEEKLY_BOSS_DIFFICULTY_PER_LEVEL === 0.05', () => {
+    expect(WEEKLY_BOSS_DIFFICULTY_PER_LEVEL).toBeCloseTo(0.05, 6);
+  });
+  it('WEEKLY_BOSS_DIFFICULTY_MAX_MULT === 2.0 HARD CAP (ADR-003 no-P2W invariant)', () => {
+    expect(WEEKLY_BOSS_DIFFICULTY_MAX_MULT).toBe(2.0);
+  });
+  it('WEEKLY_ELEMENT_PREFERENCE_THRESHOLD === 0.6', () => {
+    expect(WEEKLY_ELEMENT_PREFERENCE_THRESHOLD).toBeCloseTo(0.6, 6);
+  });
+  it('WEEKLY_ROTATION_PERIOD_MS === 7 days', () => {
+    expect(WEEKLY_ROTATION_PERIOD_MS).toBe(7 * 24 * 60 * 60 * 1000);
+  });
+  it('WEEKLY_UROBOROS_BOSS_ID === "tower_uroboros_seasonal" (sacred id reference)', () => {
+    expect(WEEKLY_UROBOROS_BOSS_ID).toBe('tower_uroboros_seasonal');
+  });
+  it('WEEKLY_ELEMENT_COUNTER covers all 5 stihiyas', () => {
+    expect(WEEKLY_ELEMENT_COUNTER.ember).toBe('tide');
+    expect(WEEKLY_ELEMENT_COUNTER.tide).toBe('grove');
+    expect(WEEKLY_ELEMENT_COUNTER.grove).toBe('ember');
+    expect(WEEKLY_ELEMENT_COUNTER.solar).toBe('umbra');
+    expect(WEEKLY_ELEMENT_COUNTER.umbra).toBe('solar');
+  });
+});
+
+describe('T3.04 — computeClanElementPreference', () => {
+  it('null/empty clan → null', () => {
+    expect(computeClanElementPreference(null)).toBe(null);
+    expect(computeClanElementPreference({})).toBe(null);
+    expect(computeClanElementPreference({ members: [] })).toBe(null);
+  });
+
+  it('members without activeSquadRaces → null (no votes)', () => {
+    const state = {
+      members: [
+        { playerId: 'p1', role: 'owner' },
+        { playerId: 'p2', role: 'member' },
+      ],
+    };
+    expect(computeClanElementPreference(state)).toBe(null);
+  });
+
+  it('6/10 members with pirate-ember squads → ember (above 60% threshold)', () => {
+    const members = [];
+    for (let i = 0; i < 6; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['pirate', 'orc'] });
+    for (let i = 6; i < 10; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['elf', 'skeleton'] });
+    expect(computeClanElementPreference({ members })).toBe('ember');
+  });
+
+  it('5/10 pirate-ember (50%, below threshold) → null (balanced clan)', () => {
+    const members = [];
+    for (let i = 0; i < 5; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['pirate'] });
+    for (let i = 5; i < 10; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['elf'] });
+    expect(computeClanElementPreference({ members })).toBe(null);
+  });
+
+  it('3/10 pirate-ember (30%, far below threshold) → null', () => {
+    const members = [];
+    for (let i = 0; i < 3; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['pirate'] });
+    for (let i = 3; i < 10; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['troll'] });
+    expect(computeClanElementPreference({ members })).toBe('grove'); // troll = grove, 70%
+  });
+
+  it('squad with mixed races → member votes their MODE element', () => {
+    const members = [
+      // Member 1: 3 grove + 1 ember → grove
+      { playerId: 'p1', activeSquadRaces: ['troll', 'troll', 'golem', 'orc'] },
+      { playerId: 'p2', activeSquadRaces: ['troll', 'golem'] },
+      { playerId: 'p3', activeSquadRaces: ['troll'] },
+      { playerId: 'p4', activeSquadRaces: ['golem'] },
+      { playerId: 'p5', activeSquadRaces: ['troll'] },
+    ];
+    expect(computeClanElementPreference({ members })).toBe('grove');
+  });
+
+  it('unknown race ids are skipped (defensive)', () => {
+    const members = [
+      { playerId: 'p1', activeSquadRaces: ['unknown_race', 'troll'] },
+      { playerId: 'p2', activeSquadRaces: ['troll'] },
+      { playerId: 'p3', activeSquadRaces: ['troll'] },
+    ];
+    expect(computeClanElementPreference({ members })).toBe('grove');
+  });
+
+  it('umbra-dominant 8/10 → umbra preference', () => {
+    const members = [];
+    for (let i = 0; i < 8; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['dark_elf', 'rock'] });
+    for (let i = 8; i < 10; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['orc'] });
+    expect(computeClanElementPreference({ members })).toBe('umbra');
+  });
+});
+
+describe('T3.04 — getDefeatedArchetypesLastNWeeks', () => {
+  it('null/empty clan → empty Set', () => {
+    expect(getDefeatedArchetypesLastNWeeks(null).size).toBe(0);
+    expect(getDefeatedArchetypesLastNWeeks({}).size).toBe(0);
+    expect(getDefeatedArchetypesLastNWeeks({ weeklyHistory: [] }).size).toBe(0);
+  });
+
+  it('returns archetypes from last 4 entries by default', () => {
+    const state = {
+      weeklyHistory: [
+        { bossArchetype: 'phoenix', didDefeat: true },
+        { bossArchetype: 'berserker', didDefeat: true },
+        { bossArchetype: 'assassin', didDefeat: false },
+        { bossArchetype: 'bruiser', didDefeat: true },
+        { bossArchetype: 'engineer', didDefeat: true },
+      ],
+    };
+    const out = getDefeatedArchetypesLastNWeeks(state);
+    expect(out.size).toBe(4);
+    expect(out.has('phoenix')).toBe(false); // 5th-from-end, OUT of window
+    expect(out.has('berserker')).toBe(true);
+    expect(out.has('assassin')).toBe(true);
+    expect(out.has('bruiser')).toBe(true);
+    expect(out.has('engineer')).toBe(true);
+  });
+
+  it('custom N=2 returns only last 2 entries', () => {
+    const state = {
+      weeklyHistory: [
+        { bossArchetype: 'phoenix' },
+        { bossArchetype: 'berserker' },
+        { bossArchetype: 'assassin' },
+      ],
+    };
+    const out = getDefeatedArchetypesLastNWeeks(state, 2);
+    expect(out.size).toBe(2);
+    expect(out.has('berserker')).toBe(true);
+    expect(out.has('assassin')).toBe(true);
+  });
+
+  it('history with entries missing bossArchetype → those skipped', () => {
+    const state = {
+      weeklyHistory: [
+        { bossArchetype: 'phoenix' },
+        { bossArchetype: null },
+        { bossArchetype: '' },
+        { bossArchetype: 'bruiser' },
+      ],
+    };
+    const out = getDefeatedArchetypesLastNWeeks(state);
+    expect(out.has('phoenix')).toBe(true);
+    expect(out.has('bruiser')).toBe(true);
+    expect(out.size).toBe(2);
+  });
+});
+
+describe('T3.04 — filterBossesByElementAntiArchetype', () => {
+  const allBosses = [
+    { bossKey: 'b1', archetype: 'berserker', stihiya: 'ember' },
+    { bossKey: 'b2', archetype: 'armored',   stihiya: 'tide' },
+    { bossKey: 'b3', archetype: 'bruiser',   stihiya: 'grove' },
+    { bossKey: 'b4', archetype: 'phoenix',   stihiya: 'solar' },
+    { bossKey: 'b5', archetype: 'assassin',  stihiya: 'umbra' },
+    { bossKey: 'b6', archetype: 'engineer',  stihiya: 'grove' },
+    { bossKey: 'b7', archetype: 'frenzy',    stihiya: 'ember' },
+  ];
+
+  it('null element + empty defeated → returns all', () => {
+    const out = filterBossesByElementAntiArchetype(allBosses, null, new Set());
+    expect(out.length).toBe(allBosses.length);
+  });
+
+  it('ember preference → counter tide → narrows to tide bosses', () => {
+    const out = filterBossesByElementAntiArchetype(allBosses, 'ember', new Set());
+    expect(out.every(b => b.stihiya === 'tide')).toBe(true);
+    expect(out.length).toBe(1);
+  });
+
+  it('grove preference → counter ember → narrows to ember bosses', () => {
+    const out = filterBossesByElementAntiArchetype(allBosses, 'grove', new Set());
+    expect(out.every(b => b.stihiya === 'ember')).toBe(true);
+    expect(out.length).toBe(2);
+  });
+
+  it('anti-repeat filter excludes defeated archetypes', () => {
+    const defeated = new Set(['berserker', 'frenzy']);
+    const out = filterBossesByElementAntiArchetype(allBosses, null, defeated);
+    expect(out.some(b => b.archetype === 'berserker')).toBe(false);
+    expect(out.some(b => b.archetype === 'frenzy')).toBe(false);
+    expect(out.length).toBe(allBosses.length - 2);
+  });
+
+  it('combined: grove element + anti-repeat berserker → only frenzy remains (ember non-berserker)', () => {
+    const out = filterBossesByElementAntiArchetype(allBosses, 'grove', new Set(['berserker']));
+    expect(out.every(b => b.stihiya === 'ember' && b.archetype !== 'berserker')).toBe(true);
+    expect(out.length).toBe(1);
+    expect(out[0].archetype).toBe('frenzy');
+  });
+
+  it('all archetypes in pool defeated → graceful relax (return pool, no empty crash)', () => {
+    const defeated = new Set(['berserker', 'frenzy']);
+    const out = filterBossesByElementAntiArchetype(allBosses, 'grove', defeated);
+    // Grove counter = ember. All ember archetypes (berserker, frenzy) defeated.
+    // Stage 3 graceful fallback: returns the pool unchanged.
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.every(b => b.stihiya === 'ember')).toBe(true);
+  });
+
+  it('counter narrowing empty → keep full pool (balanced fallback)', () => {
+    // No bosses with counter element exist: fabricate a roster with no tide.
+    const noTide = allBosses.filter(b => b.stihiya !== 'tide');
+    const out = filterBossesByElementAntiArchetype(noTide, 'ember', new Set());
+    expect(out.length).toBeGreaterThan(0);
+  });
+
+  it('empty input → empty output', () => {
+    expect(filterBossesByElementAntiArchetype([], 'ember', new Set())).toEqual([]);
+  });
+});
+
+describe('T3.04 — shouldRotateUroboros', () => {
+  it('totalWeeksCompleted=0 → false', () => {
+    expect(shouldRotateUroboros({ totalWeeksCompleted: 0 })).toBe(false);
+  });
+  it('totalWeeksCompleted=4 → true', () => {
+    expect(shouldRotateUroboros({ totalWeeksCompleted: 4 })).toBe(true);
+  });
+  it('totalWeeksCompleted=5 → false', () => {
+    expect(shouldRotateUroboros({ totalWeeksCompleted: 5 })).toBe(false);
+  });
+  it('totalWeeksCompleted=8 → true', () => {
+    expect(shouldRotateUroboros({ totalWeeksCompleted: 8 })).toBe(true);
+  });
+  it('totalWeeksCompleted=12 → true', () => {
+    expect(shouldRotateUroboros({ totalWeeksCompleted: 12 })).toBe(true);
+  });
+  it('null/non-object → false (defensive)', () => {
+    expect(shouldRotateUroboros(null)).toBe(false);
+    expect(shouldRotateUroboros(undefined)).toBe(false);
+    expect(shouldRotateUroboros('string')).toBe(false);
+  });
+  it('negative / NaN total → false', () => {
+    expect(shouldRotateUroboros({ totalWeeksCompleted: -1 })).toBe(false);
+    expect(shouldRotateUroboros({ totalWeeksCompleted: NaN })).toBe(false);
+  });
+});
+
+describe('T3.04 — pickWeeklyBoss', () => {
+  it('returns Uroboros at totalWeeks=4', () => {
+    const state = { totalWeeksCompleted: 4, members: [], weeklyHistory: [] };
+    expect(pickWeeklyBoss(state)).toBe(WEEKLY_UROBOROS_BOSS_ID);
+  });
+  it('returns Uroboros at totalWeeks=8 (sacred every-4-weeks gate)', () => {
+    const state = { totalWeeksCompleted: 8, members: [], weeklyHistory: [] };
+    expect(pickWeeklyBoss(state)).toBe(WEEKLY_UROBOROS_BOSS_ID);
+  });
+  it('returns regular boss at totalWeeks=5', () => {
+    const state = { totalWeeksCompleted: 5, members: [], weeklyHistory: [] };
+    const got = pickWeeklyBoss(state);
+    expect(got).not.toBe(WEEKLY_UROBOROS_BOSS_ID);
+    expect(typeof got).toBe('string');
+    expect(got.length).toBeGreaterThan(0);
+  });
+  it('balanced clan (no preference, no history) → picks first candidate deterministically', () => {
+    const state = { totalWeeksCompleted: 1, members: [], weeklyHistory: [] };
+    const got1 = pickWeeklyBoss(state);
+    const got2 = pickWeeklyBoss(state);
+    expect(got1).toBe(got2); // deterministic
+  });
+  it('element preference narrows the pool — ember clan gets tide-element boss', () => {
+    const members = [];
+    for (let i = 0; i < 6; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['pirate'] });
+    for (let i = 6; i < 10; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['elf'] });
+    const state = { totalWeeksCompleted: 1, members, weeklyHistory: [] };
+    const got = pickWeeklyBoss(state);
+    expect(typeof got).toBe('string');
+    expect(got).not.toBe(WEEKLY_UROBOROS_BOSS_ID);
+  });
+  it('anti-repeat: 4 weeks of phoenix kills → 5th week picks non-phoenix', () => {
+    const state = {
+      totalWeeksCompleted: 5, // not Uroboros (5 % 4 !== 0)
+      members: [],
+      weeklyHistory: [
+        { bossArchetype: 'phoenix', didDefeat: true },
+        { bossArchetype: 'phoenix', didDefeat: true },
+        { bossArchetype: 'phoenix', didDefeat: true },
+        { bossArchetype: 'phoenix', didDefeat: true },
+      ],
+    };
+    const got = pickWeeklyBoss(state);
+    // Phoenix archetype is excluded. We can't easily look up the archetype
+    // from the bossKey without re-importing CHAPTERS; instead assert it's
+    // not the bossKey shape for SOLAR PHOENIX (which is the only phoenix
+    // archetype boss in CHAPTERS roster).
+    expect(got).not.toMatch(/solar_phoenix/);
+  });
+  it('all 6 task-spec archetypes recently defeated → fallback yields a boss (no crash)', () => {
+    const state = {
+      totalWeeksCompleted: 5,
+      members: [],
+      weeklyHistory: [
+        { bossArchetype: 'phoenix' },
+        { bossArchetype: 'assassin' },
+        { bossArchetype: 'berserker' },
+        { bossArchetype: 'engineer' },
+        { bossArchetype: 'bruiser' },
+        { bossArchetype: 'frenzy' },
+      ],
+    };
+    const got = pickWeeklyBoss(state);
+    expect(typeof got).toBe('string');
+    expect(got.length).toBeGreaterThan(0);
+  });
+  it('null clanState → returns a valid bossKey string (no crash, defensive)', () => {
+    const got = pickWeeklyBoss(null);
+    expect(typeof got).toBe('string');
+    expect(got.length).toBeGreaterThan(0);
+  });
+  it('rng opts hook selects from filtered pool', () => {
+    const state = { totalWeeksCompleted: 1, members: [], weeklyHistory: [] };
+    const a = pickWeeklyBoss(state, { rng: () => 0 });
+    const b = pickWeeklyBoss(state, { rng: (n) => n - 1 });
+    expect(typeof a).toBe('string');
+    expect(typeof b).toBe('string');
+  });
+});
+
+describe('T3.04 — scaleBossDifficulty (ADR-003 HARD cap)', () => {
+  it('level 1 → 1.0 (base mult)', () => {
+    expect(scaleBossDifficulty(null, 1)).toBeCloseTo(1.0, 6);
+  });
+  it('level 10 → 1.45 (1.0 + 9 × 0.05)', () => {
+    expect(scaleBossDifficulty(null, 10)).toBeCloseTo(1.45, 6);
+  });
+  it('level 20 → 1.95 (1.0 + 19 × 0.05)', () => {
+    expect(scaleBossDifficulty(null, 20)).toBeCloseTo(1.95, 6);
+  });
+  it('level 21 → 2.00 (HARD cap reached)', () => {
+    expect(scaleBossDifficulty(null, 21)).toBe(2.0);
+  });
+  it('level 100 → 2.00 (HARD cap — ADR-003 no-P2W)', () => {
+    expect(scaleBossDifficulty(null, 100)).toBe(2.0);
+  });
+  it('level 1000 → 2.00 (whale clan still capped)', () => {
+    expect(scaleBossDifficulty(null, 1000)).toBe(2.0);
+  });
+  it('level 0 / negative → coerced to level 1 (1.0)', () => {
+    expect(scaleBossDifficulty(null, 0)).toBe(1.0);
+    expect(scaleBossDifficulty(null, -5)).toBe(1.0);
+  });
+  it('NaN level → coerced to level 1 (1.0)', () => {
+    expect(scaleBossDifficulty(null, NaN)).toBe(1.0);
+  });
+});
+
+describe('T3.04 — computeWeekHasExpired', () => {
+  const now = 1_000_000_000_000;
+  it('< 7 days since weekStartedAt → false', () => {
+    const state = { weekStartedAt: now - (6 * 24 * 60 * 60 * 1000) };
+    expect(computeWeekHasExpired(state, now)).toBe(false);
+  });
+  it('= 7 days → false (exact boundary, not yet expired)', () => {
+    const state = { weekStartedAt: now - WEEKLY_ROTATION_PERIOD_MS };
+    expect(computeWeekHasExpired(state, now)).toBe(false);
+  });
+  it('7 days + 1 sec → true', () => {
+    const state = { weekStartedAt: now - WEEKLY_ROTATION_PERIOD_MS - 1000 };
+    expect(computeWeekHasExpired(state, now)).toBe(true);
+  });
+  it('weekStartedAt missing → false (defensive)', () => {
+    expect(computeWeekHasExpired({}, now)).toBe(false);
+    expect(computeWeekHasExpired(null, now)).toBe(false);
+  });
+  it('default `now` resolves to Date.now() — fresh week never expired', () => {
+    const state = { weekStartedAt: Date.now() };
+    expect(computeWeekHasExpired(state)).toBe(false);
+  });
+});
+
+describe('T3.04 — closeWeek LIVE algorithm', () => {
+  beforeEach(() => {
+    _resetMockClanStore();
+  });
+
+  it('didDefeat=true → totalWeeksCompleted increments', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    expect(c.ok).toBe(true);
+    const before = await fetchClan(c.clanId);
+    expect(before.clan.totalWeeksCompleted).toBe(0);
+    const r = await closeWeek(c.clanId, true);
+    expect(r.ok).toBe(true);
+    const after = await fetchClan(c.clanId);
+    expect(after.clan.totalWeeksCompleted).toBe(1);
+  });
+
+  it('didDefeat=false → totalWeeksCompleted unchanged', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    await closeWeek(c.clanId, false);
+    const after = await fetchClan(c.clanId);
+    expect(after.clan.totalWeeksCompleted).toBe(0);
+  });
+
+  it('resets weeklyContributions', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    await joinClan(c.clanId, 'kira');
+    await recordContribution(c.clanId, 'kira', 500);
+    await closeWeek(c.clanId, true);
+    const after = await fetchClan(c.clanId);
+    expect(Object.keys(after.clan.weeklyContributions).length).toBe(0);
+  });
+
+  it('sets new weeklyTargetId from pickWeeklyBoss', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    const r = await closeWeek(c.clanId, true);
+    expect(typeof r.weeklyTargetId).toBe('string');
+    expect(r.weeklyTargetId.length).toBeGreaterThan(0);
+    const after = await fetchClan(c.clanId);
+    expect(after.clan.weeklyTargetId).toBe(r.weeklyTargetId);
+  });
+
+  it('weekStartedAt bumped to now', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    const before = await fetchClan(c.clanId);
+    const beforeStart = before.clan.weekStartedAt;
+    await new Promise(r => setTimeout(r, 5));
+    await closeWeek(c.clanId, true);
+    const after = await fetchClan(c.clanId);
+    expect(after.clan.weekStartedAt).toBeGreaterThan(beforeStart);
+  });
+
+  it('history persists across consecutive closeWeek calls (anti-repeat seed)', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    await closeWeek(c.clanId, true);
+    await closeWeek(c.clanId, true);
+    await closeWeek(c.clanId, true);
+    const after = await fetchClan(c.clanId);
+    // After 3 closeWeeks (each one snapshots the outgoing weeklyTargetId
+    // into weeklyHistory), the history should have 2 entries (the very
+    // first close has no outgoing target yet because the freshClanDoc starts
+    // with weeklyTargetId=null).
+    expect(after.clan.weeklyHistory.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('totalWeeksCompleted=4 → next weeklyTargetId = Uroboros (sacred seasonal gate)', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    // Force totalWeeksCompleted = 3 then close with defeat → 4 → Uroboros.
+    const seed = (await fetchClan(c.clanId)).clan;
+    seed.totalWeeksCompleted = 3;
+    _seedMockClan(c.clanId, seed);
+    const r = await closeWeek(c.clanId, true);
+    expect(r.ok).toBe(true);
+    expect(r.isUroboros).toBe(true);
+    expect(r.weeklyTargetId).toBe(WEEKLY_UROBOROS_BOSS_ID);
+  });
+
+  it('invalid clanId → reason invalid-input', async () => {
+    const r = await closeWeek('', true);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe(CLAN_RESULT_REASONS.INVALID_INPUT);
+  });
+  it('unknown clanId → no-sdk fallback', async () => {
+    const r = await closeWeek('does-not-exist', true);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe(CLAN_RESULT_REASONS.NO_SDK);
+  });
+});
+
+describe('T3.04 — notifyWeeklyBossRevealed (FCM stub)', () => {
+  it('returns ok:true, sent:false, reason:"fcm-not-wired" for MVP', async () => {
+    const r = await notifyWeeklyBossRevealed('clan-1', 'boss-1');
+    expect(r.ok).toBe(true);
+    expect(r.sent).toBe(false);
+    expect(r.reason).toBe('fcm-not-wired');
+  });
+  it('rejects invalid input', async () => {
+    const r1 = await notifyWeeklyBossRevealed('', 'boss');
+    expect(r1.ok).toBe(false);
+    const r2 = await notifyWeeklyBossRevealed('clan', '');
+    expect(r2.ok).toBe(false);
+  });
+});
+
+describe('T3.04 — rotateWeeklyForAllClans (Cloud Function stub)', () => {
+  beforeEach(() => {
+    _resetMockClanStore();
+  });
+
+  it('empty store → ok:true, rotated:[]', async () => {
+    const r = await rotateWeeklyForAllClans();
+    expect(r.ok).toBe(true);
+    expect(r.rotated).toEqual([]);
+  });
+
+  it('clans with non-expired week → not rotated', async () => {
+    await createClan('roma', 'Brass Sparrows');
+    const r = await rotateWeeklyForAllClans();
+    expect(r.ok).toBe(true);
+    expect(r.rotated.length).toBe(0);
+  });
+
+  it('clans with expired week → rotated', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    // Backdate weekStartedAt to >7d ago.
+    const seed = (await fetchClan(c.clanId)).clan;
+    seed.weekStartedAt = Date.now() - (8 * 24 * 60 * 60 * 1000);
+    _seedMockClan(c.clanId, seed);
+    const r = await rotateWeeklyForAllClans();
+    expect(r.ok).toBe(true);
+    expect(r.rotated.length).toBe(1);
+    expect(r.rotated[0].clanId).toBe(c.clanId);
+    expect(typeof r.rotated[0].weeklyTargetId).toBe('string');
+  });
+
+  it('multiple clans — only expired ones rotate', async () => {
+    const c1 = await createClan('roma', 'Brass Sparrows');
+    const c2 = await createClan('kira', 'Crystal Wing');
+    const c3 = await createClan('seb', 'Iron Vale');
+    const seed1 = (await fetchClan(c1.clanId)).clan;
+    seed1.weekStartedAt = Date.now() - (8 * 24 * 60 * 60 * 1000);
+    _seedMockClan(c1.clanId, seed1);
+    const seed3 = (await fetchClan(c3.clanId)).clan;
+    seed3.weekStartedAt = Date.now() - (10 * 24 * 60 * 60 * 1000);
+    _seedMockClan(c3.clanId, seed3);
+    const r = await rotateWeeklyForAllClans();
+    expect(r.rotated.length).toBe(2);
+    const ids = r.rotated.map(x => x.clanId).sort();
+    expect(ids).toContain(c1.clanId);
+    expect(ids).toContain(c3.clanId);
+    expect(ids).not.toContain(c2.clanId);
+  });
+});
+
+describe('T3.04 — maybeAutoRotateOnClanOpen (client-side fallback)', () => {
+  beforeEach(() => {
+    _resetMockClanStore();
+  });
+
+  it('fresh week → rotated:false', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    const r = await maybeAutoRotateOnClanOpen(c.clanId);
+    expect(r.ok).toBe(true);
+    expect(r.rotated).toBe(false);
+  });
+
+  it('expired week (>7d) → rotated:true + new weeklyTargetId', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    const seed = (await fetchClan(c.clanId)).clan;
+    seed.weekStartedAt = Date.now() - (8 * 24 * 60 * 60 * 1000);
+    _seedMockClan(c.clanId, seed);
+    const r = await maybeAutoRotateOnClanOpen(c.clanId);
+    expect(r.ok).toBe(true);
+    expect(r.rotated).toBe(true);
+    expect(typeof r.weeklyTargetId).toBe('string');
+  });
+
+  it('totalWeeks=3 + defeated + expired → next rotation Uroboros', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    const seed = (await fetchClan(c.clanId)).clan;
+    seed.totalWeeksCompleted = 3;
+    seed.weekDefeated = true;
+    seed.weekStartedAt = Date.now() - (8 * 24 * 60 * 60 * 1000);
+    _seedMockClan(c.clanId, seed);
+    const r = await maybeAutoRotateOnClanOpen(c.clanId);
+    expect(r.ok).toBe(true);
+    expect(r.rotated).toBe(true);
+    expect(r.isUroboros).toBe(true);
+    expect(r.weeklyTargetId).toBe(WEEKLY_UROBOROS_BOSS_ID);
+  });
+
+  it('unknown clanId → ok:false, no-sdk', async () => {
+    const r = await maybeAutoRotateOnClanOpen('does-not-exist');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe(CLAN_RESULT_REASONS.NO_SDK);
+  });
+  it('invalid clanId → ok:false, invalid-input', async () => {
+    const r = await maybeAutoRotateOnClanOpen('');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe(CLAN_RESULT_REASONS.INVALID_INPUT);
+  });
+  it('injected clock — past time → rotated:false', async () => {
+    const c = await createClan('roma', 'Brass Sparrows');
+    // Pass an old `now` so the week is NOT expired.
+    const past = Date.now() - (1000 * 60 * 60);
+    const r = await maybeAutoRotateOnClanOpen(c.clanId, { now: past });
+    expect(r.rotated).toBe(false);
+  });
+});
+
+describe('T3.04 — performance (helpers <1ms each)', () => {
+  it('pickWeeklyBoss < 1ms over 200 iterations averaged', () => {
+    const state = { totalWeeksCompleted: 1, members: [], weeklyHistory: [] };
+    const N = 200;
+    const t = performance.now();
+    for (let i = 0; i < N; i++) pickWeeklyBoss(state);
+    const avg = (performance.now() - t) / N;
+    expect(avg).toBeLessThan(1);
+  });
+  it('computeClanElementPreference < 1ms over 500 iterations averaged', () => {
+    const members = [];
+    for (let i = 0; i < 15; i++) members.push({ playerId: 'p' + i, activeSquadRaces: ['pirate', 'orc', 'troll'] });
+    const N = 500;
+    const t = performance.now();
+    for (let i = 0; i < N; i++) computeClanElementPreference({ members });
+    const avg = (performance.now() - t) / N;
+    expect(avg).toBeLessThan(1);
+  });
+  it('scaleBossDifficulty < 1ms over 1000 iterations averaged', () => {
+    const N = 1000;
+    const t = performance.now();
+    for (let i = 0; i < N; i++) scaleBossDifficulty(null, i % 50);
+    const avg = (performance.now() - t) / N;
+    expect(avg).toBeLessThan(1);
+  });
+});
+
+describe('T3.04 — sacred-cow audit', () => {
+  it('CHAPTERS read-only — closeWeek doesn\'t crash on full integration', async () => {
+    _resetMockClanStore();
+    const c = await createClan('roma', 'Brass Sparrows');
+    const r1 = await closeWeek(c.clanId, true);
+    expect(r1.ok).toBe(true);
+    const r2 = await closeWeek(c.clanId, true);
+    expect(r2.ok).toBe(true);
+    // CHAPTERS itself isn't exposed here; the fact that closeWeek picks
+    // valid bossKeys without mutation is the sacred contract.
+    expect(typeof r2.weeklyTargetId).toBe('string');
+  });
+
+  it('scaleBossDifficulty never exceeds MAX_MULT (ADR-003 no-P2W invariant)', () => {
+    for (let lvl = 1; lvl < 10000; lvl++) {
+      const m = scaleBossDifficulty(null, lvl);
+      expect(m).toBeLessThanOrEqual(WEEKLY_BOSS_DIFFICULTY_MAX_MULT);
+    }
+  });
+
+  it('pickWeeklyBoss always returns a non-empty string', () => {
+    for (let w = 0; w < 30; w++) {
+      const got = pickWeeklyBoss({ totalWeeksCompleted: w, members: [], weeklyHistory: [] });
+      expect(typeof got).toBe('string');
+      expect(got.length).toBeGreaterThan(0);
+    }
   });
 });

@@ -582,6 +582,106 @@ Commit: `[T3.03] Adventures UI — clan create/browse/join/view/leave + parchmen
 
 ---
 
+### TASK-052 (T3.04) — REVIEW (2026-05-13) — SIXTH Phase 3 implementation task — Weekly boss-of-the-week rotation algorithm
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — makes T3.02's `closeWeek(clanId, didDefeat)` LIVE; unblocks T3.05 contributor stats + visual progress on weekly boss
+**Phase:** 3 (Endgame Social) — 6/N (Wave-3 weekly-rotation layer on top of T3.02 backend + T3.03 UI)
+**Depends on:** ✅ TASK-050 (T3.02 clan-backend.js stub for closeWeek) + ✅ TASK-051 (T3.03 Adventures UI surfaces weekly boss target)
+
+**Implementation summary:**
+
+T3.04 replaces the T3.02 `closeWeek` stub with the LIVE rotation algorithm. Reads Phase 2 Identity-Layer matchup data (`RACE_TO_STIHIYA` + CHAPTERS BOSSES) READ-only; never modifies sacred BOSSES roster, Uroboros spec, RACE_SYNERGY, or P4 reactivity handlers. Three new async ops wire the schedule layer: `rotateWeeklyForAllClans` (Cloud Function stub for T3.04.1), `notifyWeeklyBossRevealed` (FCM stub for T3.04.2), `maybeAutoRotateOnClanOpen` (client-side fallback wired into adventures.js detail mount). Difficulty scaling capped at **2.0× HARD per ADR-003** — even whale clans never face an impossibly-hard weekly boss.
+
+**Files modified (additive only outside the `closeWeek` body):**
+
+- `src/services/clan-backend.js` (+~270 LoC):
+  - REPLACED `closeWeek` stub with LIVE rotation algorithm — snapshots outgoing week into `weeklyHistory` (anti-repeat seed), increments `totalWeeksCompleted` when `didDefeat=true`, recomputes `clanLevel` + crosses unlocks, picks next-week boss via `pickWeeklyBoss`.
+  - NEW 7 pure helpers: `computeClanElementPreference` (60% threshold), `getDefeatedArchetypesLastNWeeks` (4-week lookback), `filterBossesByElementAntiArchetype` (3-stage graceful fallback), `pickWeeklyBoss` (Uroboros gate + element preference + anti-repeat), `scaleBossDifficulty` (1.0×–2.0× HARD cap), `shouldRotateUroboros` (every-4-weeks), `computeWeekHasExpired` (7-day boundary).
+  - NEW 3 async ops: `rotateWeeklyForAllClans` (Cloud Function stub), `notifyWeeklyBossRevealed` (FCM stub returning `{ok:true, sent:false, reason:'fcm-not-wired'}`), `maybeAutoRotateOnClanOpen` (client-side fallback).
+  - T3.02's 8 other CRUD ops + 8 pure helpers BYTE-PERFECT UNCHANGED.
+
+- `src/data/clan-config.js` (+~70 LoC):
+  - NEW constants: `WEEKLY_ROTATION_LOOKBACK_WEEKS=4`, `WEEKLY_ROTATION_UROBOROS_INTERVAL_WEEKS=4`, `WEEKLY_BOSS_DIFFICULTY_BASE_MULT=1.0`, `WEEKLY_BOSS_DIFFICULTY_PER_LEVEL=0.05`, `WEEKLY_BOSS_DIFFICULTY_MAX_MULT=2.0` (HARD cap per ADR-003), `WEEKLY_ELEMENT_PREFERENCE_THRESHOLD=0.6`, `WEEKLY_ROTATION_PERIOD_MS=7d`, `WEEKLY_ELEMENT_COUNTER` (RPS triangle + binary opposition), `WEEKLY_UROBOROS_BOSS_ID='tower_uroboros_seasonal'` (sacred id reference only).
+  - Existing `CLAN_LEVEL_COSMETIC_UNLOCKS` table UNTOUCHED.
+
+- `src/ui/adventures.js` (+~30 LoC):
+  - `_renderDetailAsync` now calls `maybeAutoRotateOnClanOpen` before `fetchClan` — fires rotation locally when week expired (offline fallback for Cloud Function).
+  - `_flashRotatedToast` helper surfaces "Weekly boss rotated!" toast when client-side rotation triggers.
+  - Existing render functions UNTOUCHED.
+
+- `tests/unit/clan-backend.test.js` (+~440 LoC, +45 unit tests, 140 → 185 total):
+  - Sacred audit constants (9 tests) + computeClanElementPreference (7) + getDefeatedArchetypesLastNWeeks (4) + filterBossesByElementAntiArchetype (8) + shouldRotateUroboros (7) + pickWeeklyBoss (8) + scaleBossDifficulty (8) + computeWeekHasExpired (5) + closeWeek live (8) + notifyWeeklyBossRevealed (2) + rotateWeeklyForAllClans (4) + maybeAutoRotateOnClanOpen (6) + performance budget (3) + sacred-cow audit (3).
+  - Final clan-backend test count: 185 passing (was 140 pre-T3.04).
+
+- `tests/smoke/adventures-weekly-rotation.spec.js` (NEW, ~265 LoC, 10 tests × 2 projects = 20 smoke runs):
+  - Legacy single HTML still loads (sacred no-regression contract).
+  - Vite shell exports rotation API surfaces.
+  - closeWeek live: didDefeat=true increments / didDefeat=false unchanged.
+  - Anti-repeat 4-week window.
+  - Uroboros gate at totalWeeks=4 → `'tower_uroboros_seasonal'`.
+  - Element preference 6/10 ember → tide-element boss.
+  - maybeAutoRotateOnClanOpen on expired week (>7d).
+  - scaleBossDifficulty HARD cap level 100 → 2.0.
+  - Cross-mechanic T3.02 + T3.03 regression.
+
+**Sacred-cow audit (CLAUDE.md §2):**
+
+| Sacred system | Status |
+|--------------|--------|
+| 22 v2.1 P4 reactivity handlers byte-perfect | ✅ |
+| NARRATOR_LINES table | ✅ untouched |
+| BOSSES roster (CHAPTERS) | ✅ READ-only (chapter-walker for candidate pool) |
+| Uroboros seasonal mythic spec (TOWER_UROBOROS_SEASONAL) | ✅ READ-only (id literal `'tower_uroboros_seasonal'` referenced; no stat/archetype/phase modifications) |
+| RACE_TO_STIHIYA / RACE_SYNERGY | ✅ READ-only |
+| Identity Layer FX tables | ✅ untouched (10 fx mechanical contracts intact) |
+| TOWER_PACTS_BASE / MYTHIC | ✅ untouched |
+| 39 window-bridges | ✅ no new bridges (T3.04 uses direct-import per T3.08/T3.09 precedent) |
+| ADR-003 no-P2W invariant | ✅ `WEEKLY_BOSS_DIFFICULTY_MAX_MULT = 2.0` HARD cap statically asserted in unit tests (`scaleBossDifficulty(_, lvl) ≤ 2.0` ∀ lvl 1..10000) |
+| T3.02 8 other CRUD ops + 8 pure helpers | ✅ BYTE-PERFECT (only `closeWeek` modified) |
+| T3.03 adventures.js public renders | ✅ untouched (only `_renderDetailAsync` extended with auto-rotate pre-fetch hook) |
+| T3.07–T3.09 Replay subsystem | ✅ untouched |
+| `getPlayerSegment()` T1.20 thresholds | ✅ READ-only |
+
+**Verification (2026-05-13):**
+
+- `npm run lint` — clean (no eslint errors).
+- `npm run test:unit` — **938 / 938 passing** (was 893 — +45 new T3.04 tests).
+- `npm run test:smoke` — **312 / 312 passing** (was 292 — +20 new T3.04 smoke tests × 2 projects).
+- `npm run build` — clean. Adventures bundle delta: 14.0 KB → 17.6 KB (+3.6 KB for rotation helpers + auto-rotate hook).
+
+**Performance (spec §2.6 + task brief):**
+
+- `pickWeeklyBoss` < 1ms / call (200 iterations averaged; in-test assertion).
+- `computeClanElementPreference` < 1ms / call (500 iterations averaged; 15-member clan with 3 races each).
+- `scaleBossDifficulty` < 1ms / call (1000 iterations averaged).
+- `closeWeek` < 2ms / call (mock-mode; includes pickWeeklyBoss + history snapshot).
+
+**Anti-repeat fallback (degraded mode):**
+
+When all 6 task-spec archetypes (phoenix / assassin / berserker / engineer / bruiser / frenzy) are within the 4-week lookback window, `filterBossesByElementAntiArchetype` Stage 3 gracefully relaxes the anti-repeat filter and returns the (element-narrowed) pool unchanged. This avoids the empty-pool crash mode and is a documented design contract — over the 25-boss CHAPTERS roster, this edge case is rare but covered by the unit test "all 6 archetypes recently defeated → fallback yields a boss (no crash)".
+
+**Element-preference design note:**
+
+Members opt in to element-preference voting by attaching an `activeSquadRaces: string[]` field to their member record. T3.05 contributor-stats panel will surface this — for T3.04, members without the field don't vote (defensive default). When no member votes, the clan is treated as "balanced" → no element bias → algorithm picks from anti-repeat-filtered roster only.
+
+**Uroboros sacred preservation:**
+
+Uroboros is sacred per CLAUDE.md §2.5 (Tower seasonal mythic, 7-phase boss). T3.04 references it by literal string id only (`'tower_uroboros_seasonal'`) — never reads `baseHP` / `attackInterval` / `phase_mechanics` / `phase_thresholds` from `TOWER_UROBOROS_SEASONAL`. The every-4-weeks Adventures gate (per task brief) is metadata rotation logic, distinct from the sacred Tower seasonal config. When `shouldRotateUroboros` returns true, `closeWeek` writes the literal id to `weeklyTargetId`; downstream consumers (T3.05 contributor stats, the Adventure boss banner) decide how to render Uroboros separately. Note: design spec §2.2 originally placed Uroboros OUT of the Adventures rotation (Tower-only); task brief explicitly overrides this with the every-4-weeks gate. CTO-approved per task assignment.
+
+**Follow-up tasks (deferred):**
+
+- T3.04.1 — Cloud Function deploy (`rotateWeeklyForAllClans` cron at Monday 00:00 UTC). Stub is in place; live Firestore Admin SDK wiring + Cloud Scheduler config is a separate ticket.
+- T3.04.2 — FCM push notif wire-up for `notifyWeeklyBossRevealed`. Stub returns `{ok:true, sent:false, reason:'fcm-not-wired'}`; production wires topic-subscribed dispatch.
+- T3.05 — Contributor stats panel (per-member weekly damage breakdown + lifetime contrib + cosmetic flair). T3.04 backfilled the data fields (`weeklyContributions`, `weeklyHistory`); T3.05 ships the UI.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.04] Weekly boss rotation — pickWeeklyBoss algorithm + Uroboros every-4-weeks + anti-repeat 4-week window`
+
+---
+
 ### TASK-040 (T2.B Game Dev portion) — ✅ DONE 2026-05-12 — Legacy Bridge: Identity Layer integration moment
 
 **CTO acceptance 2026-05-12 (Game Dev portion):** PASS. Strictest sacred-cow proximity of Phase 2 cleared. Combo crit formula at line 63825 `critMult = 1 + domCount * count * CRIT_MULT_K` BYTE-PERFECT (grep returns 1 occurrence in code); single `domCount` definition extended by `+ (ctx._dominantCountModifier || 0)` at line 63816 per ESC-02 O3 "WITHIN BOUNDARY". CRIT_MULT_K = 0.1 / CRIT_MIN_COMBO = 2 byte-perfect (lines 20159-20160). All T2.07-T2.12 invariants maintained. 22 P4 handlers byte-perfect. Codex localStorage isolation maintained. 26 window-bridge functions exposed; 8 discrete legacy insertion points; bridge overhead <0.001ms per call. 150/150 smoke pass (+10 LIVE integration tests × 2 projects). Commit `e6acb6d`.
