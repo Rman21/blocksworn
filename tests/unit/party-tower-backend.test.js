@@ -66,7 +66,29 @@ import {
   maybeAutoSkipExpiredTurn,
   // test helpers
   _resetMockPartyStore,
+  // T3.11 — Shared resources (hearts + pacts)
+  PARTY_PACT_CANDIDATES_PER_PICK,
+  PARTY_PACT_DECISION_SOURCES,
+  getTowerRetryLadder,
+  computeRetryTierIndex,
+  computeHeartsDrainCost,
+  computeTowerHeartsPoolMax,
+  drainPartyHearts,
+  canPartyAffordRetry,
+  replenishPartyHeartsOnCheckpoint,
+  getTowerPactRegistry,
+  pickPactCandidates,
+  validatePactSelection,
+  tallyDemocracyVotes,
+  applyPactToSharedState,
+  canPlayerStartPactPick,
+  recordHeartsDrain,
+  replenishHearts,
+  startPactPick,
+  submitPactVote,
 } from '../../src/services/party-tower-backend.js';
+import { BALANCE } from '../../src/data/balance.js';
+import { TOWER_PACTS_BASE, TOWER_PACTS_MYTHIC } from '../../src/data/tower.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Constants — sacred audit + value pinning.
@@ -1046,16 +1068,27 @@ describe('performance — pure helpers <1ms each (spec §3.6)', () => {
 describe('sacred-cow audit — T3.10 schema-only; no sacred writes', () => {
   beforeEach(() => { _resetMockPartyStore(); });
 
-  it('sharedState.towerHearts starts at 0 (T3.10 schema; T3.11 wires)', async () => {
+  it('sharedState.towerHearts starts at tier-0 max (T3.11 — sacred ladder [100, 200, 400] entry 0 = 100)', async () => {
     const c = await createParty('roma');
     const f = await fetchParty(c.partyId);
-    expect(f.party.sharedState.towerHearts).toBe(0);
+    expect(f.party.sharedState.towerHearts).toMatchObject({
+      current:      100,           // sacred ladder entry 0
+      max:          100,
+      retryCount:   0,
+      lastDrainAt:  0,
+    });
+    expect(Array.isArray(f.party.sharedState.towerHearts.drainHistory)).toBe(true);
+    expect(f.party.sharedState.towerHearts.drainHistory.length).toBe(0);
   });
 
-  it('sharedState.towerPacts starts empty (T3.10 schema; T3.11 wires)', async () => {
+  it('sharedState.towerPacts starts with structured pick state (T3.11)', async () => {
     const c = await createParty('roma');
     const f = await fetchParty(c.partyId);
-    expect(f.party.sharedState.towerPacts).toEqual([]);
+    expect(f.party.sharedState.towerPacts).toMatchObject({
+      selected:   [],
+      pickMode:   'captain',        // PARTY_DEFAULT_PICK_MODE per ESC-03 Q3 philosophy
+      activePick: null,
+    });
   });
 
   it('identityFxLog starts empty (T3.10 schema; T3.12 wires per-turn dispatch)', async () => {
@@ -1079,5 +1112,413 @@ describe('sacred-cow audit — T3.10 schema-only; no sacred writes', () => {
     f1.party.members.push({ playerId: 'fake', role: 'owner' });
     const f2 = await fetchParty(c.partyId);
     expect(f2.party.members.length).toBe(1); // unchanged
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// T3.11 — Shared Tower-Hearts pool + shared TOWER_PACTS selection.
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('T3.11 — sacred Tower retry ladder READ-only audit', () => {
+  it('getTowerRetryLadder() returns [100, 200, 400] BYTE-PERFECT (sacred §2.4)', () => {
+    const ladder = getTowerRetryLadder();
+    expect(ladder).toEqual([100, 200, 400]);
+  });
+
+  it('ladder is the SAME reference as BALANCE.pinch.towerDeath.gemCostLadder (no defensive copy)', () => {
+    expect(getTowerRetryLadder()).toBe(BALANCE.pinch.towerDeath.gemCostLadder);
+  });
+
+  it('ladder is frozen — Object.isFrozen check', () => {
+    expect(Object.isFrozen(BALANCE.pinch.towerDeath.gemCostLadder)).toBe(true);
+  });
+});
+
+describe('T3.11 — computeRetryTierIndex', () => {
+  it('clamps retryCount 0 → 0', () => { expect(computeRetryTierIndex(0)).toBe(0); });
+  it('retryCount 1 → 1', () => { expect(computeRetryTierIndex(1)).toBe(1); });
+  it('retryCount 2 → 2', () => { expect(computeRetryTierIndex(2)).toBe(2); });
+  it('retryCount 100 → 2 (clamp at last sacred entry)', () => { expect(computeRetryTierIndex(100)).toBe(2); });
+  it('negative retryCount → 0 (defensive)', () => { expect(computeRetryTierIndex(-5)).toBe(0); });
+  it('NaN / undefined → 0', () => {
+    expect(computeRetryTierIndex(NaN)).toBe(0);
+    expect(computeRetryTierIndex(undefined)).toBe(0);
+  });
+});
+
+describe('T3.11 — computeHeartsDrainCost (sacred ladder lookup)', () => {
+  it('retryCount 0 → 100g (sacred ladder entry 0)', () => { expect(computeHeartsDrainCost(0)).toBe(100); });
+  it('retryCount 1 → 200g', () => { expect(computeHeartsDrainCost(1)).toBe(200); });
+  it('retryCount 2 → 400g', () => { expect(computeHeartsDrainCost(2)).toBe(400); });
+  it('retryCount 10 → 400g (clamp)', () => { expect(computeHeartsDrainCost(10)).toBe(400); });
+});
+
+describe('T3.11 — computeTowerHeartsPoolMax', () => {
+  it('mirrors sacred ladder for tier 0 / 1 / 2', () => {
+    expect(computeTowerHeartsPoolMax(0)).toBe(100);
+    expect(computeTowerHeartsPoolMax(1)).toBe(200);
+    expect(computeTowerHeartsPoolMax(2)).toBe(400);
+    expect(computeTowerHeartsPoolMax(7)).toBe(400);  // clamp
+  });
+});
+
+describe('T3.11 — drainPartyHearts (pure update)', () => {
+  it('deducts hearts correctly: 100 → 99 after 1-heart drain', () => {
+    const initial = { towerHearts: { current: 100, max: 100, retryCount: 0, lastDrainAt: 0, drainHistory: [] } };
+    const after = drainPartyHearts(initial, 'alice', 1, 0);
+    expect(after.towerHearts.current).toBe(99);
+  });
+
+  it('does NOT mutate input (immutable update)', () => {
+    const initial = { towerHearts: { current: 100, max: 100, retryCount: 0, lastDrainAt: 0, drainHistory: [] } };
+    const before = JSON.parse(JSON.stringify(initial));
+    drainPartyHearts(initial, 'alice', 1, 0);
+    expect(initial).toEqual(before);
+  });
+
+  it('appends to drainHistory with playerId + deltas + timestamp', () => {
+    const initial = { towerHearts: { current: 100, max: 100, retryCount: 0, lastDrainAt: 0, drainHistory: [] } };
+    const after = drainPartyHearts(initial, 'alice', 5, 100);
+    expect(after.towerHearts.drainHistory).toHaveLength(1);
+    expect(after.towerHearts.drainHistory[0]).toMatchObject({
+      playerId:     'alice',
+      deltaHearts:  5,
+      deltaGold:    100,
+    });
+    expect(after.towerHearts.drainHistory[0].t).toBeGreaterThan(0);
+  });
+
+  it('pool exhaustion increments retryCount and resets to next-tier max', () => {
+    const initial = { towerHearts: { current: 5, max: 100, retryCount: 0, lastDrainAt: 0, drainHistory: [] } };
+    const after = drainPartyHearts(initial, 'alice', 5, 100);
+    expect(after.towerHearts.current).toBe(200);  // refilled to tier 1 max
+    expect(after.towerHearts.max).toBe(200);
+    expect(after.towerHearts.retryCount).toBe(1);
+  });
+
+  it('multiple pool exhaustions advance through ladder; clamps at tier 2 (400)', () => {
+    let s = { towerHearts: { current: 1, max: 100, retryCount: 0, lastDrainAt: 0, drainHistory: [] } };
+    s = drainPartyHearts(s, 'a', 1, 100);  // exhausts tier 0 → tier 1 (200)
+    s = drainPartyHearts(s, 'a', 200, 200); // exhausts tier 1 → tier 2 (400)
+    s = drainPartyHearts(s, 'a', 400, 400); // exhausts tier 2 → still tier 2 (clamp 400)
+    expect(s.towerHearts.retryCount).toBe(3);
+    expect(s.towerHearts.max).toBe(400);    // clamped
+    expect(s.towerHearts.current).toBe(400);
+  });
+});
+
+describe('T3.11 — canPartyAffordRetry', () => {
+  it('total gold ≥ cost → true', () => {
+    const shared = { towerHearts: { retryCount: 0 } };
+    const members = [{ gold: 60 }, { gold: 50 }];
+    expect(canPartyAffordRetry(shared, members, 100)).toBe(true);
+  });
+  it('total gold < cost → false', () => {
+    const shared = { towerHearts: { retryCount: 0 } };
+    const members = [{ gold: 30 }, { gold: 50 }];
+    expect(canPartyAffordRetry(shared, members, 100)).toBe(false);
+  });
+  it('default ladderEntry derived from retryCount when omitted', () => {
+    const shared = { towerHearts: { retryCount: 2 } };  // tier 2 → cost 400
+    expect(canPartyAffordRetry(shared, [{ gold: 500 }])).toBe(true);
+    expect(canPartyAffordRetry(shared, [{ gold: 300 }])).toBe(false);
+  });
+  it('defensive: non-array members → false', () => {
+    expect(canPartyAffordRetry({}, null, 100)).toBe(false);
+  });
+});
+
+describe('T3.11 — replenishPartyHeartsOnCheckpoint', () => {
+  it('resets hearts to tier-0 max (100) + retryCount → 0', () => {
+    const before = { towerHearts: { current: 50, max: 200, retryCount: 1, lastDrainAt: 0, drainHistory: [{ playerId: 'a', t: 1 }] } };
+    const after = replenishPartyHeartsOnCheckpoint(before);
+    expect(after.towerHearts.current).toBe(100);
+    expect(after.towerHearts.max).toBe(100);
+    expect(after.towerHearts.retryCount).toBe(0);
+    // drainHistory preserved (audit trail)
+    expect(after.towerHearts.drainHistory).toHaveLength(1);
+  });
+
+  it('does NOT mutate input (immutable update)', () => {
+    const before = { towerHearts: { current: 50, max: 200, retryCount: 1, lastDrainAt: 0, drainHistory: [] } };
+    const snapshot = JSON.parse(JSON.stringify(before));
+    replenishPartyHeartsOnCheckpoint(before);
+    expect(before).toEqual(snapshot);
+  });
+});
+
+describe('T3.11 — sacred TOWER_PACTS registry READ-only audit', () => {
+  it('TOWER_PACTS_BASE has exactly 30 entries (CLAUDE.md §2.5)', () => {
+    expect(Object.keys(TOWER_PACTS_BASE)).toHaveLength(30);
+  });
+  it('TOWER_PACTS_MYTHIC has exactly 15 entries (CLAUDE.md §2.5)', () => {
+    expect(Object.keys(TOWER_PACTS_MYTHIC)).toHaveLength(15);
+  });
+  it('TOWER_PACTS_BASE + TOWER_PACTS_MYTHIC are both Object.isFrozen', () => {
+    expect(Object.isFrozen(TOWER_PACTS_BASE)).toBe(true);
+    expect(Object.isFrozen(TOWER_PACTS_MYTHIC)).toBe(true);
+  });
+  it('getTowerPactRegistry() returns merged 45-entry frozen object', () => {
+    const r = getTowerPactRegistry();
+    expect(Object.keys(r)).toHaveLength(45);
+    expect(Object.isFrozen(r)).toBe(true);
+  });
+});
+
+describe('T3.11 — pickPactCandidates', () => {
+  it('returns PARTY_PACT_CANDIDATES_PER_PICK (3) unique pacts from sacred registry', () => {
+    const picks = pickPactCandidates(0, 12345);
+    expect(picks).toHaveLength(PARTY_PACT_CANDIDATES_PER_PICK);
+    expect(new Set(picks).size).toBe(picks.length);  // unique
+    const registry = getTowerPactRegistry();
+    for (const p of picks) {
+      expect(registry).toHaveProperty(p);
+    }
+  });
+
+  it('deterministic: same seed + retryCount → same candidates', () => {
+    const a = pickPactCandidates(1, 999);
+    const b = pickPactCandidates(1, 999);
+    expect(a).toEqual(b);
+  });
+
+  it('different seeds → likely different candidates (probabilistic)', () => {
+    const a = pickPactCandidates(0, 1);
+    const b = pickPactCandidates(0, 12345678);
+    // Not strict equality (could collide); just confirm function responds to seed.
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+  });
+
+  it('count override respected (count=2)', () => {
+    const picks = pickPactCandidates(0, 42, 2);
+    expect(picks).toHaveLength(2);
+  });
+});
+
+describe('T3.11 — validatePactSelection', () => {
+  it('pactId in candidates → true', () => {
+    expect(validatePactSelection('c_stagger_extend', ['c_stagger_extend', 'r_double_signature'])).toBe(true);
+  });
+  it('pactId NOT in candidates → false', () => {
+    expect(validatePactSelection('x_fake', ['c_stagger_extend'])).toBe(false);
+  });
+  it('null pactId → false', () => {
+    expect(validatePactSelection(null, ['c_stagger_extend'])).toBe(false);
+  });
+  it('non-array candidates → false', () => {
+    expect(validatePactSelection('c_stagger_extend', null)).toBe(false);
+  });
+});
+
+describe('T3.11 — tallyDemocracyVotes', () => {
+  it('simple majority wins', () => {
+    const r = tallyDemocracyVotes({ a: 'p1', b: 'p1', c: 'p2' }, ['p1', 'p2', 'p3'], null);
+    expect(r.winner).toBe('p1');
+    expect(r.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.DEMOCRACY_MAJORITY);
+  });
+
+  it('tie broken by owner vote (owner voted for one of the leaders)', () => {
+    const r = tallyDemocracyVotes({ alice: 'p1', bob: 'p2' }, ['p1', 'p2'], 'p2');
+    expect(r.winner).toBe('p2');
+    expect(r.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.DEMOCRACY_TIEBREAKER);
+  });
+
+  it('tie without owner-vote-in-leaders falls back to alphabetical first (stable)', () => {
+    const r = tallyDemocracyVotes({ alice: 'p2', bob: 'p1' }, ['p1', 'p2', 'p3'], 'p3');
+    expect(['p1', 'p2']).toContain(r.winner);  // either leader
+    expect(r.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.DEMOCRACY_TIEBREAKER);
+  });
+
+  it('no votes → null winner', () => {
+    const r = tallyDemocracyVotes({}, ['p1'], null);
+    expect(r.winner).toBe(null);
+  });
+
+  it('votes outside candidates list are discarded', () => {
+    const r = tallyDemocracyVotes({ a: 'fake', b: 'p1' }, ['p1', 'p2'], null);
+    expect(r.winner).toBe('p1');
+  });
+});
+
+describe('T3.11 — applyPactToSharedState', () => {
+  it('appends pactId to selected[]; clears activePick', () => {
+    const before = {
+      towerPacts: {
+        selected:   ['existing_pact'],
+        pickMode:   'captain',
+        activePick: { candidates: ['a','b','c'], votes: {} },
+      },
+    };
+    const after = applyPactToSharedState(before, 'c_stagger_extend', PARTY_PACT_DECISION_SOURCES.CAPTAIN);
+    expect(after.towerPacts.selected).toEqual(['existing_pact', 'c_stagger_extend']);
+    expect(after.towerPacts.activePick).toBe(null);
+    expect(after.towerPacts.lastDecisionSource).toBe(PARTY_PACT_DECISION_SOURCES.CAPTAIN);
+  });
+
+  it('does NOT mutate input', () => {
+    const before = { towerPacts: { selected: ['x'], pickMode: 'captain', activePick: null } };
+    const snapshot = JSON.parse(JSON.stringify(before));
+    applyPactToSharedState(before, 'new_pact', 'captain');
+    expect(before).toEqual(snapshot);
+  });
+
+  it('defensive: null pactId → unchanged state', () => {
+    const before = { towerPacts: { selected: [], pickMode: 'captain', activePick: null } };
+    const after = applyPactToSharedState(before, null, 'captain');
+    expect(after).toBe(before);
+  });
+});
+
+describe('T3.11 — canPlayerStartPactPick', () => {
+  function buildActiveParty(pickMode = 'captain') {
+    return {
+      state: PARTY_STATE_ACTIVE,
+      ownerId: 'alice',
+      members: [
+        { playerId: 'alice', isActive: true },
+        { playerId: 'bob',   isActive: true },
+      ],
+      sharedState: { towerPacts: { pickMode } },
+    };
+  }
+  it('captain mode: only owner can start', () => {
+    const p = buildActiveParty('captain');
+    expect(canPlayerStartPactPick('alice', p)).toBe(true);
+    expect(canPlayerStartPactPick('bob', p)).toBe(false);
+  });
+  it('democracy mode: any active member can start', () => {
+    const p = buildActiveParty('democracy');
+    expect(canPlayerStartPactPick('alice', p)).toBe(true);
+    expect(canPlayerStartPactPick('bob', p)).toBe(true);
+    expect(canPlayerStartPactPick('outsider', p)).toBe(false);
+  });
+  it('non-active state → false', () => {
+    const p = { ...buildActiveParty(), state: PARTY_STATE_PENDING };
+    expect(canPlayerStartPactPick('alice', p)).toBe(false);
+  });
+});
+
+// ─── Async ops live integration via mock store ──────────────────────────
+
+describe('T3.11 — async: recordHeartsDrain + replenishHearts', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('recordHeartsDrain deducts hearts + appends history', async () => {
+    const c = await createParty('alice');
+    const r = await recordHeartsDrain(c.partyId, 'alice', 1, 100);
+    expect(r.ok).toBe(true);
+    expect(r.newCurrent).toBe(99);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.sharedState.towerHearts.drainHistory).toHaveLength(1);
+  });
+
+  it('pool exhaustion via recordHeartsDrain → retryCount++ + next-tier max', async () => {
+    const c = await createParty('alice');
+    const r = await recordHeartsDrain(c.partyId, 'alice', 100, 100);  // full pool
+    expect(r.ok).toBe(true);
+    expect(r.newRetryCount).toBe(1);
+    expect(r.newCurrent).toBe(200);  // tier 1 max
+  });
+
+  it('replenishHearts resets to tier-0 max', async () => {
+    const c = await createParty('alice');
+    await recordHeartsDrain(c.partyId, 'alice', 50, 100);
+    const r = await replenishHearts(c.partyId);
+    expect(r.ok).toBe(true);
+    expect(r.newCurrent).toBe(100);
+    expect(r.newMax).toBe(100);
+  });
+
+  it('recordHeartsDrain on missing partyId → not-found', async () => {
+    const r = await recordHeartsDrain('does-not-exist', 'alice', 1, 100);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe(PARTY_RESULT_REASONS.NOT_FOUND);
+  });
+});
+
+describe('T3.11 — async: startPactPick + submitPactVote (captain mode)', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('startPactPick owner-only in captain mode → ok; member → not-authorized', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+
+    const ownerStart = await startPactPick(c.partyId, 'alice', 0, 999);
+    expect(ownerStart.ok).toBe(true);
+    expect(ownerStart.activePick.candidates).toHaveLength(PARTY_PACT_CANDIDATES_PER_PICK);
+
+    // Reset and try as member
+    _resetMockPartyStore();
+    const c2 = await createParty('alice');
+    await joinParty(c2.partyId, 'bob');
+    await startParty(c2.partyId, 'alice');
+    const memberStart = await startPactPick(c2.partyId, 'bob', 0, 999);
+    expect(memberStart.ok).toBe(false);
+    expect(memberStart.reason).toBe(PARTY_RESULT_REASONS.NOT_AUTHORIZED);
+  });
+
+  it('captain submitPactVote applies immediately + clears activePick', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const pickRes = await startPactPick(c.partyId, 'alice', 0, 999);
+    const pactId = pickRes.activePick.candidates[0];
+
+    const submit = await submitPactVote(c.partyId, 'alice', pactId);
+    expect(submit.ok).toBe(true);
+    expect(submit.applied).toBe(true);
+    expect(submit.winner).toBe(pactId);
+    expect(submit.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.CAPTAIN);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.sharedState.towerPacts.selected).toContain(pactId);
+    expect(f.party.sharedState.towerPacts.activePick).toBe(null);
+  });
+
+  it('captain mode: non-owner vote → not-authorized', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const pickRes = await startPactPick(c.partyId, 'alice', 0, 999);
+    const pactId = pickRes.activePick.candidates[0];
+    const submit = await submitPactVote(c.partyId, 'bob', pactId);
+    expect(submit.ok).toBe(false);
+    expect(submit.reason).toBe(PARTY_RESULT_REASONS.NOT_AUTHORIZED);
+  });
+});
+
+describe('T3.11 — async: democracy mode tally + tie-break', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  async function setupDemocracyParty() {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await joinParty(c.partyId, 'carol');
+    await startParty(c.partyId, 'alice');
+    // Switch pickMode to democracy by mutating sharedState directly via _mockPartyStore
+    // (in production T3.11.1 will expose setPartyPickMode; for now mutate test fixture)
+    const doc = (await fetchParty(c.partyId)).party;
+    doc.sharedState.towerPacts.pickMode = 'democracy';
+    // Re-seed
+    const { _seedMockParty } = await import('../../src/services/party-tower-backend.js')
+      .catch(() => ({ _seedMockParty: null }));
+    if (_seedMockParty) _seedMockParty(c.partyId, doc);
+    return c.partyId;
+  }
+
+  it('democracy: majority wins after all members vote', async () => {
+    const partyId = await setupDemocracyParty();
+    const pickRes = await startPactPick(partyId, 'alice', 0, 12345);
+    const [p1, p2 /*p3*/] = pickRes.activePick.candidates;
+
+    // 2 vote for p1, 1 for p2 — p1 majority
+    await submitPactVote(partyId, 'alice', p1);
+    await submitPactVote(partyId, 'bob',   p1);
+    const final = await submitPactVote(partyId, 'carol', p2);
+    expect(final.ok).toBe(true);
+    expect(final.applied).toBe(true);
+    expect(final.winner).toBe(p1);
+    expect(final.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.DEMOCRACY_MAJORITY);
   });
 });

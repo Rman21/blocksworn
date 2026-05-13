@@ -92,7 +92,19 @@ import {
   PARTY_STATES,
   PARTY_ROLES,
   PARTY_COLLECTION,
+  // T3.11 — Shared resources (Tower-Hearts pool + TOWER_PACTS selection).
+  PARTY_PACT_PICK_MODES,
+  PARTY_DEFAULT_PICK_MODE,
+  PARTY_PACT_CANDIDATES_PER_PICK,
+  PARTY_PACT_DEMOCRACY_TIMEOUT_MS,
+  PARTY_HEARTS_DRAIN_PER_RETRY,
+  PARTY_PACT_DECISION_SOURCES,
 } from '../data/party-config.js';
+// T3.11 — Sacred Tower data, READ-only direct-imports.
+// CLAUDE.md §2.4 sacred: gemCostLadder [100, 200, 400] (Tower retry).
+// CLAUDE.md §2.5 sacred: TOWER_PACTS_BASE (30) + TOWER_PACTS_MYTHIC (15).
+import { BALANCE } from '../data/balance.js';
+import { TOWER_PACTS_BASE, TOWER_PACTS_MYTHIC } from '../data/tower.js';
 
 // Re-export config constants so callers can `import { PARTY_MAX_SIZE } from
 // '.../party-tower-backend.js'` without a second import (mirrors clan-backend
@@ -110,6 +122,12 @@ export {
   PARTY_STATES,
   PARTY_ROLES,
   PARTY_COLLECTION,
+  PARTY_PACT_PICK_MODES,
+  PARTY_DEFAULT_PICK_MODE,
+  PARTY_PACT_CANDIDATES_PER_PICK,
+  PARTY_PACT_DEMOCRACY_TIMEOUT_MS,
+  PARTY_HEARTS_DRAIN_PER_RETRY,
+  PARTY_PACT_DECISION_SOURCES,
 };
 
 /** Owner / member role tags — string literals matching PARTY_ROLES enum. */
@@ -141,6 +159,8 @@ export const PARTY_RESULT_REASONS = Object.freeze({
   TURN_NOT_EXPIRED: 'turn-not-expired',
   ALREADY_STARTED: 'already-started',
   EXCEPTION: 'exception',
+  // T3.11 — Shared resources (hearts + pacts).
+  NOT_AUTHORIZED: 'not-authorized',
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -447,14 +467,7 @@ function _buildFreshPartyDoc(partyId, ownerId, mode) {
     turnTimeoutMode: resolvedMode,
     turnTimeoutMs: computeTurnTimeoutMs(resolvedMode),
     currentTurnDeadline: 0,         // set on startParty
-    sharedState: {
-      // T3.11 wires actual values into these slots. T3.10 ships SCHEMA only —
-      // sacred Tower-Hearts pool + TOWER_PACTS reads land in T3.11.
-      towerHearts: 0,
-      towerPacts: [],
-      boardState: null,
-      floorIndex: 0,
-    },
+    sharedState: _buildInitialSharedState(),
     identityFxLog: [],              // T3.12 wires per-turn race FX entries
     createdAt: now,
     startedAt: null,
@@ -967,3 +980,450 @@ export async function maybeAutoSkipExpiredTurn(partyId, opts) {
 // `validatePartyCreate` + the `members.size() <= 5` predicate above.
 // Turn-end requires `playerId === currentTurnPlayer(resource.data)`.
 // ──────────────────────────────────────────────────────────────────────────
+
+
+// ══════════════════════════════════════════════════════════════════════════
+//
+// T3.11 — Shared Tower-Hearts pool + shared TOWER_PACTS selection.
+//
+// Spec: docs/design/endgame-social.md §3.2 (Hearts) + §3.3 (Pacts).
+// Sacred constraints:
+//   - Tower retry ladder [100, 200, 400] from BALANCE.pinch.towerDeath
+//     (CLAUDE.md §2.4) is READ-only. Never mutated.
+//   - TOWER_PACTS_BASE (30) + TOWER_PACTS_MYTHIC (15) from src/data/tower.js
+//     (CLAUDE.md §2.5) are READ-only. Never mutated.
+//   - ADR-003 no-P2W: 3 candidates per pick across all tiers; democracy
+//     vote tiebreak via owner (NOT segment-tier); no whale-tier hearts boost.
+//   - T3.10's 10 pure helpers + 10 async ops byte-perfect — T3.11 only
+//     EXTENDS (createParty initial sharedState became structured;
+//     12 new helpers + 4 new async ops appended below).
+//
+// ══════════════════════════════════════════════════════════════════════════
+
+// ─── Initial structured sharedState (replaces T3.10 placeholder) ──────────
+// T3.10's createParty initialized sharedState with placeholder shapes.
+// T3.11 structures them so T3.12+ can extend without schema migration.
+
+function _buildInitialSharedState() {
+  return {
+    // T3.11 hearts pool — draws from sacred BALANCE.pinch.towerDeath.gemCostLadder
+    towerHearts: {
+      current:        100,         // initial pool max at retry tier 0
+      max:            100,
+      retryCount:     0,
+      lastDrainAt:    0,
+      drainHistory:   [],
+    },
+    // T3.11 pacts selection — draws from sacred TOWER_PACTS_BASE ∪ MYTHIC
+    towerPacts: {
+      selected:   [],
+      pickMode:   PARTY_DEFAULT_PICK_MODE,
+      activePick: null,
+    },
+    // T3.10 schema fields (untouched)
+    boardState: null,
+    floorIndex: 0,
+  };
+}
+
+// ─── 6 pure helpers — Tower-Hearts pool ───────────────────────────────────
+
+/** Sacred Tower retry ladder accessor — READ-only proxy. Returns the
+ *  [100, 200, 400] array byte-perfect from BALANCE.pinch.towerDeath
+ *  (CLAUDE.md §2.4 sacred). Callers must NOT mutate the returned array. */
+export function getTowerRetryLadder() {
+  return BALANCE.pinch.towerDeath.gemCostLadder;
+}
+
+/** Clamp retry index against sacred ladder length. Tier 0 → 100g, 1 → 200g,
+ *  2+ → 400g (clamp at last entry). Pure math; no side effects. */
+export function computeRetryTierIndex(retryCount) {
+  const ladder = getTowerRetryLadder();
+  const n = typeof retryCount === 'number' && retryCount > 0 ? Math.floor(retryCount) : 0;
+  return Math.min(n, ladder.length - 1);
+}
+
+/** Returns the sacred gem cost for the current retry tier. Byte-perfect
+ *  from sacred ladder [100, 200, 400]. NEVER modifies the ladder. */
+export function computeHeartsDrainCost(retryCount) {
+  const idx = computeRetryTierIndex(retryCount);
+  return getTowerRetryLadder()[idx];
+}
+
+/** Pool max scales with retry tier — first tier 100, then 200, then 400+.
+ *  Byte-perfect to sacred ladder. */
+export function computeTowerHeartsPoolMax(retryCount) {
+  const idx = computeRetryTierIndex(retryCount);
+  return getTowerRetryLadder()[idx];
+}
+
+/** Pure state update — deducts hearts from pool, appends drain history.
+ *  Returns NEW sharedState object (immutable update). NEVER mutates input. */
+export function drainPartyHearts(sharedState, playerId, deltaHearts, deltaGold) {
+  if (!sharedState || typeof sharedState !== 'object') return sharedState;
+  const prev = sharedState.towerHearts || _buildInitialSharedState().towerHearts;
+  const d = typeof deltaHearts === 'number' && deltaHearts > 0
+    ? Math.floor(deltaHearts) : 0;
+  const g = typeof deltaGold === 'number' && deltaGold > 0
+    ? Math.floor(deltaGold) : 0;
+  const newCurrent = Math.max(0, (prev.current || 0) - d);
+  // If pool exhausted, retryCount increments — next tier (clamped at sacred ladder).
+  const newRetryCount = newCurrent === 0
+    ? (prev.retryCount || 0) + 1
+    : (prev.retryCount || 0);
+  const newMax = newCurrent === 0
+    ? computeTowerHeartsPoolMax(newRetryCount)
+    : prev.max;
+  const refreshedCurrent = newCurrent === 0 ? newMax : newCurrent;
+  return {
+    ...sharedState,
+    towerHearts: {
+      ...prev,
+      current:     refreshedCurrent,
+      max:         newMax,
+      retryCount:  newRetryCount,
+      lastDrainAt: Date.now(),
+      drainHistory: [
+        ...(prev.drainHistory || []),
+        { playerId, deltaHearts: d, deltaGold: g, t: Date.now() },
+      ],
+    },
+  };
+}
+
+/** Sums party member gold (read from members[].gold if tracked) and checks
+ *  against sacred ladder cost at current retry tier. Returns boolean. */
+export function canPartyAffordRetry(sharedState, partyMembers, ladderEntry) {
+  if (!Array.isArray(partyMembers)) return false;
+  const totalGold = partyMembers.reduce(
+    (sum, m) => sum + (typeof m.gold === 'number' ? m.gold : 0),
+    0,
+  );
+  const cost = typeof ladderEntry === 'number'
+    ? ladderEntry
+    : computeHeartsDrainCost((sharedState && sharedState.towerHearts && sharedState.towerHearts.retryCount) || 0);
+  return totalGold >= cost;
+}
+
+/** At Tower checkpoint, refills hearts to current-tier max + resets
+ *  retryCount to 0 (back to easiest tier). Pure state update. */
+export function replenishPartyHeartsOnCheckpoint(sharedState) {
+  if (!sharedState || typeof sharedState !== 'object') return sharedState;
+  const prev = sharedState.towerHearts || _buildInitialSharedState().towerHearts;
+  const refreshedMax = computeTowerHeartsPoolMax(0);
+  return {
+    ...sharedState,
+    towerHearts: {
+      ...prev,
+      current:     refreshedMax,
+      max:         refreshedMax,
+      retryCount:  0,
+    },
+  };
+}
+
+// ─── 6 pure helpers — Shared TOWER_PACTS selection ───────────────────────
+
+/** Returns combined sacred TOWER_PACTS_BASE ∪ TOWER_PACTS_MYTHIC registry.
+ *  Returned object is the live frozen sacred data — callers MUST treat as
+ *  READ-only (Object.isFrozen contract from src/data/tower.js). */
+export function getTowerPactRegistry() {
+  // Merge as a NEW object so callers iterating keys see both tiers without
+  // exposing TOWER_PACTS_BASE / TOWER_PACTS_MYTHIC as separate properties.
+  // The values point to the SAME frozen sacred entries — no defensive copy
+  // (pact effects are byte-perfect references; safe per §2.5 invariant).
+  return Object.freeze({ ...TOWER_PACTS_BASE, ...TOWER_PACTS_MYTHIC });
+}
+
+/** Deterministic 3-pact candidate picker from sacred registry. Uses a seed
+ *  for testability; same seed + same retryCount → same candidates. Higher
+ *  retry tiers slightly favor rarer pacts (sacred rarity drop weights from
+ *  src/data/tower.js PACT_RARITIES not directly read here — T3.11.1 may wire
+ *  rarity-weighted picks if needed). */
+export function pickPactCandidates(retryCount, seed, count = PARTY_PACT_CANDIDATES_PER_PICK) {
+  const registry = getTowerPactRegistry();
+  const allKeys = Object.keys(registry);
+  if (allKeys.length === 0) return [];
+  const wantCount = Math.min(count, allKeys.length);
+  // Deterministic pseudo-random: simple xorshift seeded by (seed + retryCount)
+  let s = (typeof seed === 'number' ? seed : 0xC0FFEE) ^ ((retryCount || 0) * 2654435761);
+  if (s === 0) s = 1;
+  const picks = [];
+  const taken = new Set();
+  // Stop after 2N attempts to avoid pathological infinite loop on tiny registries
+  for (let i = 0; i < wantCount * 2 && picks.length < wantCount; i++) {
+    s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
+    const idx = Math.abs(s) % allKeys.length;
+    const key = allKeys[idx];
+    if (!taken.has(key)) {
+      taken.add(key);
+      picks.push(key);
+    }
+  }
+  return picks;
+}
+
+/** Returns true if pactId is present in candidates list. Defensive: null
+ *  inputs → false. */
+export function validatePactSelection(pactId, candidates) {
+  if (!pactId || typeof pactId !== 'string') return false;
+  if (!Array.isArray(candidates)) return false;
+  return candidates.includes(pactId);
+}
+
+/** Tally democracy votes: simple majority wins. Ties broken by ownerVote
+ *  (the owner's vote acts as tiebreaker). Returns
+ *  { winner, decisionSource: 'democracy-majority'|'democracy-tiebreaker' }. */
+export function tallyDemocracyVotes(votes, candidates, ownerVote) {
+  if (!votes || typeof votes !== 'object') return { winner: null, decisionSource: null };
+  const counts = {};
+  for (const v of Object.values(votes)) {
+    if (typeof v === 'string' && (!Array.isArray(candidates) || candidates.includes(v))) {
+      counts[v] = (counts[v] || 0) + 1;
+    }
+  }
+  const entries = Object.entries(counts);
+  if (entries.length === 0) return { winner: null, decisionSource: null };
+  let maxCount = 0;
+  let leaders = [];
+  for (const [pactId, c] of entries) {
+    if (c > maxCount) {
+      maxCount = c;
+      leaders = [pactId];
+    } else if (c === maxCount) {
+      leaders.push(pactId);
+    }
+  }
+  if (leaders.length === 1) {
+    return { winner: leaders[0], decisionSource: PARTY_PACT_DECISION_SOURCES.DEMOCRACY_MAJORITY };
+  }
+  // Tie → owner's vote breaks it (if owner voted for one of the leaders).
+  if (ownerVote && leaders.includes(ownerVote)) {
+    return { winner: ownerVote, decisionSource: PARTY_PACT_DECISION_SOURCES.DEMOCRACY_TIEBREAKER };
+  }
+  // Defensive fallback: first leader alphabetically (stable for tests).
+  leaders.sort();
+  return { winner: leaders[0], decisionSource: PARTY_PACT_DECISION_SOURCES.DEMOCRACY_TIEBREAKER };
+}
+
+/** Pure state update — appends pactId to selected[], clears activePick.
+ *  Returns NEW sharedState (immutable). */
+export function applyPactToSharedState(sharedState, pactId, decisionSource) {
+  if (!sharedState || typeof sharedState !== 'object') return sharedState;
+  if (!pactId) return sharedState;
+  const prev = sharedState.towerPacts || _buildInitialSharedState().towerPacts;
+  return {
+    ...sharedState,
+    towerPacts: {
+      ...prev,
+      selected: [...(prev.selected || []), pactId],
+      activePick: null,                          // pick session closes
+      lastDecisionSource: decisionSource || null,
+      lastDecidedAt: Date.now(),
+    },
+  };
+}
+
+/** Owner-only in captain mode; any member in democracy mode (after a
+ *  pact-pick checkpoint). Returns boolean. */
+export function canPlayerStartPactPick(playerId, partyState) {
+  if (!playerId || !partyState) return false;
+  if (partyState.state !== PARTY_STATE_ACTIVE) return false;
+  const pickMode = (partyState.sharedState && partyState.sharedState.towerPacts && partyState.sharedState.towerPacts.pickMode)
+    || PARTY_DEFAULT_PICK_MODE;
+  if (pickMode === 'captain') {
+    return playerId === partyState.ownerId;
+  }
+  // democracy: any active member can trigger the pick checkpoint
+  const members = Array.isArray(partyState.members) ? partyState.members : [];
+  return members.some(m => m && m.playerId === playerId && m.isActive);
+}
+
+// ─── 4 async ops — T3.11 extensions ───────────────────────────────────────
+
+/** Atomic update: records a hearts drain. Defensive: graceful no-sdk path
+ *  via _mockPartyStore (T3.10 precedent). Returns { ok, newCurrent,
+ *  newRetryCount, reason? }. */
+export async function recordHeartsDrain(partyId, playerId, deltaHearts, deltaGold) {
+  try {
+    if (!partyId || typeof partyId !== 'string') {
+      return { ok: false, reason: PARTY_RESULT_REASONS.INVALID_INPUT };
+    }
+    const doc = _mockPartyStore.get(partyId);
+    if (!doc) return { ok: false, reason: PARTY_RESULT_REASONS.NOT_FOUND };
+    const newShared = drainPartyHearts(doc.sharedState, playerId, deltaHearts, deltaGold);
+    doc.sharedState = newShared;
+    doc.updatedAt = Date.now();
+    _mockPartyStore.set(partyId, doc);
+    if (!getDb || !getDb()) {
+      // graceful no-sdk fallback — same envelope as T3.10
+      return {
+        ok:             true,
+        newCurrent:     newShared.towerHearts.current,
+        newRetryCount:  newShared.towerHearts.retryCount,
+        reason:         'no-sdk',
+      };
+    }
+    return {
+      ok:             true,
+      newCurrent:     newShared.towerHearts.current,
+      newRetryCount:  newShared.towerHearts.retryCount,
+    };
+  } catch (e) {
+    try { log.warn('[party-tower-backend] recordHeartsDrain failed:', e); } catch (_e) { /* swallow */ }
+    return { ok: false, reason: PARTY_RESULT_REASONS.EXCEPTION };
+  }
+}
+
+/** Called at Tower checkpoint. Replenishes hearts to current-tier max +
+ *  resets retryCount to 0. */
+export async function replenishHearts(partyId) {
+  try {
+    if (!partyId || typeof partyId !== 'string') {
+      return { ok: false, reason: PARTY_RESULT_REASONS.INVALID_INPUT };
+    }
+    const doc = _mockPartyStore.get(partyId);
+    if (!doc) return { ok: false, reason: PARTY_RESULT_REASONS.NOT_FOUND };
+    doc.sharedState = replenishPartyHeartsOnCheckpoint(doc.sharedState);
+    doc.updatedAt = Date.now();
+    _mockPartyStore.set(partyId, doc);
+    return {
+      ok:         true,
+      newCurrent: doc.sharedState.towerHearts.current,
+      newMax:     doc.sharedState.towerHearts.max,
+    };
+  } catch (e) {
+    try { log.warn('[party-tower-backend] replenishHearts failed:', e); } catch (_e) { /* swallow */ }
+    return { ok: false, reason: PARTY_RESULT_REASONS.EXCEPTION };
+  }
+}
+
+/** Initializes an `activePick` session with 3 deterministic candidates.
+ *  Captain mode: only owner may start. Democracy: any active member. */
+export async function startPactPick(partyId, playerId, retryCount, seed) {
+  try {
+    if (!partyId || !playerId) {
+      return { ok: false, reason: PARTY_RESULT_REASONS.INVALID_INPUT };
+    }
+    const doc = _mockPartyStore.get(partyId);
+    if (!doc) return { ok: false, reason: PARTY_RESULT_REASONS.NOT_FOUND };
+    if (!canPlayerStartPactPick(playerId, doc)) {
+      return { ok: false, reason: PARTY_RESULT_REASONS.NOT_AUTHORIZED };
+    }
+    // Already an active pick? Don't re-initialize — caller should submit first.
+    if (doc.sharedState && doc.sharedState.towerPacts && doc.sharedState.towerPacts.activePick) {
+      return {
+        ok: false,
+        reason: 'pact_pick_already_active',
+        activePick: doc.sharedState.towerPacts.activePick,
+      };
+    }
+    const candidates = pickPactCandidates(retryCount, seed);
+    if (!candidates || candidates.length === 0) {
+      return { ok: false, reason: 'no_candidates' };
+    }
+    const pickMode = (doc.sharedState && doc.sharedState.towerPacts && doc.sharedState.towerPacts.pickMode)
+      || PARTY_DEFAULT_PICK_MODE;
+    const activePick = {
+      candidates,
+      votes:        {},
+      decision:     null,
+      decidedBy:    null,
+      decidedAt:    null,
+      pickStartedAt: Date.now(),
+      pickMode,
+    };
+    doc.sharedState = {
+      ...doc.sharedState,
+      towerPacts: {
+        ...doc.sharedState.towerPacts,
+        activePick,
+      },
+    };
+    doc.updatedAt = Date.now();
+    _mockPartyStore.set(partyId, doc);
+    return { ok: true, activePick };
+  } catch (e) {
+    try { log.warn('[party-tower-backend] startPactPick failed:', e); } catch (_e) { /* swallow */ }
+    return { ok: false, reason: PARTY_RESULT_REASONS.EXCEPTION };
+  }
+}
+
+/** Submits a vote. Captain-pick: applies immediately + clears activePick.
+ *  Democracy: records vote; if all active members voted OR timeout elapsed
+ *  → tally + apply + clear. */
+export async function submitPactVote(partyId, playerId, pactId) {
+  try {
+    if (!partyId || !playerId || !pactId) {
+      return { ok: false, reason: PARTY_RESULT_REASONS.INVALID_INPUT };
+    }
+    const doc = _mockPartyStore.get(partyId);
+    if (!doc) return { ok: false, reason: PARTY_RESULT_REASONS.NOT_FOUND };
+    const towerPacts = doc.sharedState && doc.sharedState.towerPacts;
+    const activePick = towerPacts && towerPacts.activePick;
+    if (!activePick) {
+      return { ok: false, reason: 'no_active_pick' };
+    }
+    if (!validatePactSelection(pactId, activePick.candidates)) {
+      return { ok: false, reason: 'invalid_pact_selection' };
+    }
+    const isMember = Array.isArray(doc.members)
+      && doc.members.some(m => m && m.playerId === playerId && m.isActive);
+    if (!isMember) {
+      return { ok: false, reason: PARTY_RESULT_REASONS.NOT_AUTHORIZED };
+    }
+
+    const pickMode = activePick.pickMode || PARTY_DEFAULT_PICK_MODE;
+
+    if (pickMode === 'captain') {
+      // Captain-pick: only owner can submit, applies immediately.
+      if (playerId !== doc.ownerId) {
+        return { ok: false, reason: PARTY_RESULT_REASONS.NOT_AUTHORIZED };
+      }
+      doc.sharedState = applyPactToSharedState(
+        doc.sharedState,
+        pactId,
+        PARTY_PACT_DECISION_SOURCES.CAPTAIN,
+      );
+      doc.updatedAt = Date.now();
+      _mockPartyStore.set(partyId, doc);
+      return { ok: true, applied: true, winner: pactId, decisionSource: PARTY_PACT_DECISION_SOURCES.CAPTAIN };
+    }
+
+    // Democracy: record vote; tally when all active members voted OR timeout.
+    const newVotes = { ...(activePick.votes || {}), [playerId]: pactId };
+    const activeMembers = doc.members.filter(m => m && m.isActive).length;
+    const votesCast = Object.keys(newVotes).length;
+    const elapsed = Date.now() - (activePick.pickStartedAt || Date.now());
+    const allVoted = votesCast >= activeMembers;
+    const timedOut = elapsed >= PARTY_PACT_DEMOCRACY_TIMEOUT_MS;
+
+    if (!allVoted && !timedOut) {
+      // Partial — record vote, await more.
+      doc.sharedState = {
+        ...doc.sharedState,
+        towerPacts: {
+          ...doc.sharedState.towerPacts,
+          activePick: { ...activePick, votes: newVotes },
+        },
+      };
+      doc.updatedAt = Date.now();
+      _mockPartyStore.set(partyId, doc);
+      return { ok: true, applied: false, votesRecorded: votesCast };
+    }
+
+    // Final tally — owner's vote is the tiebreaker.
+    const ownerVote = newVotes[doc.ownerId] || null;
+    const { winner, decisionSource } = tallyDemocracyVotes(newVotes, activePick.candidates, ownerVote);
+    if (!winner) {
+      return { ok: false, reason: 'no_majority_no_tiebreaker' };
+    }
+    doc.sharedState = applyPactToSharedState(doc.sharedState, winner, decisionSource);
+    doc.updatedAt = Date.now();
+    _mockPartyStore.set(partyId, doc);
+    return { ok: true, applied: true, winner, decisionSource, votesRecorded: votesCast };
+  } catch (e) {
+    try { log.warn('[party-tower-backend] submitPactVote failed:', e); } catch (_e) { /* swallow */ }
+    return { ok: false, reason: PARTY_RESULT_REASONS.EXCEPTION };
+  }
+}

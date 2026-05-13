@@ -202,6 +202,152 @@ test('[T3.10 LIVE] turn timeout modes: competitive/standard/casual yield 4h/24h/
   expect(result.casual).toBe(7 * 24 * 60 * 60 * 1000);          // 7 days
 });
 
+test('[T3.11 LIVE] sacred Tower retry ladder [100, 200, 400] BYTE-PERFECT via getTowerRetryLadder()', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/services/party-tower-backend.js');
+    return {
+      ladder:    mod.getTowerRetryLadder(),
+      tier0Cost: mod.computeHeartsDrainCost(0),
+      tier1Cost: mod.computeHeartsDrainCost(1),
+      tier2Cost: mod.computeHeartsDrainCost(2),
+      tier99:    mod.computeHeartsDrainCost(99),  // clamp
+    };
+  });
+
+  expect(result.ladder).toEqual([100, 200, 400]);  // sacred §2.4 BYTE-PERFECT
+  expect(result.tier0Cost).toBe(100);
+  expect(result.tier1Cost).toBe(200);
+  expect(result.tier2Cost).toBe(400);
+  expect(result.tier99).toBe(400);  // clamp at last sacred entry
+});
+
+test('[T3.11 LIVE] sacred TOWER_PACTS registry — 30 base + 15 mythic = 45 total, all frozen', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/services/party-tower-backend.js');
+    const towerMod = await import('/src/data/tower.js');
+    const reg = mod.getTowerPactRegistry();
+    return {
+      baseCount:    Object.keys(towerMod.TOWER_PACTS_BASE).length,
+      mythicCount:  Object.keys(towerMod.TOWER_PACTS_MYTHIC).length,
+      mergedCount:  Object.keys(reg).length,
+      baseFrozen:   Object.isFrozen(towerMod.TOWER_PACTS_BASE),
+      mythicFrozen: Object.isFrozen(towerMod.TOWER_PACTS_MYTHIC),
+      mergedFrozen: Object.isFrozen(reg),
+    };
+  });
+
+  expect(result.baseCount).toBe(30);   // sacred §2.5
+  expect(result.mythicCount).toBe(15); // sacred §2.5
+  expect(result.mergedCount).toBe(45);
+  expect(result.baseFrozen).toBe(true);
+  expect(result.mythicFrozen).toBe(true);
+  expect(result.mergedFrozen).toBe(true);
+});
+
+test('[T3.11 LIVE] recordHeartsDrain → drain history grows; pool exhaustion advances retryCount', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/services/party-tower-backend.js');
+    mod._resetMockPartyStore();
+    const c = await mod.createParty('alice');
+    // 1-heart drain
+    const r1 = await mod.recordHeartsDrain(c.partyId, 'alice', 1, 100);
+    // Full exhaustion (current = 99 → drain 99 → exhaust → tier 1)
+    const r2 = await mod.recordHeartsDrain(c.partyId, 'alice', 99, 100);
+    const f = await mod.fetchParty(c.partyId);
+    return {
+      r1Ok:           r1.ok,
+      r1Current:      r1.newCurrent,
+      r2Ok:           r2.ok,
+      r2RetryCount:   r2.newRetryCount,
+      r2Current:      r2.newCurrent,
+      historyLen:     f.party.sharedState.towerHearts.drainHistory.length,
+    };
+  });
+
+  expect(result.r1Ok).toBe(true);
+  expect(result.r1Current).toBe(99);
+  expect(result.r2Ok).toBe(true);
+  expect(result.r2RetryCount).toBe(1);   // advanced to tier 1
+  expect(result.r2Current).toBe(200);    // tier 1 max
+  expect(result.historyLen).toBe(2);
+});
+
+test('[T3.11 LIVE] captain-pick mode: only owner can startPactPick + submitPactVote', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/services/party-tower-backend.js');
+    mod._resetMockPartyStore();
+    const c = await mod.createParty('alice');
+    await mod.joinParty(c.partyId, 'bob');
+    await mod.startParty(c.partyId, 'alice');
+
+    // Bob tries to start — should fail
+    const bobStart = await mod.startPactPick(c.partyId, 'bob', 0, 999);
+    // Alice (owner) starts — should succeed
+    const aliceStart = await mod.startPactPick(c.partyId, 'alice', 0, 999);
+    const pactId = aliceStart.activePick.candidates[0];
+    // Alice submits — applies immediately
+    const submit = await mod.submitPactVote(c.partyId, 'alice', pactId);
+    const f = await mod.fetchParty(c.partyId);
+
+    return {
+      bobStartOk:    bobStart.ok,
+      bobStartReason: bobStart.reason,
+      aliceStartOk:  aliceStart.ok,
+      candidateCount: aliceStart.activePick.candidates.length,
+      submitOk:      submit.ok,
+      submitApplied: submit.applied,
+      submitSource:  submit.decisionSource,
+      selectedLen:   f.party.sharedState.towerPacts.selected.length,
+      activePickCleared: f.party.sharedState.towerPacts.activePick === null,
+    };
+  });
+
+  expect(result.bobStartOk).toBe(false);
+  expect(result.bobStartReason).toBe('not-authorized');
+  expect(result.aliceStartOk).toBe(true);
+  expect(result.candidateCount).toBe(3);   // PARTY_PACT_CANDIDATES_PER_PICK
+  expect(result.submitOk).toBe(true);
+  expect(result.submitApplied).toBe(true);
+  expect(result.submitSource).toBe('captain');
+  expect(result.selectedLen).toBe(1);
+  expect(result.activePickCleared).toBe(true);
+});
+
+test('[T3.11 LIVE] replenishHearts at checkpoint resets to tier-0 max', async ({ page }) => {
+  await seedAuthenticatedState(page);
+  await page.goto(VITE_PATH);
+  await page.waitForSelector('#screenMenu.active', { timeout: 30_000 });
+
+  const result = await page.evaluate(async () => {
+    const mod = await import('/src/services/party-tower-backend.js');
+    mod._resetMockPartyStore();
+    const c = await mod.createParty('alice');
+    await mod.recordHeartsDrain(c.partyId, 'alice', 50, 50);
+    const replen = await mod.replenishHearts(c.partyId);
+    return { ok: replen.ok, current: replen.newCurrent, max: replen.newMax };
+  });
+
+  expect(result.ok).toBe(true);
+  expect(result.current).toBe(100);
+  expect(result.max).toBe(100);
+});
+
 test('[T3.10 LIVE] cross-mechanic regression — prior Phase 3 deliverables intact', async ({ page }) => {
   const errors = [];
   page.on('pageerror', err => errors.push(err.message));

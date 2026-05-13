@@ -92,3 +92,59 @@ export const PARTY_ROLES = Object.freeze(['owner', 'member']);
 
 /** Firestore collection name for Party Tower party documents. */
 export const PARTY_COLLECTION = 'parties';
+
+// ──────────────────────────────────────────────────────────────────────────
+// T3.11 — Shared resources: Tower-Hearts pool + TOWER_PACTS selection.
+// ──────────────────────────────────────────────────────────────────────────
+// Spec: docs/design/endgame-social.md §3.2 + §3.3.
+//
+// The party shares a single Tower-Hearts pool drawing from the SACRED retry
+// ladder [100, 200, 400] (CLAUDE.md §2.4 — gemCostLadder in src/data/balance.js
+// PINCH_SYSTEM.towerDeath). T3.11 READS that ladder; it never writes or
+// modifies it. Pool size + gem cost per retry tier are derived purely from
+// the sacred source.
+//
+// TOWER_PACTS selection is shared across party members. Two pick modes
+// (selectable at party creation):
+//   - 'captain'   → owner picks each pact at each pact-pick point
+//   - 'democracy' → each member votes; majority wins; ties broken by owner
+//
+// Pacts pool draws from sacred TOWER_PACTS_BASE (30) + TOWER_PACTS_MYTHIC
+// (15) in src/data/tower.js. T3.11 READS that registry; never mutates.
+//
+// ADR-003 invariants:
+//   - No P2W hearts purchase shortcuts (sacred ladder is THE cost)
+//   - No whale-tier extra-pact slots (3 candidates per pick, all tiers)
+//   - No segment-aware pact filtering (all tiers see same candidate pool)
+
+/** Pick-mode registry — owner chooses at party creation. */
+export const PARTY_PACT_PICK_MODES = Object.freeze(['captain', 'democracy']);
+
+/** Default pick mode at party creation. Mirrors ESC-03 Q3 "Standard default"
+ *  philosophy: pick the middle-ground option. Captain-pick has lower
+ *  coordination cost than democracy. */
+export const PARTY_DEFAULT_PICK_MODE = 'captain';
+
+/** Number of pact candidates surfaced per pact-pick point (sacred Slay-the-
+ *  Spire-style 3-from-N). Same across all tiers per ADR-003 (no whale extra). */
+export const PARTY_PACT_CANDIDATES_PER_PICK = 3;
+
+/** Democracy vote window (ms). After this, tally + auto-tiebreak via owner.
+ *  60s gives enough thinking time for an async-coop turn handoff without
+ *  ghosting the party. */
+export const PARTY_PACT_DEMOCRACY_TIMEOUT_MS = 60 * 1000;
+
+/** HP damage per cursed-cell-style drain event. (Each retry costs 1 Heart
+ *  from the shared pool; player gold cost scales via sacred ladder.) */
+export const PARTY_HEARTS_DRAIN_PER_RETRY = 1;
+
+// ──────────────────────────────────────────────────────────────────────────
+// Pact-pick result reasons (extends PARTY_RESULT_REASONS namespace conceptually).
+// ──────────────────────────────────────────────────────────────────────────
+
+/** Decision-source labels for tallyDemocracyVotes audit + UI display. */
+export const PARTY_PACT_DECISION_SOURCES = Object.freeze({
+  CAPTAIN:                 'captain',
+  DEMOCRACY_MAJORITY:      'democracy-majority',
+  DEMOCRACY_TIEBREAKER:    'democracy-tiebreaker',
+});
