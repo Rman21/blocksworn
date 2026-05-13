@@ -95,7 +95,9 @@ export function showScreen(name) {
   // screen (no .screen had .active, user was soft-locked).
   // T2.12 (2026-05-12): added 'codex' route for Codex screen (Identity Layer
   // aggregation surface). Pure addition — existing routes preserved byte-perfect.
-  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex' };
+  // T3.08 (2026-05-13): added 'replay-viewer' route for Replay viewer (Phase 3
+  // §4.2). Mounted via deeplink (?replay=<id>) or future Codex Replay button.
+  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex', 'replay-viewer': 'screenReplayViewer' };
   for (const key in map) {
     const el = document.getElementById(map[key]);
     if (el) el.classList.toggle('active', key === name);
@@ -123,6 +125,15 @@ export function showScreen(name) {
   // — Codex render is never allowed to crash screen switching.
   if (name === 'codex') {
     try { renderCodex(); } catch (e) { log.warn('renderCodex failed:', e); }
+  }
+  // T3.08 (2026-05-13): Replay viewer dynamic import on screen activation.
+  // Dynamic to keep the menu-path bundle slim (viewer only loads when used).
+  // window.__replayViewerCurrentId is set by main.js deeplink handler OR
+  // future Codex Replay button before showScreen('replay-viewer') is called.
+  if (name === 'replay-viewer') {
+    import('./replay-viewer.js').then(mod => {
+      try { mod.renderReplayViewer(); } catch (e) { log.warn('renderReplayViewer failed:', e); }
+    }).catch(e => log.warn('replay-viewer dynamic import failed:', e));
   }
   // V3.0 Phase 2 Vivid Stylized: sync bottom-nav active state on every transition.
   try { activateNavFor(name); } catch(e) {}

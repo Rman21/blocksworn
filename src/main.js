@@ -241,6 +241,20 @@ if (typeof window !== 'undefined') {
   } catch (_e) { /* swallow */ }
 }
 
+// T3.08 (2026-05-13): Read `?replay=<id>` query parameter for the deeplink
+// handler. Pure read of window.location.search — never mutates anything.
+// Returns empty string when no query, no match, or in non-browser context.
+function _readReplayDeeplinkId() {
+  try {
+    if (typeof window === 'undefined' || !window.location || !window.location.search) return '';
+    const m = /[?&]replay=([^&]+)/.exec(window.location.search);
+    if (!m || !m[1]) return '';
+    return decodeURIComponent(m[1]);
+  } catch (_e) {
+    return '';
+  }
+}
+
 async function main() {
   // 1. Sentry first — every subsequent error goes to Sentry.
   try { initSentry(); } catch (err) { log.error('[boot] initSentry failed:', err); }
@@ -305,8 +319,23 @@ async function main() {
     // 8. FTUE-aware initial screen. Per-render errors are contained so the
     //    bootstrap chain completes cleanly even when legacy /* global */
     //    render helpers (vRenderTopbar, etc.) are undefined in the new shell.
+    //
+    // T3.08 (2026-05-13): `?replay=<id>` deeplink handler. When present, the
+    // initial screen becomes the Replay viewer with the captured replay
+    // pre-loaded. Mirrors the server-side `/r/<id>` URL rewrite (production
+    // deploy rewrites `/r/<id>` → `/?replay=<id>`). FTUE-blocking takes
+    // precedence so a fresh install still goes through the tutorial.
     try {
-      if (isFtueActive()) {
+      const replayDeeplinkId = _readReplayDeeplinkId();
+      if (replayDeeplinkId && !isFtueActive()) {
+        try {
+          window.__replayViewerCurrentId = replayDeeplinkId;
+          // Default return target — back-button returns to menu (Codex flow
+          // wires its own __replayViewerReturnTo in T3.09).
+          window.__replayViewerReturnTo = 'menu';
+        } catch (_e) { /* swallow */ }
+        showScreen('replay-viewer');
+      } else if (isFtueActive()) {
         routeByFtue();
       } else {
         showScreen('menu');

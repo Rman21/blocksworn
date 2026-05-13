@@ -164,6 +164,89 @@ Commit: `[T3.07] Replay capture infrastructure — 9 triggers + 4fps rolling buf
 
 ---
 
+### TASK-048 (T3.08) — REVIEW (2026-05-13) — SECOND Phase 3 implementation task — Replay viewer UI
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — Phase 3 wave 2; depends on T3.07; unblocks T3.09 Codex Replay button
+**Phase:** 3 (Endgame Social) — 2/N
+**Estimated complexity:** L — viewer UI module + canvas playback engine + 42 unit + 16 smoke
+**Depends on:** ✅ T3.07 (replay-backend `fetchReplay` + JSON frame format) + T3.01 spec §4.2
+
+**Implementation summary:**
+
+T3.08 ships the **Replay viewer UI** per docs/design/endgame-social.md §4.2 — scrubable 5-sec canvas playback with speed control + navigator.share. Mountable standalone via `?replay=<id>` deeplink (the `/r/<id>` URL pattern from spec §4.3); T3.09 will wire the Codex Moments Replay button to route into this same viewer.
+
+**New modules:**
+
+- `src/data/replay-config.js` (+70 LoC) — named constants (no magic numbers):
+  - `REPLAY_VIEWER_FCP_BUDGET_MS = 300` (spec §4.6)
+  - `REPLAY_VIEWER_FRAME_BUDGET_MS = 16` (60fps target)
+  - `REPLAY_VIEWER_SPEEDS = [0.5, 1, 2]` frozen
+  - `REPLAY_VIEWER_DURATION_MS = 5000` (matches T3.07 `REPLAY_SLICE_WINDOW_MS`)
+  - `REPLAY_VIEWER_CELL_COLORS` (5 sacred stihiya colors)
+- `src/ui/replay-viewer.js` (+759 LoC):
+  - `renderReplayViewer(rootEl?, replayId?)` — main entry; loading-shell + async fetch + auto-play
+  - Pure helpers (unit-tested): `parseReplayMetadata`, `formatTimestamp`, `computeTimelineProgress`, `clampSpeed`, `renderFrameToCanvas`
+  - Playback engine: `play / pause / seek / setSpeed / toggleLoop` with rAF-driven 4fps × speed multiplier
+  - Empty state: "Replay not available" when `fetchReplay` returns null (e.g. T3.07's mocked no-SDK state)
+  - prefers-reduced-motion: auto-play disabled, user clicks play to start
+  - navigator.share OS-native with graceful no-op (button flagged when unsupported)
+- `src/styles/screens/replay-viewer.css` (+232 LoC) — parchment aesthetic matching Codex (T2.12)
+
+**Modified files (additive only — sacred-cow safety):**
+
+- `src/ui/router.js` (+13 LoC) — added `'replay-viewer': 'screenReplayViewer'` route + dynamic import of viewer on activation
+- `src/main.js` (+31 LoC) — `_readReplayDeeplinkId()` reads `?replay=<id>` from `window.location.search`; FTUE-gated (fresh installs still see tutorial)
+- `src/styles/index.css` (+1 LoC) — `@import './screens/replay-viewer.css'`
+- `index.html` (+2 LoC) — `<div id="screenReplayViewer">` mount point
+
+**Sacred-cow audit (verified clean):**
+
+| System | Status |
+|---|---|
+| 22 v2.1 P4 reactivity handlers (`src/core/reactivity-events.js`) | UNTOUCHED ✅ |
+| NARRATOR_LINES (`src/feel/narrator-lines.js`) | UNTOUCHED ✅ |
+| 10 Identity Layer fx (`src/feel/identity-fx.js`) | UNTOUCHED ✅ |
+| T3.07 replay-backend (`src/services/replay-backend.js`) | UNTOUCHED ✅ (consumer only) |
+| `getPlayerSegment()` T1.20 sacred | READ-ONLY (via T3.07 backend) ✅ |
+| Codex localStorage schema (`blocksworn_codex_state`) | UNTOUCHED ✅ (viewer reads via fetchReplay, never writes) |
+| Combo crit formula (legacy line 64005) | UNTOUCHED ✅ |
+| 38 existing window-bridge functions (26 T2.B + 12 T3.07) | UNTOUCHED ✅ (verified by smoke regression test) |
+| Stagger Loop / Phoenix / Berserker / Engineer / Battle Pass / GEM_PACKS / Tower retry | UNTOUCHED ✅ |
+| Magic numbers | NONE — all constants in `src/data/replay-config.js` |
+| Viewer mutates game state | NEVER — pure consumer of replay JSON; rAF loop is the sole driver |
+
+**Performance (verified):**
+
+| Metric | Before | After | Budget |
+|---|---|---|---|
+| Unit tests | 652 | **694** | +42 ✅ |
+| Smoke tests (× 2 projects) | 222 | **238** | +16 ✅ |
+| `renderFrameToCanvas` avg | n/a | **0.001ms** | ≤16ms ✅ |
+| `parseReplayMetadata` avg | n/a | **0.003ms** | (no spec budget) |
+| Build CSS | ~395 KB | **398.07 KB** | +3 KB (replay-viewer.css) |
+| Build JS (main bundle) | unchanged | **280.21 KB** | viewer code-split into separate chunk |
+| Build JS (replay-viewer chunk) | n/a | **11.21 KB (4.23 KB gzip)** | dynamic import keeps menu-path slim |
+| Lint | clean | **clean** | ✅ |
+
+**Test surface:**
+
+- `tests/unit/replay-viewer.test.js` (+409 LoC, 42 tests): constants / parseReplayMetadata (6 trigger-type variants + fallback) / formatTimestamp (relative + absolute + malformed) / computeTimelineProgress (5 boundary cases) / clampSpeed (6 snapping cases) / renderFrameToCanvas (6 paint paths incl. malformed grid) / playback state transitions (6 lifecycle scenarios) / prefers-reduced-motion / reset semantics / sacred audit (no recordRaceTrigger etc.)
+- `tests/smoke/replay-viewer.spec.js` (+253 LoC, 8 tests × 2 projects = 16): deeplink mount + first frame paint / play button click / scrub seek / speed clamp / navigator.share invocation OR graceful no-op / empty state on null fetch / cross-mechanic regression (all 26+12 = 38 bridges intact) / legacy single HTML still loads
+
+**Deferred follow-ups (not blocking T3.08):**
+
+- T3.09 — Codex Moments Replay button wires `window.__replayViewerCurrentId = momentEntry.replayId` then `showScreen('replay-viewer')`. Bridges `__replayViewerReturnTo = 'codex'` so back-button returns to Moments tab.
+- T3.07.1 — Live Firebase Storage SDK wire-up (currently empty-state when SDK absent; viewer handles this gracefully).
+- GIF preview (spec §4.3) — `canvas.captureStream + MediaRecorder` client-side generation; deferred to post-T3.09 share-asset polish.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.08] Replay viewer UI — scrubable canvas playback + speed control + navigator.share`
+
+---
+
 ### TASK-040 (T2.B Game Dev portion) — ✅ DONE 2026-05-12 — Legacy Bridge: Identity Layer integration moment
 
 **CTO acceptance 2026-05-12 (Game Dev portion):** PASS. Strictest sacred-cow proximity of Phase 2 cleared. Combo crit formula at line 63825 `critMult = 1 + domCount * count * CRIT_MULT_K` BYTE-PERFECT (grep returns 1 occurrence in code); single `domCount` definition extended by `+ (ctx._dominantCountModifier || 0)` at line 63816 per ESC-02 O3 "WITHIN BOUNDARY". CRIT_MULT_K = 0.1 / CRIT_MIN_COMBO = 2 byte-perfect (lines 20159-20160). All T2.07-T2.12 invariants maintained. 22 P4 handlers byte-perfect. Codex localStorage isolation maintained. 26 window-bridge functions exposed; 8 discrete legacy insertion points; bridge overhead <0.001ms per call. 150/150 smoke pass (+10 LIVE integration tests × 2 projects). Commit `e6acb6d`.
