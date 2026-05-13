@@ -119,18 +119,29 @@
 
 ## Phase 3: Endgame Social
 
-**Status:** NOT_STARTED
+**Status:** IN_PROGRESS (started 2026-05-13; T3.01 design spec DONE; ESC-03 Q1–Q5 awaiting Roman)
 **Goal:** Competitive seasonal endgame — Adventures (async clan 5-15) + Party Tower (2-5 coop async) + share infrastructure.
 **Estimated:** 5-6 weeks
 **Tasks:** T3.01 — T3.15
+**Phase 3 branch:** `claude/phase3-endgame-design` — design PR ready
 
 ### High-level Tasks
-- T3.01-T3.05 — Adventures backend + create/join + weekly target + boss-of-week
-- T3.06 — Friend leaderboard mini-block
-- T3.07-T3.09 — Replay/Share infrastructure
-- T3.10-T3.13 — Party Tower (async turn-based per ADR-002)
-- T3.14 — Tower endless mode (post floor 50)
-- T3.15 — Rotating seasonal modifiers
+- [x] T3.01 — Phase 3 Endgame Social design spec (Designer) — **DONE 2026-05-13** (`7c5ec5c`; 1572 LoC `docs/design/endgame-social.md`; 5 systems × 14 sections + 47-row sacred audit + 16 new files + 7 additive modifications + 5 ESC-03 questions Q1–Q5)
+- [ ] T3.07 — Replay capture infrastructure — **NEXT** per Designer recommendation (lateral dependency unblocking Codex Moments Replay button; Phase 2 → Phase 3 bridge moment)
+- [ ] T3.02 — Adventures backend
+- [ ] T3.03 — Clan create/join flow
+- [ ] T3.04 — Weekly target / boss-of-the-week rotation
+- [ ] T3.05 — Contributor stats + clan progression
+- [ ] T3.06 — Friend leaderboard mini-block
+- [ ] T3.08 — Replay viewer
+- [ ] T3.09 — Codex Moments tab Replay button integration
+- [ ] T3.10 — Party Tower async architecture (per ADR-002)
+- [ ] T3.11 — Shared Tower-Hearts pool + shared TOWER_PACTS selection
+- [ ] T3.12 — Per-turn Identity Layer dispatch (cross-race synergies)
+- [ ] T3.13 — Party async social hooks + turn timeout
+- [ ] T3.14 — Tower seasonal infrastructure (Uroboros rotation + seasonal TOWER_PACTS pool)
+- [ ] T3.15 — Battle Pass tier-cosmetic tie-in (sacred formula honored)
+- [ ] **T3.16** — Legacy Bridge (mirrors T2.B pattern; wires Phase 3 src/ → legacy primary runtime)
 
 ### Gate Criteria (per Execution Plan §8.5)
 - Adventure CRUD + Friend Code join
