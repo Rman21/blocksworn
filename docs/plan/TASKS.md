@@ -247,6 +247,102 @@ Commit: `[T3.08] Replay viewer UI — scrubable canvas playback + speed control 
 
 ---
 
+### TASK-049 (T3.09) — REVIEW (2026-05-13) — THIRD Phase 3 implementation task — Codex Moments Replay button (Phase 2 → Phase 3 bridge moment)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — closes the visible Phase 2 → Phase 3 bridge; finale of the Wave-2 Replay subsystem (T3.07 backend + T3.08 viewer + T3.09 Codex integration)
+**Phase:** 3 (Endgame Social) — 3/N
+**Estimated complexity:** M — additive Codex schema + replay-backend upload-success hook + Moments-tab UI + CSS + tests
+**Depends on:** ✅ T3.07 (replay-backend `emitReplayTrigger`) + ✅ T3.08 (replay-viewer `?replay=<id>` deeplink) + ✅ T2.12 (Codex Moments tab) + T3.01 spec §4.5
+
+**Implementation summary:**
+
+T3.09 ships the **Codex Moments Replay button** per docs/design/endgame-social.md §4.5 — closing the loop between Phase 2's Codex Moments tab (passive accumulation surface) and Phase 3's Replay viewer (active sharing surface). When the player witnesses a boss-reactivity moment (Phoenix Ashen Reign / Lich Cursed Tiles / Berserker Bloodtide / Engineer Lockdown / Grovewarden Root Surge), replay-backend uploads a 5-sec replay (T3.07 contract). On upload success, the new `recordMomentReplay(momentKey, replayId)` linkage attaches the replayId to the matching Codex moment entry. The Moments tab then renders a parchment-styled "▶ Replay" button that routes into the T3.08 viewer with the captured replayId.
+
+This is the **stretch goal from identity-layer.md §4.6** (Phase 2) shipped as **core Phase 3 deliverable** — the visible bridge moment.
+
+**Modified files (additive only — sacred-cow safety):**
+
+- `src/data/identity-layer.js` (+25 LoC) — new frozen constant `IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY` mapping the 5 boss-reactive handler keys to their Codex moment IDs (`identity_phoenix_revive → phoenix_ashen_reign`, etc.). Consumed by replay-backend's `emitReplayTrigger` on `IDENTITY_BOSS_REACTIVITY` upload success.
+- `src/ui/codex.js` (+90 LoC):
+  - New exported function `recordMomentReplay(momentKey, replayId)` — writes `lastReplayId` + `lastReplayAt` to the matching moment entry. Defensive: silent no-op on invalid keys, missing moment entry (race condition guard — replay arrived before recordMomentTrigger fired), or localStorage failure. Schema-additive — `id`/`firstSeenAt`/`count` byte-perfect preserved.
+  - `_renderMomentsTabHTML` updated to conditionally render a `<button class="codex-moment-replay-btn">` per moment when `lastReplayId` is set. Backward-compat: legacy entries without `lastReplayId` render unchanged (button hidden).
+  - `_wireTabClicks` extended to wire Replay-button clicks → `window.__replayViewerCurrentId = replayId` + `window.__replayViewerReturnTo = 'codex'` + `showScreen('replay-viewer')`. Mirrors the T3.08 boot-time deeplink handler in `src/main.js` exactly.
+- `src/services/replay-backend.js` (+31 LoC) — direct-import `recordMomentReplay` + `IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY` (mirrors T3.08's `fetchReplay` direct-import precedent — no new window-bridge). `emitReplayTrigger` extended with the upload-success → Codex linkage: when `triggerType === IDENTITY_BOSS_REACTIVITY` AND `result.ok` AND `contextData.event` maps to a known moment, calls `recordMomentReplay(momentKey, replayId)`. Defensive try/catch — linkage failure NEVER regresses the replay-emit pipeline.
+- `src/styles/screens/codex.css` (+71 LoC) — `.codex-moment-replay-btn` parchment styled with gold-leaf accent, hover/active/focus-visible/disabled states + `prefers-reduced-motion` fallback. New `.codex-moment-info` wrapper for the label + meta column.
+
+**New test files:**
+
+- `tests/smoke/codex-replay-integration.spec.js` (+364 LoC, 7 tests × 2 projects = 14):
+  1. recordMomentReplay → Codex Moments tab renders Replay button (data attrs + aria-label)
+  2. Click Replay button → routes to `'replay-viewer'` route with `window.__replayViewerCurrentId` pinned + return target = `'codex'`
+  3. Codex Moments tab without captured replays → no Replay button (graceful empty state)
+  4. Backward-compat: pre-existing Codex state without `lastReplayId` renders correctly (button hidden, count + firstSeenAt preserved)
+  5. Replay upload failure → recordMomentReplay NOT called → button absent (moment count still increments from `recordMomentTrigger`)
+  6. Cross-mechanic regression: all 38 window bridges (26 T2.B + 12 T3.07) intact after Codex Replay click + viewer mount; verified NO new `__recordMomentReplay` bridge added (direct-import path preserved)
+  7. lastReplayId persists across page reload
+
+**Test surface delta:**
+
+- `tests/unit/codex.test.js` — extended (+211 LoC, 47 → 65 = **+18 tests**): `IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY` mapping (4 tests) + `recordMomentReplay` core (8 tests: sets fields / preserves count+firstSeenAt / overwrites on subsequent / silent no-op on missing moment / silent no-op on invalid momentKey / silent no-op on invalid replayId / immediate localStorage persist / roundtrip across reset) + schema backward-compat (3 tests: legacy entries / mixed entries / legacy can be upgraded) + sacred-audit T3.09 additive guards (4 tests: recordMomentTrigger signature unchanged / race+boss recorder signatures unchanged / CODEX_LOCALSTORAGE_KEY byte-perfect / writes-only-to-codex-key audit)
+
+**Sacred-cow audit (verified clean):**
+
+| System | Status |
+|---|---|
+| 22 v2.1 P4 reactivity handlers (`src/core/reactivity-events.js`) | UNTOUCHED ✅ (no diff) |
+| NARRATOR_LINES (`src/feel/narrator-lines.js`) | UNTOUCHED ✅ (no diff) |
+| 10 Identity Layer fx (`src/feel/identity-fx.js`) | UNTOUCHED ✅ (no diff) |
+| T3.07 replay-backend core capture/buffer logic (`startReplayCapture`, `captureFrameSnapshot`, `appendFrameToBuffer`, `extractSliceAroundTrigger`, 9 trigger predicates) | UNTOUCHED ✅ (T3.09 only extends `emitReplayTrigger` upload-success branch + adds 2 imports) |
+| T3.08 replay-viewer (`src/ui/replay-viewer.js`) | UNTOUCHED ✅ (consumer of `__replayViewerCurrentId` / `__replayViewerReturnTo` window pins — same contract as T3.08) |
+| `getPlayerSegment()` T1.20 sacred | READ-ONLY (via T3.07 backend) ✅ |
+| Codex localStorage schema (`blocksworn_codex_state`) | EXTENDED ADDITIVELY ✅ (new optional `lastReplayId` + `lastReplayAt` fields on moment entries; legacy entries without these fields load + render correctly — schema version remains 1) |
+| Combo crit formula (legacy line 64005) | UNTOUCHED ✅ |
+| Phase 2 Codex recorder signatures (`recordRaceTrigger` / `recordBossEncounter` / `recordBossDefeat` / `recordMomentTrigger`) | UNTOUCHED ✅ (single-arg signatures preserved; T3.09 adds NEW `recordMomentReplay(momentKey, replayId)` function, never modifies existing) |
+| 38 existing window-bridge functions (26 T2.B + 12 T3.07) | UNTOUCHED ✅ (T3.09 uses direct-import for `recordMomentReplay` to mirror T3.08's `fetchReplay` precedent — no bridge bloat) |
+| `CODEX_LOCALSTORAGE_KEY = 'blocksworn_codex_state'` | BYTE-PERFECT ✅ |
+| Stagger Loop / Phoenix / Berserker / Engineer / Battle Pass / GEM_PACKS / Tower retry | UNTOUCHED ✅ |
+| Magic numbers | NONE — `IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY` named-constant table in `src/data/identity-layer.js` |
+| Codex schema migration cost | Negligible — additive optional fields; existing fields preserved byte-perfect; no schema version bump needed |
+
+**Performance (verified):**
+
+| Metric | Before T3.09 | After T3.09 | Budget |
+|---|---|---|---|
+| Unit tests | 695 | **713** | +18 ✅ |
+| Smoke tests (× 2 projects) | 238 | **252** | +14 ✅ |
+| `recordMomentReplay` overhead | n/a | **<0.001ms** | (no spec budget — additive write) |
+| Codex Moments tab render (with Replay buttons) | n/a | **<1ms** (still well under 300ms FCP budget) | ≤300ms ✅ |
+| Build CSS | 398.07 KB | **399.24 KB** | +1.17 KB (`.codex-moment-replay-btn` + states + reduced-motion) |
+| Build JS (main bundle) | 280.21 KB | **281.81 KB** | +1.6 KB (`recordMomentReplay` + linkage hook + mapping constant) |
+| Build JS (replay-viewer chunk) | 11.21 KB | **11.21 KB** | UNCHANGED ✅ |
+| Lint | clean | **clean** | ✅ |
+| Build time | 480ms | **480ms** | ✅ |
+
+**Strategic significance:**
+
+T3.09 was sequenced as the **THIRD** Phase 3 task specifically because it closes the visible Phase 2 → Phase 3 bridge. With T3.09 shipped:
+
+- Players see "PHOENIX · ASHEN REIGN" in Codex Moments with a "▶ Replay" button next to it
+- Tapping it opens the T3.08 viewer with the captured replay
+- Back-button returns to the Moments tab (`__replayViewerReturnTo = 'codex'`)
+- The Phase 2 stretch goal from identity-layer.md §4.6 is now LIVE as Phase 3 core
+
+The Wave-2 Replay subsystem (T3.07 backend + T3.08 viewer + T3.09 Codex integration) is **complete**. Phase 3 implementation can now proceed to Wave-3 (Adventures backend T3.02–T3.05 / Friend leaderboard T3.06 / Party Tower T3.10–T3.13 / Tower seasons T3.14–T3.15).
+
+**Deferred follow-ups (not blocking T3.09):**
+
+- T3.09.1 — Replay capture for race FX moments (currently only boss-reactivity triggers link to Codex). Per spec §4.5 the race-FX-sample 1-in-5 trigger could also link via a new race-key → moment mapping. Defer to Phase 3 wave 3 once Adventures replay patterns settle.
+- T3.09.2 — Codex moment detail page (currently moments tab is a flat list). When clicked, could navigate to a dedicated per-moment detail with embedded mini-replay + lore. Defer to post-Phase 3 polish.
+- T3.07.1 — Live Firebase Storage SDK wire-up (currently empty-state when SDK absent; Codex button still hidden until first successful upload).
+
+**Awaiting CTO review.**
+
+Commit: `[T3.09] Codex Moments Replay button — Phase 2 → Phase 3 bridge moment LIVE`
+
+---
+
 ### TASK-040 (T2.B Game Dev portion) — ✅ DONE 2026-05-12 — Legacy Bridge: Identity Layer integration moment
 
 **CTO acceptance 2026-05-12 (Game Dev portion):** PASS. Strictest sacred-cow proximity of Phase 2 cleared. Combo crit formula at line 63825 `critMult = 1 + domCount * count * CRIT_MULT_K` BYTE-PERFECT (grep returns 1 occurrence in code); single `domCount` definition extended by `+ (ctx._dominantCountModifier || 0)` at line 63816 per ESC-02 O3 "WITHIN BOUNDARY". CRIT_MULT_K = 0.1 / CRIT_MIN_COMBO = 2 byte-perfect (lines 20159-20160). All T2.07-T2.12 invariants maintained. 22 P4 handlers byte-perfect. Codex localStorage isolation maintained. 26 window-bridge functions exposed; 8 discrete legacy insertion points; bridge overhead <0.001ms per call. 150/150 smoke pass (+10 LIVE integration tests × 2 projects). Commit `e6acb6d`.

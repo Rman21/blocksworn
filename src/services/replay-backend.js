@@ -56,6 +56,13 @@
 import { getPlayerSegment, SEGMENT_F2P, SEGMENT_MINNOW, SEGMENT_DOLPHIN, SEGMENT_WHALE } from './analytics.js';
 import { uploadStorageBlob, downloadStorageBlob } from './firebase.js';
 import { log } from './logger.js';
+// T3.09 (2026-05-13): Direct-import the Codex moment-replay recorder (mirrors
+// T3.08's `fetchReplay` direct-import precedent — keeps the window-bridge
+// footprint stable at 38 functions). Only consumed by `emitReplayTrigger`
+// when the trigger type is IDENTITY_BOSS_REACTIVITY AND the handler key maps
+// to a known Codex moment. All other trigger types skip the linkage silently.
+import { recordMomentReplay } from '../ui/codex.js';
+import { IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY } from '../data/identity-layer.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // Constants (per spec §4.1 + §4.6). Named — no magic numbers in logic.
@@ -472,6 +479,30 @@ export async function emitReplayTrigger(triggerType, contextData) {
     const replayId = generateReplayId(jsonStr);
     const segment = getStorageTier();
     const result = await uploadReplay(jsonStr, replayId, segment);
+    // T3.09 (spec §4.5) — on successful upload of a boss-reactivity replay,
+    // link the replayId to the matching Codex moment so the Moments tab
+    // shows a Replay button. Only fires for IDENTITY_BOSS_REACTIVITY triggers
+    // whose handler key maps to a known moment (5 entries today: phoenix /
+    // lich / berserker / engineer / grovewarden). Other trigger types
+    // (boss_defeat, tetris_crit, identity_fx, big_combo, stagger_entry,
+    // tower_milestone) still upload but don't attach to a Codex moment.
+    //
+    // Defensive: any failure inside recordMomentReplay is swallowed by its
+    // own try/catch; this outer try/catch protects the replay-emit pipeline
+    // from any unforeseen issue with the Codex import chain.
+    if (result && result.ok && triggerType === REPLAY_TRIGGER_TYPES.IDENTITY_BOSS_REACTIVITY) {
+      try {
+        const handlerKey = (contextData && typeof contextData === 'object') ? contextData.event : null;
+        const momentKey = (handlerKey && Object.prototype.hasOwnProperty.call(IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY, handlerKey))
+          ? IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY[handlerKey]
+          : null;
+        if (momentKey) {
+          recordMomentReplay(momentKey, replayId);
+        }
+      } catch (linkErr) {
+        try { log.warn('[replay-backend] recordMomentReplay linkage failed:', linkErr); } catch (_e) { /* swallow */ }
+      }
+    }
     return { ok: !!(result && result.ok), replayId, ...result };
   } catch (e) {
     try { log.warn('[replay-backend] emitReplayTrigger failed:', e); } catch (_e) { /* swallow */ }

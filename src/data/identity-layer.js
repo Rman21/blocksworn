@@ -909,3 +909,28 @@ export const CODEX_TABS = Object.freeze(['races', 'bosses', 'moments']);
 
 // Default tab opened on first nav per spec §4.2.
 export const CODEX_DEFAULT_TAB = 'races';
+
+// ─── Codex Replay button (T3.09) — moment-key mapping ───────────────────
+// Spec: docs/design/endgame-social.md §4.5 (Phase 2 Codex integration).
+// Maps the 5 boss-reactive identity handler keys (used by replay-backend's
+// `onIdentityBossReactivityTrigger`) to their corresponding Codex moment IDs
+// (the same IDs passed to `recordMomentTrigger` by the identity-fx end-of-fire
+// hooks). Used by replay-backend on replay-upload success to call
+// `recordMomentReplay(momentKey, replayId)` — the linkage that lights up the
+// Replay button on the Moments tab.
+//
+// Sacred safety:
+//   - Pure additive constant. No mapping is consumed except by T3.09 wiring.
+//   - Handler keys are the canonical IDs from `IDENTITY_BOSS_HANDLERS` in
+//     `src/core/reactivity-events.js` (T2.07–T2.11 contracts preserved).
+//   - Moment IDs are the canonical strings already passed to `recordMomentTrigger`
+//     in `src/feel/identity-fx.js` (T2.12 contracts preserved).
+//   - Non-mapped handler keys (future Voidfang / Uroboros etc.) skip the
+//     linkage silently — replay still uploads, no Codex button appears.
+export const IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY = Object.freeze({
+  identity_phoenix_revive:          'phoenix_ashen_reign',
+  identity_assassin_shark_counter:  'lich_cursed_tiles',
+  identity_berserker_frenzy_pulse:  'berserker_bloodtide',
+  identity_engineer_tetris_counter: 'engineer_lockdown',
+  identity_bruiser_grove_surge:     'grovewarden_root_surge',
+});
