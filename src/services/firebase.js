@@ -266,3 +266,62 @@ export function getClanDocRef(clanId) {
     return null;
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// 2026-05-13 — TASK-055 (T3.10): Firestore party-collection helpers (ADDITIVE).
+//
+// T3.10 ships the Party Tower async backend. Party docs land at
+// `parties/{partyId}` per docs/design/endgame-social.md §3.1. The Firestore
+// SDK may be wired live (legacy CDN module dispatch) or absent (T3.10 ships
+// without it — these helpers no-op gracefully and the party-tower-backend
+// module falls back to its in-memory mock store).
+//
+// All helpers are DEFENSIVE — if Firestore isn't bound by the legacy module
+// dispatch, they return null and the party-tower-backend module silently
+// uses the mock path. Live SDK wiring deferred to T3.10.1 follow-up.
+// Per ADR-002: no WebRTC, no peer connections — Firestore only.
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get a Firestore collection reference for parties (`parties`). Returns
+ * null when the Firestore SDK isn't initialized. Pure read — never throws.
+ *
+ * @returns {object|null}
+ */
+export function getPartiesCollectionRef() {
+  try {
+    const db = getDb();
+    if (!db) return null;
+    if (typeof db.collection === 'function') {
+      return db.collection('parties');
+    }
+    // Modular SDK shape — `collection(db, name)` is a free function exposed
+    // by `window.fbFirestore.collection`. Defer to T3.10.1 once npm-bundled
+    // Firestore lands; until then null + mock fallback in party-tower-backend.js
+    // handles the no-SDK path.
+    return null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+/**
+ * Get a Firestore document reference at `parties/{partyId}`. Returns null
+ * when the SDK is absent or the partyId is invalid. Pure read — never throws.
+ *
+ * @param {string} partyId
+ * @returns {object|null}
+ */
+export function getPartyDocRef(partyId) {
+  if (!partyId || typeof partyId !== 'string') return null;
+  try {
+    const coll = getPartiesCollectionRef();
+    if (!coll) return null;
+    if (typeof coll.doc === 'function') {
+      return coll.doc(partyId);
+    }
+    return null;
+  } catch (_e) {
+    return null;
+  }
+}

@@ -90,6 +90,111 @@ service cloud.firestore {
     }
 
     // ────────────────────────────────────────────────────────────────────
+    // /parties/{partyId} — T3.10 Party Tower async backend
+    // ────────────────────────────────────────────────────────────────────
+    //
+    // Schema invariants enforced server-side (mirrors client-side validators
+    // in src/services/party-tower-backend.js):
+    //   - members.size() between 1 and 5 (HARD CAP per ADR-003; no exceptions;
+    //     no whale-tier party-size expansion ever).
+    //   - state in {pending, active, completed, abandoned}
+    //   - ownerId is immutable (set on create, only changed by
+    //     transferOwnership flow — multi-field atomic update where new ownerId
+    //     is a member of the doc).
+    //   - turnIndex is a non-negative integer < members.size().
+    //   - turnTimeoutMode in {competitive, standard, casual} per ESC-03 Q3.
+    //   - sharedState contains ONLY non-mechanical-advantage fields per
+    //     ADR-003 (towerHearts/towerPacts read from sacred sources; no paid-
+    //     tier perk fields).
+    //
+    // Read access: any authenticated user who is a member of the party.
+    // Write access: only existing members; create requires authenticated user.
+    // Delete access: forbidden — completed parties remain in collection for
+    //   stats / Codex moments / replay deeplink resolution.
+
+    function isPartyMember(uid, partyData) {
+      return partyData.members.hasAny([{ 'playerId': uid }]);
+    }
+
+    function validatePartySize(data) {
+      // HARD CAP 2-5 (ADR-003). On create the doc starts with 1 member
+      // (owner); subsequent joinParty calls add members until cap. Server
+      // rejects any update that would push size > 5.
+      return data.members.size() >= 1 && data.members.size() <= 5;
+    }
+
+    function validatePartyState(data) {
+      return data.state in ['pending', 'active', 'completed', 'abandoned'];
+    }
+
+    function validatePartyTimeoutMode(data) {
+      // ESC-03 Q3: 24h standard default; 4h competitive + 7-day casual
+      // selectable per-party at creation. No additional modes allowed.
+      return data.turnTimeoutMode in ['competitive', 'standard', 'casual'];
+    }
+
+    function validatePartyNoP2W(data) {
+      // ADR-003 no-P2W: party docs must NOT carry any mechanical-advantage
+      // fields. Reject any doc with paid-tier perks (extra heart pool, paid
+      // revives, segment-gated bonuses).
+      return !data.keys().hasAny([
+        'paidHeartBonus', 'whaleTierExtraSlot', 'segmentPerk',
+        'damageBonus', 'hpBonus', 'paidRevives', 'gemDiscount'
+      ]);
+    }
+
+    function validatePartyCreate(data) {
+      return validatePartySize(data)
+          && validatePartyState(data)
+          && validatePartyTimeoutMode(data)
+          && validatePartyNoP2W(data)
+          && data.ownerId == request.auth.uid
+          && data.state == 'pending'; // create always begins pending
+    }
+
+    function validatePartyUpdate(oldData, newData) {
+      return validatePartySize(newData)
+          && validatePartyState(newData)
+          && validatePartyTimeoutMode(newData)
+          && validatePartyNoP2W(newData)
+          // ownerId can only change via transferOwnership (new owner must be
+          // a member of the new doc).
+          && (newData.ownerId == oldData.ownerId
+              || newData.members.hasAny([{ 'playerId': newData.ownerId }]));
+    }
+
+    // Turn-end specific guard — invoked from update rule when the document
+    // delta indicates a turn boundary advance. The caller MUST be the
+    // current-turn player at the time of the write. The current-turn player
+    // is the member at index `oldData.turnIndex` of `oldData.members`.
+    function isCurrentTurnPlayer(uid, oldData) {
+      return uid == oldData.members[oldData.turnIndex].playerId;
+    }
+
+    // Party Tower party documents.
+    match /parties/{partyId} {
+      // READ access restricted to members (party state is not public — only
+      // members + invited see the doc). Spec §3.5 — replay infra uses a
+      // separate `replays/` collection for public surfaces.
+      allow read:   if isAuthed() && isPartyMember(request.auth.uid, resource.data);
+      allow create: if isAuthed() && validatePartyCreate(request.resource.data);
+      allow update: if isAuthed()
+                    && isPartyMember(request.auth.uid, resource.data)
+                    && validatePartyUpdate(resource.data, request.resource.data)
+                    // Turn-end / state-transition tightening: when turnIndex
+                    // changes, the caller MUST be the current-turn player on
+                    // the OLD doc. maybeAutoSkipExpiredTurn from a non-current
+                    // player is permitted only when the turn has expired
+                    // (server checks `request.time > resource.data.currentTurnDeadline`).
+                    && (
+                      request.resource.data.turnIndex == resource.data.turnIndex
+                      || isCurrentTurnPlayer(request.auth.uid, resource.data)
+                      || request.time > resource.data.currentTurnDeadline
+                    );
+      allow delete: if false; // never delete — preserves stats / Codex moments
+    }
+
+    // ────────────────────────────────────────────────────────────────────
     // Existing Replay storage rules (T3.07) — preserved.
     // ────────────────────────────────────────────────────────────────────
     // (Storage rules live in storage.rules — not in firestore.rules. This
@@ -101,6 +206,7 @@ service cloud.firestore {
 # ──────────────────────────────────────────────────────────────────────────
 # Test plan (pre-deploy):
 #
+# /adventures/{clanId} (T3.02):
 # 1. Authenticated user creates clan with valid name (3-30 chars) → PASS.
 # 2. Authenticated user creates clan with 1-char name → FAIL.
 # 3. Authenticated user creates clan with 31-char name → FAIL.
@@ -111,6 +217,24 @@ service cloud.firestore {
 # 8. Member writes clan doc with embedded `damage: 999` field → FAIL.
 # 9. Any user tries to delete clan → FAIL.
 # 10. Owner transfers ownership (atomic update) → PASS.
+#
+# /parties/{partyId} (T3.10):
+# 11. Authenticated user creates party with `state:'pending'`,
+#     `ownerId == auth.uid`, `members.size() == 1` → PASS.
+# 12. Authenticated user creates party with `members.size() == 0` → FAIL.
+# 13. Authenticated user tries to add 6th member → FAIL (HARD CAP per ADR-003).
+# 14. Non-member tries to read party doc → FAIL (members-only read).
+# 15. Member ends turn when NOT current-turn-player → FAIL.
+# 16. Current-turn member ends turn (turnIndex advances) → PASS.
+# 17. Non-current-turn member updates after turn-expired clock → PASS
+#     (maybeAutoSkipExpiredTurn fallback).
+# 18. Member writes party doc with `paidHeartBonus` / `whaleTierExtraSlot` /
+#     `damageBonus` field → FAIL (ADR-003 no-P2W server check).
+# 19. Member writes party doc with `turnTimeoutMode:'custom'` → FAIL
+#     (only competitive/standard/casual allowed per ESC-03 Q3).
+# 20. Any user tries to delete party → FAIL.
+# 21. Owner transfers ownership (atomic update with new ownerId in members)
+#     → PASS.
 #
 # Run these via Firebase emulator suite before live deploy.
 # ──────────────────────────────────────────────────────────────────────────

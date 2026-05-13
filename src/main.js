@@ -131,6 +131,18 @@ import {
   listClansForPlayer as _listClansForPlayer_t302,
 } from './services/clan-backend.js';
 
+// 2026-05-13 — TASK-055 (T3.10): Party Tower backend bridge (MINIMAL — +1 entry).
+// Wave-5 Phase 3 task. Backend-only — see src/services/party-tower-backend.js
+// for the full contract + spec §3 / §15 ESC-03 Q3 (24h Standard default).
+// T3.11+ UI consumes the 10 pure helpers + 10 async CRUD ops via DIRECT-IMPORT
+// (mirrors T3.02/T3.06 precedent — keeps the window-bridge surface at 39 + 1
+// = 40 total, NOT 39 + 10 CRUD). The single minimal entry below lets the
+// legacy menu badge surface "is player in any Party Tower run?" without
+// dragging the full party-tower-backend module into legacy.
+import {
+  listPartiesForPlayer as _listPartiesForPlayer_t310,
+} from './services/party-tower-backend.js';
+
 // T1.13.5 (2026-05-12): bridge `showScreen` onto window so legacy inline
 // onclick="showScreen('menu')" handlers (still present in any scaffold the
 // new shell mounts) resolve. Cosmetic — required for compatibility with the
@@ -222,6 +234,23 @@ if (typeof window !== 'undefined') {
     try {
       const result = await _listClansForPlayer_t302(playerId);
       if (result && result.ok && Array.isArray(result.clans)) return result.clans.length;
+    } catch (_e) { /* swallow — badge defaults to 0 on any failure */ }
+    return 0;
+  };
+
+  // 2026-05-13 — TASK-055 (T3.10): Party Tower backend — MINIMAL bridge.
+  // ONE function exposed: legacy menu badge ("is player in any Party Tower
+  // run?") needs cheap async lookup without importing the full
+  // party-tower-backend module. All 10 CRUD operations + 10 pure helpers
+  // stay direct-import (T3.11+ UI mirrors T3.02/T3.06 precedent).
+  // Bridge count: 39 → 40 (1 minimal entry).
+  // Per ADR-002: async-only; no presence channel. Per ADR-003: badge is
+  // segment-agnostic — never reads spend / segment / paid tier.
+  // ── Player-party membership probe (called from legacy menu badge) ───────
+  window.__getPlayerPartyCount              = async function _getPlayerPartyCountBridge(playerId) {
+    try {
+      const result = await _listPartiesForPlayer_t310(playerId);
+      if (result && result.ok && Array.isArray(result.parties)) return result.parties.length;
     } catch (_e) { /* swallow — badge defaults to 0 on any failure */ }
     return 0;
   };
