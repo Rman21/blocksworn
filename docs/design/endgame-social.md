@@ -1555,6 +1555,46 @@ on in Phase 3.5.
 - [x] §12 Test coverage: 7 smoke + 4 unit + 24 visual + manual
 - [x] §13 Open questions for Roman: 5 questions (Q1–Q5) with recommendations
 - [x] No code written — design only
+
+---
+
+## 15. ROMAN RULING APPENDIX — ESC-03 resolved 2026-05-13
+
+Roman authorized "continue" — all 5 ESC-03 open questions approved per CTO recommendations (mirror of ESC-02 O1–O4 ruling pattern from Phase 2).
+
+| ID | Question | Ruling | Effect on Phase 3 |
+|---|---|---|---|
+| **Q1** | Adventures clan size hard cap? | ✅ **5–15 HARD CAP, no exceptions** | Whale-tier 5–30 exception rejected per ADR-003 no-P2W; T3.02 enforces hard cap server-side via Firestore security rule |
+| **Q2** | Replay storage budget per tier? | ✅ **F2P 100 MB / Minnow 100 MB / Dolphin 250 MB / Whale 500 MB — ALL PERMANENT** | Size-tier differentiation only; no TTL anywhere; PURE PATH parity preserved. T3.07 wires storage tier from `getPlayerSegment()` |
+| **Q3** | Party Tower turn timeout default? | ✅ **24h Standard default** | 4h Competitive + 7-day Casual selectable per-party at creation; T3.10 implements 3-mode picker |
+| **Q4** | Season cadence? | ✅ **13-week Tower seasons + 1-week Adventures rotation + Battle Pass = Tower** | Sacred Battle Pass formula `500 + (tier-1) × 150` byte-perfect; T3.14 builds 13-week rotation infrastructure |
+| **Q5** | Friend invite mechanism? | ✅ **navigator.share OS-native only (MVP)** | In-game 6-char friend codes deferred to Phase 3.5 if friend-graph metrics demand; T3.06 wires share-only flow |
+
+### Phase 3 implementation green-lit per ruling
+
+- T3.02–T3.05 Adventures backend — UNBLOCKED ✅ (clan hard cap 5–15)
+- T3.06 Friend leaderboard — UNBLOCKED ✅ (navigator.share only)
+- **T3.07 Replay capture — ACTIVE** ✅ (first task per Designer recommendation; permanent storage all tiers)
+- T3.08 Replay viewer — UNBLOCKED ✅ (waits on T3.07)
+- T3.09 Codex Moments Replay button integration — UNBLOCKED ✅
+- T3.10–T3.13 Party Tower — UNBLOCKED ✅ (24h default; async turn-based per ADR-002)
+- T3.14–T3.15 Tower seasonal — UNBLOCKED ✅ (13-week seasons; Battle Pass sacred formula byte-perfect)
+- T3.16 Legacy Bridge — UNBLOCKED ✅ (mirrors T2.B pattern)
+
+### Sacred cow status after ruling
+
+Phase 3 plan remains **purely additive**. Roman's ruling does NOT change the 47-row sacred audit in §7 — 0 modifications planned. All sacred Tower / Economy / Identity Layer / v2.1 systems remain byte-perfect.
+
+### Quality gates added by ruling
+
+1. **T3.02 server-side clan cap enforcement** — Firestore security rule rejects party-size ≥ 16; Cloud Function audits weekly.
+2. **T3.07 storage tier wiring** — capture path reads `getPlayerSegment()` from sacred Phase 1 T1.20 analytics module; storage quota enforced client-side + server-side on upload.
+3. **T3.10 turn timeout picker** — 3 modes (4h/24h/7d) selectable; default 24h; no whale-tier reduction below 4h.
+4. **T3.14 Battle Pass formula audit** — `500 + (tier-1) × 150` byte-perfect verified pre-merge; tier-cosmetic rewards content-only.
+
+### Phase 3 first task green-lit
+
+**T3.07 Replay capture infrastructure** starts immediately. Designer's strategic recommendation honored — lateral dependency that unblocks Codex Moments Replay button (visible Phase 2 → Phase 3 bridge moment). T3.02 Adventures backend follows after T3.07 PR merges.
 - [x] No sacred-cow values modified
 - [x] No src/ touched
 - [x] No real-time multiplayer (ADR-002 honored)

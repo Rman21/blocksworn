@@ -119,7 +119,7 @@
 
 ## Phase 3: Endgame Social
 
-**Status:** IN_PROGRESS (started 2026-05-13; T3.01 design spec DONE; ESC-03 Q1–Q5 awaiting Roman)
+**Status:** IN_PROGRESS (started 2026-05-13; T3.01 design DONE; **ESC-03 RESOLVED** 2026-05-13 — Roman approved Q1–Q5 per CTO recommendations; T3.07 ACTIVE)
 **Goal:** Competitive seasonal endgame — Adventures (async clan 5-15) + Party Tower (2-5 coop async) + share infrastructure.
 **Estimated:** 5-6 weeks
 **Tasks:** T3.01 — T3.15
