@@ -569,6 +569,237 @@
   text-align: center;
 }
 
+/* ===== T3.05 — Contributor stats panel (§2.3) ===== */
+.adv-contributor-stats-panel {
+  padding: 14px 0;
+}
+.adv-contributor-empty {
+  font-size: 12px;
+  font-style: italic;
+  color: #5C4520;
+  padding: 8px 10px;
+  background: rgba(168,128,51,0.06);
+  border-radius: 2px;
+  border-left: 2px solid rgba(168,128,51,0.45);
+}
+.adv-contributor-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.adv-contributor-row {
+  padding: 8px 10px;
+  background: rgba(168,128,51,0.06);
+  border-radius: 3px;
+  border-left: 2px solid rgba(168,128,51,0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.adv-contributor-row--top3 {
+  background: rgba(216,178,92,0.18);
+  border-left-color: #C8A93C;
+}
+.adv-contributor-row--self {
+  border: 1px solid #C8A93C;
+  border-left: 3px solid #C8A93C;
+  background: rgba(255,224,122,0.25);
+}
+.adv-contributor-row-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #2C2014;
+}
+.adv-contributor-star {
+  font-size: 13px;
+  color: #C8A93C;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.adv-contributor-star--placeholder {
+  visibility: hidden;
+}
+.adv-contributor-name {
+  flex: 1;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.adv-contributor-you {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8C5E1A;
+  font-weight: 700;
+  padding: 1px 6px;
+  background: rgba(255,224,122,0.5);
+  border-radius: 2px;
+  margin-left: 4px;
+}
+.adv-contributor-pct {
+  font-size: 12px;
+  color: #5C4520;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.adv-contributor-damage-bar {
+  height: 6px;
+  background: rgba(168,128,51,0.18);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid rgba(168,128,51,0.45);
+}
+.adv-contributor-damage-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #FFE07A 0%, #C8A93C 100%);
+  transition: width 220ms ease;
+}
+.adv-contributor-damage-label {
+  font-size: 11px;
+  color: #5C4520;
+  font-variant-numeric: tabular-nums;
+}
+.adv-contributor-expand-btn {
+  display: inline-block;
+  margin: 8px 0;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #A88033;
+  color: #8C5E1A;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.adv-contributor-expand-btn:hover {
+  background: rgba(168,128,51,0.12);
+}
+.adv-contributor-target-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(168,128,51,0.4);
+  font-size: 12px;
+  color: #2C2014;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+.adv-contributor-target-value {
+  color: #8C5E1A;
+  font-weight: 700;
+}
+.adv-contributor-total-label {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #5C4520;
+  text-transform: uppercase;
+}
+
+/* ===== T3.05 — Clan progression panel (§2.4) ===== */
+.adv-progression-panel {
+  padding: 14px 0;
+}
+.adv-progression-header {
+  font-size: 13px;
+  color: #2C2014;
+  margin-bottom: 6px;
+  letter-spacing: 0.04em;
+}
+.adv-progression-header--max {
+  color: #8C5E1A;
+  font-weight: 700;
+}
+.adv-progression-bar {
+  height: 10px;
+  background: rgba(168,128,51,0.18);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(168,128,51,0.55);
+  margin-bottom: 4px;
+}
+.adv-progression-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #FFE07A 0%, #C8A93C 100%);
+  transition: width 260ms ease;
+}
+.adv-progression-label {
+  font-size: 11px;
+  color: #5C4520;
+  margin-bottom: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.adv-cosmetic-unlock-h {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: #8C5E1A;
+  text-transform: uppercase;
+  margin: 8px 0 6px;
+}
+.adv-cosmetic-unlock-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.adv-cosmetic-unlock-row {
+  display: grid;
+  grid-template-columns: 22px 56px 1fr;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 5px 8px;
+  font-size: 12px;
+  border-radius: 2px;
+  border-left: 2px solid transparent;
+}
+.adv-cosmetic-unlock-row--unlocked {
+  color: #2C2014;
+  background: rgba(168,128,51,0.06);
+  border-left-color: #A88033;
+}
+.adv-cosmetic-unlock-row--next {
+  color: #2C2014;
+  background: rgba(255,224,122,0.32);
+  border-left-color: #C8A93C;
+  font-weight: 700;
+}
+.adv-cosmetic-unlock-row--locked {
+  color: #8A7A56;
+  opacity: 0.72;
+}
+.adv-cosmetic-unlock-marker {
+  font-size: 14px;
+  width: 16px;
+  text-align: center;
+  line-height: 1;
+}
+.adv-cosmetic-unlock-row--unlocked .adv-cosmetic-unlock-marker { color: #1F6F33; }
+.adv-cosmetic-unlock-row--next     .adv-cosmetic-unlock-marker { color: #C84A2A; }
+.adv-cosmetic-unlock-row--locked   .adv-cosmetic-unlock-marker { color: #8A7A56; }
+.adv-cosmetic-unlock-level {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #5C4520;
+  font-variant-numeric: tabular-nums;
+}
+.adv-cosmetic-unlock-label {
+  letter-spacing: 0.02em;
+}
+
 /* ===== prefers-reduced-motion: disable hover transforms ===== */
 @media (prefers-reduced-motion: reduce) {
   .adv-cta-btn,
@@ -576,7 +807,9 @@
   .adv-clan-card,
   .adv-clan-card:hover,
   .adv-action-btn,
-  .adv-action-btn:hover {
+  .adv-action-btn:hover,
+  .adv-contributor-damage-bar-fill,
+  .adv-progression-bar-fill {
     transition: none;
     transform: none;
   }

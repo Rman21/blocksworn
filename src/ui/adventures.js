@@ -1,4 +1,12 @@
 // 2026-05-13 — TASK-051 (T3.03): Adventures UI — clan create/browse/join/view/leave.
+// 2026-05-13 — TASK-053 (T3.05): Contributor stats + clan progression UI —
+//   extends `renderClanDetail` with two NEW additive sub-renders:
+//     - renderContributorStatsPanel (top-3 highlighted + self badge + expand)
+//     - renderClanProgressionPanel  (level + 3-state cosmetic unlock list)
+//   Spec: docs/design/endgame-social.md §2.3 (Contributor stats) + §2.4
+//   (Persistent clan progression). T3.03 render-mount logic + T3.04 weekly-
+//   rotation hook UNTOUCHED — both panels are inserted between WEEKLY TARGET
+//   and MEMBERS sections inside `renderClanDetail`.
 //
 // Spec: docs/design/endgame-social.md §2 (Adventures — async clan 5–15)
 //       + §2.1 (clan creation + join flows)
@@ -73,18 +81,24 @@ import {
   validateClanName,
   validateClanSize,
   canPlayerLeaveClan,
+  // T3.05 — clan progression pure helpers
+  unlockCosmeticAtLevel,
+  computeWeeksUntilNextLevel,
+  getNextCosmeticUnlock,
   // Constants
   CLAN_MIN_SIZE,
   CLAN_MAX_SIZE,
   CLAN_NAME_MIN_LEN,
   CLAN_NAME_MAX_LEN,
   CLAN_DESCRIPTION_MAX_LEN,
+  CLAN_LEVEL_WEEKS_PER_LEVEL,
   CLAN_ROLE_OWNER,
   CLAN_RESULT_REASONS,
 } from '../services/clan-backend.js';
 import {
   CLAN_DEFAULT_BANNER_TIER,
   CLAN_COSMETIC_TIERS,
+  CLAN_UNLOCK_LEVELS,
 } from '../data/clan-config.js';
 import { log } from '../services/logger.js';
 
@@ -92,6 +106,19 @@ import { log } from '../services/logger.js';
 const ADVENTURES_FCP_BUDGET_MS = 300;
 const ADVENTURES_LIST_BUDGET_MS = 100;
 const ADVENTURES_SEARCH_BUDGET_MS = 200;
+// T3.05 stats / progression sub-render budgets (task brief — ≤50ms / ≤30ms).
+const ADVENTURES_STATS_BUDGET_MS = 50;
+const ADVENTURES_PROGRESSION_BUDGET_MS = 30;
+
+// ─── T3.05 contributor stats panel constants ───────────────────────────
+/** Number of top contributors shown above the fold; the rest collapse behind
+ *  an "expand" toggle. Spec §2.3 lays out top-3 highlighted with stars. */
+const CONTRIB_TOP_N = 3;
+
+/** Default per-member contribution target if a clan hasn't set a weekly boss
+ *  yet. T3.05 surfaces "no target" gracefully — the bar shows total damage
+ *  without a percentage-of-target. */
+const CONTRIB_TARGET_DEFAULT_NONE = 0;
 
 // ─── Tab keys ──────────────────────────────────────────────────────────
 const ADVENTURES_TAB_YOUR = 'your';
@@ -778,6 +805,10 @@ export function renderClanDetail(root, clan, viewerId, opts) {
       ? `<div class="adv-weekly-row adv-weekly-row--you">Your contribution: ${viewerContribDmg.toLocaleString('en-US')} dmg (${(viewerContribPct * 100).toFixed(0)}%)</div>`
       : '',
     '</section>',
+    // T3.05 — Contributor stats panel (between WEEKLY TARGET and MEMBERS)
+    _renderContributorStatsPanelHTML(clan, viewerId),
+    // T3.05 — Clan progression panel (level + cosmetic unlocks)
+    _renderClanProgressionPanelHTML(clan),
     // Members
     `<section class="adv-detail-section adv-detail-members">`,
     `<h3 class="adv-detail-section-h">MEMBERS (${memberCount})</h3>`,
@@ -801,6 +832,310 @@ export function renderClanDetail(root, clan, viewerId, opts) {
 
   _wireDetailBack(root);
   _wireDetailActions(root, clan);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// T3.05 — Contributor stats panel (§2.3) + Clan progression panel (§2.4)
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Both panels are additive sub-renders inserted into `renderClanDetail`
+// between WEEKLY TARGET and MEMBERS. They surface what T3.04's closeWeek
+// + `unlockCosmeticAtLevel` track: per-player damage % + clan level + the
+// 3-state cosmetic-unlock ladder (✓ unlocked / ▶ next / ◯ locked).
+//
+// Sacred-cow audit (CLAUDE.md §2 + ADR-003):
+//   - No mechanical-advantage labels (cosmetic descriptions only).
+//   - No NARRATOR_LINES additions (functional labels per CTO brief).
+//   - No new V_HAPTICS keys.
+//   - No magic numbers — all thresholds (CONTRIB_TOP_N, CLAN_LEVEL_WEEKS_PER_LEVEL)
+//     surface from named constants.
+
+/**
+ * Convert one contribution entry (`{damage, lastContribAt}`) into a
+ * normalised row record for the panel renderer. Pure.
+ */
+function _toContributorRow(playerId, entry, totalDamage) {
+  const damage = (entry && typeof entry.damage === 'number' && isFinite(entry.damage) && entry.damage > 0)
+    ? Math.floor(entry.damage)
+    : 0;
+  const pct = (totalDamage > 0) ? (damage / totalDamage) : 0;
+  return { playerId, damage, pct };
+}
+
+/**
+ * Aggregate the weekly contributions map into a sorted descending-damage
+ * array of `{playerId, damage, pct}` rows. Pure. Stable secondary sort by
+ * playerId so ties are deterministic for test asserts.
+ */
+function _sortedContributorRows(weeklyContributions) {
+  if (!weeklyContributions || typeof weeklyContributions !== 'object') return [];
+  const ids = Object.keys(weeklyContributions);
+  if (ids.length === 0) return [];
+  let total = 0;
+  for (let i = 0; i < ids.length; i++) {
+    const e = weeklyContributions[ids[i]];
+    if (e && typeof e.damage === 'number' && isFinite(e.damage) && e.damage > 0) {
+      total += Math.max(0, e.damage);
+    }
+  }
+  const rows = ids.map(id => _toContributorRow(id, weeklyContributions[id], total));
+  rows.sort((a, b) => {
+    if (b.damage !== a.damage) return b.damage - a.damage;
+    // Stable: alphabetical tie-break.
+    if (a.playerId < b.playerId) return -1;
+    if (a.playerId > b.playerId) return 1;
+    return 0;
+  });
+  return rows;
+}
+
+/**
+ * Compute the weekly damage target shown in the stats panel. Reads the
+ * clan's `weeklyTargetHp` field (T3.04 writes this when boss difficulty
+ * is applied). Returns 0 when missing — UI hides the target progress row.
+ */
+function _resolveWeeklyTargetHp(clan) {
+  if (!clan || typeof clan !== 'object') return CONTRIB_TARGET_DEFAULT_NONE;
+  const hp = clan.weeklyTargetHp;
+  if (typeof hp === 'number' && isFinite(hp) && hp > 0) return Math.floor(hp);
+  return CONTRIB_TARGET_DEFAULT_NONE;
+}
+
+/**
+ * Build the inner HTML for the contributor stats panel (rows + footer).
+ * The outer `<section>` wraps it via `_renderContributorStatsPanelHTML`;
+ * splitting this out lets the expand-toggle re-render just the inside
+ * without re-rendering the section header.
+ */
+function _renderContributorStatsPanelInnerHTML(clan, viewerId, expanded) {
+  const wc = (clan && clan.weeklyContributions && typeof clan.weeklyContributions === 'object')
+    ? clan.weeklyContributions : {};
+  const rows = _sortedContributorRows(wc);
+  const totalDmg = rows.reduce((acc, r) => acc + r.damage, 0);
+  const targetHp = _resolveWeeklyTargetHp(clan);
+  const targetPct = (targetHp > 0) ? Math.min(100, Math.floor((totalDmg / targetHp) * 100)) : 0;
+
+  if (rows.length === 0) {
+    return [
+      '<div class="adv-contributor-empty" role="status">',
+      'No contributions yet this week.',
+      '</div>',
+    ].join('');
+  }
+
+  const visibleRows = expanded ? rows : rows.slice(0, CONTRIB_TOP_N);
+  const hiddenCount = rows.length - visibleRows.length;
+  const totalContributors = rows.length;
+
+  const rowsHTML = visibleRows.map((r, idx) => {
+    const isTop3 = idx < CONTRIB_TOP_N && !expanded ? true : (idx < CONTRIB_TOP_N);
+    const isSelf = (r.playerId === viewerId);
+    const widthPct = Math.max(0, Math.min(100, Math.floor(r.pct * 100)));
+    const classes = [
+      'adv-contributor-row',
+      isTop3 ? 'adv-contributor-row--top3' : '',
+      isSelf ? 'adv-contributor-row--self' : '',
+    ].filter(Boolean).join(' ');
+    const starPrefix = isTop3 ? '<span class="adv-contributor-star" aria-hidden="true">&#9733;</span>' : '<span class="adv-contributor-star adv-contributor-star--placeholder" aria-hidden="true"></span>';
+    const youBadge = isSelf ? ' <span class="adv-contributor-you">(You)</span>' : '';
+    return [
+      `<li class="${classes}" data-adv-contrib-id="${_escape(r.playerId)}">`,
+      `<div class="adv-contributor-row-head">`,
+      starPrefix,
+      `<span class="adv-contributor-name">${_escape(r.playerId)}${youBadge}</span>`,
+      `<span class="adv-contributor-pct">${Math.floor(r.pct * 100)}%</span>`,
+      `</div>`,
+      `<div class="adv-contributor-damage-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${widthPct}">`,
+      `<div class="adv-contributor-damage-bar-fill" style="width: ${widthPct}%"></div>`,
+      `</div>`,
+      `<div class="adv-contributor-damage-label">${r.damage.toLocaleString('en-US')} dmg</div>`,
+      `</li>`,
+    ].join('');
+  }).join('');
+
+  const expandToggle = hiddenCount > 0
+    ? `<button type="button" class="adv-contributor-expand-btn" id="advContribExpandBtn" aria-expanded="false">+ ${hiddenCount} more contributor${hiddenCount === 1 ? '' : 's'}</button>`
+    : (expanded && rows.length > CONTRIB_TOP_N
+        ? `<button type="button" class="adv-contributor-expand-btn" id="advContribExpandBtn" aria-expanded="true">Show top ${CONTRIB_TOP_N} only</button>`
+        : '');
+
+  // Target progress footer — only rendered when the clan has a target HP set.
+  const targetFooter = (targetHp > 0)
+    ? [
+        '<div class="adv-contributor-target-row">',
+        `<span class="adv-contributor-target-label">TOTAL: ${totalDmg.toLocaleString('en-US')} dmg</span>`,
+        `<span class="adv-contributor-target-value">TARGET: ${targetHp.toLocaleString('en-US')} dmg (${targetPct}% done)</span>`,
+        '</div>',
+      ].join('')
+    : [
+        '<div class="adv-contributor-target-row">',
+        `<span class="adv-contributor-target-label">TOTAL: ${totalDmg.toLocaleString('en-US')} dmg</span>`,
+        '</div>',
+      ].join('');
+
+  return [
+    '<ul class="adv-contributor-list" role="list">',
+    rowsHTML,
+    '</ul>',
+    expandToggle,
+    targetFooter,
+    `<div class="adv-contributor-total-label">WEEKLY CONTRIBUTORS (${totalContributors})</div>`,
+  ].join('');
+}
+
+function _renderContributorStatsPanelHTML(clan, viewerId) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  // Reset expand state at every full re-render (matches `renderClanDetail` mount semantics).
+  _contribExpanded = false;
+  const inner = _renderContributorStatsPanelInnerHTML(clan, viewerId, false);
+  const html = [
+    '<section class="adv-detail-section adv-contributor-stats-panel">',
+    '<h3 class="adv-detail-section-h">WEEKLY CONTRIBUTORS</h3>',
+    `<div id="advContribPanel">${inner}</div>`,
+    '</section>',
+  ].join('');
+  try {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      if (dt > ADVENTURES_STATS_BUDGET_MS) {
+        try { log.warn('Contributor stats render over budget:', dt.toFixed(2), 'ms'); } catch (_e) {}
+      }
+    }
+  } catch (_e) {}
+  return html;
+}
+
+/**
+ * Sub-renderer entry point for unit tests. Hosts the contributor stats
+ * panel into a target element (replaces previous innerHTML). Pure DOM ops.
+ *
+ * @param {HTMLElement} rootEl
+ * @param {object} clanState - clan doc shape (members + weeklyContributions)
+ * @param {string} playerId - viewer's player id (for "(You)" badge)
+ */
+export function renderContributorStatsPanel(rootEl, clanState, playerId) {
+  if (!rootEl) return;
+  rootEl.innerHTML = _renderContributorStatsPanelHTML(clanState || {}, playerId || '');
+}
+
+// ─── T3.05 — Clan progression panel (§2.4) ─────────────────────────────
+
+/**
+ * Build the cosmetic-unlock 3-state ladder rows. The list is taken from
+ * `CLAN_UNLOCK_LEVELS` (frozen sorted list from clan-config.js). Each row
+ * shows one of three states:
+ *   - `--unlocked` (✓) — the level is ≤ currentLevel
+ *   - `--next`     (▶) — the row is the next-unlock from `getNextCosmeticUnlock`
+ *   - `--locked`   (◯) — every higher row
+ *
+ * Per ADR-003, descriptions are cosmetic-only ("Bronze banner", "Silver
+ * emblem") — never mechanical-advantage labels like "+1 weekly cap raise".
+ */
+function _cosmeticItemLabel(item) {
+  // Map a raw {kind, value} entry to a human label. Defensive on shape.
+  if (!item || typeof item !== 'object') return '';
+  const kind = (typeof item.kind === 'string') ? item.kind : '';
+  const value = (typeof item.value === 'string') ? item.value : '';
+  // Title-case the value (e.g. 'silver' → 'Silver').
+  const titleValue = value.length > 0
+    ? value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, ' ')
+    : '';
+  switch (kind) {
+    case 'banner': return `${titleValue} banner`;
+    case 'emblem': return `${titleValue} emblem`;
+    case 'badge':  return `${titleValue} badge`;
+    case 'motto':  return `Custom motto`;
+    default:       return titleValue || 'Cosmetic';
+  }
+}
+
+function _renderClanProgressionPanelHTML(clan) {
+  const _t0 = (typeof performance !== 'undefined') ? performance.now() : 0;
+  const weeks = (clan && typeof clan.totalWeeksCompleted === 'number' && isFinite(clan.totalWeeksCompleted))
+    ? Math.max(0, Math.floor(clan.totalWeeksCompleted))
+    : 0;
+  const currentLevel = computeClanLevel(weeks);
+  const next = getNextCosmeticUnlock(currentLevel);
+  const weeksRemaining = computeWeeksUntilNextLevel(currentLevel, weeks);
+
+  // Progress bar: weeks accumulated INTO the current level (0..CLAN_LEVEL_WEEKS_PER_LEVEL).
+  const weeksThisLevel = weeks - (currentLevel - 1) * CLAN_LEVEL_WEEKS_PER_LEVEL;
+  const progressPct = Math.max(0, Math.min(100,
+    Math.floor((weeksThisLevel / CLAN_LEVEL_WEEKS_PER_LEVEL) * 100)
+  ));
+
+  // Sort the unlock-level list ascending and render every entry with its state.
+  const levels = Array.isArray(CLAN_UNLOCK_LEVELS) ? CLAN_UNLOCK_LEVELS.slice() : [];
+  const nextLevel = next ? next.level : null;
+
+  const rowsHTML = levels.map(lvl => {
+    const items = unlockCosmeticAtLevel(lvl);
+    const labels = items.map(_cosmeticItemLabel).filter(Boolean);
+    if (labels.length === 0) return '';
+
+    let state, marker;
+    if (lvl <= currentLevel) {
+      state = 'unlocked';
+      marker = '&#10003;'; // ✓
+    } else if (lvl === nextLevel) {
+      state = 'next';
+      marker = '&#9654;';  // ▶
+    } else {
+      state = 'locked';
+      marker = '&#9675;';  // ◯
+    }
+    const stateLabel = (state === 'next') ? ' (NEXT)' : '';
+    return [
+      `<li class="adv-cosmetic-unlock-row adv-cosmetic-unlock-row--${state}">`,
+      `<span class="adv-cosmetic-unlock-marker" aria-hidden="true">${marker}</span>`,
+      `<span class="adv-cosmetic-unlock-level">Lvl ${lvl}</span>`,
+      `<span class="adv-cosmetic-unlock-label">${_escape(labels.join(', '))}${stateLabel}</span>`,
+      `</li>`,
+    ].join('');
+  }).filter(Boolean).join('');
+
+  const levelHeaderHTML = next
+    ? `<div class="adv-progression-header">Level ${currentLevel} &rarr; Level ${currentLevel + 1} (${weeksRemaining} week${weeksRemaining === 1 ? '' : 's'} remaining)</div>`
+    : `<div class="adv-progression-header adv-progression-header--max">Level ${currentLevel} &middot; Max level reached</div>`;
+
+  const html = [
+    '<section class="adv-detail-section adv-progression-panel">',
+    '<h3 class="adv-detail-section-h">CLAN PROGRESSION</h3>',
+    levelHeaderHTML,
+    '<div class="adv-progression-bar" role="progressbar"',
+    ` aria-valuemin="0" aria-valuemax="${CLAN_LEVEL_WEEKS_PER_LEVEL}" aria-valuenow="${Math.max(0, Math.floor(weeksThisLevel))}">`,
+    `<div class="adv-progression-bar-fill" style="width: ${progressPct}%"></div>`,
+    '</div>',
+    `<div class="adv-progression-label">${Math.max(0, Math.floor(weeksThisLevel))} / ${CLAN_LEVEL_WEEKS_PER_LEVEL} weeks</div>`,
+    '<div class="adv-cosmetic-unlock-h">COSMETICS</div>',
+    '<ul class="adv-cosmetic-unlock-list" role="list">',
+    rowsHTML,
+    '</ul>',
+    '</section>',
+  ].join('');
+
+  try {
+    if (typeof performance !== 'undefined') {
+      const dt = performance.now() - _t0;
+      if (dt > ADVENTURES_PROGRESSION_BUDGET_MS) {
+        try { log.warn('Clan progression render over budget:', dt.toFixed(2), 'ms'); } catch (_e) {}
+      }
+    }
+  } catch (_e) {}
+
+  return html;
+}
+
+/**
+ * Sub-renderer entry point for unit tests. Hosts the clan progression panel
+ * into a target element (replaces previous innerHTML). Pure DOM ops.
+ *
+ * @param {HTMLElement} rootEl
+ * @param {object} clanState - clan doc shape (totalWeeksCompleted)
+ */
+export function renderClanProgressionPanel(rootEl, clanState) {
+  if (!rootEl) return;
+  rootEl.innerHTML = _renderClanProgressionPanelHTML(clanState || {});
 }
 
 function _renderMemberRow(member, viewerId, viewerIsOwner) {
@@ -869,7 +1204,37 @@ function _wireDetailActions(root, clan) {
         } catch (_err) {}
       });
     });
+    // T3.05 — Contributor stats expand toggle.
+    const expandBtn = root.querySelector('#advContribExpandBtn');
+    if (expandBtn) {
+      expandBtn.addEventListener('click', () => _onContribExpandClick(clan));
+    }
   } catch (_e) {}
+}
+
+// ─── T3.05 — Contributor stats expand toggle ──────────────────────────
+//
+// Tracks the "expanded" state per render. When the user taps "+ N more
+// contributors" we re-render the panel inline with all rows visible. State
+// is reset when `renderClanDetail` runs again (fresh render = collapsed).
+let _contribExpanded = false;
+
+function _onContribExpandClick(clan) {
+  if (!clan || !_rootEl) return;
+  try {
+    _contribExpanded = !_contribExpanded;
+    const panel = _rootEl.querySelector('#advContribPanel');
+    if (panel) {
+      panel.innerHTML = _renderContributorStatsPanelInnerHTML(clan, _viewerPlayerId, _contribExpanded);
+      // Re-bind the (now re-rendered) expand button if it still exists.
+      const newBtn = panel.parentNode && typeof panel.parentNode.querySelector === 'function'
+        ? panel.parentNode.querySelector('#advContribExpandBtn')
+        : null;
+      if (newBtn) {
+        newBtn.addEventListener('click', () => _onContribExpandClick(clan));
+      }
+    }
+  } catch (_e) { /* swallow */ }
 }
 
 async function _onLeaveClick(clan) {
@@ -1092,6 +1457,9 @@ export const __adventuresTestables = Object.freeze({
       ADVENTURES_FCP_BUDGET_MS,
       ADVENTURES_LIST_BUDGET_MS,
       ADVENTURES_SEARCH_BUDGET_MS,
+      ADVENTURES_STATS_BUDGET_MS,
+      ADVENTURES_PROGRESSION_BUDGET_MS,
+      CONTRIB_TOP_N,
     };
   },
   // Internal helpers exposed for unit-test surfaces.
@@ -1099,4 +1467,7 @@ export const __adventuresTestables = Object.freeze({
   viewerRole: _viewerRole,
   reasonToMessage: _reasonToMessage,
   cosmeticTiers: CLAN_COSMETIC_TIERS,
+  // T3.05 — contributor stats + clan progression test surface.
+  sortedContributorRows: _sortedContributorRows,
+  cosmeticItemLabel: _cosmeticItemLabel,
 });

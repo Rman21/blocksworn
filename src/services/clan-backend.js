@@ -5,6 +5,10 @@
 //   / filterBossesByElementAntiArchetype / pickWeeklyBoss / scaleBossDifficulty
 //   / shouldRotateUroboros / computeWeekHasExpired) + 3 new async ops
 //   (rotateWeeklyForAllClans / notifyWeeklyBossRevealed / maybeAutoRotateOnClanOpen).
+// 2026-05-13 — TASK-053 (T3.05): Contributor stats + clan progression UI
+//   — adds 2 new pure helpers (computeWeeksUntilNextLevel / getNextCosmeticUnlock)
+//   used by the new src/ui/adventures.js progression panel. The 17 prior
+//   T3.02 + T3.04 exports stay BYTE-PERFECT — T3.05 is strictly additive.
 //
 // Spec: docs/design/endgame-social.md §2 (Adventures — async clan 5–15)
 //       + §15 ESC-03 Q1 ruling — clan size 5–15 HARD CAP, no exceptions.
@@ -80,6 +84,9 @@
 //     - canPlayerJoinClan(playerId, clanState)
 //     - canPlayerLeaveClan(playerId, clanState)
 //     - unlockCosmeticAtLevel(clanLevel)
+//   Progression-stats pure helpers (T3.05):
+//     - computeWeeksUntilNextLevel(currentLevel, totalWeeksCompleted)
+//     - getNextCosmeticUnlock(currentLevel)
 //   CRUD operations (async):
 //     - createClan(ownerId, name, description?)
 //     - fetchClan(clanId)
@@ -112,6 +119,7 @@ import { log } from './logger.js';
 import {
   CLAN_DEFAULT_BANNER_TIER,
   CLAN_LEVEL_COSMETIC_UNLOCKS,
+  CLAN_UNLOCK_LEVELS,
   WEEKLY_ROTATION_LOOKBACK_WEEKS,
   WEEKLY_ROTATION_UROBOROS_INTERVAL_WEEKS,
   WEEKLY_BOSS_DIFFICULTY_BASE_MULT,
@@ -389,6 +397,74 @@ export function unlockCosmeticAtLevel(clanLevel) {
   if (!entry || !Array.isArray(entry)) return [];
   // Return a fresh array of frozen entries — table itself is immutable.
   return entry.slice();
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 2026-05-13 — TASK-053 (T3.05): Contributor stats + clan progression UI.
+//
+// Spec: docs/design/endgame-social.md §2.3 (Contributor stats) + §2.4
+//       (Persistent clan progression). Two additive pure helpers feed the
+//       clan progression panel introduced in src/ui/adventures.js by T3.05.
+//
+// Both are < 1ms pure helpers — never read mutable state, never write.
+// ADR-003 no-P2W invariant: they expose only level-progress + cosmetic-tier
+// data — no stat / damage / win-rate / progression-speed advantage surfaced.
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * How many more successful-weekly-defeat weeks the clan needs before the next
+ * `clanLevel` boundary. Returns 0 when the next-level threshold is already
+ * met (i.e. closeWeek will advance the level on its next call). Pure.
+ *
+ * The progress ratio for the progression bar is then computed by the UI as
+ * `(weeksThisLevel) / CLAN_LEVEL_WEEKS_PER_LEVEL` where `weeksThisLevel =
+ * totalWeeksCompleted - (currentLevel - 1) * CLAN_LEVEL_WEEKS_PER_LEVEL`.
+ *
+ * @param {number} currentLevel - clan's current `clanLevel` (1-indexed)
+ * @param {number} totalWeeksCompleted - clan's `totalWeeksCompleted`
+ * @returns {number} weeks remaining until `currentLevel + 1`
+ */
+export function computeWeeksUntilNextLevel(currentLevel, totalWeeksCompleted) {
+  const lvl = (typeof currentLevel === 'number' && isFinite(currentLevel))
+    ? Math.max(1, Math.floor(currentLevel))
+    : 1;
+  const weeks = (typeof totalWeeksCompleted === 'number' && isFinite(totalWeeksCompleted))
+    ? Math.max(0, Math.floor(totalWeeksCompleted))
+    : 0;
+  // Boundary needed for `lvl + 1` is `lvl * CLAN_LEVEL_WEEKS_PER_LEVEL` weeks.
+  const nextBoundary = lvl * CLAN_LEVEL_WEEKS_PER_LEVEL;
+  const remaining = nextBoundary - weeks;
+  return remaining > 0 ? remaining : 0;
+}
+
+/**
+ * Return the next cosmetic-unlock entry above `currentLevel`. Surfaces both
+ * the level number and the unlock descriptors at that level so the UI can
+ * highlight the "▶ NEXT" row in the progression panel. Returns `null` when
+ * the clan is already at the highest level defined in CLAN_LEVEL_COSMETIC_UNLOCKS
+ * (max-level fallback — no further unlocks to surface). Pure.
+ *
+ * Reads only the frozen CLAN_LEVEL_COSMETIC_UNLOCKS table — guaranteed
+ * COSMETIC-ONLY per ADR-003 (no stat / damage / progression-speed fields).
+ *
+ * @param {number} currentLevel - clan's current `clanLevel` (1-indexed)
+ * @returns {{level: number, items: Array<{kind: string, value: string}>}|null}
+ */
+export function getNextCosmeticUnlock(currentLevel) {
+  const lvl = (typeof currentLevel === 'number' && isFinite(currentLevel))
+    ? Math.max(1, Math.floor(currentLevel))
+    : 1;
+  const levels = Array.isArray(CLAN_UNLOCK_LEVELS) ? CLAN_UNLOCK_LEVELS : [];
+  for (let i = 0; i < levels.length; i++) {
+    const candidate = levels[i];
+    if (typeof candidate === 'number' && candidate > lvl) {
+      const items = unlockCosmeticAtLevel(candidate);
+      return { level: candidate, items };
+    }
+  }
+  // Already at or beyond the highest defined unlock level — null surfaces
+  // "max level" state to the UI (no "▶ NEXT" row rendered).
+  return null;
 }
 
 // ──────────────────────────────────────────────────────────────────────────

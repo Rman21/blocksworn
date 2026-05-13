@@ -41,6 +41,9 @@ import {
   canPlayerJoinClan,
   canPlayerLeaveClan,
   unlockCosmeticAtLevel,
+  // T3.05 — clan progression pure helpers
+  computeWeeksUntilNextLevel,
+  getNextCosmeticUnlock,
   // CRUD
   createClan,
   fetchClan,
@@ -1483,5 +1486,144 @@ describe('T3.04 — sacred-cow audit', () => {
       expect(typeof got).toBe('string');
       expect(got.length).toBeGreaterThan(0);
     }
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T3.05 — Contributor stats + clan progression helpers.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('T3.05 — computeWeeksUntilNextLevel', () => {
+  it('level 1 + 0 weeks → CLAN_LEVEL_WEEKS_PER_LEVEL (4) weeks to next level', () => {
+    expect(computeWeeksUntilNextLevel(1, 0)).toBe(CLAN_LEVEL_WEEKS_PER_LEVEL);
+  });
+
+  it('level 1 + 3 weeks → 1 week remaining', () => {
+    expect(computeWeeksUntilNextLevel(1, 3)).toBe(1);
+  });
+
+  it('level 1 + 4 weeks → 0 (next level threshold met)', () => {
+    expect(computeWeeksUntilNextLevel(1, 4)).toBe(0);
+  });
+
+  it('level 2 + 4 weeks → CLAN_LEVEL_WEEKS_PER_LEVEL (just advanced)', () => {
+    expect(computeWeeksUntilNextLevel(2, 4)).toBe(CLAN_LEVEL_WEEKS_PER_LEVEL);
+  });
+
+  it('level 3 + 12 weeks → 0 (threshold for lvl 4 met)', () => {
+    expect(computeWeeksUntilNextLevel(3, 12)).toBe(0);
+  });
+
+  it('level 5 + 19 weeks → 1 (close to lvl 6 at 20 weeks)', () => {
+    expect(computeWeeksUntilNextLevel(5, 19)).toBe(1);
+  });
+
+  it('defensive: non-numeric level coerces to 1', () => {
+    expect(computeWeeksUntilNextLevel(NaN, 0)).toBe(CLAN_LEVEL_WEEKS_PER_LEVEL);
+    expect(computeWeeksUntilNextLevel('abc', 0)).toBe(CLAN_LEVEL_WEEKS_PER_LEVEL);
+  });
+
+  it('defensive: negative weeks coerces to 0', () => {
+    expect(computeWeeksUntilNextLevel(1, -10)).toBe(CLAN_LEVEL_WEEKS_PER_LEVEL);
+  });
+});
+
+describe('T3.05 — getNextCosmeticUnlock', () => {
+  it('level 1 → returns next unlock at level 2 (emblem)', () => {
+    const next = getNextCosmeticUnlock(1);
+    expect(next).not.toBeNull();
+    expect(next.level).toBe(2);
+    expect(Array.isArray(next.items)).toBe(true);
+    expect(next.items.length).toBeGreaterThan(0);
+    expect(next.items[0].kind).toBe('emblem');
+  });
+
+  it('level 2 → returns next unlock at level 4 (silver banner)', () => {
+    const next = getNextCosmeticUnlock(2);
+    expect(next).not.toBeNull();
+    expect(next.level).toBe(4);
+    expect(next.items[0].kind).toBe('banner');
+    expect(next.items[0].value).toBe('silver');
+  });
+
+  it('level 3 → returns next unlock at level 4 (lvl 3 has no unlock)', () => {
+    const next = getNextCosmeticUnlock(3);
+    expect(next).not.toBeNull();
+    expect(next.level).toBe(4);
+  });
+
+  it('level 25 → returns null (no higher unlock level defined)', () => {
+    expect(getNextCosmeticUnlock(25)).toBeNull();
+  });
+
+  it('level 26 → returns null (beyond max)', () => {
+    expect(getNextCosmeticUnlock(26)).toBeNull();
+  });
+
+  it('level 9 → returns next at level 10 (gold banner + veteran badge)', () => {
+    const next = getNextCosmeticUnlock(9);
+    expect(next).not.toBeNull();
+    expect(next.level).toBe(10);
+    // Multi-item unlock at lvl 10.
+    expect(next.items.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('defensive: non-numeric coerces to level 1', () => {
+    const next = getNextCosmeticUnlock(NaN);
+    expect(next).not.toBeNull();
+    expect(next.level).toBe(2);
+  });
+
+  it('returned items are a fresh array — no mutation leaks into the frozen table', () => {
+    const next = getNextCosmeticUnlock(1);
+    expect(next).not.toBeNull();
+    // Push a junk entry into the returned array — re-call should be pristine.
+    next.items.push({ kind: 'fake', value: 'should-not-persist' });
+    const next2 = getNextCosmeticUnlock(1);
+    expect(next2.items.length).toBe(1); // original count
+    expect(next2.items[0].kind).toBe('emblem');
+  });
+});
+
+describe('T3.05 — ADR-003 no-P2W audit (clan progression helpers)', () => {
+  it('getNextCosmeticUnlock never returns mechanical-advantage items', () => {
+    for (let lvl = 1; lvl <= 25; lvl++) {
+      const next = getNextCosmeticUnlock(lvl);
+      if (!next) continue;
+      for (const item of next.items) {
+        // Only cosmetic kinds allowed per ADR-003.
+        expect(['banner', 'emblem', 'badge', 'motto']).toContain(item.kind);
+        // No stat/damage/HP/winrate strings in `value`.
+        expect(item.value).not.toMatch(/damage|hp|crit|win|speed|cap_raise/i);
+      }
+    }
+  });
+
+  it('computeWeeksUntilNextLevel never returns negative values', () => {
+    for (let lvl = 1; lvl < 100; lvl++) {
+      for (let w = 0; w < 400; w += 7) {
+        expect(computeWeeksUntilNextLevel(lvl, w)).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+});
+
+describe('T3.05 — performance (helpers <1ms each)', () => {
+  it('computeWeeksUntilNextLevel < 1ms over 1000 iterations', () => {
+    const start = performance.now();
+    for (let i = 0; i < 1000; i++) {
+      computeWeeksUntilNextLevel(i % 30, i);
+    }
+    const dt = performance.now() - start;
+    expect(dt).toBeLessThan(50); // < 0.05ms / call
+  });
+
+  it('getNextCosmeticUnlock < 1ms over 1000 iterations', () => {
+    const start = performance.now();
+    for (let i = 0; i < 1000; i++) {
+      getNextCosmeticUnlock(i % 30);
+    }
+    const dt = performance.now() - start;
+    expect(dt).toBeLessThan(50); // < 0.05ms / call
   });
 });

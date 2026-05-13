@@ -25,6 +25,8 @@ import {
   renderBrowseTab,
   renderClanDetail,
   renderCreateClanModal,
+  renderContributorStatsPanel,
+  renderClanProgressionPanel,
   validateCreateForm,
   resolveCurrentPlayerId,
   __adventuresTestables,
@@ -575,5 +577,256 @@ describe('sacred audit (T3.03)', () => {
     expect(code).not.toMatch(/NARRATOR_LINES/);
     expect(code).not.toMatch(/recordRaceTrigger|recordBossDefeat|recordMomentTrigger/);
     expect(code).not.toMatch(/saveCodexState|getCodexState/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// T3.05 — Contributor stats + clan progression panels
+// ═══════════════════════════════════════════════════════════════════════
+
+function buildContributions(map) {
+  // Convert {player: damage} → weeklyContributions shape.
+  const out = {};
+  for (const id in map) {
+    out[id] = { damage: map[id], lastContribAt: 1700000000000 };
+  }
+  return out;
+}
+
+describe('renderContributorStatsPanel (T3.05)', () => {
+  it('empty contributions → empty state renders', () => {
+    const root = createElement('div');
+    renderContributorStatsPanel(root, { weeklyContributions: {} }, 'roman');
+    expect(root.innerHTML).toContain('No contributions yet this week');
+  });
+
+  it('1 contributor → row renders with 100% bar + self badge when matched', () => {
+    const root = createElement('div');
+    const clan = { weeklyContributions: buildContributions({ roman: 5000 }) };
+    renderContributorStatsPanel(root, clan, 'roman');
+    expect(root.innerHTML).toContain('roman');
+    expect(root.innerHTML).toContain('100%');
+    expect(root.innerHTML).toContain('(You)');
+    expect(root.innerHTML).toContain('5,000 dmg');
+  });
+
+  it('12 contributors → top 3 expanded; "9 more contributors" expand button', () => {
+    const root = createElement('div');
+    const contributions = {};
+    for (let i = 0; i < 12; i++) {
+      contributions[`p${i}`] = (12 - i) * 1000; // p0 highest, p11 lowest
+    }
+    const clan = { weeklyContributions: buildContributions(contributions) };
+    renderContributorStatsPanel(root, clan, 'p0');
+    // Top 3 visible; expand button shows "9 more".
+    expect(root.innerHTML).toContain('p0');
+    expect(root.innerHTML).toContain('p1');
+    expect(root.innerHTML).toContain('p2');
+    // p3 should NOT be in the collapsed view.
+    expect(root.innerHTML).not.toContain('"p3"'); // not as a data-attribute
+    expect(root.innerHTML).toContain('9 more contributors');
+    expect(root.innerHTML).toContain('advContribExpandBtn');
+  });
+
+  it('top-3 sort by damage descending', () => {
+    const tables = __adventuresTestables;
+    const rows = tables.sortedContributorRows(buildContributions({
+      alice: 1000,
+      bob:   3000,
+      cara:  2000,
+    }));
+    expect(rows[0].playerId).toBe('bob');
+    expect(rows[1].playerId).toBe('cara');
+    expect(rows[2].playerId).toBe('alice');
+    // Percentages sum to 100% in [0,1] range.
+    const sum = rows.reduce((acc, r) => acc + r.pct, 0);
+    expect(sum).toBeCloseTo(1, 5);
+  });
+
+  it('stable tie-break: equal damage sorts alphabetically by playerId', () => {
+    const rows = __adventuresTestables.sortedContributorRows(buildContributions({
+      zach:  1000,
+      adam:  1000,
+      mike:  1000,
+    }));
+    expect(rows.map(r => r.playerId)).toEqual(['adam', 'mike', 'zach']);
+  });
+
+  it('self-row star + "You" badge when playerId matches', () => {
+    const root = createElement('div');
+    const clan = { weeklyContributions: buildContributions({ tester: 5000, other: 3000 }) };
+    renderContributorStatsPanel(root, clan, 'tester');
+    expect(root.innerHTML).toContain('(You)');
+    expect(root.innerHTML).toContain('adv-contributor-row--self');
+  });
+
+  it('total damage = sum of all contributions', () => {
+    const root = createElement('div');
+    const clan = { weeklyContributions: buildContributions({ a: 12400, b: 9100, c: 5800, d: 5100 }) };
+    renderContributorStatsPanel(root, clan, 'a');
+    // 12400 + 9100 + 5800 + 5100 = 32,400.
+    expect(root.innerHTML).toContain('TOTAL: 32,400 dmg');
+  });
+
+  it('target progress: 32400/70000 → 46% rendering', () => {
+    const root = createElement('div');
+    const clan = {
+      weeklyTargetHp: 70000,
+      weeklyContributions: buildContributions({ a: 12400, b: 9100, c: 5800, d: 5100 }),
+    };
+    renderContributorStatsPanel(root, clan, 'a');
+    expect(root.innerHTML).toContain('TARGET: 70,000 dmg');
+    expect(root.innerHTML).toContain('46% done');
+  });
+
+  it('no target HP → target footer omitted (graceful)', () => {
+    const root = createElement('div');
+    const clan = { weeklyContributions: buildContributions({ a: 1000 }) };
+    renderContributorStatsPanel(root, clan, 'a');
+    expect(root.innerHTML).not.toContain('TARGET:');
+    expect(root.innerHTML).toContain('TOTAL: 1,000 dmg');
+  });
+
+  it('defensive: null clanState renders empty state', () => {
+    const root = createElement('div');
+    expect(() => renderContributorStatsPanel(root, null, 'roman')).not.toThrow();
+    expect(root.innerHTML).toContain('No contributions yet');
+  });
+
+  it('defensive: missing weeklyContributions field renders empty state', () => {
+    const root = createElement('div');
+    renderContributorStatsPanel(root, { /* no weeklyContributions */ }, 'roman');
+    expect(root.innerHTML).toContain('No contributions yet');
+  });
+
+  it('non-self viewer does NOT see "(You)" badge on other rows', () => {
+    const root = createElement('div');
+    const clan = { weeklyContributions: buildContributions({ alice: 1000, bob: 500 }) };
+    renderContributorStatsPanel(root, clan, 'charlie');
+    expect(root.innerHTML).not.toContain('(You)');
+  });
+
+  it('only top-3 receive star prefix on the collapsed view', () => {
+    const root = createElement('div');
+    const contributions = {};
+    for (let i = 0; i < 10; i++) contributions[`p${i}`] = (10 - i) * 1000;
+    const clan = { weeklyContributions: buildContributions(contributions) };
+    renderContributorStatsPanel(root, clan, 'p0');
+    // 3 visible top-3 stars (each labeled with adv-contributor-row--top3).
+    const top3matches = (root.innerHTML.match(/adv-contributor-row--top3/g) || []).length;
+    expect(top3matches).toBe(3);
+  });
+});
+
+describe('renderClanProgressionPanel (T3.05)', () => {
+  it('level 1 + 2 weeks → progress to lvl 2 at 50%', () => {
+    const root = createElement('div');
+    renderClanProgressionPanel(root, { totalWeeksCompleted: 2 });
+    expect(root.innerHTML).toContain('Level 1');
+    expect(root.innerHTML).toContain('Level 2');
+    // Bar width: 2 / 4 = 50%.
+    expect(root.innerHTML).toContain('width: 50%');
+    expect(root.innerHTML).toContain('2 / 4 weeks');
+  });
+
+  it('level 5 + 19 weeks → progress to lvl 6 at 75%', () => {
+    const root = createElement('div');
+    renderClanProgressionPanel(root, { totalWeeksCompleted: 19 });
+    // 19 weeks → level floor(19/4)+1 = 5; weeks into level = 19 - 4*4 = 3; 3/4 = 75%.
+    expect(root.innerHTML).toContain('Level 5');
+    expect(root.innerHTML).toContain('Level 6');
+    expect(root.innerHTML).toContain('width: 75%');
+    expect(root.innerHTML).toContain('3 / 4 weeks');
+  });
+
+  it('cosmetic unlocks: level 1 → bronze banner is unlocked (✓ state)', () => {
+    const root = createElement('div');
+    renderClanProgressionPanel(root, { totalWeeksCompleted: 0 });
+    expect(root.innerHTML).toContain('Bronze banner');
+    expect(root.innerHTML).toContain('adv-cosmetic-unlock-row--unlocked');
+  });
+
+  it('cosmetic unlocks: level 3 (12 weeks) → level-4 silver banner highlighted as ▶ NEXT', () => {
+    const root = createElement('div');
+    // totalWeeksCompleted=12 → clanLevel = floor(12/4)+1 = 4. Adjust to 8 → level 3.
+    renderClanProgressionPanel(root, { totalWeeksCompleted: 8 });
+    expect(root.innerHTML).toContain('Level 3');
+    // Lvl 4 silver banner row should be ▶ NEXT.
+    expect(root.innerHTML).toContain('Silver banner');
+    expect(root.innerHTML).toContain('adv-cosmetic-unlock-row--next');
+    expect(root.innerHTML).toContain('(NEXT)');
+  });
+
+  it('cosmetic unlocks: locked rows show ◯ marker class', () => {
+    const root = createElement('div');
+    renderClanProgressionPanel(root, { totalWeeksCompleted: 0 });
+    expect(root.innerHTML).toContain('adv-cosmetic-unlock-row--locked');
+  });
+
+  it('max level: totalWeeksCompleted=100 → no "next" row, shows max-level header', () => {
+    const root = createElement('div');
+    // 100 weeks → level 26 (beyond highest defined unlock level 25).
+    renderClanProgressionPanel(root, { totalWeeksCompleted: 100 });
+    expect(root.innerHTML).toContain('Max level reached');
+    expect(root.innerHTML).not.toContain('adv-cosmetic-unlock-row--next');
+  });
+
+  it('defensive: null clanState renders without crash', () => {
+    const root = createElement('div');
+    expect(() => renderClanProgressionPanel(root, null)).not.toThrow();
+    // Treats as level 1 + 0 weeks.
+    expect(root.innerHTML).toContain('Level 1');
+  });
+
+  it('defensive: missing totalWeeksCompleted → treats as 0', () => {
+    const root = createElement('div');
+    renderClanProgressionPanel(root, { /* no totalWeeksCompleted */ });
+    expect(root.innerHTML).toContain('Level 1');
+    expect(root.innerHTML).toContain('0 / 4 weeks');
+  });
+
+  it('cosmetic labels: emblem at level 2 → "Emblem default emblem" or similar', () => {
+    const root = createElement('div');
+    renderClanProgressionPanel(root, { totalWeeksCompleted: 4 }); // Level 2.
+    // Lvl 2 cosmetic = emblem_default → label "Emblem default emblem".
+    expect(root.innerHTML).toContain('emblem');
+  });
+
+  it('ADR-003 no-P2W invariant: progression panel surfaces NO mechanical labels', () => {
+    const root = createElement('div');
+    renderClanProgressionPanel(root, { totalWeeksCompleted: 100 });
+    // None of these mechanical-advantage keywords should appear in cosmetic descriptions.
+    expect(root.innerHTML).not.toMatch(/cap\s*raise|grace\s*week|damage\s*bonus|hp\s*bonus|crit\s*bonus/i);
+  });
+});
+
+describe('renderClanDetail integration with T3.05 panels (T3.05)', () => {
+  it('mounted detail includes both stats + progression panels', () => {
+    const root = createElement('div');
+    renderClanDetail(root, buildClan({
+      weeklyContributions: buildContributions({ roman: 5000, blok: 2000 }),
+      totalWeeksCompleted: 8,
+    }), 'roman', { backendOk: true });
+    expect(root.innerHTML).toContain('WEEKLY CONTRIBUTORS');
+    expect(root.innerHTML).toContain('CLAN PROGRESSION');
+    expect(root.innerHTML).toContain('roman');
+    expect(root.innerHTML).toContain('blok');
+  });
+
+  it('detail still preserves T3.03 MEMBERS section + weekly target + actions', () => {
+    const root = createElement('div');
+    renderClanDetail(root, buildClan(), 'roman', { backendOk: true });
+    expect(root.innerHTML).toContain('MEMBERS');
+    expect(root.innerHTML).toContain('WEEKLY TARGET');
+    expect(root.innerHTML).toContain('Leave clan');
+    expect(root.innerHTML).toContain('Invite');
+  });
+
+  it('empty weekly contributions still renders progression panel + stats empty state', () => {
+    const root = createElement('div');
+    renderClanDetail(root, buildClan({ weeklyContributions: {}, totalWeeksCompleted: 2 }), 'roman', { backendOk: true });
+    expect(root.innerHTML).toContain('No contributions yet');
+    expect(root.innerHTML).toContain('CLAN PROGRESSION');
+    expect(root.innerHTML).toContain('Level 1');
   });
 });

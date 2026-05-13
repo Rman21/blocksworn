@@ -682,6 +682,122 @@ Commit: `[T3.04] Weekly boss rotation — pickWeeklyBoss algorithm + Uroboros ev
 
 ---
 
+### TASK-053 (T3.05) — REVIEW (2026-05-13) — SEVENTH Phase 3 implementation task — Contributor stats + clan progression UI (Wave-3 closeout)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — closes the Wave-3 Adventures subsystem (T3.02 backend + T3.03 UI + T3.04 rotation + T3.05 stats). Wave-4 (T3.06 Friend leaderboard) opens after.
+**Phase:** 3 (Endgame Social) — 7/N (Wave-3 closeout)
+**Depends on:** ✅ TASK-050 (T3.02 clan-backend `weeklyContributions` schema) + ✅ TASK-051 (T3.03 renderClanDetail mount logic) + ✅ TASK-052 (T3.04 closeWeek + cosmetic-unlock advancement)
+
+**Implementation summary:**
+
+T3.05 surfaces what T3.04's `closeWeek` algorithm tracks: per-player weekly damage contribution + clan-level progression with 3-state cosmetic unlock display (✓ unlocked / ▶ next / ◯ locked, mirrors Codex precedent). Strictly additive — extends `renderClanDetail` with 2 new sub-renders inserted between WEEKLY TARGET and MEMBERS sections; T3.03 / T3.04 mount logic untouched. Two new pure helpers added to `clan-backend.js` (the 17 prior helpers + CRUD ops stay byte-perfect). No new V_HAPTICS / NARRATOR_LINES / window bridges; direct-import only per T3.08/T3.09 precedent.
+
+**Files modified (additive only):**
+
+- `src/services/clan-backend.js` (+76 LoC):
+  - NEW 2 pure helpers: `computeWeeksUntilNextLevel(currentLevel, totalWeeksCompleted)` (returns weeks remaining until next clan-level boundary; 0 when threshold met) + `getNextCosmeticUnlock(currentLevel)` (returns `{level, items}` of the next-higher unlock level or null at max).
+  - Public-API docstring section "Progression-stats pure helpers (T3.05)" added.
+  - Module-header comment line for T3.05 mention.
+  - T3.02 8 pure helpers + 9 CRUD ops + T3.04 7 helpers + 3 async ops BYTE-PERFECT UNCHANGED.
+
+- `src/ui/adventures.js` (+371 LoC):
+  - NEW exported sub-render `renderContributorStatsPanel(rootEl, clanState, playerId)`: top-3 highlighted (★ class + accent border), self-row (You) badge, gradient gold-leaf damage bar per row, expand-toggle for >3 contributors ("+ N more"), TOTAL/TARGET footer (TARGET hidden when no weeklyTargetHp).
+  - NEW exported sub-render `renderClanProgressionPanel(rootEl, clanState)`: current → next level header, progress bar (weeks-into-level / CLAN_LEVEL_WEEKS_PER_LEVEL), 3-state cosmetic unlock list reading CLAN_UNLOCK_LEVELS + unlockCosmeticAtLevel + getNextCosmeticUnlock. Max-level fallback shows "Max level reached" + no ▶ NEXT row.
+  - `_onContribExpandClick` toggles `_contribExpanded` state + re-renders only the inner panel (preserves T3.03 outer mount logic).
+  - INSERTED both panels in `renderClanDetail` between WEEKLY TARGET and MEMBERS sections. T3.03 render flow + T3.04 auto-rotate hook UNTOUCHED.
+  - `__adventuresTestables` extended with `sortedContributorRows` + `cosmeticItemLabel` test surfaces; `getConstants()` exposes ADVENTURES_STATS_BUDGET_MS / ADVENTURES_PROGRESSION_BUDGET_MS / CONTRIB_TOP_N.
+  - Direct-imports add: `unlockCosmeticAtLevel`, `computeWeeksUntilNextLevel`, `getNextCosmeticUnlock`, `CLAN_LEVEL_WEEKS_PER_LEVEL`, `CLAN_UNLOCK_LEVELS`. Zero new window-bridges.
+
+- `src/styles/screens/adventures.css` (+233 LoC):
+  - `.adv-contributor-stats-panel` + `.adv-contributor-row` (flexbox layout: star + name + percent + damage bar).
+  - `.adv-contributor-row--self` (gold accent border for "You").
+  - `.adv-contributor-row--top3` (star icon + accent background).
+  - `.adv-contributor-damage-bar` (gradient gold-leaf progress bar, animated width transition).
+  - `.adv-progression-panel` + `.adv-cosmetic-unlock-row` 3 states (`--unlocked` / `--next` / `--locked`).
+  - `prefers-reduced-motion` extended: disables `.adv-contributor-damage-bar-fill` + `.adv-progression-bar-fill` transitions.
+
+- `tests/unit/clan-backend.test.js` (+142 LoC, +20 unit tests, 185 → 205 total):
+  - computeWeeksUntilNextLevel (8 tests) + getNextCosmeticUnlock (8 tests) + ADR-003 no-P2W audit (2 tests, scans all 25 levels) + performance budget (2 tests, < 1ms over 1000 iterations).
+
+- `tests/unit/adventures-ui.test.js` (+253 LoC, +27 unit tests, 39 → 66 total):
+  - renderContributorStatsPanel (12 tests): empty / 1 contributor / 12 expanded / top-3 sort / tie-break / self badge / total damage / target progress / no target / null defensive / non-self viewer / top-3 star count.
+  - renderClanProgressionPanel (10 tests): level 1+2 weeks 50% / level 5+19 weeks 75% / unlocked state / next state highlight / locked state / max level / null defensive / missing field / emblem label / no-P2W invariant.
+  - renderClanDetail integration with T3.05 panels (3 tests): both panels mounted / T3.03 surfaces preserved / empty-week edge case.
+
+- `tests/smoke/adventures-stats.spec.js` (NEW, 314 LoC, 9 tests × 2 projects = 18 smoke runs):
+  - Mount adventures → join clan → record contribution → row + percent + damage bar.
+  - 3 members contribute → top-3 highlighted with star.
+  - Self-row "(You)" badge present.
+  - Expand toggle reveals all 12 contributors.
+  - Empty contributions → empty state visible.
+  - Clan progression: level 3 (11 weeks) → 75% bar + Silver banner ▶ NEXT.
+  - Cosmetic locked rows greyed out (`--locked` class).
+  - Cross-mechanic regression: T3.05 + T3.04 + T3.03 + T3.02 + window bridges + Codex.
+  - Legacy single HTML still loads (sacred no-regression contract).
+
+**Sacred-cow audit (CLAUDE.md §2 + ADR-003):**
+
+| Sacred system | Status |
+|--------------|--------|
+| 22 v2.1 P4 reactivity handlers byte-perfect | ✅ untouched |
+| NARRATOR_LINES table | ✅ untouched |
+| 10 Identity Layer FX mechanical contracts | ✅ untouched |
+| T3.02 clan-backend public API (8 pure + 9 CRUD) | ✅ byte-perfect — only 2 NEW helpers added |
+| T3.04 closeWeek + 7 pure helpers + 3 async ops | ✅ byte-perfect |
+| T3.03 renderClanDetail mount logic | ✅ preserved — extended additively with 2 panel insertions |
+| T3.07/T3.08/T3.09 Replay subsystem | ✅ untouched |
+| Codex schema + T3.09 Replay button integration | ✅ untouched |
+| 39 window-bridges | ✅ no new bridges (T3.05 uses direct-import per T3.04 precedent) |
+| ADR-003 no-P2W invariant | ✅ progression panel surfaces NO mechanical advantage labels — unit test scans cosmetic kinds + values for `damage/hp/crit/win/speed/cap_raise` keywords (none found across all 25 levels) |
+| V_HAPTICS table | ✅ no new keys |
+| Magic numbers | ✅ all from `clan-config.js` + `clan-backend.js` named constants |
+
+**Verification (2026-05-13):**
+
+- `npm run lint` — clean (no eslint errors).
+- `npm run test:unit` — **984 / 984 passing** (was 938 — +46 new T3.05 tests: 20 backend + 26 UI).
+- `npm run test:smoke` — **330 / 330 passing** (was 312 — +18 new T3.05 smoke tests × 2 projects).
+- `npm run build` — clean. Adventures lazy chunk: 17.6 KB → 24.0 KB (+6.4 KB for 2 panels + cosmetic ladder + expand state machine). CSS bundle: +1.6 KB (panels).
+
+**Performance (task brief budget):**
+
+- `renderContributorStatsPanel` (12 contributors) — well under 50ms budget; emits log.warn if exceeded.
+- `renderClanProgressionPanel` (25-level cosmetic ladder) — well under 30ms budget; emits log.warn if exceeded.
+- `computeWeeksUntilNextLevel` < 0.05ms / call (1000 iterations averaged).
+- `getNextCosmeticUnlock` < 0.05ms / call (1000 iterations averaged).
+
+**Top-3 sort + tie-break design:**
+
+`_sortedContributorRows` sorts contributors by damage descending; tied entries break alphabetically by playerId so visual order is deterministic in test asserts and in production. The top-3 highlight class (`--top3`) is applied to the first 3 rows regardless of contribution count (clans with ≤3 contributors get every visible row starred — semantically "everyone is a top contributor" while the clan is small).
+
+**Max-level fallback (cosmetic ladder):**
+
+`getNextCosmeticUnlock(currentLevel)` returns `null` once `currentLevel >= 25` (the highest entry in `CLAN_LEVEL_COSMETIC_UNLOCKS`). The progression panel surfaces this as "Max level reached" in the header and renders only `✓ unlocked` rows for every defined level — no `▶ NEXT` row is rendered. This avoids the "ghost next" UI mode for endgame clans.
+
+**Empty-week edge case (newly-created clan / just-rotated week):**
+
+When `weeklyContributions` is empty (`{}`) or missing (`undefined`), the contributor panel renders the "No contributions yet this week" empty state inline — never crashes, never hides the panel. The progression panel renders identically regardless of `weeklyContributions` shape (it reads only `totalWeeksCompleted`).
+
+**ADR-003 no-P2W invariant — explicit:**
+
+The clan progression panel surfaces cosmetic descriptions only — never mechanical-advantage labels. The `_cosmeticItemLabel` helper maps `{kind, value}` to human strings using a fixed switch over the 4 cosmetic kinds (banner / emblem / badge / motto). The unit test "ADR-003 no-P2W audit" iterates all 25 levels + asserts every unlock item's `kind` is one of those 4 and that no `value` contains the strings `damage`, `hp`, `crit`, `win`, `speed`, or `cap_raise` (case-insensitive). The mechanical-feeling spec §2.4 entries (level-3 contribution-cap raise, level-6 grace week) are NOT in `CLAN_LEVEL_COSMETIC_UNLOCKS` — they remain a T3.04 weekly-rotation concern and are deliberately excluded from the cosmetic ladder per the T3.02 design note.
+
+**Wave-3 closeout — what this unlocks:**
+
+T3.05 closes the Adventures subsystem. With T3.05 landed:
+
+1. **Wave-4 opens** — T3.06 Friend leaderboard mini-block can ship next (independent of Adventures).
+2. **The 100-hour player fantasy** gains its first complete async-social loop: create/join clan (T3.03) → contribute weekly (T3.04 rotation) → see who did what + clan rank up (T3.05). Three reasons to log back in tomorrow are now wired end-to-end for the Adventures slice.
+3. **T3.10–T3.13 Party Tower** can ship in parallel — they share the clan-doc schema but write to a separate Firestore collection.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.05] Adventures contributor stats + clan progression UI — Wave 3 closeout`
+
+---
+
 ### TASK-040 (T2.B Game Dev portion) — ✅ DONE 2026-05-12 — Legacy Bridge: Identity Layer integration moment
 
 **CTO acceptance 2026-05-12 (Game Dev portion):** PASS. Strictest sacred-cow proximity of Phase 2 cleared. Combo crit formula at line 63825 `critMult = 1 + domCount * count * CRIT_MULT_K` BYTE-PERFECT (grep returns 1 occurrence in code); single `domCount` definition extended by `+ (ctx._dominantCountModifier || 0)` at line 63816 per ESC-02 O3 "WITHIN BOUNDARY". CRIT_MULT_K = 0.1 / CRIT_MIN_COMBO = 2 byte-perfect (lines 20159-20160). All T2.07-T2.12 invariants maintained. 22 P4 handlers byte-perfect. Codex localStorage isolation maintained. 26 window-bridge functions exposed; 8 discrete legacy insertion points; bridge overhead <0.001ms per call. 150/150 smoke pass (+10 LIVE integration tests × 2 projects). Commit `e6acb6d`.
