@@ -128,8 +128,8 @@
 ### High-level Tasks
 - [x] T3.01 — Phase 3 Endgame Social design spec (Designer) — **DONE 2026-05-13** (`7c5ec5c`; 1572 LoC `docs/design/endgame-social.md`; 5 systems × 14 sections + 47-row sacred audit + 16 new files + 7 additive modifications + 5 ESC-03 questions Q1–Q5)
 - [x] T3.07 — Replay capture infrastructure — **DONE 2026-05-13** (`b9c9a84`; +1835 LoC across 7 files; +71 unit tests (581→652); 222/222 smoke pass; 0 sacred-cow modifications. 12 new replay window-bridge functions; 9 trigger predicates (7 live + 2 stubs T3.04/T3.13); 4fps rolling 240-frame buffer ~2.4 MB; storage tier from sacred `getPlayerSegment()`; <4ms/frame overhead. Identity Layer fx NOT in diff — replay listens at dispatcher level. Bundle JS 272 → 278 KB.)
-- [ ] T3.02 — Adventures backend — **ACTIVE** (Wave 3 headline; Firestore CRUD for clan documents + 5-15 hard cap per ESC-03 Q1)
-- [ ] T3.03 — Clan create/join flow
+- [x] T3.02 — Adventures backend — **DONE 2026-05-13** (`268e701`; +2327 LoC across 8 files; +100 unit tests (713→813); 292/292 smoke pass; 0 sacred-cow modifications. `CLAN_MAX_SIZE === 15` HARD CAP verified server+client; ADR-003 no-P2W static audit (cosmetic unlocks contain ZERO banned mechanical fields); 8 pure helpers + 9 async CRUD ops in mock-mode; +1 minimal window-bridge (`__getPlayerClanCount` for legacy menu badge); T3.02.1 live Firestore SDK + T3.04 weekly cron deferred)
+- [ ] T3.03 — Clan create/join flow — **ACTIVE** (Adventures UI screen consuming clan-backend.js via direct-import)
 - [ ] T3.04 — Weekly target / boss-of-the-week rotation
 - [ ] T3.05 — Contributor stats + clan progression
 - [ ] T3.06 — Friend leaderboard mini-block
