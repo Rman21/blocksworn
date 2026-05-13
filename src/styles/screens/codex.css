@@ -1,0 +1,366 @@
+/* 2026-05-12 — TASK-039 (T2.12): Codex screen styling.
+ *
+ * Spec: docs/design/mechanics/identity-layer.md §4.8 (visual aesthetic).
+ * Parchment / archive style fits the Darkest Dungeon Chronicler voice.
+ *
+ * Palette:
+ *   - Background: deep parchment beige (#E8DAB6) or aged-paper texture
+ *   - Borders: gold-leaf accents (#A88033 to #D9B25C gradients)
+ *   - Locked cards: blacked-out silhouette + faint candle glow (orange tint)
+ *   - Mastered cards: gilded gold border + soft sparkle
+ *
+ * Layout: mobile 380px first (CLAUDE.md UX standard). Card grid with
+ * 2-column flow on phone (auto-fit to wider screens).
+ *
+ * Sacred safety:
+ *   - All styles scoped under .codex-* classes — never touches existing
+ *     selectors (battle, menu, profile, shop, tower, season screens).
+ *   - prefers-reduced-motion fallback disables mastered sparkle animation.
+ */
+
+/* ===== Screen container (matches profile / dailies pattern) ===== */
+.screen.v-codex { display: none; }
+.screen.v-codex.active { display: flex; flex-direction: column; }
+
+#screenCodex {
+  background: #E8DAB6;
+  color: #2C2014;
+  font-family: 'Cinzel', 'Garamond', 'Times New Roman', serif;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+/* ===== Wrap ===== */
+.codex-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 14px 32px;
+}
+
+/* ===== Header ===== */
+.codex-header {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0 12px;
+  border-bottom: 2px solid #A88033;
+  background:
+    linear-gradient(180deg, rgba(216,192,140,0.5) 0%, transparent 100%);
+}
+.codex-header--detail {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 12px;
+}
+.codex-back-btn {
+  position: absolute;
+  left: 4px;
+  top: 12px;
+  background: rgba(168,128,51,0.18);
+  border: 1px solid #A88033;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+  color: #2C2014;
+  cursor: pointer;
+  font-family: inherit;
+}
+.codex-header--detail .codex-back-btn {
+  position: static;
+}
+.codex-title {
+  font-size: 28px;
+  letter-spacing: 0.18em;
+  margin: 0 0 4px;
+  color: #2C2014;
+  text-shadow: 0 1px 0 rgba(216,192,140,0.8);
+}
+.codex-progress-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 8px;
+}
+.codex-progress-chip {
+  background: rgba(168,128,51,0.12);
+  border: 1px solid rgba(168,128,51,0.45);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+.codex-progress-chip b {
+  color: #8C5E1A;
+}
+
+/* ===== Tab nav ===== */
+.codex-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0 14px;
+  border-bottom: 1px solid rgba(168,128,51,0.4);
+}
+.codex-tab {
+  flex: 1;
+  padding: 10px 4px;
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #5C4520;
+  text-transform: uppercase;
+}
+.codex-tab.active {
+  color: #2C2014;
+  border-bottom-color: #A88033;
+  font-weight: 600;
+}
+
+/* ===== Body ===== */
+.codex-body {
+  min-height: 200px;
+}
+.codex-empty {
+  padding: 24px;
+  text-align: center;
+  font-style: italic;
+  color: #5C4520;
+}
+
+/* ===== Card grid (Races / Bosses tabs) ===== */
+.codex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.codex-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 8px 14px;
+  background:
+    linear-gradient(180deg, rgba(244,228,196,0.7) 0%, rgba(216,192,140,0.55) 100%);
+  border: 1px solid #A88033;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  color: #2C2014;
+  text-align: center;
+  transition: transform 120ms ease, box-shadow 200ms ease;
+}
+.codex-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(168,128,51,0.35);
+}
+.codex-card--locked {
+  filter: grayscale(0.7);
+  opacity: 0.78;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255,170,80,0.18) 0%, rgba(50,32,16,0.55) 60%, rgba(20,12,4,0.85) 100%);
+  color: #DCC59A;
+  border-color: rgba(168,128,51,0.4);
+}
+.codex-card--encountered {
+  box-shadow: 0 0 0 1px rgba(255,213,120,0.25) inset, 0 1px 3px rgba(168,128,51,0.2);
+}
+.codex-card--mastered {
+  border-color: #FFD75A;
+  background:
+    linear-gradient(180deg, rgba(255,235,160,0.85) 0%, rgba(216,178,80,0.65) 100%);
+  box-shadow:
+    0 0 0 2px #C8A93C inset,
+    0 0 12px rgba(255,213,90,0.35);
+  animation: codex-mastered-sparkle 3200ms ease-in-out infinite;
+}
+.codex-card-thumb {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(168,128,51,0.12);
+  border: 1px solid rgba(168,128,51,0.35);
+  margin-bottom: 6px;
+  overflow: hidden;
+}
+.codex-card-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.codex-card-thumb--silhouette {
+  background: radial-gradient(circle at 50% 40%, rgba(255,165,75,0.22) 0%, rgba(28,18,10,0.85) 65%);
+}
+.codex-card-locked-mark {
+  font-size: 28px;
+  color: rgba(255,200,120,0.6);
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255,160,60,0.4);
+}
+.codex-card-label {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+.codex-card-meta {
+  font-size: 11px;
+  color: #5C4520;
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+.codex-mastered-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: linear-gradient(180deg, #FFE07A 0%, #C8A93C 100%);
+  color: #2C2014;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid #8C5E1A;
+  font-weight: 700;
+}
+.codex-mastered-badge--inline {
+  position: static;
+  margin-top: 6px;
+  display: inline-block;
+}
+
+/* ===== Element tint accents (stihiya colors) ===== */
+.codex-card[data-stihiya="ember"]  { box-shadow: inset 0 0 0 1px rgba(232,93,74,0.22); }
+.codex-card[data-stihiya="tide"]   { box-shadow: inset 0 0 0 1px rgba(59,139,212,0.22); }
+.codex-card[data-stihiya="grove"]  { box-shadow: inset 0 0 0 1px rgba(93,202,121,0.22); }
+.codex-card[data-stihiya="solar"]  { box-shadow: inset 0 0 0 1px rgba(232,184,74,0.28); }
+.codex-card[data-stihiya="umbra"]  { box-shadow: inset 0 0 0 1px rgba(155,89,214,0.22); }
+
+/* ===== Moments tab ===== */
+.codex-moments-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.codex-moment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(168,128,51,0.3);
+  gap: 10px;
+}
+.codex-moment-label {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: #2C2014;
+}
+.codex-moment-meta {
+  font-size: 11px;
+  color: #5C4520;
+  text-align: right;
+}
+
+/* ===== Detail pages ===== */
+.codex-detail-crumbs {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #5C4520;
+  text-transform: uppercase;
+}
+.codex-detail-body {
+  padding: 14px 4px 32px;
+}
+.codex-detail-locked {
+  padding: 36px 18px;
+  text-align: center;
+  font-style: italic;
+  color: #5C4520;
+}
+.codex-detail-head {
+  display: flex;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(168,128,51,0.3);
+}
+.codex-detail-thumb {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: rgba(168,128,51,0.12);
+  border: 1px solid #A88033;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.codex-detail-thumb .codex-card-thumb-img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.codex-detail-headline { flex: 1; }
+.codex-detail-name {
+  font-size: 20px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.codex-detail-subline {
+  font-size: 12px;
+  color: #5C4520;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+.codex-detail-section {
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(168,128,51,0.25);
+}
+.codex-detail-section-h {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: #8C5E1A;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+.codex-detail-stat-row {
+  font-size: 13px;
+  margin-bottom: 4px;
+  color: #2C2014;
+}
+.codex-detail-synergy-row {
+  font-size: 12px;
+  color: #2C2014;
+  background: rgba(168,128,51,0.08);
+  border-left: 2px solid #A88033;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  border-radius: 2px;
+}
+
+/* ===== Mastered sparkle (gilded gold border pulse) ===== */
+@keyframes codex-mastered-sparkle {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px #C8A93C inset,
+      0 0 10px rgba(255,213,90,0.30);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px #FFD75A inset,
+      0 0 18px rgba(255,235,160,0.55);
+  }
+}
+
+/* prefers-reduced-motion: disable the sparkle animation */
+@media (prefers-reduced-motion: reduce) {
+  .codex-card--mastered {
+    animation: none;
+  }
+}

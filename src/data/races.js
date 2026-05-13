@@ -158,3 +158,61 @@ export const RACE_SYNERGY = Object.freeze({
          rhythmSection: true, encore: true, amplifier: true,
          desc: '+2HP · +2🛡 · +15% dmg · +30% 🌑 · 50% 🌑 start · RHYTHM · ENCORE · AMPLIFIER' }) }),
 });
+
+// 2026-05-12 — TASK-029 (T2.02): Identity Layer race-flavor key map.
+//
+// Spec: docs/design/mechanics/identity-layer.md §7.2 — "Add new optional field
+// `identity_fx_key: 'plunder' | 'frenzy' | 'echo' | 'bastion' | 'cascade'` to
+// the 5 V18.8 races. RACE_SYNERGY tiers UNTOUCHED."
+//
+// Implemented as a SIBLING export (not a property on the RACE_SYNERGY objects)
+// so RACE_SYNERGY remains byte-perfect sacred per CLAUDE.md §2.1 — the audit
+// table at spec §8 row "RACE_SYNERGY tier values" reads "NO" modifications.
+// The consumer (`src/feel/identity-fx.js#dispatchIdentityFx`) does NOT yet
+// read this map (it routes by `h.race` directly), but the field is established
+// here so T2.03–T2.06 + the T2.12 Codex screen have a stable lookup surface.
+//
+// T2.02 ships only the pirate entry per spec §1 scope (Pirate's Plunder).
+// T2.03 (2026-05-12) appends the shark entry per spec §2.2.
+//   NOTE: shark has NO RACE_SYNERGY entry per ESC-02 O1 ruling (DEFER to
+//   post-Phase-2 sacred-cow-EXTENSION task). The asymmetric synergy support
+//   (pirate+rock have RACE_SYNERGY+Identity; shark+crocodile+spark have
+//   Identity only) is intentional for Phase 2 and explicitly approved
+//   (see docs/design/mechanics/identity-layer.md §10/§12).
+// T2.04 (2026-05-12) appends the rock entry per spec §2.3 (Encore Echo).
+//   NOTE: rock keeps its full RACE_SYNERGY tier 2/3/5 entries above
+//   byte-perfect — including the sacred tier-3 `ENCORE` flag (first 🌑ULT
+//   ×2). The Encore Echo identity layer fires ALONGSIDE the sacred
+//   RACE_SYNERGY tier 3 ENCORE (compound synergy intentional per spec §2.3
+//   field 8 stacking notes).
+// T2.05 (2026-05-12) appends the crocodile entry per spec §2.4 (Bedrock Bastion).
+//   NOTE: crocodile has NO RACE_SYNERGY entry per ESC-02 O1 ruling (DEFER to
+//   post-Phase-2 sacred-cow-EXTENSION task). The Bedrock Bastion identity
+//   layer READS `RACE_SYNERGY.golem.<tier>.maxShieldBonus` (sacred, byte-
+//   perfect) ONLY to compute the squad shield-cap clamp — never writes.
+//   Crocodile + Golem grove-stacked squads hit max-shield faster but the
+//   sacred cap is NEVER exceeded.
+// T2.06 (2026-05-12) appends the spark entry per spec §2.5 (Sun Cascade).
+//   NOTE: spark has NO RACE_SYNERGY entry per ESC-02 O1 ruling (DEFER to
+//   post-Phase-2 sacred-cow-EXTENSION task). The Sun Cascade identity layer
+//   READS the combo-crit `dominantCount` input via the T2.03 ctx side-channel
+//   pattern (writes `ctx._dominantCountModifier`) — sacred combo crit formula
+//   `total_dmg × (1 + dominantCount × combo × 10%)` (CLAUDE.md §2.1 row 1,
+//   legacy line 63664) is BYTE-PERFECT and UNTOUCHED.
+//
+//   The sacred `RACE_SYNERGY.lion.5.bonusDmg.solar = 3` (line ~143 above) is
+//   ALSO byte-perfect — Sun Cascade fires ALONGSIDE the sacred lion solar
+//   bonus (compound solar synergy intentional per spec §2.5 field 8 stacking
+//   notes). Read-only sacred source — Sun Cascade never modifies it.
+//
+//   Roman ruling ESC-02 O3: Sun Cascade input modification is WITHIN
+//   BOUNDARY (same architectural pattern as cascade). Capped at +1, gated
+//   2-solar-cell minimum, not stacking. T2.B mandatory matchup matrix (5×5)
+//   verifies no Spark pairing exceeds expected TTK by >15%.
+export const RACE_IDENTITY_FX = Object.freeze({
+  pirate:    'pirate_plunder',
+  shark:     'shark_frenzy',           // T2.03
+  rock:      'rock_echo',              // T2.04
+  crocodile: 'crocodile_bastion',      // T2.05
+  spark:     'spark_cascade',          // T2.06
+});

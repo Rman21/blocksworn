@@ -68,3 +68,51 @@ export const TOWER_BOSS_TTK_TARGETS = Object.freeze({
   multi_phase_special:    420,
   cosmic_revelation:      420,
 });
+
+// 2026-05-12 — TASK-034 (T2.07): Identity Layer boss-archetype FX key map.
+//
+// Spec: docs/design/mechanics/identity-layer.md §3 (boss-reactive identity
+// mechanics convention) — sibling to `RACE_IDENTITY_FX` in `src/data/races.js`.
+// Maps each boss archetype to the boss-reactive identity FX key registered
+// in `IDENTITY_BOSS_FX_KEYS` (`src/data/identity-layer.js`). Used by the
+// boss-reactive handler in `src/core/reactivity-events.js` and (T2.12) the
+// Codex screen to surface each archetype's identity mechanic.
+//
+// SIBLING export precedent — established by T2.02 RACE_IDENTITY_FX pattern
+// (`src/data/races.js#212`). Sacred boss data (BOSS_TTK_TARGETS, archetype
+// roster) lives elsewhere and is BYTE-PERFECT untouched by this addition.
+// CLAUDE.md §2.5 (BOSS_TTK_TARGETS, PHOENIX_REVIVE_HP_PCT, PHOENIX_IMMUNE_TURNS,
+// REACTIVITY_TELEGRAPH_MS, all 22 reactivity handlers) — 0 modifications.
+//
+// T2.07 ships only the phoenix entry (Ashen Reign). T2.08–T2.11 will append
+// the other 6 boss-reactive entries per spec §3.2–§3.7 schedule (assassin /
+// berserker / engineer / grovewarden / void / uroboros).
+export const BOSS_IDENTITY_FX = Object.freeze({
+  phoenix:    'phoenix_ashen_reign',
+  // T2.08 — Lich Cursed Tiles (Assassin archetype, Ch1 Boss 5 CRYPT LICH +
+  // Ch3 ARCHIVAL ETERNAL). Explicit Shark counter per spec §2.2 / §3.2.
+  assassin:   'lich_cursed_tiles',
+  // T2.09 — Berserker / Frenzy Bloodtide Pulse (Ch1 Boss 1 PYREDRAKE +
+  // Ch2 Boss 8 URSARO). SAME identity hook for BOTH archetypes per spec
+  // §3.3 field 1 ("both are 'build aggression over time' archetypes"):
+  // every 3rd line clear in boss Active state → +5% next-attack damage
+  // pulse, layered ON TOP of sacred BERSERKER_ENRAGE_MULT = 2.0.
+  berserker:  'berserker_bloodtide',
+  frenzy:     'berserker_bloodtide',
+  // T2.10 — Engineer Lockdown Protocol (Engineer archetype, Ch2 Boss 7
+  // GEARHEART + Ch5 Tower bosses). Anti-Tetris counter: 4-line crit clear
+  // → 2×2 lockdown for 40 turns in the most-cleared corner. Layered ON
+  // TOP of sacred `engineer_p1_p2` phase-gate lockdown (UNTOUCHED) via
+  // parallel handler in `IDENTITY_BOSS_HANDLERS`.
+  engineer:   'engineer_lockdown',
+  // T2.11 — Grovewarden Root Surge (Bruiser archetype, Ch1 Boss 3
+  // GROVEWARDEN + Tower bruisers). Sliding-window non-grove trigger: when
+  // player's last 3 line clears were all NOT grove-dominant, boss reacts by
+  // placing 3 root overlays on random empty cells (5-turn block + +10 gold
+  // per cleared root via existing addGold cross-layer Pirate Plunder
+  // integration). Layered ON TOP of sacred `bruiser_p1_p2` / `bruiser_p2_p3`
+  // phase-gate handlers (UNTOUCHED) via parallel handler in
+  // `IDENTITY_BOSS_HANDLERS`.
+  bruiser:    'grovewarden_root_surge',
+  // T2.11+: void / uroboros (optional spotlight, deferred per spec §7.1)
+});

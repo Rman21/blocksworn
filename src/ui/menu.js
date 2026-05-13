@@ -78,6 +78,11 @@ export function renderMenu() {
   try { vRenderChapter(); }   catch(e){ log.warn('vRenderChapter failed:', e); }
   try { vRenderBossCard(); }  catch(e){ log.warn('vRenderBossCard failed:', e); }
   try { vRenderSquadDock(); } catch(e){ log.warn('vRenderSquadDock failed:', e); }
+  // T2.12 (2026-05-12): Codex drawer entry per spec §4.7 ("📜 CODEX" below
+  // TOWER and ADVENTURE). Additive — does NOT rearrange any existing menu
+  // items. Self-gates on FTUE so the entry stays hidden during tutorial
+  // (matches the dailies/tower/season visibility pattern).
+  try { vRenderCodexDrawerEntry(); } catch(e){ log.warn('vRenderCodexDrawerEntry failed:', e); }
   // 2026-04-30 — Polish v0.2 Track I §I.4.4: WHAT'S NEW accordion
   // visibility + auto-expire. No-ops if no Ch.1-unlock timestamp is set
   // or if the 3-day window has passed.
@@ -401,6 +406,54 @@ export function vRenderSquadDock() {
     slot.appendChild(name);
     host.appendChild(slot);
   }
+}
+
+// ─── vRenderCodexDrawerEntry (T2.12, 2026-05-12) ────────────────────────────
+// Spec: docs/design/mechanics/identity-layer.md §4.7 ("📜 CODEX" drawer entry
+// below TOWER and ADVENTURE). Additive — appends a new entry to the existing
+// hub drawer if a known mount point exists. Idempotent — re-running creates
+// the entry only once (id-keyed). FTUE-gated so the entry stays hidden during
+// tutorial (matches dailies/tower/season visibility pattern).
+//
+// Mount-point resolution (best-effort, order):
+//   1. #vMenuDrawer (legacy hub drawer container if present)
+//   2. #vHubNavRow  (alt drawer location)
+//   3. #screenMenu  (final fallback — appended as floating button)
+//
+// No-op if no mount point exists (the new shell may not have a hub drawer yet;
+// the codex route remains reachable via direct `showScreen('codex')` even when
+// the drawer entry is absent).
+function vRenderCodexDrawerEntry() {
+  if (typeof document === 'undefined') return;
+  // FTUE gate — Codex entry hidden during tutorial.
+  try {
+    if (typeof isFtueActive === 'function' && isFtueActive()) {
+      const existing = document.getElementById('vGoToCodexBtn');
+      if (existing) existing.style.display = 'none';
+      return;
+    }
+  } catch(e){}
+  // Idempotent: only create once.
+  let btn = document.getElementById('vGoToCodexBtn');
+  if (btn) {
+    btn.style.display = '';
+    return;
+  }
+  // Resolve mount point.
+  const mount = document.getElementById('vMenuDrawer')
+             || document.getElementById('vHubNavRow')
+             || document.getElementById('screenMenu');
+  if (!mount) return;
+  btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'vGoToCodexBtn';
+  btn.className = 'a-btn-drawer a-btn-codex';
+  btn.setAttribute('aria-label', 'Open Codex');
+  btn.textContent = '📜 CODEX';
+  btn.addEventListener('click', () => {
+    try { showScreen('codex'); } catch (e) { log.warn('Codex nav failed:', e); }
+  });
+  mount.appendChild(btn);
 }
 
 // ─── vRenderCosmicMemorial — DELETED in T1.15 ───────────────────────────────

@@ -5673,3 +5673,1389 @@ button, .menu-btn, .btn, .hero-card, .piece, .cell, .roster-card, .tier-btn, .ba
   margin-top: 2px;
   line-height: 1.3;
 }
+
+/* ─── 2026-05-12 — TASK-029 (T2.02): Identity Layer · Pirate's Plunder ───
+ * Painterly gold coin VFX. Pool of 32 elements lives under
+ * `.identity-coin-layer` (appended to body once at module load by
+ * `src/feel/identity-fx.js`). Each coin element re-uses across fires via
+ * the object pool — `.identity-coin-flying` toggled on re-trigger.
+ *
+ * Decay timing matches `PIRATE_PLUNDER_COIN_DECAY_MS = 1000` (spec §2.1
+ * field 9). The animation duration reads `--coin-decay-ms` (set per-fire
+ * by `spawnCoinParticle`) so the JS-side constant stays the single source
+ * of truth. Translation distance pulled from `--coin-tx` / `--coin-ty`
+ * custom properties (cleared-cell → HUD gold counter delta).
+ *
+ * Painterly emblem style matches PR #157 (warm gold gradient + soft
+ * outer glow + multi-turn rotation for a tossed-coin read). All transforms
+ * are GPU-accelerated (translate3d + rotate + scale) so 32 simultaneous
+ * coins stay under the 4ms/frame layer budget on mobile.
+ *
+ * Sacred safety: no existing class modified. Pure addition.
+ */
+.identity-coin-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0; height: 0;          /* layer is positioning-only — coins absolute */
+  pointer-events: none;
+  z-index: 9999;                /* above HUD; below modals */
+}
+.identity-coin {
+  position: fixed;
+  width: 16px; height: 16px;
+  margin-left: -8px; margin-top: -8px;  /* center on (left, top) */
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, #FFF4B0 0%, #FFD53D 45%, #C99523 100%);
+  box-shadow:
+    0 0 6px rgba(255, 213, 61, 0.55),
+    inset -1px -2px 3px rgba(120, 80, 0, 0.45),
+    inset  1px  1px 2px rgba(255, 255, 220, 0.55);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) rotate(0deg) scale(0.6);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.identity-coin.identity-coin-flying {
+  animation: identityCoinFlying var(--coin-decay-ms, 1000ms) cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes identityCoinFlying {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(0.6);
+  }
+  10% {
+    opacity: 1;
+    transform: translate3d(0, -18px, 0) rotate(45deg) scale(1.05);
+  }
+  60% {
+    opacity: 1;
+    transform:
+      translate3d(calc(var(--coin-tx, 0px) * 0.7), calc(var(--coin-ty, 0px) * 0.4 - 14px), 0)
+      rotate(540deg) scale(1.0);
+  }
+  100% {
+    opacity: 0;
+    transform:
+      translate3d(var(--coin-tx, 0px), var(--coin-ty, 0px), 0)
+      rotate(900deg) scale(0.55);
+  }
+}
+/* Reduced-motion: respect prefers-reduced-motion. Coin appears at origin,
+ * fades quickly without arc (mechanical gold gain still resolves; visual
+ * is just a fade chip). */
+@media (prefers-reduced-motion: reduce) {
+  .identity-coin.identity-coin-flying {
+    animation: identityCoinFadeOnly var(--coin-decay-ms, 1000ms) ease-out forwards;
+  }
+}
+@keyframes identityCoinFadeOnly {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.8); }
+  20%  { opacity: 1; transform: translate3d(0, -6px, 0) scale(1.0); }
+  100% { opacity: 0; transform: translate3d(0, -12px, 0) scale(0.8); }
+}
+
+/* ─── 2026-05-12 — TASK-030 (T2.03): Identity Layer · Shark Feeding Frenzy ───
+ * Teeth-arc bite VFX. Pool of 4 elements lives under `.identity-shark-bite-layer`
+ * (appended to body lazily on first fire by `src/feel/identity-fx.js`). Each
+ * bite element re-uses across fires via the object pool —
+ * `.identity-shark-bite-sweeping` toggled on re-trigger.
+ *
+ * Decay timing matches `SHARK_FRENZY_BITE_DECAY_MS = 500` (spec §2.2 field 9).
+ * The animation duration reads `--bite-decay-ms` (set per-fire by
+ * `spawnSharkBiteParticle`) so the JS-side constant stays the single source
+ * of truth. Sweep direction is read from `data-bite-direction`:
+ *   horizontal-row → left→right wipe across the row
+ *   vertical-col   → top→bottom wipe down the col
+ * (Spec §2.2 field 3: "sweeps left→right across each cleared row and
+ * top→bottom across each cleared column".)
+ *
+ * Visual: a 64×24 (or 24×64) curved teeth-arc rendered via a radial gradient
+ * (white teeth on a cyan glow background) — the bite shape is encoded via a
+ * conic / radial gradient mask so no inline SVG element is needed. Painterly
+ * style matches Pirate Plunder treatment (PR #157 emblem aesthetic).
+ *
+ * Sacred safety: no existing class modified. Pure addition.
+ */
+.identity-shark-bite-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0; height: 0;          /* layer is positioning-only — bites absolute */
+  pointer-events: none;
+  z-index: 9998;                /* below coin layer (9999); above HUD */
+}
+.identity-shark-bite {
+  position: fixed;
+  width: 64px; height: 24px;
+  margin-left: -32px; margin-top: -12px;  /* center on (left, top) */
+  border-radius: 50% 50% 30% 30% / 80% 80% 50% 50%;  /* mouth-shape curve */
+  background:
+    radial-gradient(ellipse at 50% 80%, rgba(255, 255, 255, 0.0) 0%,
+      rgba(255, 255, 255, 0.0) 30%,
+      rgba(255, 255, 255, 0.95) 38%,
+      rgba(74, 219, 255, 0.85) 50%,
+      rgba(74, 219, 255, 0.35) 75%,
+      rgba(74, 219, 255, 0.0) 100%);
+  box-shadow:
+    0 0 12px rgba(74, 219, 255, 0.65),
+    inset 0 -2px 4px rgba(255, 255, 255, 0.7);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.4);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.identity-shark-bite[data-bite-direction="vertical-col"] {
+  width: 24px; height: 64px;
+  margin-left: -12px; margin-top: -32px;
+  border-radius: 50% 30% 30% 50% / 50% 80% 80% 50%;
+  background:
+    radial-gradient(ellipse at 80% 50%, rgba(255, 255, 255, 0.0) 0%,
+      rgba(255, 255, 255, 0.0) 30%,
+      rgba(255, 255, 255, 0.95) 38%,
+      rgba(74, 219, 255, 0.85) 50%,
+      rgba(74, 219, 255, 0.35) 75%,
+      rgba(74, 219, 255, 0.0) 100%);
+}
+.identity-shark-bite.identity-shark-bite-sweeping {
+  animation: identitySharkBiteSweep var(--bite-decay-ms, 500ms) cubic-bezier(0.4, 0.0, 0.2, 1) forwards;
+}
+@keyframes identitySharkBiteSweep {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.4);
+  }
+  20% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(0.9);
+  }
+  55% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.85);
+  }
+}
+/* Reduced-motion: respect prefers-reduced-motion. Bite appears as a static
+ * cyan flash without the sweep/scale animation (mechanical effect — extra
+ * cell still clears — remains identical; only the kinetic energy is dialed
+ * back). Mirrors the Pirate Plunder reduced-motion fallback pattern. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-shark-bite.identity-shark-bite-sweeping {
+    animation: identitySharkBiteFlashOnly var(--bite-decay-ms, 500ms) ease-out forwards;
+  }
+}
+@keyframes identitySharkBiteFlashOnly {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.9); }
+  20%  { opacity: 1; transform: translate3d(0, 0, 0) scale(1.0); }
+  100% { opacity: 0; transform: translate3d(0, 0, 0) scale(0.95); }
+}
+
+/* ─── 2026-05-12 — TASK-031 (T2.04): Identity Layer · Rock Encore Echo ───
+ * Translucent purple ghost-flash VFX. Pool of 4 elements lives under
+ * `.identity-rock-echo-layer` (appended to body lazily on first fire by
+ * `src/feel/identity-fx.js`). Each ghost element re-uses across fires via
+ * the object pool — `.identity-rock-echo-flashing` toggled on re-trigger.
+ *
+ * Decay timing matches `ROCK_ECHO_GHOST_DECAY_MS = 700` (spec §2.3 field 9).
+ * Delay timing matches `ROCK_ECHO_DELAY_MS = 200` (spec §2.3 field 3 — the
+ * ghost appears ~200ms after the line clears, then dissolves over 700ms).
+ * The animation duration reads `--echo-decay-ms` + `--echo-delay-ms` (set
+ * per-fire by `spawnRockEchoGhost`) so the JS-side constants stay the
+ * single source of truth. Orientation is read from `data-echo-direction`:
+ *   horizontal-row → wide ghost stretching across the row
+ *   vertical-col   → tall ghost stretching down the col
+ * (Spec §2.3 field 3: "a translucent purple `ghost` of the cleared cells
+ * flashes back in place for one beat, then dissolves.")
+ *
+ * Visual: violet-purple gradient (#7e3fb8) with slow-moving violet sparks
+ * approximated via inner glow + outer shadow. Painterly aesthetic matches
+ * Pirate Plunder + Shark Frenzy treatment (PR #157 emblem style + recolor-
+ * only per ESC-02 O4 RE-USE-FIRST ruling).
+ *
+ * Sacred safety: no existing class modified. Pure addition.
+ */
+.identity-rock-echo-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0; height: 0;          /* layer is positioning-only — ghosts absolute */
+  pointer-events: none;
+  z-index: 9997;                /* below shark layer (9998); below coin layer (9999) */
+}
+.identity-rock-echo-ghost {
+  position: fixed;
+  width: 280px; height: 32px;
+  margin-left: -140px; margin-top: -16px; /* center on (left, top) */
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 50% 50%,
+      rgba(192, 106, 223, 0.65) 0%,
+      rgba(126, 63, 184, 0.55) 35%,
+      rgba(126, 63, 184, 0.25) 65%,
+      rgba(126, 63, 184, 0.0) 100%);
+  box-shadow:
+    0 0 14px rgba(192, 106, 223, 0.55),
+    inset 0 0 8px rgba(255, 220, 255, 0.45);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.4);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.identity-rock-echo-ghost[data-echo-direction="vertical-col"] {
+  width: 32px; height: 280px;
+  margin-left: -16px; margin-top: -140px;
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 50% 50%,
+      rgba(192, 106, 223, 0.65) 0%,
+      rgba(126, 63, 184, 0.55) 35%,
+      rgba(126, 63, 184, 0.25) 65%,
+      rgba(126, 63, 184, 0.0) 100%);
+}
+.identity-rock-echo-ghost.identity-rock-echo-flashing {
+  /* Note on duration: total = delay + decay. The keyframe encodes the
+   * delay as opacity:0 in the first phase (0–~22% for 200ms/900ms total),
+   * then ramps to peak and dissolves over the remaining ~78%. We pass
+   * delay + decay together in the duration so the `setTimeout`-driven pool
+   * release matches the animation-end. */
+  animation: identityRockEcho calc(var(--echo-delay-ms, 200ms) + var(--echo-decay-ms, 700ms))
+             cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes identityRockEcho {
+  /* Delay phase (~22% of total at 200ms+700ms): ghost is invisible. */
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.4);
+  }
+  22% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.5);
+  }
+  /* Flash phase: ghost appears at full opacity. */
+  35% {
+    opacity: 0.95;
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  /* Dissolve phase: ghost fades out slowly with a subtle pulse. */
+  60% {
+    opacity: 0.75;
+    transform: translate3d(0, 0, 0) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1.35);
+  }
+}
+/* Reduced-motion: respect prefers-reduced-motion. Ghost appears as a
+ * static violet outline (no scale/translate animation) — the mechanical
+ * effect (ULT charge added) is preserved; only the kinetic energy is
+ * dialed back. Mirrors the Pirate Plunder + Shark Frenzy reduced-motion
+ * fallback pattern. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-rock-echo-ghost.identity-rock-echo-flashing {
+    animation: identityRockEchoStaticFade
+               calc(var(--echo-delay-ms, 200ms) + var(--echo-decay-ms, 700ms))
+               ease-out forwards;
+  }
+}
+@keyframes identityRockEchoStaticFade {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.9); }
+  22%  { opacity: 0; transform: translate3d(0, 0, 0) scale(0.95); }
+  35%  { opacity: 0.6; transform: translate3d(0, 0, 0) scale(1.0); }
+  100% { opacity: 0; transform: translate3d(0, 0, 0) scale(1.0); }
+}
+
+/* ─── 2026-05-12 — TASK-032 (T2.05): Identity Layer · Crocodile Bedrock Bastion ───
+ * Sandstone/earth fragment VFX. Pool of 16 elements lives under
+ * `.identity-croc-fragment-layer` (appended to body lazily on first fire by
+ * `src/feel/identity-fx.js`). Each fragment element re-uses across fires via
+ * the object pool — `.identity-croc-fragment-flying` toggled on re-trigger.
+ *
+ * Decay timing matches `CROCODILE_BASTION_FRAGMENT_DECAY_MS = 600` (spec
+ * §2.4 field 9). The animation duration reads `--frag-decay-ms` (set
+ * per-fire by `spawnCrocFragmentParticle`) so the JS-side constant stays the
+ * single source of truth. Translation distance pulled from `--frag-tx` /
+ * `--frag-ty` custom properties (cleared grove-cell → leftmost crocodile
+ * portrait delta).
+ *
+ * Visual: 8×8 sandstone-brown pixel-rect with subtle inner highlight and
+ * soft outer shadow (recall: spec §2.4 field 3 — "small sandstone/earth
+ * fragment (8×8 brown pixel-rect)"). The fragment trajectories arc gently
+ * inward toward the squad portraits. Painterly style matches Pirate Plunder
+ * + Shark Frenzy + Rock Echo treatment (PR #157 emblem aesthetic).
+ *
+ * Sacred safety: no existing class modified. Pure addition.
+ */
+.identity-croc-fragment-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0; height: 0;          /* layer is positioning-only — fragments absolute */
+  pointer-events: none;
+  z-index: 9996;                /* below rock-echo (9997); below shark (9998); below coin (9999) */
+}
+.identity-croc-fragment {
+  position: fixed;
+  width: 8px; height: 8px;
+  margin-left: -4px; margin-top: -4px;  /* center on (left, top) */
+  border-radius: 1px;                    /* near-square painterly chip */
+  background:
+    linear-gradient(135deg,
+      var(--frag-color, #8B5A3C) 0%,
+      #6B3D26 50%,
+      var(--frag-color, #8B5A3C) 100%);
+  box-shadow:
+    0 0 3px rgba(139, 90, 60, 0.55),
+    inset -1px -1px 1px rgba(60, 30, 15, 0.55),
+    inset  1px  1px 1px rgba(220, 180, 140, 0.45);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) rotate(0deg) scale(0.7);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.identity-croc-fragment.identity-croc-fragment-flying {
+  animation: identityCrocFragment var(--frag-decay-ms, 600ms) cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes identityCrocFragment {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(0.7);
+  }
+  15% {
+    opacity: 1;
+    transform: translate3d(0, -4px, 0) rotate(35deg) scale(1.0);
+  }
+  60% {
+    opacity: 1;
+    transform:
+      translate3d(calc(var(--frag-tx, 0px) * 0.65), calc(var(--frag-ty, 0px) * 0.55 - 6px), 0)
+      rotate(220deg) scale(0.95);
+  }
+  100% {
+    opacity: 0;
+    transform:
+      translate3d(var(--frag-tx, 0px), var(--frag-ty, 0px), 0)
+      rotate(360deg) scale(0.6);
+  }
+}
+/* Shield-grant flash on the receiving crocodile portrait. Single-shot
+ * (one DOM creation per grant, 0–3 grants per fire max by spec field 9
+ * math). Sacred safety: not pooled because grant count is bounded by
+ * fragment-bank arithmetic, not by particle density. */
+.identity-croc-shield-grant {
+  position: fixed;
+  width: 36px; height: 36px;
+  margin-left: -18px; margin-top: -18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      rgba(180, 220, 255, 0.0) 0%,
+      rgba(180, 220, 255, 0.85) 35%,
+      rgba(120, 170, 220, 0.65) 60%,
+      rgba(80, 130, 200, 0.0) 100%);
+  box-shadow:
+    0 0 8px rgba(180, 220, 255, 0.75),
+    inset 0 0 4px rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.5);
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: identityCrocShieldGrant 300ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes identityCrocShieldGrant {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.5); }
+  35%  { opacity: 1; transform: translate3d(0, -4px, 0) scale(1.15); }
+  70%  { opacity: 0.85; transform: translate3d(0, -8px, 0) scale(1.05); }
+  100% { opacity: 0; transform: translate3d(0, -14px, 0) scale(1.0); }
+}
+/* Reduced-motion: respect prefers-reduced-motion. Fragment fades in place
+ * (no arc / rotate) and the shield-grant flash is a single quick fade. The
+ * mechanical effect (shield granted) is preserved; only the kinetic energy
+ * is dialed back. Mirrors the Pirate Plunder / Shark Frenzy / Rock Echo
+ * reduced-motion fallback pattern. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-croc-fragment.identity-croc-fragment-flying {
+    animation: identityCrocFragmentFadeOnly var(--frag-decay-ms, 600ms) ease-out forwards;
+  }
+  .identity-croc-shield-grant {
+    animation: identityCrocShieldGrantStatic 300ms ease-out forwards;
+  }
+}
+@keyframes identityCrocFragmentFadeOnly {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.8); }
+  20%  { opacity: 1; transform: translate3d(0, -2px, 0) scale(1.0); }
+  100% { opacity: 0; transform: translate3d(0, -4px, 0) scale(0.8); }
+}
+@keyframes identityCrocShieldGrantStatic {
+  0%   { opacity: 0; transform: translate3d(0, 0, 0) scale(0.9); }
+  35%  { opacity: 0.7; transform: translate3d(0, 0, 0) scale(1.0); }
+  100% { opacity: 0; transform: translate3d(0, 0, 0) scale(1.0); }
+}
+
+/* ─── 2026-05-12 — TASK-033 (T2.06): Identity Layer · Spark Sun Cascade ───
+ * Golden ray VFX. Pool of 16 elements lives under `.identity-spark-ray-layer`
+ * (appended to body lazily on first fire by `src/feel/identity-fx.js`). Each
+ * ray element re-uses across fires via the object pool —
+ * `.identity-spark-ray-flying` toggled on re-trigger.
+ *
+ * Decay timing matches `SPARK_CASCADE_RAY_DECAY_MS = 400` (spec §2.5 field 9).
+ * The animation duration reads `--ray-decay-ms` (set per-fire by
+ * `spawnSparkRayParticle`) so the JS-side constant stays the single source
+ * of truth. Translation distance pulled from `--ray-tx` / `--ray-ty`
+ * custom properties (cleared solar-cell → nearest non-empty cell delta).
+ *
+ * Visual: golden line gradient (yellow-white core, golden glow) that arcs
+ * from the cleared solar cell to the nearest non-empty cell. The target
+ * cell receives a single-frame yellow-white flash (via the
+ * .identity-spark-target-flash class) — PURE VFX, does NOT clear the
+ * target cell (Sun Cascade is gated on solar cells in the cleared rows∪cols,
+ * NOT on adjacent cells like Shark Frenzy).
+ *
+ * Sacred safety: no existing class modified. Pure addition. The sacred
+ * combo crit formula site is UNTOUCHED — Sun Cascade modifies the
+ * `dominantCount` INPUT via `ctx._dominantCountModifier`, not via any CSS
+ * variable or DOM mutation.
+ */
+.identity-spark-ray-layer {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0; height: 0;          /* layer is positioning-only — rays absolute */
+  pointer-events: none;
+  z-index: 9995;                /* below croc-fragment (9996); below rock-echo (9997); below shark (9998); below coin (9999) */
+}
+.identity-spark-ray {
+  position: fixed;
+  /* Width is set per-fire via --ray-length CSS variable (start→target distance).
+   * Height is the visual ray thickness (5px painterly stroke). */
+  width: var(--ray-length, 60px);
+  height: 5px;
+  margin-top: -2.5px;            /* center on (left, top) */
+  transform-origin: 0% 50%;      /* rotate around the start anchor */
+  /* Painterly golden ray gradient — yellow-white core fading to gold.
+   * Re-uses solar-element palette (see boss-death elemColor solar #FFE14A). */
+  background:
+    linear-gradient(90deg,
+      rgba(255, 245, 200, 0.95) 0%,
+      var(--ray-color, #FFD700) 35%,
+      rgba(255, 220, 100, 0.75) 65%,
+      rgba(255, 180, 80, 0.0) 100%);
+  box-shadow:
+    0 0 4px rgba(255, 220, 100, 0.65),
+    0 0 8px rgba(255, 200, 80, 0.35);
+  border-radius: 2.5px;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  /* Initial rotation set per-fire via --ray-angle CSS variable. */
+  transform: rotate(var(--ray-angle, 0deg)) scaleX(0);
+}
+.identity-spark-ray.identity-spark-ray-flying {
+  animation: identitySparkRay var(--ray-decay-ms, 400ms) cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes identitySparkRay {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--ray-angle, 0deg)) scaleX(0);
+  }
+  25% {
+    opacity: 1;
+    transform: rotate(var(--ray-angle, 0deg)) scaleX(1);
+  }
+  60% {
+    opacity: 0.85;
+    transform: rotate(var(--ray-angle, 0deg)) scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--ray-angle, 0deg)) scaleX(1);
+  }
+}
+/* Yellow-white target flash on the nearest non-empty cell. Single-shot
+ * (one DOM creation per ray, ≤16 per fire). PURE VFX — does NOT clear
+ * the target cell. Sacred safety: not pooled (single-frame flash duration,
+ * minimal DOM churn). */
+.identity-spark-target-flash {
+  position: fixed;
+  width: 36px; height: 36px;
+  margin-left: -18px; margin-top: -18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      rgba(255, 250, 220, 0.95) 0%,
+      rgba(255, 230, 130, 0.75) 40%,
+      rgba(255, 200, 80, 0.0) 100%);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: identitySparkTargetFlash 120ms ease-out forwards;
+}
+@keyframes identitySparkTargetFlash {
+  0%   { opacity: 0; transform: scale(0.8); }
+  40%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+/* Reduced-motion: respect prefers-reduced-motion. Ray fades in place (no
+ * arc / rotate), target flash is a single quick fade. The mechanical effect
+ * (dominantCount modifier write to ctx) is preserved; only the kinetic
+ * energy is dialed back. Mirrors the Pirate / Shark / Rock / Crocodile
+ * reduced-motion fallback pattern. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-spark-ray.identity-spark-ray-flying {
+    animation: identitySparkRayFadeOnly var(--ray-decay-ms, 400ms) ease-out forwards;
+  }
+  .identity-spark-target-flash {
+    animation: identitySparkTargetFlashStatic 120ms ease-out forwards;
+  }
+}
+@keyframes identitySparkRayFadeOnly {
+  0%   { opacity: 0; transform: rotate(var(--ray-angle, 0deg)) scaleX(0.5); }
+  30%  { opacity: 0.85; transform: rotate(var(--ray-angle, 0deg)) scaleX(1); }
+  100% { opacity: 0; transform: rotate(var(--ray-angle, 0deg)) scaleX(1); }
+}
+@keyframes identitySparkTargetFlashStatic {
+  0%   { opacity: 0; transform: scale(0.95); }
+  40%  { opacity: 0.7; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.0); }
+}
+
+/* ─── 2026-05-12 — TASK-034 (T2.07): Identity Layer · Phoenix Ashen Reign ──
+ * FIRST boss-reactive identity mechanic. Flame border + HUD countdown that
+ * appear for ASHEN_REIGN_DURATION_MS = 5000ms after Phoenix revive, then
+ * fade out over ASHEN_REIGN_DECAY_MS = 200ms.
+ *
+ * Architecture (spec §3.1 field 7):
+ *   - Steady-state per-frame budget during the 5s window is ≤2ms. To meet
+ *     this, ALL animation lives in CSS @keyframes; the JS layer only flips
+ *     class names + sets CSS custom properties at activate/release.
+ *   - Single setTimeout in JS fires once at the 5000ms mark to trigger
+ *     fade-out (no setInterval, no requestAnimationFrame, no per-frame work).
+ *
+ * Sacred safety:
+ *   - No existing CSS class modified. Pure addition.
+ *   - Phoenix sacred constants (PHOENIX_REVIVE_HP_PCT, PHOENIX_IMMUNE_TURNS)
+ *     not referenced — Ashen Reign LAYERS ON TOP of the sacred revive.
+ *   - REACTIVITY_TELEGRAPH_MS = 3000 RE-USED (telegraph banner is handled
+ *     by existing showReactivityTelegraph + `.reactivity-telegraph-banner`
+ *     CSS, untouched here).
+ *
+ * Z-index ordering (Identity Layer particles): coin (9999) > shark (9998) >
+ * rock (9997) > croc-fragment (9996) > spark (9995) > **phoenix-ashen-reign
+ * border** (9994) > phoenix-ashen-reign HUD (9993). The flame border sits
+ * BELOW the particle layers (it's a screen-level state indicator, not a
+ * burst effect) but ABOVE the grid + HUD chrome.
+ */
+
+/* Flame border overlay. 180px-wide pulsing red-orange gradient ring around
+ * the grid rect (positioned via `--ashen-reign-grid-*` custom properties
+ * set per-fire by `fxPhoenixAshenReign`). Pulses across the full 5000ms
+ * window via CSS animation — zero JS per frame.
+ *
+ * Width per spec §3.1 field 4 bullet 1: 180px (ASHEN_REIGN_FLAME_BORDER_WIDTH_PX).
+ *
+ * The border is implemented as a fixed-position element whose `inset`
+ * shrinks to surround the grid container (set via JS-set CSS variables at
+ * activation time). The painterly red-orange gradient pulses by animating
+ * box-shadow + filter brightness — both GPU-accelerated. */
+.identity-phoenix-ashen-reign-border {
+  position: fixed;
+  /* Default: centered on viewport if grid coords haven't been resolved.
+   * `fxPhoenixAshenReign` overrides via CSS custom properties on the element
+   * (--ashen-reign-grid-left / -top / -w / -h) so the border surrounds the
+   * grid rect at the moment of activation. */
+  left: calc(var(--ashen-reign-grid-left, 50vw) - 90px);
+  top:  calc(var(--ashen-reign-grid-top,  50vh) - 90px);
+  width:  calc(var(--ashen-reign-grid-w, 0px) + 180px);
+  height: calc(var(--ashen-reign-grid-h, 0px) + 180px);
+  pointer-events: none;
+  z-index: 9994;
+  border-radius: 24px;
+  /* Painterly red-orange ring — 180px-wide pulsing gradient. The visible
+   * "border" is a soft inner glow via box-shadow inset, plus an outer halo
+   * that pulses brighter on each beat. */
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 100, 30, 0)  60%,
+    rgba(255, 90, 30, 0.20) 75%,
+    rgba(255, 70, 20, 0.45) 88%,
+    rgba(255, 60, 10, 0.65) 100%
+  );
+  box-shadow:
+    inset 0 0 60px 20px rgba(255, 90, 30, 0.45),
+    inset 0 0 120px 40px rgba(220, 60, 10, 0.30),
+    0 0 80px 10px rgba(255, 80, 20, 0.50);
+  opacity: 0;
+  will-change: opacity, box-shadow, filter;
+  filter: blur(0.5px);
+  /* Default: hidden via display:none from JS at module load. */
+}
+.identity-phoenix-ashen-reign-border.identity-phoenix-ashen-reign-border-active {
+  /* The pulsing red-orange flame border. Animation reads the
+   * `--ashen-reign-duration-ms` custom property (5000ms) so the visual
+   * timing always matches the JS-side duration constant. */
+  animation: identityPhoenixFlameBorder var(--ashen-reign-duration-ms, 5000ms) ease-in-out forwards;
+}
+.identity-phoenix-ashen-reign-border.identity-phoenix-ashen-reign-border-fading {
+  /* Single-shot fade-out over `--ashen-reign-decay-ms` (200ms). */
+  animation: identityPhoenixFlameBorderFade var(--ashen-reign-decay-ms, 200ms) ease-out forwards;
+}
+@keyframes identityPhoenixFlameBorder {
+  0%   {
+    opacity: 0;
+    box-shadow:
+      inset 0 0 30px 10px rgba(255, 90, 30, 0.30),
+      0 0 40px 4px rgba(255, 80, 20, 0.30);
+  }
+  6%   {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 80px 24px rgba(255, 110, 40, 0.55),
+      inset 0 0 140px 50px rgba(220, 70, 15, 0.35),
+      0 0 100px 16px rgba(255, 90, 30, 0.60);
+  }
+  /* Triple pulse at 25 / 50 / 75 — each ~250ms peak, reads as a steady
+   * breath of flame. The whole window is 5000ms so 3 beats lands clean. */
+  25%  {
+    opacity: 0.85;
+    box-shadow:
+      inset 0 0 60px 18px rgba(255, 100, 35, 0.45),
+      inset 0 0 120px 40px rgba(220, 65, 10, 0.30),
+      0 0 60px 8px rgba(255, 80, 20, 0.45);
+  }
+  35%  {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 90px 28px rgba(255, 115, 45, 0.60),
+      inset 0 0 150px 56px rgba(225, 75, 18, 0.40),
+      0 0 110px 18px rgba(255, 95, 30, 0.65);
+  }
+  50%  {
+    opacity: 0.9;
+    box-shadow:
+      inset 0 0 70px 22px rgba(255, 105, 40, 0.50),
+      inset 0 0 130px 46px rgba(220, 65, 12, 0.35),
+      0 0 70px 10px rgba(255, 85, 20, 0.50);
+  }
+  65%  {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 90px 28px rgba(255, 115, 45, 0.60),
+      inset 0 0 150px 56px rgba(225, 75, 18, 0.40),
+      0 0 110px 18px rgba(255, 95, 30, 0.65);
+  }
+  80%  {
+    opacity: 0.85;
+    box-shadow:
+      inset 0 0 60px 18px rgba(255, 100, 35, 0.45),
+      inset 0 0 120px 40px rgba(220, 65, 10, 0.30),
+      0 0 60px 8px rgba(255, 80, 20, 0.45);
+  }
+  95%  {
+    opacity: 0.9;
+    box-shadow:
+      inset 0 0 70px 22px rgba(255, 105, 40, 0.50),
+      inset 0 0 130px 46px rgba(220, 65, 12, 0.35),
+      0 0 80px 12px rgba(255, 85, 20, 0.55);
+  }
+  100% {
+    opacity: 1;
+    box-shadow:
+      inset 0 0 70px 22px rgba(255, 105, 40, 0.50),
+      inset 0 0 130px 46px rgba(220, 65, 12, 0.35),
+      0 0 80px 12px rgba(255, 85, 20, 0.55);
+  }
+}
+@keyframes identityPhoenixFlameBorderFade {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* HUD countdown indicator. Static "EMBER ONLY — 5s" text whose width-or-
+ * opacity decay over 5000ms gives a visual countdown WITHOUT per-frame JS.
+ *
+ * The label itself is static text (no JS-driven `--seconds-remaining`
+ * counter — that would be per-frame JS work). The visual cue is the
+ * gradient-fill bar BENEATH the text that shrinks from 100% → 0% width
+ * over the 5000ms window, driven by CSS animation only. */
+.identity-phoenix-ashen-reign-hud {
+  position: fixed;
+  top: 12vh;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9993;
+  pointer-events: none;
+  padding: 8px 20px 6px 20px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.85), rgba(40, 10, 0, 0.85));
+  border: 2px solid #E8B84A;
+  border-radius: 8px;
+  box-shadow: 0 0 24px rgba(232, 184, 74, 0.6), inset 0 0 16px rgba(255, 110, 30, 0.3);
+  color: #FFE0B0;
+  font-family: 'Cinzel', 'Times New Roman', serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 0 6px rgba(255, 110, 30, 0.85), 0 1px 0 rgba(0, 0, 0, 0.8);
+  opacity: 0;
+  white-space: nowrap;
+  /* The underline countdown bar lives in a ::after pseudo-element. */
+}
+.identity-phoenix-ashen-reign-hud::after {
+  /* Countdown bar — animated width 100% → 0% over duration. CSS-only. */
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 3px;
+  height: 3px;
+  background: linear-gradient(90deg, #FF6E28, #E8B84A);
+  border-radius: 2px;
+  transform-origin: left center;
+  transform: scaleX(1);
+  box-shadow: 0 0 8px rgba(232, 184, 74, 0.7);
+}
+.identity-phoenix-ashen-reign-hud.identity-phoenix-ashen-reign-hud-active {
+  animation: identityPhoenixHudIn 180ms ease-out forwards;
+}
+.identity-phoenix-ashen-reign-hud.identity-phoenix-ashen-reign-hud-active::after {
+  animation: identityPhoenixHudCountdown var(--ashen-reign-duration-ms, 5000ms) linear forwards;
+}
+.identity-phoenix-ashen-reign-hud.identity-phoenix-ashen-reign-hud-fading {
+  animation: identityPhoenixHudFade var(--ashen-reign-decay-ms, 200ms) ease-out forwards;
+}
+@keyframes identityPhoenixHudIn {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@keyframes identityPhoenixHudCountdown {
+  0%   { transform: scaleX(1); }
+  100% { transform: scaleX(0); }
+}
+@keyframes identityPhoenixHudFade {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Reduced-motion: respect prefers-reduced-motion. Static red flame border
+ * (no pulse animation) + static HUD countdown bar (no scaleX animation —
+ * jumps to 0% immediately at activation; the visible 5000ms window is
+ * still distinguished by the static border being present, JS still
+ * releases the state correctly via the 5000ms setTimeout). The mechanical
+ * effect (ember-only piece gating) is preserved; only the kinetic energy
+ * is dialed back. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-phoenix-ashen-reign-border.identity-phoenix-ashen-reign-border-active {
+    animation: identityPhoenixFlameBorderStatic var(--ashen-reign-duration-ms, 5000ms) linear forwards;
+  }
+  .identity-phoenix-ashen-reign-hud.identity-phoenix-ashen-reign-hud-active {
+    animation: identityPhoenixHudInStatic 60ms linear forwards;
+  }
+  .identity-phoenix-ashen-reign-hud.identity-phoenix-ashen-reign-hud-active::after {
+    /* Static bar — no countdown animation for reduced-motion users. */
+    animation: none;
+    transform: scaleX(1);
+  }
+}
+@keyframes identityPhoenixFlameBorderStatic {
+  0%   { opacity: 0; }
+  4%   { opacity: 1; }
+  96%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+@keyframes identityPhoenixHudInStatic {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+ * 2026-05-12 — TASK-035 (T2.08): Lich Cursed Tiles overlay (boss-reactive
+ * identity layer — spec §3.2).
+ *
+ * Pure CSS animations for the 3 skull overlays placed on cursed cells.
+ * Steady-state per-turn tick is JS-allowed at ≤3ms (HP damage application
+ * + threshold-clamped ULT charge write at expiration), but the *visual*
+ * pulse-in (300ms entry) and fade-out (300ms exit at auto-clear) are
+ * CSS-only — zero JS per frame during the 3-turn curse window.
+ *
+ * Z-index ordering (Identity Layer particles): coin (9999) > shark (9998) >
+ * rock (9997) > croc-fragment (9996) > spark (9995) > phoenix-ashen-reign
+ * border (9994) > phoenix-ashen-reign HUD (9993) > **lich-cursed-tile
+ * (9992)**. The skull overlay sits BELOW the Phoenix flame border but
+ * ABOVE the grid cells (it's a grid-cell-level state indicator).
+ *
+ * Sacred safety:
+ *   - No existing CSS class modified. Pure addition.
+ *   - All 22 v2.1 P4 reactivity handlers untouched (this is a parallel-
+ *     namespace mechanic, see CLAUDE.md §2.5 + spec §1 hard rule 1).
+ *   - REACTIVITY_TELEGRAPH_MS = 3000 RE-USED (telegraph banner is handled
+ *     by existing showReactivityTelegraph + `.reactivity-telegraph-banner`
+ *     CSS, untouched here).
+ *   - Color palette re-use: #7e3fb8 violet-purple is the SAME color used
+ *     by the Rock Echo ghost flash (T2.04). Per ESC-02 O4 RE-USE-FIRST
+ *     ruling — no new palette archetype.
+ * ─────────────────────────────────────────────────────────────────────── */
+.identity-lich-cursed-tile-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9992;
+}
+.identity-lich-cursed-tile {
+  position: absolute;
+  /* Centered on the cell center via JS-set left/top (spawnSkullOverlay). */
+  width:  40px;
+  height: 40px;
+  margin-left: -20px;
+  margin-top:  -20px;
+  pointer-events: none;
+  z-index: 9992;
+  /* Translucent purple radial glow with stylized skull glyph. The skull is
+   * a pure CSS ::after pseudo-element (SVG-style box-shadow shaping) so no
+   * external SVG asset is needed. */
+  background: radial-gradient(
+    circle at center,
+    rgba(126, 63, 184, 0.65) 0%,
+    rgba(126, 63, 184, 0.45) 35%,
+    rgba(126, 63, 184, 0.18) 70%,
+    rgba(126, 63, 184, 0)    100%
+  );
+  border-radius: 50%;
+  opacity: 0;
+  will-change: opacity, transform;
+  filter: blur(0.5px);
+}
+/* Stylized skull glyph — pure CSS, no SVG dependency. Uses Unicode skull
+ * character (U+2620) rendered in the cursed color palette. */
+.identity-lich-cursed-tile::after {
+  content: '\2620';   /* ☠ skull and crossbones */
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--curse-color, #7e3fb8);
+  text-shadow:
+    0 0 8px rgba(126, 63, 184, 0.85),
+    0 0 16px rgba(126, 63, 184, 0.55),
+    0 1px 0 rgba(0, 0, 0, 0.8);
+  /* Faint translucent purple smoke wisp above the skull (per spec §3.2
+   * field 6: "3 cells smoking with purple skull glyphs"). */
+  filter: drop-shadow(0 -2px 4px rgba(126, 63, 184, 0.5));
+}
+/* Entry pulse — fires once when the curse is placed. 300ms ease-out.
+ * `--curse-decay-ms` is set by spawnSkullOverlay (defaults to 300ms). */
+.identity-lich-cursed-tile.identity-lich-cursed-tile-pulse {
+  animation: identityLichCursedPulse var(--curse-decay-ms, 300ms) ease-out forwards;
+}
+/* Exit fade — fires once when the curse auto-clears at expiration turn.
+ * 300ms ease-in. Same `--curse-decay-ms` re-used. */
+.identity-lich-cursed-tile.identity-lich-cursed-tile-fade {
+  animation: identityLichCursedFade var(--curse-decay-ms, 300ms) ease-in forwards;
+}
+@keyframes identityLichCursedPulse {
+  0%   {
+    opacity: 0;
+    transform: scale(0.5) rotate(-15deg);
+  }
+  60%  {
+    opacity: 1;
+    transform: scale(1.15) rotate(5deg);
+  }
+  100% {
+    opacity: 0.9;
+    transform: scale(1) rotate(0deg);
+  }
+}
+@keyframes identityLichCursedFade {
+  0%   {
+    opacity: 0.9;
+    transform: scale(1) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.4) rotate(15deg);
+  }
+}
+
+/* Reduced-motion: respect prefers-reduced-motion. Static purple overlay
+ * (no pulse / fade animation), but the mechanical effect (cursed-cell
+ * predicate + 1 HP/turn drip + +20 ULT compensation) is preserved. The
+ * skull glyph still renders — only the kinetic energy is dialed back. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-lich-cursed-tile.identity-lich-cursed-tile-pulse {
+    animation: identityLichCursedPulseStatic var(--curse-decay-ms, 300ms) linear forwards;
+  }
+  .identity-lich-cursed-tile.identity-lich-cursed-tile-fade {
+    animation: identityLichCursedFadeStatic var(--curse-decay-ms, 300ms) linear forwards;
+  }
+}
+@keyframes identityLichCursedPulseStatic {
+  0%   { opacity: 0; }
+  100% { opacity: 0.9; }
+}
+@keyframes identityLichCursedFadeStatic {
+  0%   { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+ * 2026-05-12 — TASK-036 (T2.09): Berserker / Frenzy Bloodtide Pulse styles.
+ *
+ * Spec: docs/design/mechanics/identity-layer.md §3.3.
+ * THIRD boss-reactive identity mechanic. Shared by BOTH `berserker` and
+ * `frenzy` archetypes per spec §3.3 field 1. Every 3rd line clear the
+ * player resolves while the boss is in Active state (from Stagger Loop
+ * `getBossState()` READ-ONLY) fires a red pulse VFX that sweeps from the
+ * boss portrait toward the grid. On arrival, the boss's NEXT attack deals
+ * +5% damage (one-shot buff, consumed on next attack).
+ *
+ * Architecture:
+ *   - `.identity-bloodtide-pulse-container` — fixed overlay layer, pointer-events
+ *     none, z-index between Lich curse (9992) and Crocodile fragments (9996).
+ *     Picked at 9991 so the pulse renders BELOW the Lich skull overlay (the
+ *     skull is per-cell state; the pulse is per-fire tempo signal).
+ *   - `.identity-bloodtide-pulse` — base pulse element (single pool element,
+ *     reused across fires — only one pulse is ever live at a time per spec
+ *     §3.3 field 4 "one-shot buff, not stacking").
+ *   - `.identity-bloodtide-pulse-sweep` — entry animation; reads CSS vars
+ *     `--bloodtide-dx`, `--bloodtide-dy`, `--bloodtide-duration-ms` (set by
+ *     `spawnBloodtidePulse` in `src/feel/particles.js`).
+ *   - `.identity-bloodtide-pulse-hud` — HUD indicator ("BLOODTIDE PULSE —
+ *     +5% incoming") shown while _bloodtidePulsePending is true.
+ *   - `.identity-bloodtide-pulse-hud-pending` — pulsing animation for the
+ *     HUD indicator.
+ *
+ * Sacred safety:
+ *   - No existing CSS class modified. Pure addition.
+ *   - All 22 v2.1 P4 reactivity handlers untouched (parallel-namespace
+ *     mechanic, see CLAUDE.md §2.5 + spec §1 hard rule 1).
+ *   - BERSERKER_ENRAGE_MULT = 2.0 untouched — pulse is a visual tempo signal
+ *     only; the +5% damage modifier is computed at consume time in JS
+ *     (`consumeBloodtidePulse` in `src/feel/identity-fx.js`), layered on top
+ *     of the sacred 2.0× enrage multiplier (NEVER modifies it).
+ *   - Stagger Loop CSS untouched — Bloodtide reads boss state via
+ *     `getBossState()` JS API, no CSS coupling.
+ *   - Color #E53935 is intentionally distinct from purple curse (#7e3fb8) /
+ *     orange flame (#E8B84A) so each boss-reactive mechanic has its own
+ *     visual signature per spec §3 convention.
+ * ─────────────────────────────────────────────────────────────────────── */
+.identity-bloodtide-pulse-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9991;
+}
+.identity-bloodtide-pulse {
+  position: absolute;
+  /* Centered on the boss portrait via JS-set left/top (spawnBloodtidePulse). */
+  width:  60px;
+  height: 60px;
+  margin-left: -30px;
+  margin-top:  -30px;
+  pointer-events: none;
+  z-index: 9991;
+  /* Red radial glow — sweeps from boss portrait → grid via translate.
+   * The skull-style ::after pseudo-element is dropped (Bloodtide is a
+   * pulse signal, not a per-cell glyph). */
+  background: radial-gradient(
+    circle at center,
+    rgba(229, 57, 53, 0.85) 0%,
+    rgba(229, 57, 53, 0.55) 30%,
+    rgba(229, 57, 53, 0.25) 60%,
+    rgba(229, 57, 53, 0)    100%
+  );
+  border-radius: 50%;
+  opacity: 0;
+  will-change: opacity, transform;
+  filter: blur(1px);
+}
+/* Pulse sweep — fires once when the pulse is spawned. Reads CSS vars
+ * `--bloodtide-dx` / `--bloodtide-dy` (sweep delta toward grid center) and
+ * `--bloodtide-duration-ms` (defaults to 600ms). Single keyframe — no
+ * setInterval, no requestAnimationFrame. Pure CSS. */
+.identity-bloodtide-pulse.identity-bloodtide-pulse-sweep {
+  animation: identityBloodtidePulse var(--bloodtide-duration-ms, 600ms) ease-out forwards;
+}
+@keyframes identityBloodtidePulse {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  15% {
+    opacity: 0.9;
+    transform: translate(calc(var(--bloodtide-dx, 0px) * 0.15), calc(var(--bloodtide-dy, 0px) * 0.15)) scale(1.0);
+  }
+  70% {
+    opacity: 0.7;
+    transform: translate(calc(var(--bloodtide-dx, 0px) * 0.85), calc(var(--bloodtide-dy, 0px) * 0.85)) scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--bloodtide-dx, 0px), var(--bloodtide-dy, 0px)) scale(1.8);
+  }
+}
+
+/* HUD pending indicator — shown while _bloodtidePulsePending = true. Lives
+ * in the top-right of the battle HUD so it doesn't compete with the Ashen
+ * Reign or Cursed Tiles HUD text. Static layout; only the inner background
+ * pulses to draw attention. */
+.identity-bloodtide-pulse-hud {
+  position: fixed;
+  top: 80px;
+  right: 16px;
+  pointer-events: none;
+  z-index: 9991;
+  padding: 6px 12px;
+  background: rgba(229, 57, 53, 0.75);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  border-radius: 4px;
+  border: 1px solid rgba(229, 57, 53, 0.9);
+  box-shadow:
+    0 0 12px rgba(229, 57, 53, 0.65),
+    0 1px 2px rgba(0, 0, 0, 0.6);
+  display: none;
+  opacity: 0;
+}
+.identity-bloodtide-pulse-hud.identity-bloodtide-pulse-hud-pending {
+  display: block;
+  animation: identityBloodtidePulseHudPending var(--bloodtide-pending-duration-ms, 1200ms) ease-in-out infinite;
+}
+@keyframes identityBloodtidePulseHudPending {
+  0%, 100% {
+    opacity: 0.7;
+    box-shadow:
+      0 0 8px rgba(229, 57, 53, 0.4),
+      0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+  50% {
+    opacity: 1.0;
+    box-shadow:
+      0 0 18px rgba(229, 57, 53, 0.85),
+      0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+}
+/* Reduced-motion: static red indicator (no pulse animation), but the
+ * mechanical effect (+5% damage on next attack) is preserved. The HUD
+ * box still renders — only the kinetic energy is dialed back. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-bloodtide-pulse.identity-bloodtide-pulse-sweep {
+    animation: identityBloodtidePulseStatic var(--bloodtide-duration-ms, 600ms) linear forwards;
+  }
+  .identity-bloodtide-pulse-hud.identity-bloodtide-pulse-hud-pending {
+    animation: none;
+    opacity: 1;
+    box-shadow:
+      0 0 8px rgba(229, 57, 53, 0.5),
+      0 1px 2px rgba(0, 0, 0, 0.6);
+  }
+}
+@keyframes identityBloodtidePulseStatic {
+  0%   { opacity: 0; transform: translate(0, 0); }
+  50%  { opacity: 0.9; transform: translate(calc(var(--bloodtide-dx, 0px) * 0.5), calc(var(--bloodtide-dy, 0px) * 0.5)); }
+  100% { opacity: 0; transform: translate(var(--bloodtide-dx, 0px), var(--bloodtide-dy, 0px)); }
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+ * 2026-05-12 — TASK-037 (T2.10): Engineer Lockdown Protocol styles.
+ *
+ * Spec: docs/design/mechanics/identity-layer.md §3.4.
+ * FOURTH boss-reactive identity mechanic — anti-Tetris 4-line crit counter.
+ * When the player completes a 4-line crit clear (the "Tetris" max), the
+ * Engineer boss reacts SAME-TURN by locking down a 2×2 square (4 cells)
+ * in the corner of the grid that received the most cleared cells in the
+ * last fire.
+ *
+ * Architecture:
+ *   - The 4 lockdown CELLS RE-USE the existing
+ *     `.grid .cell.cell--engineer-welded` class (sacred — defined above
+ *     at line ~5118). T2.10 does NOT add or modify any class on the
+ *     individual cells — it ONLY applies the existing sacred class.
+ *   - `.identity-engineer-lockdown-container` — fixed overlay layer,
+ *     pointer-events none, z-index 9993 (above Bloodtide pulse 9991, below
+ *     phoenix flame border 9994). Holds the ratchet overlay.
+ *   - `.identity-engineer-lockdown-ratchet` — base ratchet overlay (single
+ *     pool element, re-used across fires — only one ratchet is live at a
+ *     time per spec §3.4 field 6 "IMMEDIATELY followed by clanking metal
+ *     lockdown" = single visual signature per fire).
+ *   - `.identity-engineer-lockdown-ratchet-active` — active state with
+ *     600ms keyframe animation.
+ *   - `.identity-engineer-tetris-celebration` — TETRIS! banner element.
+ *   - `.identity-engineer-tetris-celebration-active` — active state with
+ *     400ms keyframe pulse.
+ *
+ * Sacred safety:
+ *   - The existing `.grid .cell.cell--engineer-welded` class is BYTE-PERFECT
+ *     UNTOUCHED. T2.10 only RE-USES it — never modifies, never duplicates.
+ *   - The existing `@keyframes engineerWeldPulse` is BYTE-PERFECT UNTOUCHED.
+ *   - All NEW classes here are `identity-engineer-*` prefixed (parallel
+ *     namespace per CLAUDE.md §2.5 + spec §1 hard rule 1).
+ *   - All 22 v2.1 P4 reactivity handlers untouched (parallel-namespace
+ *     mechanic, see CLAUDE.md §2.5 + spec §1 hard rule 1).
+ *   - 40T lockdown duration sacred — handled via existing engineer state
+ *     machinery (engineerLockedCells Map decrement in ui/archetype-ticks.js),
+ *     NOT by these CSS classes.
+ *   - Copper color #B87333 byte-perfect matches the sacred `engineer_p1_p2`
+ *     banner color in reactivity-events.js — no new color invented.
+ * ─────────────────────────────────────────────────────────────────────── */
+.identity-engineer-lockdown-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9993;
+}
+.identity-engineer-lockdown-ratchet {
+  position: fixed;
+  /* Full-viewport faint copper flash overlay — draws attention to the new
+   * 2×2 lockdown without obscuring the player's view of the cells (which
+   * carry the persistent sacred `.cell--engineer-welded` visual). The
+   * flash is brief (600ms) and pulses twice via the keyframe. */
+  inset: 0;
+  pointer-events: none;
+  z-index: 9993;
+  background: radial-gradient(
+    circle at center,
+    rgba(184, 115, 51, 0) 30%,
+    rgba(184, 115, 51, 0.15) 60%,
+    rgba(184, 115, 51, 0.35) 100%
+  );
+  border: 4px solid rgba(184, 115, 51, 0);
+  opacity: 0;
+  will-change: opacity, border-color;
+}
+.identity-engineer-lockdown-ratchet.identity-engineer-lockdown-ratchet-active {
+  animation: identityEngineerRatchet var(--engineer-ratchet-duration-ms, 600ms) ease-out forwards;
+}
+/* Brief 2-step ratchet keyframe — mechanical clanking visual signature.
+ * The double-pulse evokes the "click-click" of two welded panels snapping
+ * into place over the 2×2 square. Pure CSS — no rAF, no per-frame JS. */
+@keyframes identityEngineerRatchet {
+  0% {
+    opacity: 0;
+    border-color: rgba(184, 115, 51, 0);
+  }
+  25% {
+    opacity: 0.55;
+    border-color: rgba(184, 115, 51, 0.75);
+  }
+  45% {
+    opacity: 0.25;
+    border-color: rgba(140, 90, 40, 0.3);
+  }
+  70% {
+    opacity: 0.55;
+    border-color: rgba(184, 115, 51, 0.55);
+  }
+  100% {
+    opacity: 0;
+    border-color: rgba(184, 115, 51, 0);
+  }
+}
+
+/* TETRIS! celebration banner — fixed top-center of viewport, copper text
+ * over translucent dark background. Pulses briefly (400ms) then fades to
+ * make room for the persistent lockdown reaction (which is the sacred
+ * flashStateBanner 'TETRIS! · LOCKDOWN · 2×2 · 40T' surface). */
+.identity-engineer-tetris-celebration {
+  position: fixed;
+  top: 35%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 9993;
+  padding: 12px 28px;
+  background: rgba(20, 14, 6, 0.85);
+  color: #FFD75A;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border-radius: 8px;
+  border: 2px solid rgba(184, 115, 51, 0.85);
+  box-shadow:
+    0 0 18px rgba(184, 115, 51, 0.65),
+    0 2px 8px rgba(0, 0, 0, 0.7),
+    inset 0 0 14px rgba(74, 50, 20, 0.65);
+  text-shadow:
+    0 0 12px rgba(255, 215, 90, 0.85),
+    0 1px 0 rgba(0, 0, 0, 0.85);
+  display: none;
+  opacity: 0;
+  will-change: opacity, transform;
+}
+.identity-engineer-tetris-celebration.identity-engineer-tetris-celebration-active {
+  display: block;
+  animation: identityEngineerTetrisCelebration 400ms ease-out forwards;
+}
+@keyframes identityEngineerTetrisCelebration {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  40% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  100% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Reduced-motion: static copper indicator (no pulse / sweep animation),
+ * but the mechanical effect (4 cells locked, 40T duration) is preserved.
+ * The TETRIS banner still renders — only the kinetic energy is dialed back.
+ * The persistent `.cell--engineer-welded` visual on the 4 lockdown cells
+ * uses its own sacred reduced-motion handling (the existing
+ * `engineerWeldPulse` keyframe is sacred — UNTOUCHED). */
+@media (prefers-reduced-motion: reduce) {
+  .identity-engineer-lockdown-ratchet.identity-engineer-lockdown-ratchet-active {
+    animation: identityEngineerRatchetStatic var(--engineer-ratchet-duration-ms, 600ms) linear forwards;
+  }
+  .identity-engineer-tetris-celebration.identity-engineer-tetris-celebration-active {
+    animation: identityEngineerTetrisCelebrationStatic 400ms linear forwards;
+  }
+}
+@keyframes identityEngineerRatchetStatic {
+  0%   { opacity: 0; }
+  50%  { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+@keyframes identityEngineerTetrisCelebrationStatic {
+  0%   { opacity: 0; }
+  100% { opacity: 0.85; }
+}
+
+/* ───────────────────────────────────────────────────────────────────────
+ * 2026-05-12 — TASK-038 (T2.11): Grovewarden Root Surge visual surface.
+ * FIFTH and FINAL boss-reactive identity mechanic — moss root overlays
+ * placed on 3 random empty cells when the player's last 3 line clears
+ * were all NOT grove-dominant (sliding-window non-grove trigger). Each
+ * overlay BLOCKS placement for 5 turns and grants +10 gold when cleared
+ * during the window (cross-layer Pirate Plunder integration).
+ *
+ * Architecture:
+ *   - `.identity-grovewarden-root-container` — fixed overlay layer,
+ *     pointer-events none, z-index 9992 (above Bloodtide pulse 9991,
+ *     below Engineer lockdown 9993, below Phoenix flame border 9994).
+ *     Holds the 3-element pool.
+ *   - `.identity-grovewarden-root-overlay` — base overlay element (one
+ *     per pool slot; ROOT_SURGE_CELL_COUNT = 3 total). Mossy green
+ *     (#2D8659) circular overlay centered on a rooted grid cell.
+ *   - `.identity-grovewarden-root-bloom` — active entry-animation state
+ *     (300ms scale-up pulse, sticky 0.85 opacity for the 5-turn window).
+ *   - `.identity-grovewarden-root-fade` — exit-animation state (300ms
+ *     fade-out; fires when a root auto-clears at 5-turn timeout OR when
+ *     player clears it via onRootCellCleared).
+ *
+ * Sacred safety:
+ *   - All NEW classes here are `identity-grovewarden-*` prefixed
+ *     (parallel namespace per CLAUDE.md §2.5 + spec §1 hard rule 1).
+ *   - All 22 v2.1 P4 reactivity handlers untouched.
+ *   - Element Synergy + RACE_SYNERGY troll/golem grove tiers untouched.
+ *   - The mossy green color (#2D8659) is part of the grove element palette
+ *     family (matches RACE_SYNERGY troll grove flavor) — no new color
+ *     invented.
+ * ─────────────────────────────────────────────────────────────────────── */
+.identity-grovewarden-root-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9992;
+}
+.identity-grovewarden-root-overlay {
+  position: fixed;
+  /* Anchor at rooted cell center via inline left/top from spawnMossRootOverlay.
+   * Width/height match a single grid cell visually (radial center, fades
+   * to edges). */
+  width: 48px;
+  height: 48px;
+  /* Translate so left/top become the CENTER of the overlay. */
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 9992;
+  /* Mossy radial gradient — denser in the center, fading to a soft
+   * green outline. Visually distinct from purple curse (Lich) / cyan
+   * bite (Shark) / red pulse (Berserker) / copper ratchet (Engineer) /
+   * orange flame (Phoenix). The CSS variable --root-surge-color allows
+   * the JS factory to tint per archetype if needed (currently always
+   * #2D8659 mossy green). */
+  background: radial-gradient(
+    circle at center,
+    var(--root-surge-color, #2D8659) 10%,
+    rgba(45, 134, 89, 0.7) 40%,
+    rgba(45, 134, 89, 0.3) 70%,
+    rgba(45, 134, 89, 0) 100%
+  );
+  border: 2px solid rgba(45, 134, 89, 0.85);
+  border-radius: 50%;
+  box-shadow:
+    0 0 12px rgba(45, 134, 89, 0.75),
+    inset 0 0 8px rgba(20, 80, 50, 0.7);
+  opacity: 0;
+  will-change: opacity, transform;
+}
+.identity-grovewarden-root-overlay.identity-grovewarden-root-bloom {
+  /* Entry animation: 300ms scale-up pulse, sticky 0.85 opacity for the
+   * full 5-turn window. The animation runs once on entry; the persistent
+   * visual is held by the steady-state `forwards` fill-mode. */
+  animation: identityGroveBloomEntry var(--root-surge-decay-ms, 300ms) ease-out forwards;
+}
+.identity-grovewarden-root-overlay.identity-grovewarden-root-fade {
+  /* Exit animation: 300ms fade-out. Fires when a root auto-clears at
+   * 5-turn timeout OR when player clears it via onRootCellCleared. */
+  animation: identityGroveBloomFade var(--root-surge-decay-ms, 300ms) ease-in forwards;
+}
+/* Entry keyframe — 300ms scale-up pulse evoking a root bloom unfurling
+ * from the cell. Sticky end state (opacity 0.85) holds the visual for
+ * the 5-turn window via CSS `forwards` fill-mode. */
+@keyframes identityGroveBloomEntry {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.15);
+  }
+  100% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+/* Exit keyframe — 300ms fade-out evoking the root receding back into
+ * the empty cell. */
+@keyframes identityGroveBloomFade {
+  0% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+}
+
+/* Reduced-motion: static mossy green overlay (no pulse / scale animation),
+ * but the mechanical effect (5-turn placement block + +10 gold per cleared
+ * root) is preserved. */
+@media (prefers-reduced-motion: reduce) {
+  .identity-grovewarden-root-overlay.identity-grovewarden-root-bloom {
+    animation: identityGroveBloomEntryStatic var(--root-surge-decay-ms, 300ms) linear forwards;
+  }
+  .identity-grovewarden-root-overlay.identity-grovewarden-root-fade {
+    animation: identityGroveBloomFadeStatic var(--root-surge-decay-ms, 300ms) linear forwards;
+  }
+}
+@keyframes identityGroveBloomEntryStatic {
+  0%   { opacity: 0; }
+  100% { opacity: 0.85; }
+}
+@keyframes identityGroveBloomFadeStatic {
+  0%   { opacity: 0.85; }
+  100% { opacity: 0; }
+}

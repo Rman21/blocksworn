@@ -177,6 +177,25 @@ import { playDialog, showBossPhaseDialog } from '../ui/dialog.js';
 import { vHaptic } from '../feel/haptics.js';
 import { logEvent } from '../services/analytics.js';
 import { log } from '../services/logger.js';
+// T2.07 — Identity Layer · Phoenix Ashen Reign (boss-reactive fx + reset).
+// T2.08 — Identity Layer · Lich Cursed Tiles (boss-reactive fx + reset).
+// Sacred 22 REACTIVITY_HANDLERS UNTOUCHED — these run in PARALLEL via the
+// new `IDENTITY_BOSS_HANDLERS` registry + `triggerIdentityBossEvent` dispatcher.
+import {
+  fxPhoenixAshenReign as _fxPhoenixAshenReignImpl,
+  resetAshenReign      as _resetAshenReignImpl,
+  fxLichCursedTiles    as _fxLichCursedTilesImpl,
+  resetCursedTiles     as _resetCursedTilesImpl,
+  fxBerserkerBloodtidePulse as _fxBerserkerBloodtidePulseImpl,
+  resetBloodtide            as _resetBloodtideImpl,
+  // T2.10 — Engineer Lockdown Protocol (anti-Tetris 4-line crit counter).
+  fxEngineerLockdownProtocol as _fxEngineerLockdownProtocolImpl,
+  resetEngineerLockdowns     as _resetEngineerLockdownsImpl,
+  // T2.11 — Grovewarden Root Surge (sliding-window non-grove trigger, FIFTH
+  // and FINAL boss-reactive identity mechanic).
+  fxGrovewardenRootSurge       as _fxGrovewardenRootSurgeImpl,
+  resetGrovewardenRootSurge    as _resetGrovewardenRootSurgeImpl,
+} from '../feel/identity-fx.js';
 
 // Feel layer (residual legacy-owned):
 /* global flashText, flashStateBanner, vibrate, hitBoss,
@@ -1356,6 +1375,237 @@ export function clearVoidfangTints() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 2026-05-12 — TASK-034 (T2.07): Identity Layer · BOSS-REACTIVE HANDLERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Boss-reactive identity hooks live in a NEW registry under the `identity_*`
+// namespace, ALONGSIDE the sacred 22 REACTIVITY_HANDLERS (which remain
+// BYTE-PERFECT — verifiable via git diff).
+//
+// Spec: docs/design/mechanics/identity-layer.md §1 hard rule 1 + §3.1.
+// Architecture: Each identity handler reuses the existing telegraph→execute
+// pattern (`showReactivityTelegraph(eventId)` + `setTimeout REACTIVITY_TELEGRAPH_MS
+// → handler()`), so the player learns ONE visual language for "boss is doing a
+// thing." The 3-second wind-up uses the same `REACTIVITY_TELEGRAPH_MS = 3000`
+// sacred constant (read-only — never modified).
+//
+// Trigger source (T2.07 Phoenix):
+//   Legacy `maybePhoenixRevive` (`docs/_legacy/_archive_v1/blocksworn_index_fixed.html:57033`)
+//   fires the sacred revive (60% HP heal + 2-turn immune window — UNTOUCHED).
+//   T2.B legacy bridge will call `triggerIdentityBossEvent('identity_phoenix_revive')`
+//   AFTER the sacred revive completes, layering Ashen Reign on top.
+//
+// Sacred-cow audit (T2.07):
+//   - REACTIVITY_HANDLERS (sacred 22): UNTOUCHED — `git diff` confirms.
+//   - PHOENIX_REVIVE_HP_PCT = 0.6: UNTOUCHED.
+//   - PHOENIX_IMMUNE_TURNS = 2: UNTOUCHED.
+//   - REACTIVITY_TELEGRAPH_MS = 3000: RE-USED (imported, never modified).
+//   - REACTIVITY_BANNER_DURATION_MS = 1500: UNTOUCHED.
+
+// IDENTITY_BOSS_HANDLERS — parallel registry to REACTIVITY_HANDLERS (which
+// stays byte-perfect with its 22 sacred entries). Each handler runs AFTER
+// the 3-second telegraph wind-up via `triggerIdentityBossEvent` below.
+// Adding entries here NEVER modifies the sacred 22; sacred audit asserts
+// `git diff` shows only NEW additions.
+export const IDENTITY_BOSS_HANDLERS = {
+  // ── PHOENIX ASHEN REIGN (spec §3.1) ──────────────────────────────────
+  // Layered on top of sacred phoenix revive (PHOENIX_REVIVE_HP_PCT = 0.6 +
+  // PHOENIX_IMMUNE_TURNS = 2). Sacred revive math UNTOUCHED — Ashen Reign
+  // adds a 5000ms ember-only state that gates piece placement (T2.B bridge
+  // wires the gate into legacy `pieceCanBePlaced`). Banner color matches
+  // phoenix palette (#E8B84A) consistent with the sacred phoenix_p1_p2 entry.
+  identity_phoenix_revive: function() {
+    try { flashStateBanner('ASHEN REIGN · EMBER ONLY · 5s', '#E8B84A'); } catch (e) {}
+    try { vibrate([60, 30, 60, 30, 60]); } catch (e) {}
+    try { _fxPhoenixAshenReignImpl(null, null); } catch (e) {
+      log.error('[T2.07] Phoenix Ashen Reign fx threw:', e);
+    }
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('phoenix', 'ashen_reign'); } catch (e) {}
+  },
+  // ── LICH CURSED TILES (spec §3.2) ────────────────────────────────────
+  // Layered ALONGSIDE the sacred assassin handlers (`assassin_p1_p2` stealth +
+  // 1.5× next-attack, `assassin_p2_p3` backstab chain — UNTOUCHED). Cursed
+  // Tiles is the explicit Shark counter referenced in spec §2.2: when the
+  // player's squad has ≥2 sharks at end-of-turn, the Lich responds by
+  // cursing 3 random non-empty cells. The cells become un-clearable for 3
+  // turns (T2.B bridge wires the `isCellCursed` predicate into legacy
+  // `pieceCanBePlaced` / `clearLines`), inflict 1 HP/turn drip, and grant
+  // +20 player ULT charge per cell at auto-clear (clamped to sacred
+  // HERO_ULT_COST_BY_NEWROLE thresholds). Banner color matches the assassin
+  // palette (#9B59D6) consistent with the sacred `assassin_p1_p2` entry.
+  identity_assassin_shark_counter: function() {
+    try { flashStateBanner('CURSED TILES · 3 SKULLS · 3 TURNS', '#9B59D6'); } catch (e) {}
+    try { vibrate([40, 30, 40, 30, 40]); } catch (e) {}
+    try { _fxLichCursedTilesImpl(null, null); } catch (e) {
+      log.error('[T2.08] Lich Cursed Tiles fx threw:', e);
+    }
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('assassin', 'cursed_tiles'); } catch (e) {}
+  },
+  // ── BERSERKER / FRENZY BLOODTIDE PULSE (spec §3.3) ───────────────────
+  // Layered ALONGSIDE the sacred berserker/frenzy handlers (`berserker_p1_p2`
+  // enrage banner + 1.2× boss damage, `berserker_p2_p3` stagger immunity,
+  // `frenzy_p1_p2` raise frenzyMaxStacks, `frenzy_p2_p3` forced 3-turn maul —
+  // ALL UNTOUCHED). Bloodtide is the SHARED tempo identity for both
+  // `berserker` (Ch1 Boss 1 PYREDRAKE) and `frenzy` (Ch2 Boss 8 URSARO)
+  // archetypes per spec §3.3 field 1.
+  //
+  // Trigger: every 3rd line clear the player resolves while the boss is in
+  // Active state (NOT Stagger, NOT Recovery — read-only via getBossState()
+  // from src/core/stagger-loop.js). The T2.B legacy bridge will call
+  // `triggerIdentityBossEvent('identity_berserker_frenzy_pulse')` from the
+  // line-clear pipeline AFTER bumping `incrementBloodtideClearCount()` AND
+  // confirming `bloodtideGatePasses(getBossState())`.
+  //
+  // Damage modifier: the +5% next-attack damage bonus is held in a one-shot
+  // boolean flag (_bloodtidePulsePending in identity-fx.js). The battle
+  // pipeline calls `consumeBloodtidePulse()` before resolving the next boss
+  // attack — that returns 0.05 once, then 0 until a new pulse fires.
+  // The pulse multiplies the ENRAGE-multiplied damage (NEVER modifies the
+  // sacred BERSERKER_ENRAGE_MULT = 2.0 value itself — see
+  // `applyBloodtideToDamage` in identity-fx.js for the composition rule).
+  //
+  // Banner color matches the berserker palette (#FF4D1F) consistent with the
+  // sacred `berserker_p1_p2` entry banner color.
+  identity_berserker_frenzy_pulse: function() {
+    try { flashStateBanner('BLOODTIDE PULSE · +5% INCOMING', '#E53935'); } catch (e) {}
+    try { vibrate([20, 20, 60]); } catch (e) {}
+    try { _fxBerserkerBloodtidePulseImpl(null, null); } catch (e) {
+      log.error('[T2.09] Berserker Bloodtide Pulse fx threw:', e);
+    }
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('berserker', 'bloodtide'); } catch (e) {}
+  },
+  // ── ENGINEER LOCKDOWN PROTOCOL (spec §3.4) ──────────────────────────
+  // Layered ALONGSIDE the sacred engineer handlers (`engineer_p1_p2` 4-cell
+  // scatter + 40T lockdown via `engineerLockedCells.set(k, 40)`,
+  // `engineer_p2_p3` 2 electrified rows — BOTH UNTOUCHED). Engineer Lockdown
+  // Protocol is the "anti-Tetris" counter referenced in spec §3.4: when the
+  // player completes a 4-line crit clear (the "Tetris" max), the Engineer
+  // boss reacts SAME-TURN by locking down a contiguous 2×2 square (4 cells)
+  // in the corner of the grid that received the most cleared cells in the
+  // last fire. The lockdown duration (40T) AND lockdown shape (4 cells) match
+  // the sacred phase-gate handler byte-perfect — T2.10 RE-USES the same
+  // `engineerLockedCells` Map state and the existing
+  // `.cell--engineer-welded` CSS class.
+  //
+  // T2.B legacy bridge will call this handler with a populated ctx
+  // (`linesCleared`, `comboTriggered`, `lastClearedRows`, `lastClearedCols`,
+  // `gridSize`, `currentTurn`) from the legacy `clearLines` site AFTER the
+  // sacred combo crit damage resolves. For the IMMEDIATELY-followed
+  // requirement (spec §3.4 field 6 — TETRIS celebration banner transitions
+  // directly into LOCKDOWN reaction with no 3000ms telegraph), T2.B bridge
+  // will call `fxEngineerLockdownProtocol` directly, bypassing the
+  // dispatcher's telegraph wind-up. Both paths are exposed; this handler
+  // is the dispatcher-compatible entry for FTUE / Codex preview routing.
+  //
+  // Banner color matches the sacred `engineer_p1_p2` palette (#B87333 copper)
+  // for visual consistency with the Engineer archetype's existing language.
+  identity_engineer_tetris_counter: function() {
+    try { flashStateBanner('TETRIS! · LOCKDOWN · 2×2 · 40T', '#B87333'); } catch (e) {}
+    try { vibrate([40, 20, 40, 20, 80]); } catch (e) {}
+    try { _fxEngineerLockdownProtocolImpl(null, null); } catch (e) {
+      log.error('[T2.10] Engineer Lockdown Protocol fx threw:', e);
+    }
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('engineer', 'lockdown_protocol'); } catch (e) {}
+  },
+  // ── GROVEWARDEN ROOT SURGE (spec §3.5) ───────────────────────────────
+  // Layered ALONGSIDE the sacred bruiser handlers (`bruiser_p1_p2`,
+  // `bruiser_p2_p3` — BOTH UNTOUCHED). Root Surge is the FIFTH and FINAL
+  // boss-reactive identity mechanic — sliding-window non-grove trigger
+  // (player's last 3 line clears all NOT grove-dominant → boss "patient"
+  // reaction).
+  //
+  // Trigger gate (managed in identity-fx.js via `shouldRootSurgeFire` +
+  // the `_grovewardenRecentClears` circular buffer): every line clear
+  // pushes its dominant element into the buffer (FIFO, size 3). When the
+  // buffer is full AND every entry !== 'grove', `triggerIdentityBossEvent(
+  // 'identity_bruiser_grove_surge')` fires. The T2.B legacy bridge will
+  // wire `pushRecentClear` into the line-clear pipeline AND consult the
+  // gate before dispatching.
+  //
+  // Boss reaction (handler body): 3 random empty cells gain moss root
+  // overlays. Cells block placement for 5 turns. When player clears a
+  // rooted cell during the window, `onRootCellCleared` grants +10 gold
+  // via existing `addGold` (cross-layer Pirate Plunder integration —
+  // FIRST live cross-layer interaction in Phase 2). Roots auto-clear at
+  // 5-turn timeout (silent, no damage).
+  //
+  // Banner color matches the bruiser/grove palette (#2D8659 mossy green)
+  // — distinct from copper Engineer lockdown / purple Lich curse / red
+  // Berserker pulse / cyan Shark bite / orange Phoenix flame. Telegraph
+  // text uses the PLACEHOLDER narrator copy "Where you would not bloom, I
+  // will." (PLACEHOLDER per ESC-02 O2 — Roman copy-pass at Phase 2 PR
+  // merge will confirm or replace).
+  identity_bruiser_grove_surge: function() {
+    // FINAL COPY: pending Roman approval at Phase 2 PR merge (ESC-02 O2).
+    try { flashStateBanner('ROOT SURGE · 3 ROOTS · 5 TURNS', '#2D8659'); } catch (e) {}
+    try { vibrate([30, 20, 30, 20, 60]); } catch (e) {}
+    try { _fxGrovewardenRootSurgeImpl(null, null); } catch (e) {
+      log.error('[T2.11] Grovewarden Root Surge fx threw:', e);
+    }
+    try { if (typeof showReactivityFX === 'function') showReactivityFX('bruiser', 'root_surge'); } catch (e) {}
+  },
+};
+
+// Dispatch entry point — mirrors `triggerReactivityEvent` shape so the
+// telegraph→execute pattern is identical between sacred and identity layers.
+// Step 1: showReactivityTelegraph(eventId) — 3-second wind-up banner.
+// Step 2: setTimeout REACTIVITY_TELEGRAPH_MS → handler() + log.
+// Telegraph is non-blocking — gameplay continues, banner overlays the screen.
+//
+// The eventId uses the `identity_<archetype>_<trigger>` namespace
+// (T2.07: `identity_phoenix_revive`; T2.08+: `identity_assassin_shark_counter`,
+// `identity_berserker_bloodtide`, etc. per spec §3.2–§3.7).
+//
+// Re-use note: this dispatcher RE-USES the sacred `REACTIVITY_TELEGRAPH_MS`
+// constant by reading it from the import chain established at line 167.
+// The constant itself lives in `src/core/bosses.js:265` — UNTOUCHED.
+export function triggerIdentityBossEvent(eventId) {
+  const handler = IDENTITY_BOSS_HANDLERS[eventId];
+  if (!handler) {
+    log.warn('[T2.07] No identity handler for boss event:', eventId);
+    return;
+  }
+  // Step 1: telegraph wind-up (3s — sacred REACTIVITY_TELEGRAPH_MS).
+  try { if (typeof showReactivityTelegraph === 'function') showReactivityTelegraph(eventId); } catch (e) {}
+
+  // Step 2: execute after telegraph window. Single setTimeout — no
+  // setInterval, no requestAnimationFrame. Steady-state per-frame work
+  // during the 5s window is pure CSS (handled by fx).
+  setTimeout(() => {
+    try { handler(); } catch (e) { log.error('[T2.07] identity boss handler error:', eventId, e); }
+    try {
+      if (typeof logBattleEvent === 'function') {
+        const label = eventId.toUpperCase().replace(/_/g, ' ');
+        logBattleEvent('identity', 'BOSS REACTS', label, '#E8B84A');
+      }
+    } catch (e) {}
+    try { if (typeof logEvent === 'function') logEvent('boss_identity_fired', { eventId }); } catch (e) {}
+  }, REACTIVITY_TELEGRAPH_MS);
+}
+
+// Re-export the Ashen Reign reset hook so callers managing battle state
+// (battle pipeline T2.B + bug-tester regression flows) can clear any active
+// boss-identity windows on battle-end / new-battle / menu-return without
+// reaching into `src/feel/identity-fx.js` directly. Mirrors the
+// `clearVoidfangTints` precedent (Voidfang shroud slice line 1350).
+export function resetIdentityBossState() {
+  try { _resetAshenReignImpl(); } catch (e) {
+    log.warn('[T2.07] resetAshenReign threw:', e);
+  }
+  try { _resetCursedTilesImpl(); } catch (e) {
+    log.warn('[T2.08] resetCursedTiles threw:', e);
+  }
+  try { _resetBloodtideImpl(); } catch (e) {
+    log.warn('[T2.09] resetBloodtide threw:', e);
+  }
+  try { _resetEngineerLockdownsImpl(); } catch (e) {
+    log.warn('[T2.10] resetEngineerLockdowns threw:', e);
+  }
+  try { _resetGrovewardenRootSurgeImpl(); } catch (e) {
+    log.warn('[T2.11] resetGrovewardenRootSurge threw:', e);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONSOLE HELPERS (legacy 30021-30034)
 // forcePhase (drop bossHP + trigger), resetBattlePhases.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1443,6 +1693,12 @@ if (typeof window !== 'undefined') {
   // ===== Console helpers =====
   window.forcePhase                   = forcePhase;
   window.resetBattlePhases            = resetBattlePhases;
+  // ===== T2.07 — Identity Layer · boss-reactive dispatch =====
+  // T2.B legacy bridge calls `window.triggerIdentityBossEvent(eventId)` from
+  // legacy `maybePhoenixRevive` after the sacred revive completes.
+  window.IDENTITY_BOSS_HANDLERS       = IDENTITY_BOSS_HANDLERS;
+  window.triggerIdentityBossEvent     = triggerIdentityBossEvent;
+  window.resetIdentityBossState       = resetIdentityBossState;
 }
 
 // Quiet T1.10.8 boot acknowledgement — confirms the module side-effects
