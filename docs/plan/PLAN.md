@@ -128,13 +128,13 @@
 ### High-level Tasks
 - [x] T3.01 — Phase 3 Endgame Social design spec (Designer) — **DONE 2026-05-13** (`7c5ec5c`; 1572 LoC `docs/design/endgame-social.md`; 5 systems × 14 sections + 47-row sacred audit + 16 new files + 7 additive modifications + 5 ESC-03 questions Q1–Q5)
 - [x] T3.07 — Replay capture infrastructure — **DONE 2026-05-13** (`b9c9a84`; +1835 LoC across 7 files; +71 unit tests (581→652); 222/222 smoke pass; 0 sacred-cow modifications. 12 new replay window-bridge functions; 9 trigger predicates (7 live + 2 stubs T3.04/T3.13); 4fps rolling 240-frame buffer ~2.4 MB; storage tier from sacred `getPlayerSegment()`; <4ms/frame overhead. Identity Layer fx NOT in diff — replay listens at dispatcher level. Bundle JS 272 → 278 KB.)
-- [ ] T3.02 — Adventures backend
+- [ ] T3.02 — Adventures backend — **ACTIVE** (Wave 3 headline; Firestore CRUD for clan documents + 5-15 hard cap per ESC-03 Q1)
 - [ ] T3.03 — Clan create/join flow
 - [ ] T3.04 — Weekly target / boss-of-the-week rotation
 - [ ] T3.05 — Contributor stats + clan progression
 - [ ] T3.06 — Friend leaderboard mini-block
 - [x] T3.08 — Replay viewer — **DONE 2026-05-13** (`f2fe02d`; +1851 LoC across 10 files (5 new + 5 modified); +42 unit tests (652→694); 238/238 smoke pass; 0 sacred-cow modifications. Scrubable canvas playback at 4fps with 0.5/1/2× speed; navigator.share OS-native with graceful no-op; `?replay=<id>` deeplink in main.js; code-split into 11.21 KB lazy chunk — JS main bundle unchanged at 280.21 KB. `prefers-reduced-motion` respected (no auto-play). renderFrameToCanvas avg 0.001ms (16000× under 16ms budget))
-- [ ] T3.09 — Codex Moments tab Replay button integration — **ACTIVE** (Wave 2 finale; visible Phase 2 → Phase 3 bridge moment)
+- [x] T3.09 — Codex Moments tab Replay button integration — **DONE 2026-05-13** (`654e81f`; +900/-4 LoC across 7 files; +18 unit tests (695→713); 252/252 smoke pass; 0 sacred-cow modifications. Phase 2 Codex recorder signatures preserved (backward-compat). `recordMomentReplay(momentKey, replayId)` NEW separate function. `IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY` mapping for 5 boss-reactive moments. T3.08 direct-import precedent followed — NO window-bridge bloat. Race condition handled (silent no-op). **Wave 2 Replay subsystem COMPLETE — visible Phase 2 → Phase 3 bridge LIVE.**)
 - [ ] T3.10 — Party Tower async architecture (per ADR-002)
 - [ ] T3.11 — Shared Tower-Hearts pool + shared TOWER_PACTS selection
 - [ ] T3.12 — Per-turn Identity Layer dispatch (cross-race synergies)
