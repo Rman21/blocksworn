@@ -1,0 +1,441 @@
+/* 2026-05-13 — TASK-059 (T3.15): Tower seasonal screen styling.
+ *
+ * Spec: docs/design/endgame-social.md §6 (Tower seasonal infrastructure)
+ *       + §6.1 (Uroboros variant rotation banner)
+ *       + §6.2 (Seasonal pacts list — additive surface)
+ *       + §6.3 (PURE PATH F2P-only leaderboard reset hint)
+ *       + §6.4 (Battle Pass tier progress widget; sacred formula §2.4).
+ *
+ * Parchment / archive aesthetic matching Codex (T2.12) + Adventures (T3.03)
+ * + Replay viewer (T3.08) + Party Tower (T3.13). Reuses the shared palette
+ * so the Phase 2/3 secondary screens feel like one chronicle.
+ *
+ * Palette (mirrors Codex / Adventures / Party Tower):
+ *   - Background: parchment beige  (#E8DAB6)
+ *   - Body text:  ink brown        (#2C2014)
+ *   - Borders:    gold-leaf        (#A88033 → #D9B25C gradients)
+ *   - Accent:     muted gold       (#8C5E1A)
+ *   - Hot accent: ember red        (#8C2A1A)
+ *
+ * Layout: mobile-first 380px. Hero block stacks vertically on phone;
+ * desktop pairs Uroboros card + countdown side-by-side. Pacts/Battle Pass
+ * panels flow as single column.
+ *
+ * Sacred safety:
+ *   - All styles scoped under .ts-* / #screenTowerSeason — never touches
+ *     existing selectors (battle, menu, profile, shop, tower, season,
+ *     codex, replay-viewer, adventures, party-tower).
+ *   - prefers-reduced-motion fallback disables hover transforms +
+ *     countdown pulse + tier-bar shimmer.
+ *   - Uroboros aura colors are READ from sacred season-config.js
+ *     (variant.auraColor) and applied via inline style — no hard-coded
+ *     aura values here (variant-agnostic styling).
+ */
+
+/* ===== Screen container (mirrors v-codex / v-party-tower) ===== */
+.screen.v-tower-season { display: none; }
+.screen.v-tower-season.active { display: flex; flex-direction: column; }
+
+#screenTowerSeason {
+  background: #E8DAB6;
+  color: #2C2014;
+  font-family: 'Cinzel', 'Garamond', 'Times New Roman', serif;
+  min-height: 100vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* ===== Wrap ===== */
+.ts-wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 14px 32px;
+}
+
+/* ===== Header ===== */
+.ts-header {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0 12px;
+  border-bottom: 2px solid #A88033;
+  background:
+    linear-gradient(180deg, rgba(216,192,140,0.5) 0%, transparent 100%);
+}
+.ts-back-btn {
+  position: absolute;
+  left: 4px;
+  top: 12px;
+  background: rgba(168,128,51,0.18);
+  border: 1px solid #A88033;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+  color: #2C2014;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+}
+.ts-title {
+  font-size: 26px;
+  letter-spacing: 0.18em;
+  margin: 0 0 4px;
+  color: #2C2014;
+  text-shadow: 0 1px 0 rgba(216,192,140,0.8);
+  text-transform: uppercase;
+}
+.ts-subtitle {
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: #5C4520;
+  font-style: italic;
+  margin: 0;
+}
+
+/* ===== Loading / empty / offline ===== */
+.ts-loading {
+  padding: 24px;
+  text-align: center;
+  font-style: italic;
+  color: #5C4520;
+}
+.ts-empty {
+  padding: 24px 18px;
+  text-align: center;
+  color: #5C4520;
+}
+.ts-empty-title {
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2C2014;
+  margin: 0 0 6px;
+}
+.ts-empty-sub {
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+}
+
+/* ===== Hero block — season banner + Uroboros card ===== */
+.ts-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 14px 0 18px;
+}
+@media (min-width: 560px) {
+  .ts-hero {
+    grid-template-columns: 1.1fr 0.9fr;
+  }
+}
+
+.ts-banner {
+  padding: 14px 16px;
+  background:
+    linear-gradient(180deg, rgba(244,228,196,0.85) 0%, rgba(216,192,140,0.7) 100%);
+  border: 1px solid #A88033;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ts-banner-label {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8C5E1A;
+  margin: 0;
+}
+.ts-banner-season {
+  font-size: 22px;
+  letter-spacing: 0.1em;
+  color: #2C2014;
+  margin: 0;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.ts-banner-week {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #5C4520;
+  margin: 0;
+}
+.ts-banner-countdown {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 4px;
+}
+.ts-banner-countdown-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8C5E1A;
+}
+.ts-banner-countdown-value {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #8C2A1A;
+}
+.ts-banner-countdown-value--safe { color: #1F6F33; }
+.ts-banner-countdown-value--warn { color: #8C5E1A; }
+.ts-banner-countdown-value--danger {
+  color: #8C2A1A;
+  animation: ts-pulse 1.6s ease-in-out infinite;
+}
+@keyframes ts-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+/* ===== Uroboros variant card ===== */
+.ts-uroboros {
+  position: relative;
+  padding: 14px 16px;
+  background:
+    linear-gradient(180deg, rgba(244,228,196,0.85) 0%, rgba(216,192,140,0.7) 100%);
+  border: 1px solid #A88033;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+.ts-uroboros::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 80% 30%,
+                    var(--ts-aura-color, rgba(168,128,51,0.4)) 0%,
+                    transparent 65%);
+  opacity: 0.42;
+  transition: opacity 200ms ease;
+}
+.ts-uroboros-label {
+  position: relative;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8C5E1A;
+  margin: 0;
+}
+.ts-uroboros-name {
+  position: relative;
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin: 0;
+  color: #2C2014;
+  text-shadow: 0 1px 0 rgba(216,192,140,0.8);
+}
+.ts-uroboros-variant {
+  position: relative;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #5C4520;
+  font-style: italic;
+  margin: 0;
+}
+.ts-uroboros-narrator {
+  position: relative;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #8C5E1A;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+
+/* ===== Section panel shared ===== */
+.ts-section {
+  margin-top: 18px;
+  padding: 14px 14px 12px;
+  background: rgba(168,128,51,0.06);
+  border: 1px solid rgba(168,128,51,0.45);
+  border-radius: 4px;
+}
+.ts-section-h {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: #8C5E1A;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+}
+
+/* ===== Seasonal pacts list ===== */
+.ts-pact-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ts-pact-row {
+  padding: 10px 12px;
+  background:
+    linear-gradient(180deg, rgba(244,228,196,0.6) 0%, rgba(216,192,140,0.45) 100%);
+  border: 1px solid rgba(168,128,51,0.55);
+  border-left-width: 3px;
+  border-left-color: #8C5E1A;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.ts-pact-row--rare    { border-left-color: #2D6F8C; }
+.ts-pact-row--epic    { border-left-color: #7E3FB8; }
+.ts-pact-row--legendary { border-left-color: #E5A935; }
+.ts-pact-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #2C2014;
+  margin: 0 0 4px;
+}
+.ts-pact-rarity {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  padding: 2px 5px;
+  border-radius: 2px;
+  background: rgba(168,128,51,0.18);
+  color: #5C4520;
+  border: 1px solid rgba(168,128,51,0.5);
+  text-transform: uppercase;
+}
+.ts-pact-rarity--rare    { color: #2D6F8C; border-color: #2D6F8C; background: rgba(45,111,140,0.12); }
+.ts-pact-rarity--epic    { color: #7E3FB8; border-color: #7E3FB8; background: rgba(126,63,184,0.12); }
+.ts-pact-desc {
+  font-size: 12px;
+  font-style: italic;
+  color: #5C4520;
+  margin: 0;
+  line-height: 1.4;
+}
+.ts-pact-empty {
+  font-size: 12px;
+  font-style: italic;
+  color: #5C4520;
+  margin: 0;
+}
+
+/* ===== Battle Pass tier widget ===== */
+.ts-bp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ts-bp-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ts-bp-tier-label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8C5E1A;
+  margin: 0;
+}
+.ts-bp-tier-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #2C2014;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+.ts-bp-tier-max {
+  font-size: 13px;
+  color: #5C4520;
+}
+.ts-bp-bar-track {
+  position: relative;
+  height: 10px;
+  background: rgba(168,128,51,0.15);
+  border: 1px solid rgba(168,128,51,0.45);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.ts-bp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #C8A93C 0%, #FFE07A 100%);
+  border-radius: 6px;
+  transition: width 200ms ease;
+}
+.ts-bp-bar-fill--max { background: linear-gradient(90deg, #E5A935 0%, #FFEDB6 100%); }
+.ts-bp-xp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  color: #5C4520;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+.ts-bp-next {
+  font-size: 12px;
+  color: #5C4520;
+  margin: 0;
+  font-style: italic;
+  line-height: 1.4;
+}
+.ts-bp-next-tier-num {
+  font-style: normal;
+  font-weight: 700;
+  color: #2C2014;
+  letter-spacing: 0.04em;
+}
+
+/* ===== Leaderboard hint ===== */
+.ts-lb-hint {
+  margin-top: 18px;
+  padding: 12px 14px;
+  background:
+    linear-gradient(180deg, rgba(244,228,196,0.5) 0%, rgba(216,192,140,0.35) 100%);
+  border: 1px solid rgba(168,128,51,0.5);
+  border-left: 3px solid #8C5E1A;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #2C2014;
+}
+.ts-lb-hint-title {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8C5E1A;
+  margin: 0 0 4px;
+}
+.ts-lb-hint-body {
+  font-size: 12px;
+  color: #5C4520;
+  margin: 0 0 4px;
+  line-height: 1.4;
+}
+.ts-lb-hint-purepath {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #1F6F33;
+  margin: 0;
+  font-style: italic;
+}
+
+/* ===== prefers-reduced-motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  .ts-banner-countdown-value--danger,
+  .ts-bp-bar-fill,
+  .ts-uroboros::before {
+    transition: none;
+    animation: none;
+  }
+}

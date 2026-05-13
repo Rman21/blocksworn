@@ -100,7 +100,7 @@ export function showScreen(name) {
   // T3.03 (2026-05-13): added 'adventures' route for Adventures screen (Phase 3
   // §2 — async clan create/browse/join/view/leave). Dynamic-import per replay-
   // viewer precedent — only loads when the player opens the screen.
-  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex', 'replay-viewer': 'screenReplayViewer', adventures: 'screenAdventures', friends: 'screenFriends', 'party-tower': 'screenPartyTower' };
+  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex', 'replay-viewer': 'screenReplayViewer', adventures: 'screenAdventures', friends: 'screenFriends', 'party-tower': 'screenPartyTower', 'tower-season': 'screenTowerSeason' };
   for (const key in map) {
     const el = document.getElementById(map[key]);
     if (el) el.classList.toggle('active', key === name);
@@ -168,6 +168,20 @@ export function showScreen(name) {
         try { if (typeof window !== 'undefined') window.__partyTowerInitialCtx = null; } catch (_e) {}
       } catch (e) { log.warn('renderPartyTower failed:', e); }
     }).catch(e => log.warn('party-tower dynamic import failed:', e));
+  }
+  // T3.15 (2026-05-13): Tower seasonal dynamic import on screen activation.
+  // Dynamic to keep the menu-path bundle slim (Tower seasonal only loads
+  // when used). window.__towerSeasonInitialCtx (optional) is read by
+  // renderTowerSeason so a future deeplink (e.g. ?season=<id>) can preload
+  // a specific view. Defensive try/catch — never crashes screen switching.
+  if (name === 'tower-season') {
+    import('./tower-season.js').then(mod => {
+      try {
+        const ctx = (typeof window !== 'undefined' && window.__towerSeasonInitialCtx) || null;
+        mod.renderTowerSeason(undefined, ctx);
+        try { if (typeof window !== 'undefined') window.__towerSeasonInitialCtx = null; } catch (_e) {}
+      } catch (e) { log.warn('renderTowerSeason failed:', e); }
+    }).catch(e => log.warn('tower-season dynamic import failed:', e));
   }
   // T3.06 (2026-05-13): Friends full-list dynamic import on screen activation.
   // Dynamic to keep the menu-path bundle slim (full list only loads when used).

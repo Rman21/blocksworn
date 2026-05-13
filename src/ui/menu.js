@@ -91,6 +91,11 @@ export function renderMenu() {
   // Tower run). Additive — placed below ADVENTURES entry. FTUE-gated (matches
   // Codex / Adventures visibility pattern).
   try { vRenderPartyTowerDrawerEntry(); } catch(e){ log.warn('vRenderPartyTowerDrawerEntry failed:', e); }
+  // T3.15 (2026-05-13): Tower seasonal drawer entry per spec §6 (Uroboros
+  // variant rotation + Battle Pass tier widget + seasonal pacts). Additive —
+  // placed below PARTY TOWER entry. FTUE-gated (matches Codex / Adventures /
+  // Party Tower visibility pattern).
+  try { vRenderTowerSeasonDrawerEntry(); } catch(e){ log.warn('vRenderTowerSeasonDrawerEntry failed:', e); }
   // T3.06 (2026-05-13): Friend leaderboard mini-block widget per spec §5.
   // Mounted inline on menu (NOT a new screen). Additive — placed below the
   // Adventures drawer entry. FTUE-gated. Dynamic-import keeps the menu-path
@@ -579,6 +584,49 @@ function vRenderPartyTowerDrawerEntry() {
   btn.textContent = '⚔️ PARTY TOWER';
   btn.addEventListener('click', () => {
     try { showScreen('party-tower'); } catch (e) { log.warn('Party Tower nav failed:', e); }
+  });
+  mount.appendChild(btn);
+}
+
+// ─── vRenderTowerSeasonDrawerEntry (T3.15, 2026-05-13) ──────────────────────
+// Spec: docs/design/endgame-social.md §6 (Tower seasonal — Uroboros variant
+// rotation + Battle Pass tier widget + seasonal pacts list).
+// Mirror of vRenderPartyTowerDrawerEntry — appends a "🌌 SEASON" entry to the
+// hub drawer if a known mount point exists. Idempotent — re-running creates
+// the entry only once (id-keyed). FTUE-gated so the entry stays hidden during
+// tutorial (matches Codex / Adventures / Party Tower visibility pattern).
+//
+// Mount-point resolution (best-effort, order):
+//   1. #vMenuDrawer
+//   2. #vHubNavRow
+//   3. #screenMenu
+//
+// No-op if no mount point exists. Tower seasonal remains reachable via
+// direct `showScreen('tower-season')` even when the drawer entry is absent.
+function vRenderTowerSeasonDrawerEntry() {
+  if (typeof document === 'undefined') return;
+  // FTUE gate.
+  try {
+    if (typeof isFtueActive === 'function' && isFtueActive()) {
+      const existing = document.getElementById('vGoToTowerSeasonBtn');
+      if (existing) existing.style.display = 'none';
+      return;
+    }
+  } catch(e){}
+  let btn = document.getElementById('vGoToTowerSeasonBtn');
+  if (btn) { btn.style.display = ''; return; }
+  const mount = document.getElementById('vMenuDrawer')
+             || document.getElementById('vHubNavRow')
+             || document.getElementById('screenMenu');
+  if (!mount) return;
+  btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'vGoToTowerSeasonBtn';
+  btn.className = 'a-btn-drawer a-btn-tower-season';
+  btn.setAttribute('aria-label', 'Open Tower season');
+  btn.textContent = '🌌 SEASON';
+  btn.addEventListener('click', () => {
+    try { showScreen('tower-season'); } catch (e) { log.warn('Tower season nav failed:', e); }
   });
   mount.appendChild(btn);
 }
