@@ -3992,6 +3992,115 @@ Sibling export `RACE_IDENTITY_FX` added to `src/data/races.js` (NOT inside `RACE
 
 ## GAME DESIGNER
 
+### TASK-046 (T3.01) — 🟡 REVIEW 2026-05-13 — Phase 3 Endgame Social design spec (Phase 3 start)
+
+**Status:** TODO → IN PROGRESS → **REVIEW** (awaiting CTO sign-off)
+**Started:** 2026-05-13
+**Priority:** HIGH
+**Phase:** 3 (Endgame Social) — **1/15 (first task)**
+**Estimated complexity:** L (master design spec for Phase 3 — mirrors T2.01)
+**Depends on:** ✅ Phase 2 closeout (TASK-041 / T2.B.QA → DONE); ✅ Phase 2.5 polish PRs #160 + #161 in review (not blocking); ADR-002 (async-only) + ADR-003 (no-P2W) + ADR-004 (src/ only) honored
+
+**Output:**
+- Document: `docs/design/endgame-social.md` (~1300 LoC, mirrors T2.01 rigor)
+- Sections: 14 (overview, architectural fit, Adventures, Party Tower, Replay/Share, Friend leaderboard, Tower seasonal, sacred audit, player segments, perf budgets, implementation deps, visual regression, test coverage, open questions, acceptance)
+- Covers all 5 Phase 3 deliverables per Execution Plan §8.2:
+  - **Adventures (T3.02–T3.05)** — async clan 5-15 with weekly boss-of-the-week + contributor stats + clan progression + cosmetic unlocks + emoji-only chat
+  - **Party Tower (T3.10–T3.13)** — 2-5 player async turn-based coop per ADR-002 + shared Tower-Hearts pool + shared TOWER_PACTS + per-turn Identity Layer integration
+  - **Replay/Share (T3.07–T3.09)** — auto-record key moments (4ms/frame budget) + scrubable viewer + navigator.share + Codex Moments integration (ships §4.6 stretch goal from identity-layer.md)
+  - **Friend leaderboard (T3.06)** — menu widget + full-screen + auto-friending via clan/party/codex/replay-share
+  - **Tower seasonal (T3.14–T3.15)** — 13-week season cadence + seasonal Uroboros rotation + seasonal pact additions (additive to TOWER_PACTS sacred) + Battle Pass tier-cosmetic tie-in
+- Sacred cow audit: 47-row table — **0 modifications confirmed**
+- Player Segments table: F2P/Minnow/Dolphin/Whale access matrix + ADR-003 no-P2W invariant verified
+- Performance budgets explicit + measurable (Adventures FCP ≤300ms, Party turn handoff ≤2s, Replay capture ≤4ms/frame, total Phase 3 frame overhead ≤4ms/frame)
+- Implementation dependencies: 16 new files + 7 additive modifications
+- 24 new visual regression baselines spec'd (4 new screens × desktop + mobile)
+- 5 open questions for Roman ESC with Designer recommendations
+
+**Sacred cows respected (CLAUDE.md §2.1–§2.5):**
+
+`TOWER_PACTS_BASE` (30 pacts) + `TOWER_PACTS_MYTHIC` (15 seasonal) byte-perfect. `TOWER_LEADERBOARDS` (global / f2p_only PURE PATH / weekly_seasonal) byte-perfect. `PACT_RARITIES` weights byte-perfect. Uroboros boss spec untouched (rotation is metadata layer). Battle Pass formula `500 + tier × 150` byte-perfect (Phase 3 adds NEW cosmetics per tier, never changes math). Tower retry ladder [100, 200, 400] read-only by Party Tower. 3-min Tower TTK target preserved per-floor. GEM_PACKS / First Purchase Bonus / Combat math / V_HAPTICS / NARRATOR_LINES / Stagger Loop / Reactivity Events 22 handlers / Identity Layer race+boss FX — all read-only / additive. ADR-002 async-only honored throughout (no WebRTC). ADR-003 no-P2W honored (paid tiers receive cosmetic + storage benefits only, never mechanical). ADR-004 src/ only — all 16 new files land in `src/`.
+
+**Self-check:**
+
+- [x] §0 Overview + Phase 2 → Phase 3 extension narrative
+- [x] §1 Architectural fit + hard rules + scope + 7-row layer table
+- [x] §2 Adventures (T3.02–T3.05) — 6 sub-sections, full mechanics + perf
+- [x] §3 Party Tower (T3.10–T3.13) — 6 sub-sections, async architecture + per-turn Identity Layer
+- [x] §4 Replay/Share (T3.07–T3.09) — 6 sub-sections, capture + viewer + share + Codex link
+- [x] §5 Friend leaderboard (T3.06) — 4 sub-sections, widget + data + invite + perf
+- [x] §6 Tower seasonal (T3.14–T3.15) — 4 sub-sections, Uroboros rotation + pact additions + Battle Pass
+- [x] §7 Sacred cow audit (47 rows, 0 modifications)
+- [x] §8 Player Segments matrix + no-P2W invariant
+- [x] §9 Performance budgets layer-wide
+- [x] §10 Implementation dependencies (16 new files + 7 modify-additively)
+- [x] §11 Visual regression baselines (24 new + 1 intentional Codex update)
+- [x] §12 Test coverage (7 smoke + 4 unit + 24 visual + manual multi-account)
+- [x] §13 Open questions for Roman (Q1–Q5)
+- [x] No code written — pure design
+- [x] No src/ touched
+- [x] No sacred values modified
+- [x] ADR-002 (async-only) honored
+- [x] ADR-003 (no-P2W) honored
+- [x] ADR-004 (src/ only) honored
+
+**Open questions for Roman (5 — see spec §13):**
+
+- **Q1** — Adventures clan size: enforce **hard 5-15 cap** (recommended) or allow whale-tier 5-30? Recommendation: hard cap; larger = P2W risk.
+- **Q2** — Replay storage per tier: Designer recommends **permanent storage across all tiers**, sizes vary (F2P 100 MB → Whale 500 MB) to honor no-P2W parity. TTL-only-on-paid is an alternative if storage-cost analysis requires.
+- **Q3** — Party Tower turn timeout default: **24h** (recommended), with 7-day casual + 4h competitive per-party options at creation.
+- **Q4** — Season length: **13-week Tower seasons + weekly Adventures + 13-week Battle Pass cadence** (recommended). Matches Marvel Snap / Brawl Stars.
+- **Q5** — Friend invite: **navigator.share only for MVP** (recommended), with in-game 6-char codes as Phase 3.5 fallback if A doesn't drive friend-graph metrics.
+
+**Замечено рядом (NOT actioned, reported):**
+
+1. **ADR-002 + ADR-003 missing as discrete files.** Working tree contains only `docs/adr/004-hybrid-runtime-coexistence.md` — ADR-002 (async > real-time) and ADR-003 (no P2W) are referenced in Execution Plan §8.3 and CLAUDE.md but NOT yet authored as discrete ADR files. Phase 3 spec honors both decisions per CLAUDE.md / Execution Plan as authoritative source. **Recommendation:** CTO authors ADR-002 + ADR-003 alongside T3.02 launch for documentation completeness; not blocking design.
+2. **Phase 2.5 polish PRs (#160, #161) in review.** Per task brief, narrator + FTUE overlays land before Phase 3 implementation begins. Phase 3 design does NOT depend on these polish PRs — narrator placeholders covered in §2.3 Phase 2 ruling.
+3. **T3.02 next-task recommendation.** Game Dev should start **T3.07 Replay capture infrastructure FIRST** (not T3.02 Adventures backend). Why: Replay capture is the wave-1 lateral dependency that unblocks the Codex Moments tab Replay button (the visible Phase 2 → Phase 3 bridge moment), can be built in isolation, and Replay surfaces are read-only — lower coordination risk than introducing multi-user state machines first. T3.02 Adventures backend follows in wave-1 parallel. (Alternative: start T3.02 to ship the headline feature first; either path is viable. CTO judgment call.)
+4. **PURE PATH parity audit baseline (§8.3) requires Bug Tester instrumentation post-T3.16.** F2P vs paid Tower-floor / Adventures-completion / Party-completion / retention deltas must stay within tolerance for Phase 3 ship to be ADR-003-compliant.
+5. **Replay storage cost model.** §4.4 budgets imply per-account storage Firebase Storage costs. CTO/Roman may wish to size against monthly active player projections before T3.07 ships.
+
+**For Game Developer (post-CTO + Roman approval):**
+
+- Implementation tasks T3.02–T3.16 expected (15 tasks per Execution Plan §8.2 mapping).
+- Suggested wave sequence per §10.3:
+  - Wave 1 (parallel-friendly): T3.02 (Adventures backend), T3.07 (Replay capture), T3.14 (Season config data)
+  - Wave 2: T3.03 (weekly target), T3.08 (Replay viewer), T3.06 (Friend leaderboard)
+  - Wave 3: T3.04 (contrib stats), T3.05 (clan progression), T3.09 (Replay share), T3.15 (Battle Pass cosmetic tie-in)
+  - Wave 4: T3.10–T3.13 (Party Tower)
+  - Final: T3.16 Legacy Bridge (mirrors T2.B integration moment)
+- New files: 16 in `src/` per §10.1 (4 new screens + 2 backend services + 1 data module + 4 CSS + 4 smoke + 2 unit).
+- Additive modifications: `src/ui/router.js` (4 routes), `src/ui/menu.js` (3-4 drawer entries), `src/services/firebase.js` (3 helpers), `src/services/storage.js` (3 keys), `src/ui/codex.js` (Replay button hook), `src/ui/tower.js` (seasonal banner + Party Tower entry).
+- 26+ window-bridge functions expected when T3.16 integration lands.
+- Visual baselines: 24 new + 1 intentional Codex baseline update (existing baselines must NOT change — regression contract).
+
+**For Bug Tester (post-T3.16):**
+
+- 7 new smoke flows + 4 unit-test suites + 24 visual baselines.
+- Multi-account end-to-end pass (2 accounts × 2 devices) for clan + party + replay-share + friend-leaderboard interactions.
+- PURE PATH parity audit instrumentation: F2P / paid Tower-floor / Adventures-completion / Party-completion / retention metrics tracking baseline.
+- Sacred-cow regression: re-verify TOWER_PACTS_BASE (30) + TOWER_PACTS_MYTHIC (15) + TOWER_LEADERBOARDS + 22 Reactivity handlers + Battle Pass formula all byte-perfect post-Phase-3.
+
+**Files touched (this task — DESIGN ONLY):**
+
+- `docs/design/endgame-social.md` (new, ~1300 LoC)
+- `docs/plan/TASKS.md` (this entry)
+
+**Files NOT touched (per strict constraints):**
+
+- ALL `src/` files (this is design only)
+- ALL CSS files
+- ALL test files / baselines / CI / husky
+- `docs/_legacy/` (read-only reference)
+- No npm packages installed
+- No push to remote
+
+**Time:** ~3 hours (research existing Tower/Adventures/Party systems → 5-system spec design → sacred-cow audit → player-segments matrix → open questions formulation).
+
+**Commit:** see git log — `[T3.01] Phase 3 Endgame Social design spec (Phase 3 start)`
+
+---
+
 ### TASK-028 (T2.01) — ✅ DONE 2026-05-12 — Identity Layer design spec (Phase 2 start)
 
 **Status:** TODO → IN PROGRESS → REVIEW → **DONE** (CTO sign-off 2026-05-12)
