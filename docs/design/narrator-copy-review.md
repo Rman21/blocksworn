@@ -1,9 +1,9 @@
 # Narrator Copy Review Sheet — Phase 2 Identity Layer
 
-**Status:** AWAITING ROMAN APPROVAL (Phase 2 PR merge copy-pass)
+**Status:** AWAITING ROMAN APPROVAL (Phase 2.5 polish patch — all 3 spec narrator lines now WIRED)
 **Origin:** ESC-02 O2 ruling ("placeholder-first; CTO + Roman do a copy-pass before T2.11 closes")
-**Compiler:** Bug Tester (TASK-041 / T2.B.QA Area 3)
-**Date:** 2026-05-12
+**Compiler:** Bug Tester (TASK-041 / T2.B.QA Area 3); updated by Phase 2.5 polish patch (TASK-042)
+**Date:** 2026-05-12 (Bug Tester audit); 2026-05-13 (Phase 2.5 wiring update)
 
 ---
 
@@ -58,35 +58,38 @@ thematically alive").
 
 ---
 
-### 2. Phoenix — Ashen Reign **(HUD label only; no narrator line wired)**
+### 2. Phoenix — Ashen Reign **(HUD label + narrator line, BOTH WIRED)**
 
-**File:** `src/data/identity-layer.js:444`
-**Constant:** `ASHEN_REIGN_HUD_COUNTDOWN_TEXT`
-**Value:** `'EMBER ONLY — 5s'`
-**Comment marker:** none (HUD label, not narrator)
-**Mechanic context:** Displayed on the HUD for 5 seconds after Phoenix
-revive while the board is locked to ember-only piece placement (spec §3.1
-field 4).
-**Tone target:** functional HUD label (mechanical clarity); not
-Darkest-Dungeon-voice.
-**Spec narrator line (NOT yet wired):** `"The ash remembers. Strike only with the flame that birthed it."` (spec §3.1 field 6)
+**HUD label:**
+- **File:** `src/data/identity-layer.js:444`
+- **Constant:** `ASHEN_REIGN_HUD_COUNTDOWN_TEXT`
+- **Value:** `'EMBER ONLY — 5s'`
+- **Tone target:** functional HUD label (mechanical clarity); not Darkest-Dungeon-voice.
+
+**Narrator line (wired by Phase 2.5 polish patch 2026-05-13):**
+- **File:** `src/data/identity-layer.js:451`
+- **Constant:** `ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER`
+- **Value:** `'The ash remembers. Strike only with the flame that birthed it.'`
+- **Comment marker:** ✅ `// FINAL COPY: pending Roman approval (Phase 2.5 review).`
+- **Mechanic context:** Fires when Phoenix revives (spec §3.1 field 6 — "the screen catching fire ... narrator line"). Shown alongside the 5s ember-only flame border overlay.
+- **Tone target:** Darkest Dungeon (poetic, terse, voice-of-boss).
+- **Wiring path:** `fxPhoenixAshenReign` → `ctx.narratorApi.show()` (preferred, via T2.B bridge) OR `flashStateBanner` fallback. Same pattern as T2.11 Root Surge.
+
 **Roman action:**
-- APPROVE the HUD label as functional UI copy (no tone constraint), AND
-- DECIDE: ship Phase 2 PR with no spec §3.1 narrator line (HUD-only),
-  OR add the spec line as a `PHOENIX_ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER`
-  constant + ctx.narratorApi.show() call in a follow-up patch.
+- APPROVE both strings as-is, OR redline either with replacement text.
 
 ---
 
-### 3. Lich — Cursed Tiles **(spec narrator line NOT yet wired)**
+### 3. Lich — Cursed Tiles **(narrator line WIRED)**
 
-**File:** none (no Lich-narrator constant exists in identity-layer.js)
-**Mechanic context:** Fires next-turn after player clears with ≥2 sharks.
-3 cells gain skull overlays (spec §3.2 field 6 — "boss feels responsive").
-**Spec narrator line (NOT yet wired):** `"What you took, the deep remembers."` (spec §3.2 field 6)
-**Roman action:** DECIDE: ship Phase 2 PR with no Lich narrator line
-(boss-reactive mechanic is purely visual + mechanical), OR add the spec
-line in a follow-up patch.
+**File:** `src/data/identity-layer.js:550`
+**Constant:** `CURSED_TILES_NARRATOR_LINE_PLACEHOLDER`
+**Value:** `'What you took, the deep remembers.'`
+**Comment marker:** ✅ `// FINAL COPY: pending Roman approval (Phase 2.5 review).`
+**Mechanic context:** Fires when player clears with ≥2 sharks (spec §3.2 field 6 — "boss feels responsive"). Shown alongside the 3 skull cell overlays.
+**Tone target:** Darkest Dungeon (poetic, terse, voice-of-boss).
+**Wiring path:** `fxLichCursedTiles` → `ctx.narratorApi.show()` (preferred, via T2.B bridge) OR `flashStateBanner` fallback. Same pattern as T2.11 Root Surge.
+**Roman action:** APPROVE as-is OR redline with replacement string.
 
 ---
 
@@ -125,20 +128,20 @@ Darkest-Dungeon-voice narrator lines. Only 1 is wired in code (item 1
 above). The remaining 3 are documented here for Roman's explicit
 ship-vs-defer decision:
 
-| # | Spec | Suggested line | Wired? | Recommended action |
-|---|------|----------------|--------|--------------------|
-| 1 | §3.1 Phoenix Ashen Reign | "The ash remembers. Strike only with the flame that birthed it." | NO | ADD as PHOENIX_ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER in identity-layer.js + wire via ctx.narratorApi in fxPhoenixAshenReign |
-| 2 | §3.2 Lich Cursed Tiles | "What you took, the deep remembers." | NO | ADD as LICH_CURSED_TILES_NARRATOR_LINE_PLACEHOLDER in identity-layer.js + wire via ctx.narratorApi in fxLichCursedTiles |
-| 3 | §3.5 Grovewarden Root Surge | "Where you would not bloom, I will." | YES | NONE — already wired (item 1 above) |
+| # | Spec | Suggested line | Wired? | Status |
+|---|------|----------------|--------|--------|
+| 1 | §3.1 Phoenix Ashen Reign | "The ash remembers. Strike only with the flame that birthed it." | ✅ YES | Wired by Phase 2.5 polish patch 2026-05-13 — `ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER` in `src/data/identity-layer.js:451` |
+| 2 | §3.2 Lich Cursed Tiles | "What you took, the deep remembers." | ✅ YES | Wired by Phase 2.5 polish patch 2026-05-13 — `CURSED_TILES_NARRATOR_LINE_PLACEHOLDER` in `src/data/identity-layer.js:550` |
+| 3 | §3.5 Grovewarden Root Surge | "Where you would not bloom, I will." | ✅ YES | Wired in T2.11 — `ROOT_SURGE_NARRATOR_LINE_PLACEHOLDER` in `src/data/identity-layer.js:870` |
 | 4 | §3.7 Uroboros Eternal Loop | "The eye that sees itself sees you, too." | NO (Uroboros out of Phase 2 scope) | DEFER to Phase 3 (Uroboros is seasonal Tower mythic per spec §3.7) |
 
-**Bug Tester recommendation:** The 2 missing narrator lines (Phoenix +
-Lich) are LOW-RISK additions — same pattern as the existing Root Surge
-wiring (isolated constant + `try/catch ctx.narratorApi.show(line)`). The
-sacred `NARRATOR_LINES` table is unchanged either way. CTO can spawn a
-follow-up T2.13 task to add them OR Roman can approve Phase 2 PR with
-just the wired Root Surge line + spec-only Phoenix/Lich lines deferred
-to a polish pass.
+**Phase 2.5 polish patch outcome:** All 3 Phase 2 spec narrator lines (Phoenix
+Ashen Reign + Lich Cursed Tiles + Root Surge) are now WIRED with the same
+isolated-constant + `try/catch ctx.narratorApi.show(line)` pattern. Sacred
+`NARRATOR_LINES` table (`src/feel/narrator-lines.js`) BYTE-PERFECT — verified
+via `git diff main..HEAD -- src/feel/narrator-lines.js` returning empty.
+Uroboros line stays deferred to Phase 3 (seasonal Tower mythic; out of Phase
+2 scope).
 
 ---
 

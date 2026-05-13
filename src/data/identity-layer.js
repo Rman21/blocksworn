@@ -448,6 +448,13 @@ export const ASHEN_REIGN_HUD_COUNTDOWN_TEXT        = 'EMBER ONLY — 5s';
 // when a single number is needed inline.
 export const ASHEN_REIGN_INITIAL_BUDGET_MS         = 16;
 export const ASHEN_REIGN_STEADY_STATE_BUDGET_MS    = 2;
+// Spec §3.1 field 6 narrator line. Wired by Phase 2.5 polish patch via the
+// same isolated-constant + ctx.narratorApi pattern T2.11 Root Surge
+// established. Lives HERE (in identity-layer.js), NOT in the sacred
+// NARRATOR_LINES table (`src/feel/narrator-lines.js`) — that table stays
+// byte-perfect per ESC-02 O2 ruling.
+// FINAL COPY: pending Roman approval (Phase 2.5 review).
+export const ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER = 'The ash remembers. Strike only with the flame that birthed it.';
 
 // ─── Lich Cursed Tiles constants (spec §3.2) ────────────────────────────
 // SECOND boss-reactive identity mechanic — T2.08. Explicit Shark counter
@@ -540,6 +547,12 @@ export const CURSED_TILES_INITIAL_BUDGET_MS           = 16;
 export const CURSED_TILES_TELEGRAPH_BUDGET_MS         = 8;
 export const CURSED_TILES_PER_OVERLAY_BUDGET_MS       = 2;
 export const CURSED_TILES_PER_TURN_TICK_BUDGET_MS     = 3;
+// Spec §3.2 field 6 narrator line. Wired by Phase 2.5 polish patch via the
+// same isolated-constant + ctx.narratorApi pattern T2.11 Root Surge
+// established. Lives HERE (in identity-layer.js), NOT in the sacred
+// NARRATOR_LINES table per ESC-02 O2 ruling.
+// FINAL COPY: pending Roman approval (Phase 2.5 review).
+export const CURSED_TILES_NARRATOR_LINE_PLACEHOLDER   = 'What you took, the deep remembers.';
 
 // ─── Berserker Bloodtide Pulse constants (spec §3.3) ─────────────────────
 // THIRD boss-reactive identity mechanic — T2.09. Tempo / aggression-over-time
