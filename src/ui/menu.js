@@ -87,6 +87,10 @@ export function renderMenu() {
   // create/browse/join/view/leave). Additive — placed below CODEX entry.
   // FTUE-gated (matches Codex / dailies / tower / season visibility pattern).
   try { vRenderAdventuresDrawerEntry(); } catch(e){ log.warn('vRenderAdventuresDrawerEntry failed:', e); }
+  // T3.13 (2026-05-13): Party Tower drawer entry per spec §3 (async 2-5 coop
+  // Tower run). Additive — placed below ADVENTURES entry. FTUE-gated (matches
+  // Codex / Adventures visibility pattern).
+  try { vRenderPartyTowerDrawerEntry(); } catch(e){ log.warn('vRenderPartyTowerDrawerEntry failed:', e); }
   // T3.06 (2026-05-13): Friend leaderboard mini-block widget per spec §5.
   // Mounted inline on menu (NOT a new screen). Additive — placed below the
   // Adventures drawer entry. FTUE-gated. Dynamic-import keeps the menu-path
@@ -534,6 +538,49 @@ function _refreshAdventuresBadge(btn) {
       } catch (_e) {}
     }).catch(() => {});
   } catch (_e) {}
+}
+
+// ─── vRenderPartyTowerDrawerEntry (T3.13, 2026-05-13) ──────────────────────
+// Spec: docs/design/endgame-social.md §3 (Party Tower — async 2-5 coop Tower).
+// Mirror of vRenderAdventuresDrawerEntry — appends a new "⚔️ PARTY TOWER"
+// entry to the existing hub drawer if a known mount point exists.
+// Idempotent — re-running creates the entry only once (id-keyed). FTUE-gated
+// so the entry stays hidden during tutorial (matches Codex / Adventures
+// visibility pattern).
+//
+// Mount-point resolution (best-effort, order):
+//   1. #vMenuDrawer
+//   2. #vHubNavRow
+//   3. #screenMenu
+//
+// No-op if no mount point exists. Party Tower route remains reachable via
+// direct `showScreen('party-tower')` even when the drawer entry is absent.
+function vRenderPartyTowerDrawerEntry() {
+  if (typeof document === 'undefined') return;
+  // FTUE gate.
+  try {
+    if (typeof isFtueActive === 'function' && isFtueActive()) {
+      const existing = document.getElementById('vGoToPartyTowerBtn');
+      if (existing) existing.style.display = 'none';
+      return;
+    }
+  } catch(e){}
+  let btn = document.getElementById('vGoToPartyTowerBtn');
+  if (btn) { btn.style.display = ''; return; }
+  const mount = document.getElementById('vMenuDrawer')
+             || document.getElementById('vHubNavRow')
+             || document.getElementById('screenMenu');
+  if (!mount) return;
+  btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'vGoToPartyTowerBtn';
+  btn.className = 'a-btn-drawer a-btn-party-tower';
+  btn.setAttribute('aria-label', 'Open Party Tower');
+  btn.textContent = '⚔️ PARTY TOWER';
+  btn.addEventListener('click', () => {
+    try { showScreen('party-tower'); } catch (e) { log.warn('Party Tower nav failed:', e); }
+  });
+  mount.appendChild(btn);
 }
 
 // ─── vRenderFriendLeaderboardMount (T3.06, 2026-05-13) ──────────────────────

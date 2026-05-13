@@ -100,7 +100,7 @@ export function showScreen(name) {
   // T3.03 (2026-05-13): added 'adventures' route for Adventures screen (Phase 3
   // §2 — async clan create/browse/join/view/leave). Dynamic-import per replay-
   // viewer precedent — only loads when the player opens the screen.
-  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex', 'replay-viewer': 'screenReplayViewer', adventures: 'screenAdventures', friends: 'screenFriends' };
+  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex', 'replay-viewer': 'screenReplayViewer', adventures: 'screenAdventures', friends: 'screenFriends', 'party-tower': 'screenPartyTower' };
   for (const key in map) {
     const el = document.getElementById(map[key]);
     if (el) el.classList.toggle('active', key === name);
@@ -153,6 +153,21 @@ export function showScreen(name) {
         try { if (typeof window !== 'undefined') window.__adventuresInitialCtx = null; } catch (_e) {}
       } catch (e) { log.warn('renderAdventures failed:', e); }
     }).catch(e => log.warn('adventures dynamic import failed:', e));
+  }
+  // T3.13 (2026-05-13): Party Tower dynamic import on screen activation.
+  // Dynamic to keep the menu-path bundle slim (Party Tower only loads when
+  // used). window.__partyTowerInitialCtx (optional) is read by renderPartyTower
+  // so a future deeplink (e.g. ?party=<id>) can pre-open a party detail view
+  // directly. Defensive try/catch — Party Tower render never crashes the
+  // screen-switching pipeline.
+  if (name === 'party-tower') {
+    import('./party-tower.js').then(mod => {
+      try {
+        const ctx = (typeof window !== 'undefined' && window.__partyTowerInitialCtx) || null;
+        mod.renderPartyTower(undefined, ctx);
+        try { if (typeof window !== 'undefined') window.__partyTowerInitialCtx = null; } catch (_e) {}
+      } catch (e) { log.warn('renderPartyTower failed:', e); }
+    }).catch(e => log.warn('party-tower dynamic import failed:', e));
   }
   // T3.06 (2026-05-13): Friends full-list dynamic import on screen activation.
   // Dynamic to keep the menu-path bundle slim (full list only loads when used).
