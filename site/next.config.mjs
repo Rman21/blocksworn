@@ -11,6 +11,9 @@ const nextConfig = {
       { source: '/heroes/croc_mage',    destination: '/heroes/crocodile_mage',    permanent: true },
       { source: '/heroes/croc_tank',    destination: '/heroes/crocodile_tank',    permanent: true },
       { source: '/heroes/croc_captain', destination: '/heroes/crocodile_captain', permanent: true },
+      // 2026-05-13 — Game deploy split. Anyone deep-linking to the legacy
+      // standalone HTML lands on the canonical game origin instead.
+      { source: '/blocksworn_index_fixed.html', destination: 'https://play.blocksworm.com/', permanent: true },
     ];
   },
   // Enable server-side rendering for SEO; static-export not used.
