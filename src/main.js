@@ -143,6 +143,15 @@ import {
   listPartiesForPlayer as _listPartiesForPlayer_t310,
 } from './services/party-tower-backend.js';
 
+// T4.13 (2026-05-13): Phase 4 Chia integration Legacy Bridge. Wires all
+// Phase 4 src/ modules (feature-flags, wallet-connect, nft-backend,
+// tower-leaderboard-chain, anti-p2w-audit) onto window under the
+// `__bsw_phase4_*` namespace for legacy modal consumption. When chia is
+// disabled (mobile build via VITE_CHIA_ENABLED=false), bridges are no-op
+// stubs — legacy surface is byte-identical to pre-Phase-4. Sacred 50-row
+// audit (design spec §8) verified inside sacredCowAudit() at boot.
+import { installPhase4Bridge } from './services/phase4-bridge.js';
+
 // T1.13.5 (2026-05-12): bridge `showScreen` onto window so legacy inline
 // onclick="showScreen('menu')" handlers (still present in any scaffold the
 // new shell mounts) resolve. Cosmetic — required for compatibility with the
@@ -432,6 +441,18 @@ async function main() {
       }
     } catch (err) {
       log.warn('[boot] initial screen render:', err);
+    }
+
+    // 9. T4.13 — Phase 4 Legacy Bridge. Installs wallet/NFT/PURE PATH CHAIN/
+    //    anti-P2W audit surfaces on window under `__bsw_phase4_*`. When
+    //    chia is disabled (mobile build), bridges are no-op stubs and the
+    //    surface count is unchanged from Phase 3. Defensive: bridge install
+    //    NEVER throws into the main bootstrap chain.
+    try {
+      const r = installPhase4Bridge();
+      log.info('[boot] phase4-bridge:', r);
+    } catch (err) {
+      log.warn('[boot] installPhase4Bridge:', err);
     }
 
     log.info('[boot] main complete');
