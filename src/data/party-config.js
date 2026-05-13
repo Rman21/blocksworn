@@ -148,3 +148,44 @@ export const PARTY_PACT_DECISION_SOURCES = Object.freeze({
   DEMOCRACY_MAJORITY:      'democracy-majority',
   DEMOCRACY_TIEBREAKER:    'democracy-tiebreaker',
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// T3.12 — Per-turn Identity Layer dispatch logging.
+// ──────────────────────────────────────────────────────────────────────────
+// Spec: docs/design/endgame-social.md §3.4.
+//
+// Per-turn Identity Layer events accumulate in `sharedState.identityFxLog[]`.
+// Phase 2's Identity Layer fx (T2.02–T2.11) fire LOCALLY in the active
+// turn's player battle screen — they DO NOT modify shared party state
+// directly. After the player ends their turn, the fx events from that
+// turn get logged to the party doc so cross-race synergies + replay
+// reconstruction can read history.
+//
+// The cap exists to prevent unbounded growth on long runs. A typical 30-floor
+// Tower run with 5 players × ~10 fx events per turn = ~50 events per round
+// × 30 floors = 1500 events worst-case. The 200-entry sliding window keeps
+// memory bounded; older events drop out (FIFO eviction).
+//
+// ADR-003 invariants: log entries are descriptive (raceKey + fxKey + turn
+// metadata); they do NOT carry mechanical advantage payloads (no damage
+// multipliers, no stat boosts). Cross-race synergy computation runs PURE on
+// the log; outputs are cosmetic/audit only per ADR-003.
+
+/** Maximum identity-fx log entries kept on the party doc. Older entries
+ *  are evicted FIFO. Set to 200 to bound memory while preserving multi-turn
+ *  cross-race synergy detection window. */
+export const PARTY_IDENTITY_FX_LOG_MAX_ENTRIES = 200;
+
+/** Sacred identity-fx event keys. Mirrors IDENTITY_FX_KEYS + IDENTITY_BOSS_FX_KEYS
+ *  from src/data/identity-layer.js (Phase 2). T3.12 validates that
+ *  log entries reference only these keys — defensive against malformed
+ *  turnDeltas payload. */
+export const PARTY_IDENTITY_FX_VALID_RACE_KEYS = Object.freeze([
+  'pirate_plunder', 'shark_frenzy', 'rock_echo',
+  'crocodile_bastion', 'spark_cascade',
+]);
+
+export const PARTY_IDENTITY_FX_VALID_BOSS_KEYS = Object.freeze([
+  'phoenix_ashen_reign', 'lich_cursed_tiles', 'berserker_bloodtide',
+  'engineer_lockdown', 'grovewarden_root_surge',
+]);

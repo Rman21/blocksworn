@@ -99,6 +99,10 @@ import {
   PARTY_PACT_DEMOCRACY_TIMEOUT_MS,
   PARTY_HEARTS_DRAIN_PER_RETRY,
   PARTY_PACT_DECISION_SOURCES,
+  // T3.12 — Per-turn Identity Layer dispatch.
+  PARTY_IDENTITY_FX_LOG_MAX_ENTRIES,
+  PARTY_IDENTITY_FX_VALID_RACE_KEYS,
+  PARTY_IDENTITY_FX_VALID_BOSS_KEYS,
 } from '../data/party-config.js';
 // T3.11 — Sacred Tower data, READ-only direct-imports.
 // CLAUDE.md §2.4 sacred: gemCostLadder [100, 200, 400] (Tower retry).
@@ -128,6 +132,9 @@ export {
   PARTY_PACT_DEMOCRACY_TIMEOUT_MS,
   PARTY_HEARTS_DRAIN_PER_RETRY,
   PARTY_PACT_DECISION_SOURCES,
+  PARTY_IDENTITY_FX_LOG_MAX_ENTRIES,
+  PARTY_IDENTITY_FX_VALID_RACE_KEYS,
+  PARTY_IDENTITY_FX_VALID_BOSS_KEYS,
 };
 
 /** Owner / member role tags — string literals matching PARTY_ROLES enum. */
@@ -737,6 +744,34 @@ export async function endTurn(partyId, playerId, turnDeltas) {
       deltas: (safeDeltas.deltas && typeof safeDeltas.deltas === 'object') ? safeDeltas.deltas : {},
     });
     doc.turnHistory = history;
+
+    // T3.12 — append per-turn Identity Layer FX events to identityFxLog.
+    // Identity Layer fx fire LOCALLY in the player's battle screen; on turn
+    // end, the player includes a structured list of fx events for the
+    // shared log (cross-race synergy + audit). Defensive: malformed entries
+    // silently dropped; FIFO eviction at PARTY_IDENTITY_FX_LOG_MAX_ENTRIES.
+    // Sacred: Identity Layer fx mechanical contracts UNCHANGED — T3.12 only
+    // READS event metadata (raceKey/fxKey/turnIndex) for shared logging.
+    if (Array.isArray(safeDeltas.identityFxEvents) && safeDeltas.identityFxEvents.length > 0) {
+      const existingLog = Array.isArray(doc.identityFxLog) ? doc.identityFxLog : [];
+      const validEvents = safeDeltas.identityFxEvents
+        .filter(e => validateIdentityFxEvent(e))
+        .map(e => ({
+          turnIndex: doc.turnIndex,
+          playerId,
+          fxKey:     String(e.fxKey),
+          fxKind:    PARTY_IDENTITY_FX_VALID_RACE_KEYS.includes(e.fxKey) ? 'race' : 'boss',
+          t:         typeof e.t === 'number' ? e.t : now,
+        }));
+      if (validEvents.length > 0) {
+        const newLog = [...existingLog, ...validEvents];
+        // FIFO eviction at PARTY_IDENTITY_FX_LOG_MAX_ENTRIES cap.
+        doc.identityFxLog = newLog.length > PARTY_IDENTITY_FX_LOG_MAX_ENTRIES
+          ? newLog.slice(newLog.length - PARTY_IDENTITY_FX_LOG_MAX_ENTRIES)
+          : newLog;
+      }
+    }
+
     // Advance turnIndex round-robin to the next active member.
     const nextPlayerId = pickNextTurnPlayer(doc);
     if (nextPlayerId) {
@@ -1424,6 +1459,114 @@ export async function submitPactVote(partyId, playerId, pactId) {
     return { ok: true, applied: true, winner, decisionSource, votesRecorded: votesCast };
   } catch (e) {
     try { log.warn('[party-tower-backend] submitPactVote failed:', e); } catch (_e) { /* swallow */ }
+    return { ok: false, reason: PARTY_RESULT_REASONS.EXCEPTION };
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//
+// T3.12 — Per-turn Identity Layer dispatch (cross-race synergy + audit).
+//
+// Spec: docs/design/endgame-social.md §3.4.
+// Sacred: Identity Layer fx mechanical contracts (Phase 2 T2.02–T2.11) are
+// UNCHANGED. T3.12 reads event metadata only (raceKey/fxKey/turnIndex/t).
+// No mechanical payload writes; ADR-003 no-P2W invariant preserved.
+//
+// ══════════════════════════════════════════════════════════════════════════
+
+/** Validate an identityFxEvent payload. Defensive against malformed input.
+ *  Required shape: { fxKey: string }. Optional: { t: number }.
+ *  fxKey must be in sacred PARTY_IDENTITY_FX_VALID_RACE_KEYS or
+ *  PARTY_IDENTITY_FX_VALID_BOSS_KEYS. Returns boolean. */
+export function validateIdentityFxEvent(event) {
+  if (!event || typeof event !== 'object') return false;
+  if (typeof event.fxKey !== 'string' || !event.fxKey) return false;
+  return PARTY_IDENTITY_FX_VALID_RACE_KEYS.includes(event.fxKey)
+      || PARTY_IDENTITY_FX_VALID_BOSS_KEYS.includes(event.fxKey);
+}
+
+/** Read identityFxLog entries for a specific turn index. Returns []
+ *  if log absent or turn has no entries. Pure read; no side effects. */
+export function getTurnIdentityFxLog(partyState, turnIndex) {
+  if (!partyState || typeof partyState !== 'object') return [];
+  const log = Array.isArray(partyState.identityFxLog) ? partyState.identityFxLog : [];
+  if (typeof turnIndex !== 'number') return log.slice();
+  return log.filter(e => e && e.turnIndex === turnIndex);
+}
+
+/** Compute cross-race synergy summary from identityFxLog. Pure helper —
+ *  analyzes which races fired across recent turns, returns counts +
+ *  combo flags. Output is cosmetic/audit only per ADR-003 (no
+ *  mechanical multipliers, no damage payloads). */
+export function computeCrossRaceSynergy(identityFxLog, recentTurns = 5) {
+  const empty = {
+    races:        {},                   // { raceKey: count }
+    bosses:       {},                   // { bossKey: count }
+    distinctRaces: 0,
+    distinctBosses: 0,
+    turnSpan:     0,
+    hasCrossRaceCombo: false,           // ≥3 distinct races in window
+  };
+  if (!Array.isArray(identityFxLog) || identityFxLog.length === 0) return empty;
+  // Look at the last `recentTurns` worth of turn indices.
+  const turnsSorted = [...new Set(identityFxLog.map(e => e && e.turnIndex).filter(i => typeof i === 'number'))].sort((a, b) => a - b);
+  const window = turnsSorted.slice(-recentTurns);
+  const inWindow = identityFxLog.filter(e => e && window.includes(e.turnIndex));
+  const races = {};
+  const bosses = {};
+  for (const e of inWindow) {
+    if (e.fxKind === 'race') {
+      races[e.fxKey] = (races[e.fxKey] || 0) + 1;
+    } else if (e.fxKind === 'boss') {
+      bosses[e.fxKey] = (bosses[e.fxKey] || 0) + 1;
+    }
+  }
+  const distinctRaces = Object.keys(races).length;
+  return {
+    races,
+    bosses,
+    distinctRaces,
+    distinctBosses:     Object.keys(bosses).length,
+    turnSpan:           window.length,
+    hasCrossRaceCombo:  distinctRaces >= 3,
+  };
+}
+
+/** Async op: record a single identity-fx event for the current turn.
+ *  Defensive: malformed event → no-op + return reason. Append to log
+ *  with FIFO eviction at PARTY_IDENTITY_FX_LOG_MAX_ENTRIES cap. */
+export async function recordTurnIdentityFxEvent(partyId, playerId, fxEvent) {
+  try {
+    if (!partyId || !playerId || !fxEvent) {
+      return { ok: false, reason: PARTY_RESULT_REASONS.INVALID_INPUT };
+    }
+    if (!validateIdentityFxEvent(fxEvent)) {
+      return { ok: false, reason: 'invalid-fx-event' };
+    }
+    const doc = _mockPartyStore.get(partyId);
+    if (!doc) return { ok: false, reason: PARTY_RESULT_REASONS.NOT_FOUND };
+    // Must be current-turn player (only their fx is logged on their turn).
+    if (!canPlayerEndTurn(playerId, doc)) {
+      return { ok: false, reason: PARTY_RESULT_REASONS.NOT_CURRENT_TURN };
+    }
+    const now = Date.now();
+    const entry = {
+      turnIndex: doc.turnIndex,
+      playerId,
+      fxKey:     String(fxEvent.fxKey),
+      fxKind:    PARTY_IDENTITY_FX_VALID_RACE_KEYS.includes(fxEvent.fxKey) ? 'race' : 'boss',
+      t:         typeof fxEvent.t === 'number' ? fxEvent.t : now,
+    };
+    const existing = Array.isArray(doc.identityFxLog) ? doc.identityFxLog : [];
+    const newLog = [...existing, entry];
+    doc.identityFxLog = newLog.length > PARTY_IDENTITY_FX_LOG_MAX_ENTRIES
+      ? newLog.slice(newLog.length - PARTY_IDENTITY_FX_LOG_MAX_ENTRIES)
+      : newLog;
+    doc.updatedAt = now;
+    _mockPartyStore.set(partyId, doc);
+    return { ok: true, logSize: doc.identityFxLog.length };
+  } catch (e) {
+    try { log.warn('[party-tower-backend] recordTurnIdentityFxEvent failed:', e); } catch (_e) { /* swallow */ }
     return { ok: false, reason: PARTY_RESULT_REASONS.EXCEPTION };
   }
 }

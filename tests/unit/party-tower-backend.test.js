@@ -69,6 +69,14 @@ import {
   // T3.11 — Shared resources (hearts + pacts)
   PARTY_PACT_CANDIDATES_PER_PICK,
   PARTY_PACT_DECISION_SOURCES,
+  // T3.12 — Per-turn Identity Layer dispatch
+  PARTY_IDENTITY_FX_LOG_MAX_ENTRIES,
+  PARTY_IDENTITY_FX_VALID_RACE_KEYS,
+  PARTY_IDENTITY_FX_VALID_BOSS_KEYS,
+  validateIdentityFxEvent,
+  getTurnIdentityFxLog,
+  computeCrossRaceSynergy,
+  recordTurnIdentityFxEvent,
   getTowerRetryLadder,
   computeRetryTierIndex,
   computeHeartsDrainCost,
@@ -1520,5 +1528,231 @@ describe('T3.11 — async: democracy mode tally + tie-break', () => {
     expect(final.applied).toBe(true);
     expect(final.winner).toBe(p1);
     expect(final.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.DEMOCRACY_MAJORITY);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// T3.12 — Per-turn Identity Layer dispatch (cross-race synergy + audit).
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('T3.12 — constants sacred audit', () => {
+  it('PARTY_IDENTITY_FX_LOG_MAX_ENTRIES === 200 (FIFO cap)', () => {
+    expect(PARTY_IDENTITY_FX_LOG_MAX_ENTRIES).toBe(200);
+  });
+  it('PARTY_IDENTITY_FX_VALID_RACE_KEYS contains all 5 Phase 2 race fx keys', () => {
+    expect(PARTY_IDENTITY_FX_VALID_RACE_KEYS).toEqual(expect.arrayContaining([
+      'pirate_plunder', 'shark_frenzy', 'rock_echo', 'crocodile_bastion', 'spark_cascade',
+    ]));
+    expect(PARTY_IDENTITY_FX_VALID_RACE_KEYS.length).toBe(5);
+  });
+  it('PARTY_IDENTITY_FX_VALID_BOSS_KEYS contains all 5 Phase 2 boss-reactive fx keys', () => {
+    expect(PARTY_IDENTITY_FX_VALID_BOSS_KEYS).toEqual(expect.arrayContaining([
+      'phoenix_ashen_reign', 'lich_cursed_tiles', 'berserker_bloodtide',
+      'engineer_lockdown', 'grovewarden_root_surge',
+    ]));
+    expect(PARTY_IDENTITY_FX_VALID_BOSS_KEYS.length).toBe(5);
+  });
+});
+
+describe('T3.12 — validateIdentityFxEvent', () => {
+  it('valid race fxKey → true', () => {
+    expect(validateIdentityFxEvent({ fxKey: 'pirate_plunder' })).toBe(true);
+    expect(validateIdentityFxEvent({ fxKey: 'spark_cascade' })).toBe(true);
+  });
+  it('valid boss fxKey → true', () => {
+    expect(validateIdentityFxEvent({ fxKey: 'phoenix_ashen_reign' })).toBe(true);
+    expect(validateIdentityFxEvent({ fxKey: 'lich_cursed_tiles' })).toBe(true);
+  });
+  it('unknown fxKey → false', () => {
+    expect(validateIdentityFxEvent({ fxKey: 'unknown_fx' })).toBe(false);
+  });
+  it('null / missing fxKey → false', () => {
+    expect(validateIdentityFxEvent(null)).toBe(false);
+    expect(validateIdentityFxEvent({})).toBe(false);
+    expect(validateIdentityFxEvent({ fxKey: '' })).toBe(false);
+    expect(validateIdentityFxEvent({ fxKey: 42 })).toBe(false);
+  });
+});
+
+describe('T3.12 — getTurnIdentityFxLog', () => {
+  const sampleLog = [
+    { turnIndex: 0, playerId: 'alice', fxKey: 'pirate_plunder', fxKind: 'race', t: 100 },
+    { turnIndex: 0, playerId: 'alice', fxKey: 'shark_frenzy',   fxKind: 'race', t: 110 },
+    { turnIndex: 1, playerId: 'bob',   fxKey: 'rock_echo',      fxKind: 'race', t: 200 },
+    { turnIndex: 2, playerId: 'alice', fxKey: 'phoenix_ashen_reign', fxKind: 'boss', t: 300 },
+  ];
+  it('returns all entries when turnIndex omitted', () => {
+    const r = getTurnIdentityFxLog({ identityFxLog: sampleLog });
+    expect(r).toHaveLength(4);
+  });
+  it('filters by turnIndex when provided', () => {
+    const r = getTurnIdentityFxLog({ identityFxLog: sampleLog }, 0);
+    expect(r).toHaveLength(2);
+    expect(r.every(e => e.turnIndex === 0)).toBe(true);
+  });
+  it('missing log → empty array', () => {
+    expect(getTurnIdentityFxLog({})).toEqual([]);
+    expect(getTurnIdentityFxLog(null)).toEqual([]);
+  });
+});
+
+describe('T3.12 — computeCrossRaceSynergy', () => {
+  it('empty log → empty summary', () => {
+    const r = computeCrossRaceSynergy([]);
+    expect(r.distinctRaces).toBe(0);
+    expect(r.hasCrossRaceCombo).toBe(false);
+  });
+  it('single-race log → 1 distinct race, no combo flag', () => {
+    const log = [
+      { turnIndex: 0, fxKey: 'pirate_plunder', fxKind: 'race' },
+      { turnIndex: 0, fxKey: 'pirate_plunder', fxKind: 'race' },
+    ];
+    const r = computeCrossRaceSynergy(log);
+    expect(r.distinctRaces).toBe(1);
+    expect(r.races.pirate_plunder).toBe(2);
+    expect(r.hasCrossRaceCombo).toBe(false);
+  });
+  it('3 distinct races within window → hasCrossRaceCombo true', () => {
+    const log = [
+      { turnIndex: 0, fxKey: 'pirate_plunder',    fxKind: 'race' },
+      { turnIndex: 1, fxKey: 'shark_frenzy',      fxKind: 'race' },
+      { turnIndex: 2, fxKey: 'rock_echo',         fxKind: 'race' },
+    ];
+    const r = computeCrossRaceSynergy(log);
+    expect(r.distinctRaces).toBe(3);
+    expect(r.hasCrossRaceCombo).toBe(true);
+  });
+  it('cosmetic-only: output has NO mechanical fields (no damage / mult / multiplier)', () => {
+    const log = [
+      { turnIndex: 0, fxKey: 'spark_cascade', fxKind: 'race' },
+      { turnIndex: 1, fxKey: 'phoenix_ashen_reign', fxKind: 'boss' },
+    ];
+    const r = computeCrossRaceSynergy(log);
+    const json = JSON.stringify(r).toLowerCase();
+    expect(json).not.toContain('damage');
+    expect(json).not.toContain('multiplier');
+    expect(json).not.toContain('mult');
+    expect(json).not.toContain('crit');
+  });
+  it('recentTurns window respected', () => {
+    const log = [];
+    for (let i = 0; i < 10; i++) {
+      log.push({ turnIndex: i, fxKey: 'pirate_plunder', fxKind: 'race' });
+    }
+    const r = computeCrossRaceSynergy(log, 3);
+    expect(r.turnSpan).toBe(3); // only last 3 turns considered
+  });
+});
+
+describe('T3.12 — recordTurnIdentityFxEvent (async)', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('appends valid fx event to identityFxLog', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const r = await recordTurnIdentityFxEvent(c.partyId, 'alice', { fxKey: 'pirate_plunder' });
+    expect(r.ok).toBe(true);
+    expect(r.logSize).toBe(1);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog).toHaveLength(1);
+    expect(f.party.identityFxLog[0]).toMatchObject({
+      playerId: 'alice',
+      fxKey:    'pirate_plunder',
+      fxKind:   'race',
+    });
+  });
+
+  it('non-current-turn player → reason not-current-turn', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    // Bob tries while alice's turn (index 0)
+    const r = await recordTurnIdentityFxEvent(c.partyId, 'bob', { fxKey: 'pirate_plunder' });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe(PARTY_RESULT_REASONS.NOT_CURRENT_TURN);
+  });
+
+  it('malformed fxEvent → reason invalid-fx-event', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const r = await recordTurnIdentityFxEvent(c.partyId, 'alice', { fxKey: 'fake' });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-fx-event');
+  });
+
+  it('FIFO cap enforced — log never exceeds PARTY_IDENTITY_FX_LOG_MAX_ENTRIES', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    for (let i = 0; i < 5; i++) {
+      await recordTurnIdentityFxEvent(c.partyId, 'alice', { fxKey: 'pirate_plunder' });
+    }
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog.length).toBeLessThanOrEqual(PARTY_IDENTITY_FX_LOG_MAX_ENTRIES);
+    expect(f.party.identityFxLog.length).toBe(5);
+  });
+});
+
+describe('T3.12 — endTurn extension: identityFxEvents in turnDeltas', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('appends valid identityFxEvents to log via endTurn', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const r = await endTurn(c.partyId, 'alice', {
+      identityFxEvents: [
+        { fxKey: 'pirate_plunder' },
+        { fxKey: 'shark_frenzy' },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog).toHaveLength(2);
+  });
+
+  it('malformed events silently dropped (defensive)', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    await endTurn(c.partyId, 'alice', {
+      identityFxEvents: [
+        { fxKey: 'pirate_plunder' },
+        { fxKey: 'fake_fx' },             // dropped
+        null,                              // dropped
+        { fxKey: 'rock_echo' },
+      ],
+    });
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog).toHaveLength(2); // only 2 valid
+  });
+
+  it('endTurn without identityFxEvents still works (backward compat)', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const r = await endTurn(c.partyId, 'alice', {});
+    expect(r.ok).toBe(true);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog).toEqual([]); // unchanged
+  });
+});
+
+describe('T3.12 — sacred Phase 2 Identity Layer fx untouched', () => {
+  it('PARTY_IDENTITY_FX_VALID_RACE_KEYS matches Phase 2 IDENTITY_FX_KEYS values', async () => {
+    // Sacred per T2.02 sibling export pattern (RACE_IDENTITY_FX in races.js)
+    const expected = ['pirate_plunder', 'shark_frenzy', 'rock_echo', 'crocodile_bastion', 'spark_cascade'];
+    for (const key of expected) {
+      expect(PARTY_IDENTITY_FX_VALID_RACE_KEYS).toContain(key);
+    }
+  });
+  it('PARTY_IDENTITY_FX_VALID_BOSS_KEYS matches Phase 2 IDENTITY_BOSS_FX_KEYS values', async () => {
+    const expected = ['phoenix_ashen_reign', 'lich_cursed_tiles', 'berserker_bloodtide',
+                      'engineer_lockdown', 'grovewarden_root_surge'];
+    for (const key of expected) {
+      expect(PARTY_IDENTITY_FX_VALID_BOSS_KEYS).toContain(key);
+    }
   });
 });
