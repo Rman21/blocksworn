@@ -85,6 +85,14 @@ export const TOWER_PACTS_MYTHIC = Object.freeze({
 
 // 2026-05-03 — COMBAT v2.1 P9 §6.2: 3-track leaderboard architecture.
 // PURE PATH (f2p_only) is sacred per CLAUDE.md §2.5.
+//
+// 2026-05-13 — Phase 4 T4.08: PURE PATH CHAIN (f2p_walleted) added as a
+// NON-DESTRUCTIVE additive 4th column per docs/design/chia-integration.md §6.
+// Sacred 3 entries above (global, f2p_only, weekly_seasonal) BYTE-PERFECT.
+// Eligibility for `f2p_walleted` is enforced by `isPurePathChainEligible()`
+// helper below, gated by `isChiaEnabled()` per ADR-004 + T4.09. The column
+// exists purely to surface the anti-P2W parity invariant (ADR-003): NFT-
+// owning F2P players MUST NOT outperform pure-F2P players (T4.10 audit).
 export const TOWER_LEADERBOARDS = Object.freeze({
   global: Object.freeze({
     name:        'GLOBAL CHAMPIONS',
@@ -102,7 +110,45 @@ export const TOWER_LEADERBOARDS = Object.freeze({
     eligibility:        'all',
     resetOnSeasonEnd:   true,
   }),
+  f2p_walleted: Object.freeze({
+    name:        'PURE PATH CHAIN',
+    description: 'F2P players who hold Chia NFTs (parity surface — see §6 design spec)',
+    eligibility: 'totalSpent === 0 && walletConnected && walletHasMintedNftInLast90Days',
+    requiresChiaEnabled: true,
+    phase: 4,
+    addedIn:  'T4.08',
+  }),
 });
+
+// 2026-05-13 — Phase 4 T4.08: PURE PATH CHAIN eligibility window.
+// 90 days per design spec §6.2; tunable per ESC-04 Q5 ruling.
+export const PURE_PATH_CHAIN_NFT_WINDOW_DAYS = 90;
+export const PURE_PATH_CHAIN_NFT_WINDOW_MS = PURE_PATH_CHAIN_NFT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * Pure eligibility check for PURE PATH CHAIN (f2p_walleted) leaderboard.
+ *
+ * Sacred invariants honored:
+ *   - PURE PATH F2P criterion preserved: `totalSpent === 0`
+ *   - Wallet must be connected
+ *   - At least 1 NFT minted within PURE_PATH_CHAIN_NFT_WINDOW_DAYS (active
+ *     participant filter, distinguishes from drive-by wallet connections)
+ *
+ * Returns a flat boolean (never throws — defensive).
+ *
+ * @param {object} player — { totalSpent, walletConnected, lastNftMintAt }
+ * @param {number} nowMs — Date.now() injectable for test determinism
+ * @returns {boolean}
+ */
+export function isPurePathChainEligible(player, nowMs) {
+  if (!player || typeof player !== 'object') return false;
+  if (player.totalSpent !== 0) return false;
+  if (player.walletConnected !== true) return false;
+  const ts = typeof player.lastNftMintAt === 'number' ? player.lastNftMintAt : 0;
+  if (ts <= 0) return false;
+  const t = typeof nowMs === 'number' ? nowMs : Date.now();
+  return (t - ts) <= PURE_PATH_CHAIN_NFT_WINDOW_MS;
+}
 
 // 2026-05-03 — COMBAT v2.1 P9 §6.3: seasonal rewards distribution at season end.
 export const TOWER_SEASONAL_REWARDS = Object.freeze({
