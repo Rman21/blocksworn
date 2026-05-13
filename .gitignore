@@ -17,3 +17,4 @@ test-results/
 # Lighthouse one-off output (T1.13 main verify)
 lighthouse-report.html
 lighthouse-report.json
+.vercel
