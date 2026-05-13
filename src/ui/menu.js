@@ -83,6 +83,10 @@ export function renderMenu() {
   // items. Self-gates on FTUE so the entry stays hidden during tutorial
   // (matches the dailies/tower/season visibility pattern).
   try { vRenderCodexDrawerEntry(); } catch(e){ log.warn('vRenderCodexDrawerEntry failed:', e); }
+  // T3.03 (2026-05-13): Adventures drawer entry per spec §2 (async clan
+  // create/browse/join/view/leave). Additive — placed below CODEX entry.
+  // FTUE-gated (matches Codex / dailies / tower / season visibility pattern).
+  try { vRenderAdventuresDrawerEntry(); } catch(e){ log.warn('vRenderAdventuresDrawerEntry failed:', e); }
   // 2026-04-30 — Polish v0.2 Track I §I.4.4: WHAT'S NEW accordion
   // visibility + auto-expire. No-ops if no Ch.1-unlock timestamp is set
   // or if the 3-day window has passed.
@@ -454,6 +458,77 @@ function vRenderCodexDrawerEntry() {
     try { showScreen('codex'); } catch (e) { log.warn('Codex nav failed:', e); }
   });
   mount.appendChild(btn);
+}
+
+// ─── vRenderAdventuresDrawerEntry (T3.03, 2026-05-13) ───────────────────────
+// Spec: docs/design/endgame-social.md §2 (Adventures — async clan 5–15).
+// Mirror of vRenderCodexDrawerEntry — appends a new "🏰 ADVENTURES" entry to
+// the existing hub drawer if a known mount point exists. Idempotent —
+// re-running creates the entry only once (id-keyed). FTUE-gated so the entry
+// stays hidden during tutorial (matches Codex visibility pattern).
+//
+// Optional badge: if the player is in any clan, the entry shows "🏰 ADVENTURES
+// · N" with the count. Uses the +1 minimal window-bridge __getPlayerClanCount
+// from T3.02 so we don't drag the full clan-backend module into legacy.
+//
+// Mount-point resolution (best-effort, order):
+//   1. #vMenuDrawer
+//   2. #vHubNavRow
+//   3. #screenMenu
+//
+// No-op if no mount point exists. Adventures route remains reachable via
+// direct `showScreen('adventures')` even when the drawer entry is absent.
+function vRenderAdventuresDrawerEntry() {
+  if (typeof document === 'undefined') return;
+  // FTUE gate.
+  try {
+    if (typeof isFtueActive === 'function' && isFtueActive()) {
+      const existing = document.getElementById('vGoToAdventuresBtn');
+      if (existing) existing.style.display = 'none';
+      return;
+    }
+  } catch(e){}
+  let btn = document.getElementById('vGoToAdventuresBtn');
+  if (btn) {
+    btn.style.display = '';
+    // Refresh badge count opportunistically.
+    _refreshAdventuresBadge(btn);
+    return;
+  }
+  const mount = document.getElementById('vMenuDrawer')
+             || document.getElementById('vHubNavRow')
+             || document.getElementById('screenMenu');
+  if (!mount) return;
+  btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'vGoToAdventuresBtn';
+  btn.className = 'a-btn-drawer a-btn-adventures';
+  btn.setAttribute('aria-label', 'Open Adventures');
+  btn.textContent = '🏰 ADVENTURES';
+  btn.addEventListener('click', () => {
+    try { showScreen('adventures'); } catch (e) { log.warn('Adventures nav failed:', e); }
+  });
+  mount.appendChild(btn);
+  _refreshAdventuresBadge(btn);
+}
+
+// Async badge refresh — reads the +1 T3.02 bridge to surface clan count.
+// Best-effort: silently no-ops if the bridge is missing (legacy load path).
+function _refreshAdventuresBadge(btn) {
+  try {
+    if (!btn || typeof window === 'undefined' || typeof window.__getPlayerClanCount !== 'function') return;
+    let playerId = 'anonymous';
+    try {
+      const name = localStorage.getItem('blocksworn_p8_player_name');
+      if (typeof name === 'string' && name.trim().length > 0) playerId = name.trim().toLowerCase();
+    } catch (_e) {}
+    Promise.resolve(window.__getPlayerClanCount(playerId)).then(count => {
+      try {
+        const n = (typeof count === 'number') ? count : 0;
+        btn.textContent = n > 0 ? `🏰 ADVENTURES · ${n}` : '🏰 ADVENTURES';
+      } catch (_e) {}
+    }).catch(() => {});
+  } catch (_e) {}
 }
 
 // ─── vRenderCosmicMemorial — DELETED in T1.15 ───────────────────────────────

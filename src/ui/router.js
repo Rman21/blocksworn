@@ -97,7 +97,10 @@ export function showScreen(name) {
   // aggregation surface). Pure addition — existing routes preserved byte-perfect.
   // T3.08 (2026-05-13): added 'replay-viewer' route for Replay viewer (Phase 3
   // §4.2). Mounted via deeplink (?replay=<id>) or future Codex Replay button.
-  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex', 'replay-viewer': 'screenReplayViewer' };
+  // T3.03 (2026-05-13): added 'adventures' route for Adventures screen (Phase 3
+  // §2 — async clan create/browse/join/view/leave). Dynamic-import per replay-
+  // viewer precedent — only loads when the player opens the screen.
+  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex', 'replay-viewer': 'screenReplayViewer', adventures: 'screenAdventures' };
   for (const key in map) {
     const el = document.getElementById(map[key]);
     if (el) el.classList.toggle('active', key === name);
@@ -134,6 +137,22 @@ export function showScreen(name) {
     import('./replay-viewer.js').then(mod => {
       try { mod.renderReplayViewer(); } catch (e) { log.warn('renderReplayViewer failed:', e); }
     }).catch(e => log.warn('replay-viewer dynamic import failed:', e));
+  }
+  // T3.03 (2026-05-13): Adventures dynamic import on screen activation.
+  // Dynamic to keep the menu-path bundle slim (Adventures only loads when
+  // used). window.__adventuresInitialCtx (optional) is read by renderAdventures
+  // so a future deeplink (e.g. ?adventure=<id>) can pre-open a clan detail
+  // view directly. Defensive try/catch — Adventures render never crashes the
+  // screen-switching pipeline.
+  if (name === 'adventures') {
+    import('./adventures.js').then(mod => {
+      try {
+        const ctx = (typeof window !== 'undefined' && window.__adventuresInitialCtx) || null;
+        mod.renderAdventures(undefined, ctx);
+        // One-shot — consume the deeplink context after handing it off.
+        try { if (typeof window !== 'undefined') window.__adventuresInitialCtx = null; } catch (_e) {}
+      } catch (e) { log.warn('renderAdventures failed:', e); }
+    }).catch(e => log.warn('adventures dynamic import failed:', e));
   }
   // V3.0 Phase 2 Vivid Stylized: sync bottom-nav active state on every transition.
   try { activateNavFor(name); } catch(e) {}
