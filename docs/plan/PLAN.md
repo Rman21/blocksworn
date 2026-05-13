@@ -143,21 +143,42 @@
 
 ## Phase 4: Chia Integration
 
-**Status:** NOT_STARTED
+**Status:** IN_PROGRESS (5/13 done — Wave 1 closed + T4.10 audit pre-shipped)
 **Goal:** Chia blockchain as endgame layer — NFT heroes, on-chain achievements, wallet login. STRICT no-P2W.
 **Estimated:** 6-8 weeks
-**Tasks:** T4.01 — T4.12
+**Tasks:** T4.01 — T4.13
+**Branch:** `claude/phase4-chia-design`
+**ESC-04:** RESOLVED 2026-05-13 (5 Q rulings landed as `docs/design/chia-integration.md` §13.6 ROMAN RULING APPENDIX)
 
 ### High-level Tasks
-- T4.01 — Chia design doc finalization
-- T4.02 — Testnet wallet integration (Sage / Chia Wallet)
-- T4.03-T4.06 — NFT-hero mint/transfer/trading
-- T4.07 — Adventure DAO (wallet-gated)
-- T4.08 — PURE PATH CHAIN leaderboard
-- T4.09 — Mobile feature flag (`isChiaEnabled()`)
-- T4.10 — Anti-P2W audit
-- T4.11 — Closed beta with crypto users
-- T4.12 — Production launch sequence
+- [x] **T4.01** — Phase 4 Chia design spec (1785 LoC) ✅ DONE 2026-05-13 (`ba3ee21`)
+- [x] **T4.02** — Sage Wallet integration ✅ DONE 2026-05-13 (`ddc1c82`) — 43/43 unit tests (Sage primary at V1 per ESC-04 Q1)
+- [ ] **T4.03-T4.06** — NFT-hero mint/transfer/trading (hybrid storage per ESC-04 Q4)
+- [ ] **T4.07** — Adventure DAO (wallet-gated; depends on Phase 3 clan-backend in main)
+- [x] **T4.08** — PURE PATH CHAIN leaderboard column ✅ DONE 2026-05-13 (`0bea801`) — 44/44 unit tests (additive 4th column to sacred TOWER_LEADERBOARDS)
+- [x] **T4.09** — Mobile feature flag `isChiaEnabled()` ✅ DONE 2026-05-13 (`2c13055`) — 9/9 unit tests
+- [x] **T4.10** — Anti-P2W parity audit ✅ DONE 2026-05-13 (`5f2eccd`) — 48/48 unit tests (sacred-cow ENFORCEMENT layer)
+- [ ] **T4.11** — Closed beta with 100+ crypto testers (Chia-community recruitment per ESC-04 Q5)
+- [ ] **T4.12** — Production launch sequence + Founder Badge gift (per ESC-04 Q3)
+- [ ] **T4.13** — Legacy Bridge (mirrors T2.B / T3.16 patterns)
+
+### Phase 4 implementation order (per Designer recommendation)
+1. **Wave 1 (parallel) — dependency-light infrastructure**
+   - T4.09 Mobile feature flag ✅ DONE
+   - T4.02 Sage Wallet integration — gating for T4.03-T4.06
+   - T4.08 PURE PATH CHAIN — additive to sacred leaderboards
+2. **Wave 2 (sequential) — NFT subsystem**
+   - T4.03 NFT-hero data model
+   - T4.04 NFT mint flow
+   - T4.05 NFT transfer / marketplace integration
+   - T4.06 NFT trading + 2.5% royalty enforcement (per ESC-04 Q2)
+3. **Wave 3 — Phase 3 merge required**
+   - T4.07 Adventure DAO (wallet-gated)
+4. **Wave 4 — Launch readiness**
+   - T4.10 Anti-P2W audit
+   - T4.11 Closed beta
+   - T4.13 Legacy Bridge
+   - T4.12 Production launch
 
 ### Gate Criteria (per Execution Plan §9.5)
 - Chia testnet integration works
