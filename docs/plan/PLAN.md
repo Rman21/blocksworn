@@ -139,9 +139,9 @@
 - [x] T3.11 — Shared Tower-Hearts pool + shared TOWER_PACTS selection — **DONE 2026-05-13** (`0df3013`; CTO inline after Game Dev stall; +1115/-12 LoC across 4 files; +56 unit tests (1166→1222); 13/13 party-tower smoke pass; 0 sacred mods. Sacred Tower retry ladder + TOWER_PACTS_BASE/MYTHIC READ-only via direct-import — `Object.isFrozen` verified. 6 hearts helpers + 6 pacts helpers + 4 async ops; captain-pick + democracy modes with owner-tiebreaker)
 - [ ] T3.12 — Per-turn Identity Layer dispatch (cross-race synergies) — **DONE 2026-05-13** (CTO inline; extends `endTurn` with `identityFxEvents` payload; logs to new `identityFxLog[]` with FIFO 200-cap; pure helpers `validateIdentityFxEvent` / `getTurnIdentityFxLog` / `computeCrossRaceSynergy` (3+ distinct races = `hasCrossRaceCombo: true`); `recordTurnIdentityFxEvent` async op for granular updates; ADR-003 cosmetic-only audit verified (no damage/mult/crit fields in output))
 - [ ] T3.12 — Per-turn Identity Layer dispatch (cross-race synergies)
-- [ ] T3.13 — Party async social hooks + turn timeout
-- [ ] T3.14 — Tower seasonal infrastructure (Uroboros rotation + seasonal TOWER_PACTS pool)
-- [ ] T3.15 — Battle Pass tier-cosmetic tie-in (sacred formula honored)
+- [x] T3.13 — Party Tower UI + turn timeout + async social hooks — **DONE 2026-05-13** (`b2b227f`; 4 new + 4 modified files; +40 unit / +14 smoke; party-tower lazy chunk 18.99 kB; ADR-002/003 honored; emoji-only reactions per spec §3.5; 40 window-bridges intact)
+- [x] T3.14 — Tower seasonal infrastructure (Uroboros rotation + seasonal TOWER_PACTS pool) — **DONE 2026-05-13** (`58a7a18` CTO inline; ~600 LoC; +39 unit tests; Battle Pass sacred formula `500+(N-1)×150` byte-perfect; 4 Uroboros variants; 3 Season-1 seasonal pacts; ADR-003 audit clean)
+- [ ] T3.15 — Tower seasonal UI + Battle Pass tier-cosmetic display — **ACTIVE** (consumes T3.14 backend; parchment aesthetic; sacred formula honored)
 - [ ] **T3.16** — Legacy Bridge (mirrors T2.B pattern; wires Phase 3 src/ → legacy primary runtime)
 
 ### Gate Criteria (per Execution Plan §8.5)
