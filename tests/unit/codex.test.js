@@ -24,6 +24,7 @@ import {
   recordBossEncounter,
   recordBossDefeat,
   recordMomentTrigger,
+  recordMomentReplay,
   getRaceState,
   getBossState,
   __codexTestables,
@@ -37,6 +38,7 @@ import {
   CODEX_STATE,
   CODEX_TABS,
   CODEX_DEFAULT_TAB,
+  IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY,
 } from '../../src/data/identity-layer.js';
 
 // Minimal in-memory localStorage shim (matches migrate.test.js precedent).
@@ -453,5 +455,214 @@ describe('Codex catalogs (T2.12)', () => {
     expect(phoenix.name).toBe('SOLAR PHOENIX');
     expect(phoenix.chapter).toBe(1);
     expect(phoenix.stihiya).toBe('solar');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T3.09 — Codex Moments Replay button integration (endgame-social.md §4.5)
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY (T3.09)', () => {
+  it('maps all 5 boss-reactive identity handler keys to moment IDs', () => {
+    expect(IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY.identity_phoenix_revive).toBe('phoenix_ashen_reign');
+    expect(IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY.identity_assassin_shark_counter).toBe('lich_cursed_tiles');
+    expect(IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY.identity_berserker_frenzy_pulse).toBe('berserker_bloodtide');
+    expect(IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY.identity_engineer_tetris_counter).toBe('engineer_lockdown');
+    expect(IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY.identity_bruiser_grove_surge).toBe('grovewarden_root_surge');
+  });
+
+  it('has exactly 5 entries (no Voidfang/Uroboros yet — spec §4.5)', () => {
+    expect(Object.keys(IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY).length).toBe(5);
+  });
+
+  it('is frozen (Object.freeze)', () => {
+    expect(Object.isFrozen(IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY)).toBe(true);
+  });
+
+  it('moment IDs match the exact strings used by recordMomentTrigger call sites', () => {
+    // These are the literal strings passed by identity-fx.js end-of-fire hooks
+    // (see grep `recordMomentTrigger(` in src/feel/identity-fx.js — 5 fire sites).
+    // The values must remain byte-perfect — T2.12 contracts preserved.
+    const values = Object.values(IDENTITY_BOSS_HANDLER_TO_MOMENT_KEY);
+    expect(values).toContain('phoenix_ashen_reign');
+    expect(values).toContain('lich_cursed_tiles');
+    expect(values).toContain('berserker_bloodtide');
+    expect(values).toContain('engineer_lockdown');
+    expect(values).toContain('grovewarden_root_surge');
+  });
+});
+
+describe('recordMomentReplay (T3.09)', () => {
+  it('sets lastReplayId and lastReplayAt on an existing moment', () => {
+    // Seed the moment first via recordMomentTrigger (production order).
+    recordMomentTrigger('phoenix_ashen_reign');
+    recordMomentReplay('phoenix_ashen_reign', 'abc123replay');
+    const m = getCodexState().moments[0];
+    expect(m.id).toBe('phoenix_ashen_reign');
+    expect(m.lastReplayId).toBe('abc123replay');
+    expect(typeof m.lastReplayAt).toBe('number');
+    expect(m.lastReplayAt).toBeGreaterThan(0);
+  });
+
+  it('preserves count + firstSeenAt when linking a replay', () => {
+    for (let i = 0; i < 4; i++) recordMomentTrigger('lich_cursed_tiles');
+    const before = getCodexState().moments[0];
+    const beforeFirstSeen = before.firstSeenAt;
+    const beforeCount = before.count;
+    recordMomentReplay('lich_cursed_tiles', 'xyz789replay');
+    const after = getCodexState().moments[0];
+    expect(after.count).toBe(beforeCount);
+    expect(after.firstSeenAt).toBe(beforeFirstSeen);
+    expect(after.lastReplayId).toBe('xyz789replay');
+  });
+
+  it('overwrites lastReplayId on subsequent calls (latest replay wins)', () => {
+    recordMomentTrigger('berserker_bloodtide');
+    recordMomentReplay('berserker_bloodtide', 'first_id');
+    recordMomentReplay('berserker_bloodtide', 'second_id');
+    expect(getCodexState().moments[0].lastReplayId).toBe('second_id');
+  });
+
+  it('silent no-op if momentKey not in moments array (race condition guard)', () => {
+    // No recordMomentTrigger fired first — moment array is empty.
+    recordMomentReplay('phoenix_ashen_reign', 'orphan_replay_id');
+    const state = getCodexState();
+    expect(state.moments.length).toBe(0); // no entry created
+  });
+
+  it('silent no-op for invalid momentKey (empty / null / non-string)', () => {
+    recordMomentTrigger('engineer_lockdown');
+    recordMomentReplay('', 'replay1');
+    recordMomentReplay(null, 'replay2');
+    recordMomentReplay(undefined, 'replay3');
+    recordMomentReplay(123, 'replay4');
+    const m = getCodexState().moments[0];
+    expect(m.lastReplayId).toBeUndefined();
+  });
+
+  it('silent no-op for invalid replayId (empty / null / non-string)', () => {
+    recordMomentTrigger('grovewarden_root_surge');
+    recordMomentReplay('grovewarden_root_surge', '');
+    recordMomentReplay('grovewarden_root_surge', null);
+    recordMomentReplay('grovewarden_root_surge', undefined);
+    recordMomentReplay('grovewarden_root_surge', 0);
+    const m = getCodexState().moments[0];
+    expect(m.lastReplayId).toBeUndefined();
+  });
+
+  it('persists immediately to localStorage', () => {
+    recordMomentTrigger('phoenix_ashen_reign');
+    recordMomentReplay('phoenix_ashen_reign', 'persisted_id');
+    const raw = localStorage.getItem(CODEX_LOCALSTORAGE_KEY);
+    expect(raw).toBeTruthy();
+    const parsed = JSON.parse(raw);
+    expect(parsed.moments[0].lastReplayId).toBe('persisted_id');
+  });
+
+  it('roundtrip: save → reload preserves lastReplayId + lastReplayAt', () => {
+    recordMomentTrigger('phoenix_ashen_reign');
+    recordMomentReplay('phoenix_ashen_reign', 'roundtrip_id');
+    const beforeAt = getCodexState().moments[0].lastReplayAt;
+
+    __codexTestables.reset();
+    const reloaded = getCodexState();
+    expect(reloaded.moments[0].lastReplayId).toBe('roundtrip_id');
+    expect(reloaded.moments[0].lastReplayAt).toBe(beforeAt);
+  });
+});
+
+describe('Codex schema backward-compat (T3.09)', () => {
+  it('legacy moment entries without lastReplayId load correctly', () => {
+    const legacy = {
+      version: 1,
+      races: {},
+      bosses: {},
+      moments: [
+        { id: 'phoenix_ashen_reign', firstSeenAt: '2026-05-01', count: 7 },
+        { id: 'lich_cursed_tiles',   firstSeenAt: '2026-05-02', count: 3 },
+      ],
+    };
+    localStorage.setItem(CODEX_LOCALSTORAGE_KEY, JSON.stringify(legacy));
+    __codexTestables.reset();
+    const state = getCodexState();
+    expect(state.moments.length).toBe(2);
+    expect(state.moments[0].id).toBe('phoenix_ashen_reign');
+    expect(state.moments[0].count).toBe(7);
+    expect(state.moments[0].lastReplayId).toBeUndefined();
+    expect(state.moments[1].lastReplayId).toBeUndefined();
+  });
+
+  it('mixed entries (some with lastReplayId, some without) load correctly', () => {
+    const mixed = {
+      version: 1,
+      races: {},
+      bosses: {},
+      moments: [
+        { id: 'phoenix_ashen_reign', firstSeenAt: '2026-05-01', count: 7, lastReplayId: 'old_id', lastReplayAt: 1715000000000 },
+        { id: 'lich_cursed_tiles',   firstSeenAt: '2026-05-02', count: 3 },
+      ],
+    };
+    localStorage.setItem(CODEX_LOCALSTORAGE_KEY, JSON.stringify(mixed));
+    __codexTestables.reset();
+    const state = getCodexState();
+    expect(state.moments[0].lastReplayId).toBe('old_id');
+    expect(state.moments[0].lastReplayAt).toBe(1715000000000);
+    expect(state.moments[1].lastReplayId).toBeUndefined();
+  });
+
+  it('legacy state can be upgraded via recordMomentReplay on next call', () => {
+    const legacy = {
+      version: 1,
+      races: {},
+      bosses: {},
+      moments: [{ id: 'engineer_lockdown', firstSeenAt: '2026-05-01', count: 1 }],
+    };
+    localStorage.setItem(CODEX_LOCALSTORAGE_KEY, JSON.stringify(legacy));
+    __codexTestables.reset();
+    recordMomentReplay('engineer_lockdown', 'upgraded_id');
+    const state = getCodexState();
+    expect(state.moments[0].lastReplayId).toBe('upgraded_id');
+    expect(state.moments[0].count).toBe(1); // legacy field preserved
+    expect(state.moments[0].firstSeenAt).toBe('2026-05-01'); // legacy field preserved
+  });
+});
+
+describe('Sacred audit — T3.09 additive only (T2.12 contracts preserved)', () => {
+  it('recordMomentTrigger signature unchanged (single momentKey param)', () => {
+    // Smoke check on the contract — calling with the single-arg shape used
+    // by all 5 fx end-of-fire hooks must continue to work identically.
+    recordMomentTrigger('phoenix_ashen_reign');
+    const m = getCodexState().moments[0];
+    expect(m.id).toBe('phoenix_ashen_reign');
+    expect(m.count).toBe(1);
+    // T3.09 fields must not appear when only recordMomentTrigger was called.
+    expect(m.lastReplayId).toBeUndefined();
+    expect(m.lastReplayAt).toBeUndefined();
+  });
+
+  it('recordRaceTrigger / recordBossEncounter / recordBossDefeat signatures unchanged', () => {
+    // Smoke check — identical to T2.12 tests above; included here as the
+    // sacred-audit guard for the T3.09 PR diff.
+    recordRaceTrigger('pirate');
+    recordBossEncounter('phoenix');
+    recordBossDefeat('lich');
+    const state = getCodexState();
+    expect(state.races.pirate.triggerCount).toBe(1);
+    expect(state.bosses.phoenix.encountered).toBe(true);
+    expect(state.bosses.lich.defeatedCount).toBe(1);
+  });
+
+  it('CODEX_LOCALSTORAGE_KEY byte-perfect', () => {
+    expect(CODEX_LOCALSTORAGE_KEY).toBe('blocksworn_codex_state');
+  });
+
+  it('T3.09 still writes ONLY to CODEX_LOCALSTORAGE_KEY', () => {
+    localStorage.setItem('blocksworn_progress', '{"hero":"untouched"}');
+    recordMomentTrigger('phoenix_ashen_reign');
+    recordMomentReplay('phoenix_ashen_reign', 'sacred_audit_id');
+    expect(localStorage.getItem('blocksworn_progress')).toBe('{"hero":"untouched"}');
+    // Total keys: codex + unrelated seed = 2.
+    const keys = localStorage._allKeys().sort();
+    expect(keys).toEqual(['blocksworn_codex_state', 'blocksworn_progress']);
   });
 });

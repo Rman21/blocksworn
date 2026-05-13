@@ -95,7 +95,12 @@ export function showScreen(name) {
   // screen (no .screen had .active, user was soft-locked).
   // T2.12 (2026-05-12): added 'codex' route for Codex screen (Identity Layer
   // aggregation surface). Pure addition — existing routes preserved byte-perfect.
-  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex' };
+  // T3.08 (2026-05-13): added 'replay-viewer' route for Replay viewer (Phase 3
+  // §4.2). Mounted via deeplink (?replay=<id>) or future Codex Replay button.
+  // T3.03 (2026-05-13): added 'adventures' route for Adventures screen (Phase 3
+  // §2 — async clan create/browse/join/view/leave). Dynamic-import per replay-
+  // viewer precedent — only loads when the player opens the screen.
+  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex', 'replay-viewer': 'screenReplayViewer', adventures: 'screenAdventures', friends: 'screenFriends', 'party-tower': 'screenPartyTower', 'tower-season': 'screenTowerSeason' };
   for (const key in map) {
     const el = document.getElementById(map[key]);
     if (el) el.classList.toggle('active', key === name);
@@ -123,6 +128,72 @@ export function showScreen(name) {
   // — Codex render is never allowed to crash screen switching.
   if (name === 'codex') {
     try { renderCodex(); } catch (e) { log.warn('renderCodex failed:', e); }
+  }
+  // T3.08 (2026-05-13): Replay viewer dynamic import on screen activation.
+  // Dynamic to keep the menu-path bundle slim (viewer only loads when used).
+  // window.__replayViewerCurrentId is set by main.js deeplink handler OR
+  // future Codex Replay button before showScreen('replay-viewer') is called.
+  if (name === 'replay-viewer') {
+    import('./replay-viewer.js').then(mod => {
+      try { mod.renderReplayViewer(); } catch (e) { log.warn('renderReplayViewer failed:', e); }
+    }).catch(e => log.warn('replay-viewer dynamic import failed:', e));
+  }
+  // T3.03 (2026-05-13): Adventures dynamic import on screen activation.
+  // Dynamic to keep the menu-path bundle slim (Adventures only loads when
+  // used). window.__adventuresInitialCtx (optional) is read by renderAdventures
+  // so a future deeplink (e.g. ?adventure=<id>) can pre-open a clan detail
+  // view directly. Defensive try/catch — Adventures render never crashes the
+  // screen-switching pipeline.
+  if (name === 'adventures') {
+    import('./adventures.js').then(mod => {
+      try {
+        const ctx = (typeof window !== 'undefined' && window.__adventuresInitialCtx) || null;
+        mod.renderAdventures(undefined, ctx);
+        // One-shot — consume the deeplink context after handing it off.
+        try { if (typeof window !== 'undefined') window.__adventuresInitialCtx = null; } catch (_e) {}
+      } catch (e) { log.warn('renderAdventures failed:', e); }
+    }).catch(e => log.warn('adventures dynamic import failed:', e));
+  }
+  // T3.13 (2026-05-13): Party Tower dynamic import on screen activation.
+  // Dynamic to keep the menu-path bundle slim (Party Tower only loads when
+  // used). window.__partyTowerInitialCtx (optional) is read by renderPartyTower
+  // so a future deeplink (e.g. ?party=<id>) can pre-open a party detail view
+  // directly. Defensive try/catch — Party Tower render never crashes the
+  // screen-switching pipeline.
+  if (name === 'party-tower') {
+    import('./party-tower.js').then(mod => {
+      try {
+        const ctx = (typeof window !== 'undefined' && window.__partyTowerInitialCtx) || null;
+        mod.renderPartyTower(undefined, ctx);
+        try { if (typeof window !== 'undefined') window.__partyTowerInitialCtx = null; } catch (_e) {}
+      } catch (e) { log.warn('renderPartyTower failed:', e); }
+    }).catch(e => log.warn('party-tower dynamic import failed:', e));
+  }
+  // T3.15 (2026-05-13): Tower seasonal dynamic import on screen activation.
+  // Dynamic to keep the menu-path bundle slim (Tower seasonal only loads
+  // when used). window.__towerSeasonInitialCtx (optional) is read by
+  // renderTowerSeason so a future deeplink (e.g. ?season=<id>) can preload
+  // a specific view. Defensive try/catch — never crashes screen switching.
+  if (name === 'tower-season') {
+    import('./tower-season.js').then(mod => {
+      try {
+        const ctx = (typeof window !== 'undefined' && window.__towerSeasonInitialCtx) || null;
+        mod.renderTowerSeason(undefined, ctx);
+        try { if (typeof window !== 'undefined') window.__towerSeasonInitialCtx = null; } catch (_e) {}
+      } catch (e) { log.warn('renderTowerSeason failed:', e); }
+    }).catch(e => log.warn('tower-season dynamic import failed:', e));
+  }
+  // T3.06 (2026-05-13): Friends full-list dynamic import on screen activation.
+  // Dynamic to keep the menu-path bundle slim (full list only loads when used).
+  // The mini-block widget is mounted inline on the menu via menu.js.
+  // Defensive try/catch — render never crashes screen switching.
+  if (name === 'friends') {
+    import('./friend-leaderboard.js').then(mod => {
+      try {
+        const mount = document.getElementById('screenFriends');
+        if (mount) mod.renderFullFriendList(mount);
+      } catch (e) { log.warn('renderFullFriendList failed:', e); }
+    }).catch(e => log.warn('friend-leaderboard dynamic import failed:', e));
   }
   // V3.0 Phase 2 Vivid Stylized: sync bottom-nav active state on every transition.
   try { activateNavFor(name); } catch(e) {}

@@ -2720,7 +2720,99 @@ T3.01 Endgame Social design can start immediately:
 
 ---
 
+## REPORT-34: 🚀 T3.01 Phase 3 Endgame Social Design DONE; ESC-03 RESOLVED; Phase 3 implementation pipeline OPEN
+
+**Date:** 2026-05-13
+**Author:** CTO
+**Trigger:** Designer agent `aa3621bb0c516fc84` returned PASS on T3.01 master design spec; Roman authorized "continue" → CTO applied recommendations on ESC-03 Q1–Q5 per ESC-02 precedent.
+
+### T3.01 Design Spec Summary
+
+`docs/design/endgame-social.md` — 1572 LoC. Commit `7c5ec5c`. CTO acceptance: PASS.
+
+5 Phase 3 systems covered:
+- §2 Adventures (T3.02–T3.05) — async clan 5-15 + weekly boss-of-week + contributor stats
+- §3 Party Tower (T3.10–T3.13) — async turn-based per ADR-002; shared Tower-Hearts + TOWER_PACTS
+- §4 Replay/Share (T3.07–T3.09) — auto-record + scrubable viewer + navigator.share + Codex Moments integration
+- §5 Friend leaderboard (T3.06) — widget + navigator.share invite
+- §6 Tower seasonal (T3.14–T3.15) — 13-week Uroboros rotation + seasonal pact additions
+
+§7 sacred cow audit: **47 systems verified, 0 modifications planned.** Includes TOWER_PACTS_BASE+MYTHIC, TOWER_LEADERBOARDS, Tower retry ladder, Uroboros boss spec, Battle Pass formula, Identity Layer FX, PURE PATH.
+
+§10 implementation dependencies: 16 new files + 7 additive modifications mapped. T3.16 Legacy Bridge mirrors T2.B pattern.
+
+### ADR back-fills
+
+Designer flagged ADR-002 + ADR-003 didn't exist as discrete files (only ADR-004 was present). CTO back-filled both:
+
+- **ADR-002 async-party-tower** — Async turn-based via Firestore, NOT WebRTC. Marvel Snap / Words With Friends precedent. ~15× cheaper backend than WebRTC.
+- **ADR-003 no-power-creep-nft** — Strict no-P2W across Phase 4 NFT integration. PURE PATH F2P-only sacred. NFT heroes confer identity / cosmetic / trade-ability never stat / win-rate.
+
+Both ADRs document decisions that pre-date Phase 3 per CLAUDE.md §1.3 + Execution Plan §8.3 / §9.3.
+
+### ESC-03 RESOLVED — CTO recommendations applied per ESC-02 precedent
+
+Roman's "continue" command interpreted per ESC-02 precedent ("merge and continue (on your recommendations if AAA+ game development)"). CTO applied 5 rulings — all matching Designer recommendations:
+
+| ID | Question | Ruling | T-task impact |
+|---|---|---|---|
+| Q1 | Adventures clan size | **5–15 HARD CAP** | T3.02 enforces via Firestore security rule |
+| Q2 | Replay storage per tier | **F2P 100 MB / Minnow 100 / Dolphin 250 / Whale 500 MB — ALL PERMANENT** | T3.07 wires `getPlayerSegment()` from sacred T1.20 analytics |
+| Q3 | Party Tower turn timeout | **24h Standard default** | T3.10 implements 3-mode picker (4h/24h/7d) |
+| Q4 | Season cadence | **13-week Tower + 1-week Adventures + Battle Pass = Tower** | T3.14 builds 13-week rotation infrastructure |
+| Q5 | Friend invite | **navigator.share OS-native only (MVP)** | T3.06 wires share-only flow |
+
+Ruling baked into design spec v1.1 §15. T3.07 Replay capture starts immediately per Designer strategic recommendation (lateral dependency unblocking Codex Moments Replay button — visible Phase 2 → Phase 3 bridge moment).
+
+### What unblocks immediately
+
+- **T3.07 Replay capture (ACTIVE)** — first Phase 3 implementation
+- T3.02–T3.05 Adventures — UNBLOCKED (hard cap 5–15)
+- T3.06 Friend leaderboard — UNBLOCKED (share-only)
+- T3.08 Replay viewer — UNBLOCKED (depends T3.07)
+- T3.09 Codex Replay button — UNBLOCKED (depends T3.07)
+- T3.10–T3.13 Party Tower — UNBLOCKED (async per ADR-002)
+- T3.14–T3.15 Tower seasonal — UNBLOCKED (13-week seasons)
+- T3.16 Legacy Bridge — UNBLOCKED (mirrors T2.B)
+
+### Phase 3 trajectory snapshot
+
+| Metric | Phase 1 end | Phase 2 end | Phase 3 start |
+|---|---|---|---|
+| Bundle JS | 205 KB | 272 KB | 272 KB (design only — no code yet) |
+| Unit tests | 37 | 581 | 581 |
+| Smoke runs (×2 projects) | 2 | 204 | 204 |
+| Sacred-cow modifications | 0 | 0 | 0 planned |
+| ADR count | 4 (ADR-004 only) | 4 | 6 (+ADR-002 + ADR-003 back-filled) |
+
+🚀 **T3.01 DONE. ESC-03 RESOLVED. Next: T3.07 Replay capture infrastructure.**
+
+---
+
 ## ESCALATIONS
+
+### ESCALATION ESC-03: Phase 3 Endgame Social design — 5 open questions (T3.01 → T3.02+)
+
+**Status:** ✅ **RESOLVED 2026-05-13** — Roman approved all 5 per CTO recommendations ("continue" interpreted per ESC-02 precedent of "merge and continue (on your recommendations)")
+**Created:** 2026-05-13
+**Resolved:** 2026-05-13
+**Origin:** TASK-046 / T3.01 (`7c5ec5c`)
+**Severity:** NORMAL
+**Reference:** `docs/design/endgame-social.md` §13 + §15 (Roman ruling appendix)
+
+### Ruling summary
+
+| Q# | Question | Roman ruling | Quality gate added |
+|---|---|---|---|
+| Q1 | Adventures clan size hard cap | **5–15 HARD CAP, no exceptions** | T3.02 server-side enforcement via Firestore security rule + weekly audit Cloud Function |
+| Q2 | Replay storage budget per tier | **F2P 100 / Minnow 100 / Dolphin 250 / Whale 500 MB — ALL PERMANENT** | T3.07 storage quota client + server enforced; tier from `getPlayerSegment()` |
+| Q3 | Party Tower turn timeout | **24h Standard default** (4h Competitive + 7-day Casual opt-in) | T3.10 turn-deadline picker with 3 modes; no whale-tier reduction below 4h |
+| Q4 | Season cadence | **13-week Tower + 1-week Adventures + Battle Pass = Tower** | T3.14 Battle Pass formula `500 + (tier-1) × 150` byte-perfect audit pre-merge |
+| Q5 | Friend invite mechanism | **navigator.share OS-native only (MVP)** | T3.06 share-only; in-game friend codes deferred to Phase 3.5 |
+
+Ruling baked into design spec v1.1 §15. T3.07 Replay capture unblocked; T3.02+ implementation pipeline open.
+
+---
 
 ### ESCALATION ESC-02: Identity Layer design — 4 open questions (T2.01 → T2.02)
 

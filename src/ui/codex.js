@@ -29,16 +29,29 @@
 //   - recordBossEncounter(bossKey)               — mark encountered
 //   - recordBossDefeat(bossKey)                  — increment defeats
 //   - recordMomentTrigger(momentKey)             — append/increment moment
+//   - recordMomentReplay(momentKey, replayId)    — T3.09 — link replay to moment
 //   - getRaceState(raceKey, codexState?)         — Locked/Encountered/Mastered
 //   - getBossState(bossKey, codexState?)         — Locked/Encountered/Mastered
 //
-// Persistence schema (per spec §4.9):
+// Persistence schema (per spec §4.9 + T3.09 additive extension):
 //   {
 //     version: 1,
 //     races: { pirate: { encountered: true, mastered: false, triggerCount: 47 }, ... },
 //     bosses: { phoenix: { encountered: true, mastered: false, firstSeenAt: 'D3', defeatedCount: 0 }, ... },
-//     moments: [{ id: 'phoenix_ashen_reign', firstSeenAt: 'D3', count: 4 }, ...]
+//     moments: [{ id: 'phoenix_ashen_reign', firstSeenAt: 'D3', count: 4,
+//                lastReplayId?: 'abc123', lastReplayAt?: 1715634123456 }, ...]
 //   }
+//
+// T3.09 (endgame-social.md §4.5) — Replay button integration:
+//   - Each moment record gains OPTIONAL `lastReplayId` + `lastReplayAt` fields.
+//   - When replay-backend uploads a replay for a boss-reactivity trigger, it
+//     calls `recordMomentReplay(momentKey, replayId)` to attach the latest
+//     replay to the matching moment entry.
+//   - The Moments tab UI renders a parchment-styled "▶ Replay" button when a
+//     moment has `lastReplayId`; click routes to `'replay-viewer'` with the
+//     `?replay=<id>` deeplink semantics (T3.08 viewer handles the rest).
+//   - Backward-compatible: pre-existing moment entries without these fields
+//     load + render correctly (button just hidden).
 //
 // Performance contract (spec §4.9): page render ≤300ms FCP. Implementation
 // uses pure innerHTML + tiny DOM — no allocation churn, no canvas, no media.
@@ -284,6 +297,44 @@ export function recordMomentTrigger(momentKey) {
   } catch (_e) { /* defensive */ }
 }
 
+// T3.09 — Link a replay ID to an existing Codex moment entry. Called by
+// replay-backend.js on successful upload of a boss-reactivity replay. Pure
+// additive write: only mutates the matching moment's `lastReplayId` +
+// `lastReplayAt` fields; the original schema (id / firstSeenAt / count)
+// is preserved byte-perfect.
+//
+// Defensive contract (mirrors recordMomentTrigger discipline):
+//   - Invalid key (non-string, empty): silent no-op.
+//   - Invalid replayId (non-string, empty): silent no-op.
+//   - momentKey not yet in moments array: silent no-op (race condition —
+//     replay arrived before the recordMomentTrigger fired; legal first-time
+//     state. The next moment trigger creates the entry, but THIS replay won't
+//     be linked; the player can re-witness to re-trigger linkage. This keeps
+//     the implementation simple — no queue, no out-of-order reordering).
+//   - try/catch wrap — Codex linkage failure MUST NOT regress the replay
+//     upload pipeline (ADR-004 hybrid coexistence discipline).
+//
+// Sacred safety: same as recordMomentTrigger — writes only to the Codex
+// localStorage key; never mutates game state, sacred tables, or the existing
+// id/firstSeenAt/count fields of the moment entry.
+export function recordMomentReplay(momentKey, replayId) {
+  if (!_isValidKey(momentKey)) return;
+  if (!_isValidKey(replayId)) return;
+  try {
+    const state = getCodexState();
+    const moments = state.moments;
+    if (!Array.isArray(moments)) return; // defensive — silent no-op
+    let found = null;
+    for (let i = 0; i < moments.length; i++) {
+      if (moments[i] && moments[i].id === momentKey) { found = moments[i]; break; }
+    }
+    if (!found) return; // race: replay arrived before recordMomentTrigger
+    found.lastReplayId = replayId;
+    found.lastReplayAt = Date.now();
+    saveCodexState(state);
+  } catch (_e) { /* defensive — recording must never throw */ }
+}
+
 // "First seen" stamp — current day-of-month ISO-ish marker. Spec §4.4 example
 // shows "first encountered: D3" (Day 3 of FTUE / player journey). Without a
 // canonical "player day" system we use the ISO date string — it's stable
@@ -431,6 +482,32 @@ function _wireTabClicks(root, state) {
         if (kind === 'boss') renderBossDetail(root, key, state);
       });
     });
+    // T3.09 — Moments-tab Replay buttons. Click routes to the Replay viewer
+    // with the linked replayId via the standard `?replay=<id>` deeplink
+    // semantics (`window.__replayViewerCurrentId` pin + showScreen). Mirrors
+    // the boot-time deeplink handler in src/main.js exactly so the viewer
+    // mount path is uniform across entry points.
+    const replayBtns = root.querySelectorAll('.codex-moment-replay-btn');
+    replayBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        try {
+          // stopPropagation — clicks on the button should NOT trigger the
+          // surrounding row's gestures (currently none, but future-proof).
+          if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+          const replayId = e.currentTarget.getAttribute('data-codex-replay-id');
+          if (!replayId) return;
+          if (typeof window !== 'undefined') {
+            try { window.__replayViewerCurrentId = replayId; } catch (_e) {}
+            // Set return target so the viewer's back-button returns to Codex.
+            // T3.08 viewer reads this via window.__replayViewerReturnTo.
+            try { window.__replayViewerReturnTo = 'codex'; } catch (_e) {}
+            if (typeof window.showScreen === 'function') {
+              window.showScreen('replay-viewer');
+            }
+          }
+        } catch (_e) { /* defensive — click handler never throws */ }
+      });
+    });
   } catch (_e) { /* defensive — listener wiring never throws */ }
 }
 
@@ -539,7 +616,14 @@ function _renderMomentsTabHTML(state) {
       const at = (m && m.firstSeenAt) || '';
       const count = (m && m.count) | 0;
       const label = _momentDisplayName(id);
-      return `<li class="codex-moment-row" data-codex-moment="${id}"><span class="codex-moment-label">${label}</span><span class="codex-moment-meta">first seen ${at} · ${count}×</span></li>`;
+      // T3.09 — conditional Replay button. Rendered only when the moment has
+      // a linked replayId (set by recordMomentReplay on successful upload).
+      // Backward-compat: legacy moments without lastReplayId render unchanged.
+      const replayId = (m && typeof m.lastReplayId === 'string' && m.lastReplayId) ? m.lastReplayId : '';
+      const replayBtn = replayId
+        ? `<button type="button" class="codex-moment-replay-btn" data-codex-replay-id="${_escape(replayId)}" data-codex-moment-id="${_escape(id)}" aria-label="Replay this moment"><span class="codex-moment-replay-icon" aria-hidden="true">&#9654;</span><span class="codex-moment-replay-text">Replay</span></button>`
+        : '';
+      return `<li class="codex-moment-row" data-codex-moment="${_escape(id)}"><div class="codex-moment-info"><span class="codex-moment-label">${label}</span><span class="codex-moment-meta">first seen ${_escape(at)} · ${count}×</span></div>${replayBtn}</li>`;
     }).join(''),
     '</ul>',
   ].join('');

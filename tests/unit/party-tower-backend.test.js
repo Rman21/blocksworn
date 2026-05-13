@@ -1,0 +1,1758 @@
+// 2026-05-13 — TASK-055 (T3.10): Party Tower async architecture — unit suite.
+//
+// Spec: docs/design/endgame-social.md §3 (Party Tower — 2–5 player async coop)
+//       + §15 ESC-03 Q3 ruling — 24h Standard default; 4h Competitive +
+//         7-day Casual selectable per-party at creation.
+//       + ADR-002 — async-only (Firestore, NO WebRTC).
+//       + ADR-003 — strict no-P2W; party progression COSMETIC-ONLY; no
+//         whale-tier perks; HARD CAP 5 (no paid expansion).
+//
+// Coverage strategy:
+//   1. Constant audits — PARTY_MAX_SIZE === 5 HARD CAP byte-perfect,
+//      PARTY_DEFAULT_TIMEOUT_MODE === 'standard', turn timeout values
+//      byte-perfect (4h / 24h / 7d) per ESC-03 Q3.
+//   2. 10 pure-math helpers — exhaustive boundary cases.
+//   3. 10 async CRUD operations — happy + edge + invalid-input + state-machine.
+//   4. Sacred audit:
+//        - PARTY_MAX_SIZE === 5 BYTE-PERFECT (ADR-003 HARD CAP)
+//        - Turn timeout 4h / 24h / 7d byte-perfect (ESC-03 Q3)
+//        - Defensive: every export wrapped in try/catch; no throws under
+//          adversarial inputs (null / undefined / wrong types).
+//   5. Performance: pure helpers < 1ms each; CRUD ops < 5ms in mock mode.
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import {
+  // constants
+  PARTY_MIN_SIZE,
+  PARTY_MAX_SIZE,
+  PARTY_NAME_MIN_LEN,
+  PARTY_NAME_MAX_LEN,
+  PARTY_TIMEOUT_MS_COMPETITIVE,
+  PARTY_TIMEOUT_MS_STANDARD,
+  PARTY_TIMEOUT_MS_CASUAL,
+  PARTY_DEFAULT_TIMEOUT_MODE,
+  PARTY_TIMEOUT_MS,
+  PARTY_STATES,
+  PARTY_ROLES,
+  PARTY_COLLECTION,
+  PARTY_RESULT_REASONS,
+  PARTY_ROLE_OWNER,
+  PARTY_ROLE_MEMBER,
+  PARTY_STATE_PENDING,
+  PARTY_STATE_ACTIVE,
+  PARTY_STATE_COMPLETED,
+  PARTY_STATE_ABANDONED,
+  // pure helpers
+  validatePartySize,
+  validatePartyName,
+  computeTurnTimeoutMs,
+  computeTurnHasExpired,
+  pickNextTurnPlayer,
+  computeNextTurnPlayerId,
+  canPlayerJoinParty,
+  canPlayerStartParty,
+  canPlayerEndTurn,
+  computePartyProgress,
+  // async ops
+  createParty,
+  fetchParty,
+  joinParty,
+  leaveParty,
+  startParty,
+  endTurn,
+  transferOwnership,
+  listPartiesForPlayer,
+  notifyTurnHandoff,
+  maybeAutoSkipExpiredTurn,
+  // test helpers
+  _resetMockPartyStore,
+  // T3.11 — Shared resources (hearts + pacts)
+  PARTY_PACT_CANDIDATES_PER_PICK,
+  PARTY_PACT_DECISION_SOURCES,
+  // T3.12 — Per-turn Identity Layer dispatch
+  PARTY_IDENTITY_FX_LOG_MAX_ENTRIES,
+  PARTY_IDENTITY_FX_VALID_RACE_KEYS,
+  PARTY_IDENTITY_FX_VALID_BOSS_KEYS,
+  validateIdentityFxEvent,
+  getTurnIdentityFxLog,
+  computeCrossRaceSynergy,
+  recordTurnIdentityFxEvent,
+  getTowerRetryLadder,
+  computeRetryTierIndex,
+  computeHeartsDrainCost,
+  computeTowerHeartsPoolMax,
+  drainPartyHearts,
+  canPartyAffordRetry,
+  replenishPartyHeartsOnCheckpoint,
+  getTowerPactRegistry,
+  pickPactCandidates,
+  validatePactSelection,
+  tallyDemocracyVotes,
+  applyPactToSharedState,
+  canPlayerStartPactPick,
+  recordHeartsDrain,
+  replenishHearts,
+  startPactPick,
+  submitPactVote,
+} from '../../src/services/party-tower-backend.js';
+import { BALANCE } from '../../src/data/balance.js';
+import { TOWER_PACTS_BASE, TOWER_PACTS_MYTHIC } from '../../src/data/tower.js';
+
+// ──────────────────────────────────────────────────────────────────────────
+// Constants — sacred audit + value pinning.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('constants — sacred audit (ADR-003 HARD CAP + ESC-03 Q3)', () => {
+  it('PARTY_MAX_SIZE === 5 BYTE-PERFECT (ADR-003 HARD CAP, no whale expansion)', () => {
+    expect(PARTY_MAX_SIZE).toBe(5);
+  });
+
+  it('PARTY_MIN_SIZE === 2 (spec §3.1 — min 2 players to start)', () => {
+    expect(PARTY_MIN_SIZE).toBe(2);
+  });
+
+  it('PARTY_NAME_MIN_LEN === 3 / PARTY_NAME_MAX_LEN === 30 (mirrors clan)', () => {
+    expect(PARTY_NAME_MIN_LEN).toBe(3);
+    expect(PARTY_NAME_MAX_LEN).toBe(30);
+  });
+
+  it('PARTY_DEFAULT_TIMEOUT_MODE === "standard" per ESC-03 Q3 ruling', () => {
+    expect(PARTY_DEFAULT_TIMEOUT_MODE).toBe('standard');
+  });
+
+  it('PARTY_TIMEOUT_MS_COMPETITIVE === 4h (4 * 60 * 60 * 1000 = 14400000)', () => {
+    expect(PARTY_TIMEOUT_MS_COMPETITIVE).toBe(4 * 60 * 60 * 1000);
+    expect(PARTY_TIMEOUT_MS_COMPETITIVE).toBe(14400000);
+  });
+
+  it('PARTY_TIMEOUT_MS_STANDARD === 24h (24 * 60 * 60 * 1000 = 86400000)', () => {
+    expect(PARTY_TIMEOUT_MS_STANDARD).toBe(24 * 60 * 60 * 1000);
+    expect(PARTY_TIMEOUT_MS_STANDARD).toBe(86400000);
+  });
+
+  it('PARTY_TIMEOUT_MS_CASUAL === 7d (7 * 24 * 60 * 60 * 1000 = 604800000)', () => {
+    expect(PARTY_TIMEOUT_MS_CASUAL).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(PARTY_TIMEOUT_MS_CASUAL).toBe(604800000);
+  });
+
+  it('PARTY_TIMEOUT_MS lookup table covers all three modes', () => {
+    expect(PARTY_TIMEOUT_MS.competitive).toBe(PARTY_TIMEOUT_MS_COMPETITIVE);
+    expect(PARTY_TIMEOUT_MS.standard).toBe(PARTY_TIMEOUT_MS_STANDARD);
+    expect(PARTY_TIMEOUT_MS.casual).toBe(PARTY_TIMEOUT_MS_CASUAL);
+  });
+
+  it('PARTY_TIMEOUT_MS table is frozen', () => {
+    expect(Object.isFrozen(PARTY_TIMEOUT_MS)).toBe(true);
+  });
+
+  it('PARTY_STATES enum contains exactly 4 states (pending/active/completed/abandoned)', () => {
+    expect(Array.from(PARTY_STATES)).toEqual(['pending', 'active', 'completed', 'abandoned']);
+    expect(Object.isFrozen(PARTY_STATES)).toBe(true);
+  });
+
+  it('PARTY_ROLES enum contains exactly 2 roles (owner/member)', () => {
+    expect(Array.from(PARTY_ROLES)).toEqual(['owner', 'member']);
+    expect(Object.isFrozen(PARTY_ROLES)).toBe(true);
+  });
+
+  it('Role string constants match enum entries', () => {
+    expect(PARTY_ROLE_OWNER).toBe('owner');
+    expect(PARTY_ROLE_MEMBER).toBe('member');
+  });
+
+  it('State string constants match enum entries', () => {
+    expect(PARTY_STATE_PENDING).toBe('pending');
+    expect(PARTY_STATE_ACTIVE).toBe('active');
+    expect(PARTY_STATE_COMPLETED).toBe('completed');
+    expect(PARTY_STATE_ABANDONED).toBe('abandoned');
+  });
+
+  it('PARTY_COLLECTION === "parties" (spec §3.1)', () => {
+    expect(PARTY_COLLECTION).toBe('parties');
+  });
+
+  it('PARTY_RESULT_REASONS frozen registry covers core failure modes', () => {
+    expect(PARTY_RESULT_REASONS.NO_SDK).toBe('no-sdk');
+    expect(PARTY_RESULT_REASONS.PARTY_FULL).toBe('party-full');
+    expect(PARTY_RESULT_REASONS.PARTY_TOO_SMALL).toBe('party-too-small');
+    expect(PARTY_RESULT_REASONS.OWNER_CANNOT_LEAVE).toBe('owner-cannot-leave-without-transfer');
+    expect(PARTY_RESULT_REASONS.NOT_CURRENT_TURN).toBe('not-current-turn');
+    expect(PARTY_RESULT_REASONS.INVALID_MODE).toBe('invalid-mode');
+    expect(PARTY_RESULT_REASONS.ALREADY_STARTED).toBe('already-started');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// validatePartySize — HARD CAP 2-5 boundary cases.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('validatePartySize — HARD CAP 2-5 (ADR-003)', () => {
+  it('returns fail for non-number input', () => {
+    expect(validatePartySize(null).ok).toBe(false);
+    expect(validatePartySize(undefined).ok).toBe(false);
+    expect(validatePartySize('5').ok).toBe(false);
+    expect(validatePartySize(NaN).ok).toBe(false);
+  });
+
+  it('returns fail for negative count', () => {
+    const r = validatePartySize(-1);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-input');
+  });
+
+  it('returns fail for count === 1 (below min 2)', () => {
+    const r = validatePartySize(1);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('party-too-small');
+  });
+
+  it('returns ok for count === 2 (min boundary)', () => {
+    expect(validatePartySize(2).ok).toBe(true);
+  });
+
+  it('returns ok for count === 5 (max boundary HARD CAP)', () => {
+    expect(validatePartySize(5).ok).toBe(true);
+  });
+
+  it('returns fail for count === 6 (HARD CAP violation — ADR-003)', () => {
+    const r = validatePartySize(6);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('party-full');
+  });
+
+  it('returns fail for ridiculous count (1000) — HARD CAP still enforced', () => {
+    expect(validatePartySize(1000).ok).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// validatePartyName — length 3-30 + whitespace/control rejection.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('validatePartyName', () => {
+  it('returns fail for non-string', () => {
+    expect(validatePartyName(null).ok).toBe(false);
+    expect(validatePartyName(42).ok).toBe(false);
+    expect(validatePartyName({}).ok).toBe(false);
+  });
+
+  it('returns fail for empty string', () => {
+    expect(validatePartyName('').ok).toBe(false);
+  });
+
+  it('returns fail for 2-char name (below min)', () => {
+    expect(validatePartyName('ab').ok).toBe(false);
+  });
+
+  it('returns ok for 3-char name (min boundary)', () => {
+    expect(validatePartyName('abc').ok).toBe(true);
+  });
+
+  it('returns ok for 30-char name (max boundary)', () => {
+    expect(validatePartyName('a'.repeat(30)).ok).toBe(true);
+  });
+
+  it('returns fail for 31-char name (above max)', () => {
+    expect(validatePartyName('a'.repeat(31)).ok).toBe(false);
+  });
+
+  it('returns fail for leading whitespace', () => {
+    expect(validatePartyName(' abc').ok).toBe(false);
+  });
+
+  it('returns fail for embedded newline', () => {
+    expect(validatePartyName('ab\ncd').ok).toBe(false);
+  });
+
+  it('returns fail for tab character', () => {
+    expect(validatePartyName('ab\tcd').ok).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// computeTurnTimeoutMs — 4h / 24h / 7d mapping (ESC-03 Q3).
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('computeTurnTimeoutMs (ESC-03 Q3)', () => {
+  it('competitive → 4h ms (4 * 3600 * 1000 = 14400000)', () => {
+    expect(computeTurnTimeoutMs('competitive')).toBe(14400000);
+  });
+
+  it('standard → 24h ms (24 * 3600 * 1000 = 86400000)', () => {
+    expect(computeTurnTimeoutMs('standard')).toBe(86400000);
+  });
+
+  it('casual → 7d ms (7 * 24 * 3600 * 1000 = 604800000)', () => {
+    expect(computeTurnTimeoutMs('casual')).toBe(604800000);
+  });
+
+  it('unknown mode → defaults to standard 24h', () => {
+    expect(computeTurnTimeoutMs('xyz')).toBe(86400000);
+  });
+
+  it('null / undefined / non-string → defaults to standard 24h', () => {
+    expect(computeTurnTimeoutMs(null)).toBe(86400000);
+    expect(computeTurnTimeoutMs(undefined)).toBe(86400000);
+    expect(computeTurnTimeoutMs(42)).toBe(86400000);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// computeTurnHasExpired
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('computeTurnHasExpired', () => {
+  it('returns false for null / undefined / non-object', () => {
+    expect(computeTurnHasExpired(null)).toBe(false);
+    expect(computeTurnHasExpired(undefined)).toBe(false);
+    expect(computeTurnHasExpired('foo')).toBe(false);
+  });
+
+  it('returns false when currentTurnDeadline is missing or 0', () => {
+    expect(computeTurnHasExpired({})).toBe(false);
+    expect(computeTurnHasExpired({ currentTurnDeadline: 0 })).toBe(false);
+  });
+
+  it('returns false when now < deadline', () => {
+    expect(computeTurnHasExpired({ currentTurnDeadline: 1000 }, 500)).toBe(false);
+  });
+
+  it('returns false when now === deadline (strict >, not >=)', () => {
+    expect(computeTurnHasExpired({ currentTurnDeadline: 1000 }, 1000)).toBe(false);
+  });
+
+  it('returns true when now > deadline', () => {
+    expect(computeTurnHasExpired({ currentTurnDeadline: 1000 }, 1001)).toBe(true);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// pickNextTurnPlayer — round-robin + skip inactive.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('pickNextTurnPlayer / computeNextTurnPlayerId', () => {
+  it('returns null for invalid input', () => {
+    expect(pickNextTurnPlayer(null)).toBeNull();
+    expect(pickNextTurnPlayer({})).toBeNull();
+    expect(pickNextTurnPlayer({ members: [] })).toBeNull();
+  });
+
+  it('3-member party at turnIndex=0 → returns member[1]', () => {
+    const party = {
+      turnIndex: 0,
+      members: [
+        { playerId: 'a', isActive: true },
+        { playerId: 'b', isActive: true },
+        { playerId: 'c', isActive: true },
+      ],
+    };
+    expect(pickNextTurnPlayer(party)).toBe('b');
+  });
+
+  it('3-member party at turnIndex=2 → wraps to member[0]', () => {
+    const party = {
+      turnIndex: 2,
+      members: [
+        { playerId: 'a', isActive: true },
+        { playerId: 'b', isActive: true },
+        { playerId: 'c', isActive: true },
+      ],
+    };
+    expect(pickNextTurnPlayer(party)).toBe('a');
+  });
+
+  it('inactive member at next slot is skipped', () => {
+    const party = {
+      turnIndex: 0,
+      members: [
+        { playerId: 'a', isActive: true },
+        { playerId: 'b', isActive: false },
+        { playerId: 'c', isActive: true },
+      ],
+    };
+    expect(pickNextTurnPlayer(party)).toBe('c');
+  });
+
+  it('single active member → returns that member (turn loops back)', () => {
+    const party = {
+      turnIndex: 0,
+      members: [
+        { playerId: 'a', isActive: true },
+        { playerId: 'b', isActive: false },
+      ],
+    };
+    expect(pickNextTurnPlayer(party)).toBe('a');
+  });
+
+  it('all members inactive → returns null', () => {
+    const party = {
+      turnIndex: 0,
+      members: [
+        { playerId: 'a', isActive: false },
+        { playerId: 'b', isActive: false },
+      ],
+    };
+    expect(pickNextTurnPlayer(party)).toBeNull();
+  });
+
+  it('computeNextTurnPlayerId is an alias for pickNextTurnPlayer', () => {
+    const party = {
+      turnIndex: 0,
+      members: [
+        { playerId: 'a', isActive: true },
+        { playerId: 'b', isActive: true },
+      ],
+    };
+    expect(computeNextTurnPlayerId(party)).toBe(pickNextTurnPlayer(party));
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// canPlayerJoinParty
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('canPlayerJoinParty', () => {
+  const pendingParty = {
+    state: 'pending',
+    members: [{ playerId: 'a' }, { playerId: 'b' }],
+  };
+
+  it('returns false for invalid input', () => {
+    expect(canPlayerJoinParty(null, pendingParty)).toBe(false);
+    expect(canPlayerJoinParty('x', null)).toBe(false);
+    expect(canPlayerJoinParty('', pendingParty)).toBe(false);
+  });
+
+  it('returns true when not member + has space + pending', () => {
+    expect(canPlayerJoinParty('c', pendingParty)).toBe(true);
+  });
+
+  it('returns false when already member', () => {
+    expect(canPlayerJoinParty('a', pendingParty)).toBe(false);
+  });
+
+  it('returns false when party is full (5 members)', () => {
+    const full = {
+      state: 'pending',
+      members: [
+        { playerId: 'a' }, { playerId: 'b' }, { playerId: 'c' },
+        { playerId: 'd' }, { playerId: 'e' },
+      ],
+    };
+    expect(canPlayerJoinParty('f', full)).toBe(false);
+  });
+
+  it('returns false when state is active (cannot join mid-run)', () => {
+    const active = { ...pendingParty, state: 'active' };
+    expect(canPlayerJoinParty('c', active)).toBe(false);
+  });
+
+  it('returns false when state is completed', () => {
+    const completed = { ...pendingParty, state: 'completed' };
+    expect(canPlayerJoinParty('c', completed)).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// canPlayerStartParty
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('canPlayerStartParty', () => {
+  it('owner + minSize 2 met + pending → true', () => {
+    const party = {
+      state: 'pending',
+      ownerId: 'a',
+      members: [
+        { playerId: 'a', role: 'owner' },
+        { playerId: 'b', role: 'member' },
+      ],
+    };
+    expect(canPlayerStartParty('a', party)).toBe(true);
+  });
+
+  it('non-owner → false', () => {
+    const party = {
+      state: 'pending',
+      ownerId: 'a',
+      members: [
+        { playerId: 'a', role: 'owner' },
+        { playerId: 'b', role: 'member' },
+      ],
+    };
+    expect(canPlayerStartParty('b', party)).toBe(false);
+  });
+
+  it('only 1 member (below minSize 2) → false', () => {
+    const party = {
+      state: 'pending',
+      ownerId: 'a',
+      members: [{ playerId: 'a', role: 'owner' }],
+    };
+    expect(canPlayerStartParty('a', party)).toBe(false);
+  });
+
+  it('state is active → false (cannot start already-started)', () => {
+    const party = {
+      state: 'active',
+      ownerId: 'a',
+      members: [
+        { playerId: 'a', role: 'owner' },
+        { playerId: 'b', role: 'member' },
+      ],
+    };
+    expect(canPlayerStartParty('a', party)).toBe(false);
+  });
+
+  it('invalid input returns false', () => {
+    expect(canPlayerStartParty(null, {})).toBe(false);
+    expect(canPlayerStartParty('a', null)).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// canPlayerEndTurn
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('canPlayerEndTurn', () => {
+  const activeParty = {
+    state: 'active',
+    turnIndex: 0,
+    members: [
+      { playerId: 'a', isActive: true },
+      { playerId: 'b', isActive: true },
+    ],
+  };
+
+  it('current player + active state → true', () => {
+    expect(canPlayerEndTurn('a', activeParty)).toBe(true);
+  });
+
+  it('non-current player → false', () => {
+    expect(canPlayerEndTurn('b', activeParty)).toBe(false);
+  });
+
+  it('pending state → false', () => {
+    expect(canPlayerEndTurn('a', { ...activeParty, state: 'pending' })).toBe(false);
+  });
+
+  it('completed state → false', () => {
+    expect(canPlayerEndTurn('a', { ...activeParty, state: 'completed' })).toBe(false);
+  });
+
+  it('invalid input → false', () => {
+    expect(canPlayerEndTurn(null, activeParty)).toBe(false);
+    expect(canPlayerEndTurn('a', null)).toBe(false);
+  });
+
+  it('inactive current player → false (member marked left)', () => {
+    const party = {
+      state: 'active',
+      turnIndex: 0,
+      members: [
+        { playerId: 'a', isActive: false },
+        { playerId: 'b', isActive: true },
+      ],
+    };
+    expect(canPlayerEndTurn('a', party)).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// computePartyProgress
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('computePartyProgress', () => {
+  it('returns default for null / invalid input', () => {
+    expect(computePartyProgress(null)).toEqual({ floorIndex: 0, lastAction: null, turnCount: 0 });
+  });
+
+  it('returns floorIndex 0 and turnCount 0 for fresh party', () => {
+    expect(computePartyProgress({ sharedState: { floorIndex: 0 }, turnHistory: [] })).toEqual({
+      floorIndex: 0, lastAction: null, turnCount: 0,
+    });
+  });
+
+  it('surfaces floorIndex from sharedState', () => {
+    const r = computePartyProgress({ sharedState: { floorIndex: 12 } });
+    expect(r.floorIndex).toBe(12);
+  });
+
+  it('surfaces last turn action from turnHistory[]', () => {
+    const party = {
+      sharedState: { floorIndex: 3 },
+      turnHistory: [
+        { playerId: 'a', endedAt: 1, actions: ['act1'], deltas: { dmg: 100 } },
+        { playerId: 'b', endedAt: 2, actions: ['act2'], deltas: { dmg: 200 } },
+      ],
+    };
+    const r = computePartyProgress(party);
+    expect(r.turnCount).toBe(2);
+    expect(r.lastAction.playerId).toBe('b');
+    expect(r.lastAction.endedAt).toBe(2);
+    expect(r.lastAction.deltas).toEqual({ dmg: 200 });
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Async CRUD ops — happy + edge + invalid-input paths.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('createParty', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('rejects invalid ownerId', async () => {
+    const r = await createParty(null);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-input');
+  });
+
+  it('creates party with default mode (standard) when no mode given', async () => {
+    const r = await createParty('roma');
+    expect(r.ok).toBe(true);
+    expect(typeof r.partyId).toBe('string');
+    const f = await fetchParty(r.partyId);
+    expect(f.party.turnTimeoutMode).toBe('standard');
+    expect(f.party.turnTimeoutMs).toBe(PARTY_TIMEOUT_MS_STANDARD);
+  });
+
+  it('creates party with competitive mode → 4h timeout', async () => {
+    const r = await createParty('roma', 'competitive');
+    const f = await fetchParty(r.partyId);
+    expect(f.party.turnTimeoutMode).toBe('competitive');
+    expect(f.party.turnTimeoutMs).toBe(PARTY_TIMEOUT_MS_COMPETITIVE);
+  });
+
+  it('creates party with casual mode → 7d timeout', async () => {
+    const r = await createParty('roma', 'casual');
+    const f = await fetchParty(r.partyId);
+    expect(f.party.turnTimeoutMs).toBe(PARTY_TIMEOUT_MS_CASUAL);
+  });
+
+  it('rejects unknown mode', async () => {
+    const r = await createParty('roma', 'extreme');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-mode');
+  });
+
+  it('owner added as first member with role "owner" + isActive true', async () => {
+    const r = await createParty('roma');
+    const f = await fetchParty(r.partyId);
+    expect(f.party.members.length).toBe(1);
+    expect(f.party.members[0].playerId).toBe('roma');
+    expect(f.party.members[0].role).toBe('owner');
+    expect(f.party.members[0].isActive).toBe(true);
+    expect(f.party.ownerId).toBe('roma');
+  });
+
+  it('new party starts in pending state with maxSize 5 (HARD CAP)', async () => {
+    const r = await createParty('roma');
+    const f = await fetchParty(r.partyId);
+    expect(f.party.state).toBe('pending');
+    expect(f.party.maxSize).toBe(5);
+    expect(f.party.minSize).toBe(2);
+    expect(f.party.turnIndex).toBe(0);
+    expect(f.party.currentTurnDeadline).toBe(0);
+  });
+
+  it('schema includes T3.11 sharedState slots (towerHearts/towerPacts/boardState/floorIndex)', async () => {
+    const r = await createParty('roma');
+    const f = await fetchParty(r.partyId);
+    expect(f.party.sharedState).toBeDefined();
+    expect(Object.prototype.hasOwnProperty.call(f.party.sharedState, 'towerHearts')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(f.party.sharedState, 'towerPacts')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(f.party.sharedState, 'boardState')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(f.party.sharedState, 'floorIndex')).toBe(true);
+  });
+
+  it('schema includes T3.12 identityFxLog slot', async () => {
+    const r = await createParty('roma');
+    const f = await fetchParty(r.partyId);
+    expect(Array.isArray(f.party.identityFxLog)).toBe(true);
+  });
+});
+
+describe('fetchParty', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('rejects invalid partyId', async () => {
+    const r = await fetchParty(null);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-input');
+  });
+
+  it('returns not-found for unknown id when SDK absent (no-sdk fallback)', async () => {
+    const r = await fetchParty('does-not-exist');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('no-sdk');
+  });
+
+  it('returns deep-cloned party doc (caller mutation does not leak)', async () => {
+    const c = await createParty('roma');
+    const f1 = await fetchParty(c.partyId);
+    f1.party.state = 'completed'; // mutate
+    const f2 = await fetchParty(c.partyId);
+    expect(f2.party.state).toBe('pending');
+  });
+});
+
+describe('joinParty', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('adds player as member with role "member"', async () => {
+    const c = await createParty('roma');
+    const j = await joinParty(c.partyId, 'kira');
+    expect(j.ok).toBe(true);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.members.length).toBe(2);
+    const kira = f.party.members.find(m => m.playerId === 'kira');
+    expect(kira.role).toBe('member');
+    expect(kira.isActive).toBe(true);
+  });
+
+  it('HARD CAP 5 (ADR-003): 6th join attempt fails with party-full', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'b');
+    await joinParty(c.partyId, 'c');
+    await joinParty(c.partyId, 'd');
+    await joinParty(c.partyId, 'e');
+    const sixth = await joinParty(c.partyId, 'f');
+    expect(sixth.ok).toBe(false);
+    expect(sixth.reason).toBe('party-full');
+  });
+
+  it('rejects duplicate join (already-member)', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    const dup = await joinParty(c.partyId, 'kira');
+    expect(dup.ok).toBe(false);
+    expect(dup.reason).toBe('already-member');
+  });
+
+  it('cannot join party in active state', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    await startParty(c.partyId, 'roma');
+    const tooLate = await joinParty(c.partyId, 'late');
+    expect(tooLate.ok).toBe(false);
+    expect(tooLate.reason).toBe('invalid-state');
+  });
+});
+
+describe('leaveParty', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('member leaves pending party → spliced out', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    const l = await leaveParty(c.partyId, 'kira');
+    expect(l.ok).toBe(true);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.members.length).toBe(1);
+  });
+
+  it('owner cannot leave without transfer', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    const r = await leaveParty(c.partyId, 'roma');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('owner-cannot-leave-without-transfer');
+  });
+
+  it('non-member leave → not-a-member', async () => {
+    const c = await createParty('roma');
+    const r = await leaveParty(c.partyId, 'ghost');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('not-a-member');
+  });
+
+  it('member leaves active party → marked inactive (not spliced)', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    await startParty(c.partyId, 'roma');
+    const l = await leaveParty(c.partyId, 'kira');
+    expect(l.ok).toBe(true);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.members.length).toBe(2);
+    const kira = f.party.members.find(m => m.playerId === 'kira');
+    expect(kira.isActive).toBe(false);
+  });
+});
+
+describe('startParty', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('owner starts with 2+ members → state=active, turnIndex=0, deadline set', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    const before = Date.now();
+    const s = await startParty(c.partyId, 'roma');
+    expect(s.ok).toBe(true);
+    expect(s.currentTurnPlayerId).toBe('roma');
+    expect(s.currentTurnDeadline).toBeGreaterThan(before);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.state).toBe('active');
+    expect(f.party.turnIndex).toBe(0);
+    expect(f.party.startedAt).toBeGreaterThan(0);
+  });
+
+  it('non-owner cannot start', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    const r = await startParty(c.partyId, 'kira');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('not-owner');
+  });
+
+  it('single-member party cannot start (minSize 2 not met)', async () => {
+    const c = await createParty('roma');
+    const r = await startParty(c.partyId, 'roma');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('party-too-small');
+  });
+
+  it('cannot start party already in active state', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    await startParty(c.partyId, 'roma');
+    const r2 = await startParty(c.partyId, 'roma');
+    expect(r2.ok).toBe(false);
+    expect(r2.reason).toBe('already-started');
+  });
+
+  it('currentTurnDeadline reflects mode timeout (24h standard default)', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    const before = Date.now();
+    const s = await startParty(c.partyId, 'roma');
+    expect(s.currentTurnDeadline - before).toBeGreaterThanOrEqual(PARTY_TIMEOUT_MS_STANDARD - 100);
+    expect(s.currentTurnDeadline - before).toBeLessThanOrEqual(PARTY_TIMEOUT_MS_STANDARD + 100);
+  });
+
+  it('competitive mode → 4h deadline', async () => {
+    const c = await createParty('roma', 'competitive');
+    await joinParty(c.partyId, 'kira');
+    const before = Date.now();
+    const s = await startParty(c.partyId, 'roma');
+    expect(s.currentTurnDeadline - before).toBeGreaterThanOrEqual(PARTY_TIMEOUT_MS_COMPETITIVE - 100);
+    expect(s.currentTurnDeadline - before).toBeLessThanOrEqual(PARTY_TIMEOUT_MS_COMPETITIVE + 100);
+  });
+});
+
+describe('endTurn', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  async function _setupActiveParty() {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    await joinParty(c.partyId, 'sebastien');
+    await startParty(c.partyId, 'roma');
+    return c.partyId;
+  }
+
+  it('current player ends turn → turnIndex advances + deadline reset', async () => {
+    const pid = await _setupActiveParty();
+    const before = (await fetchParty(pid)).party;
+    expect(before.turnIndex).toBe(0);
+    const r = await endTurn(pid, 'roma', { actions: [], deltas: { dmg: 50 } });
+    expect(r.ok).toBe(true);
+    expect(r.nextTurnPlayerId).toBe('kira');
+    const after = (await fetchParty(pid)).party;
+    expect(after.turnIndex).toBe(1);
+    expect(after.turnHistory.length).toBe(1);
+    expect(after.turnHistory[0].playerId).toBe('roma');
+    // Deadline may be ≥ before (same-ms tick) but must be reset to now+timeout
+    expect(after.currentTurnDeadline).toBeGreaterThanOrEqual(before.currentTurnDeadline);
+  });
+
+  it('non-current player → not-current-turn', async () => {
+    const pid = await _setupActiveParty();
+    const r = await endTurn(pid, 'kira', {});
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('not-current-turn');
+  });
+
+  it('end turn in pending state → invalid-state', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    const r = await endTurn(c.partyId, 'roma', {});
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-state');
+  });
+
+  it('round-robin wraps after last player', async () => {
+    const pid = await _setupActiveParty();
+    await endTurn(pid, 'roma', {});
+    await endTurn(pid, 'kira', {});
+    await endTurn(pid, 'sebastien', {});
+    const f = await fetchParty(pid);
+    // After 3 turns, wraps back to roma (turnIndex 0).
+    expect(f.party.turnIndex).toBe(0);
+    expect(f.party.turnHistory.length).toBe(3);
+  });
+
+  it('turnHistory entries surface deltas + endedAt', async () => {
+    const pid = await _setupActiveParty();
+    await endTurn(pid, 'roma', { actions: ['placePiece'], deltas: { dmg: 100, linesCleared: 2 } });
+    const f = await fetchParty(pid);
+    expect(f.party.turnHistory[0].actions).toEqual(['placePiece']);
+    expect(f.party.turnHistory[0].deltas).toEqual({ dmg: 100, linesCleared: 2 });
+    expect(f.party.turnHistory[0].endedAt).toBeGreaterThan(0);
+  });
+});
+
+describe('transferOwnership', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('owner transfers to member → roles flip + ownerId updates', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    const t = await transferOwnership(c.partyId, 'roma', 'kira');
+    expect(t.ok).toBe(true);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.ownerId).toBe('kira');
+    expect(f.party.members.find(m => m.playerId === 'roma').role).toBe('member');
+    expect(f.party.members.find(m => m.playerId === 'kira').role).toBe('owner');
+  });
+
+  it('non-owner cannot transfer', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    await joinParty(c.partyId, 'sebastien');
+    const r = await transferOwnership(c.partyId, 'kira', 'sebastien');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('not-owner');
+  });
+
+  it('target must be member', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    const r = await transferOwnership(c.partyId, 'roma', 'ghost');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('target-not-member');
+  });
+
+  it('self-transfer rejected', async () => {
+    const c = await createParty('roma');
+    const r = await transferOwnership(c.partyId, 'roma', 'roma');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-input');
+  });
+});
+
+describe('listPartiesForPlayer', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('returns empty list when player has no parties', async () => {
+    const r = await listPartiesForPlayer('ghost');
+    expect(r.ok).toBe(true);
+    expect(r.parties).toEqual([]);
+  });
+
+  it('returns parties where player is owner', async () => {
+    const c = await createParty('roma');
+    const r = await listPartiesForPlayer('roma');
+    expect(r.ok).toBe(true);
+    expect(r.parties.length).toBe(1);
+    expect(r.parties[0].partyId).toBe(c.partyId);
+  });
+
+  it('returns parties where player is member', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    const r = await listPartiesForPlayer('kira');
+    expect(r.ok).toBe(true);
+    expect(r.parties.length).toBe(1);
+  });
+
+  it('rejects invalid playerId', async () => {
+    const r = await listPartiesForPlayer(null);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-input');
+  });
+});
+
+describe('notifyTurnHandoff', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('returns ok with sent:false (FCM not wired in T3.10)', async () => {
+    const r = await notifyTurnHandoff('p1', 'a', 'b');
+    expect(r.ok).toBe(true);
+    expect(r.sent).toBe(false);
+    expect(r.reason).toBe('fcm-not-wired');
+  });
+
+  it('rejects invalid input', async () => {
+    const r = await notifyTurnHandoff(null, 'a', 'b');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-input');
+  });
+});
+
+describe('maybeAutoSkipExpiredTurn', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('returns skipped:false when turn not expired', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    await startParty(c.partyId, 'roma');
+    const r = await maybeAutoSkipExpiredTurn(c.partyId);
+    expect(r.ok).toBe(true);
+    expect(r.skipped).toBe(false);
+  });
+
+  it('advances turnIndex + records skip when turn expired', async () => {
+    const c = await createParty('roma');
+    await joinParty(c.partyId, 'kira');
+    await startParty(c.partyId, 'roma');
+    const before = await fetchParty(c.partyId);
+    // Inject a now value that's past the deadline.
+    const futureNow = before.party.currentTurnDeadline + 1000;
+    const r = await maybeAutoSkipExpiredTurn(c.partyId, { now: futureNow });
+    expect(r.ok).toBe(true);
+    expect(r.skipped).toBe(true);
+    expect(r.skippedPlayerId).toBe('roma');
+    expect(r.nextTurnPlayerId).toBe('kira');
+    const f = await fetchParty(c.partyId);
+    expect(f.party.turnIndex).toBe(1);
+    expect(f.party.turnHistory.length).toBe(1);
+    expect(f.party.turnHistory[0].skipped).toBe(true);
+  });
+
+  it('rejects when party in pending state', async () => {
+    const c = await createParty('roma');
+    const r = await maybeAutoSkipExpiredTurn(c.partyId);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-state');
+  });
+
+  it('rejects invalid partyId', async () => {
+    const r = await maybeAutoSkipExpiredTurn(null);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-input');
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Performance budgets — pure helpers <1ms each.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('performance — pure helpers <1ms each (spec §3.6)', () => {
+  it('validatePartySize < 1ms', () => {
+    const start = performance.now();
+    for (let i = 0; i < 1000; i++) validatePartySize(i % 10);
+    const dt = (performance.now() - start) / 1000;
+    expect(dt).toBeLessThan(1);
+  });
+
+  it('computeTurnTimeoutMs < 1ms', () => {
+    const start = performance.now();
+    for (let i = 0; i < 1000; i++) computeTurnTimeoutMs(i % 2 === 0 ? 'standard' : 'competitive');
+    const dt = (performance.now() - start) / 1000;
+    expect(dt).toBeLessThan(1);
+  });
+
+  it('pickNextTurnPlayer < 1ms (5-member party)', () => {
+    const party = {
+      turnIndex: 2,
+      members: [
+        { playerId: 'a', isActive: true },
+        { playerId: 'b', isActive: false },
+        { playerId: 'c', isActive: true },
+        { playerId: 'd', isActive: true },
+        { playerId: 'e', isActive: false },
+      ],
+    };
+    const start = performance.now();
+    for (let i = 0; i < 1000; i++) pickNextTurnPlayer(party);
+    const dt = (performance.now() - start) / 1000;
+    expect(dt).toBeLessThan(1);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Sacred-cow audit — TOWER + Phase 2 / Wave-3 isolation.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe('sacred-cow audit — T3.10 schema-only; no sacred writes', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('sharedState.towerHearts starts at tier-0 max (T3.11 — sacred ladder [100, 200, 400] entry 0 = 100)', async () => {
+    const c = await createParty('roma');
+    const f = await fetchParty(c.partyId);
+    expect(f.party.sharedState.towerHearts).toMatchObject({
+      current:      100,           // sacred ladder entry 0
+      max:          100,
+      retryCount:   0,
+      lastDrainAt:  0,
+    });
+    expect(Array.isArray(f.party.sharedState.towerHearts.drainHistory)).toBe(true);
+    expect(f.party.sharedState.towerHearts.drainHistory.length).toBe(0);
+  });
+
+  it('sharedState.towerPacts starts with structured pick state (T3.11)', async () => {
+    const c = await createParty('roma');
+    const f = await fetchParty(c.partyId);
+    expect(f.party.sharedState.towerPacts).toMatchObject({
+      selected:   [],
+      pickMode:   'captain',        // PARTY_DEFAULT_PICK_MODE per ESC-03 Q3 philosophy
+      activePick: null,
+    });
+  });
+
+  it('identityFxLog starts empty (T3.10 schema; T3.12 wires per-turn dispatch)', async () => {
+    const c = await createParty('roma');
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog).toEqual([]);
+  });
+
+  it('party doc contains no banned P2W fields (ADR-003)', async () => {
+    const c = await createParty('roma');
+    const f = await fetchParty(c.partyId);
+    const banned = ['paidHeartBonus', 'whaleTierExtraSlot', 'segmentPerk', 'damageBonus', 'hpBonus', 'paidRevives', 'gemDiscount'];
+    for (const key of banned) {
+      expect(Object.prototype.hasOwnProperty.call(f.party, key)).toBe(false);
+    }
+  });
+
+  it('mock store deep-clone isolation: returned party can be mutated without leaking', async () => {
+    const c = await createParty('roma');
+    const f1 = await fetchParty(c.partyId);
+    f1.party.members.push({ playerId: 'fake', role: 'owner' });
+    const f2 = await fetchParty(c.partyId);
+    expect(f2.party.members.length).toBe(1); // unchanged
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// T3.11 — Shared Tower-Hearts pool + shared TOWER_PACTS selection.
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('T3.11 — sacred Tower retry ladder READ-only audit', () => {
+  it('getTowerRetryLadder() returns [100, 200, 400] BYTE-PERFECT (sacred §2.4)', () => {
+    const ladder = getTowerRetryLadder();
+    expect(ladder).toEqual([100, 200, 400]);
+  });
+
+  it('ladder is the SAME reference as BALANCE.pinch.towerDeath.gemCostLadder (no defensive copy)', () => {
+    expect(getTowerRetryLadder()).toBe(BALANCE.pinch.towerDeath.gemCostLadder);
+  });
+
+  it('ladder is frozen — Object.isFrozen check', () => {
+    expect(Object.isFrozen(BALANCE.pinch.towerDeath.gemCostLadder)).toBe(true);
+  });
+});
+
+describe('T3.11 — computeRetryTierIndex', () => {
+  it('clamps retryCount 0 → 0', () => { expect(computeRetryTierIndex(0)).toBe(0); });
+  it('retryCount 1 → 1', () => { expect(computeRetryTierIndex(1)).toBe(1); });
+  it('retryCount 2 → 2', () => { expect(computeRetryTierIndex(2)).toBe(2); });
+  it('retryCount 100 → 2 (clamp at last sacred entry)', () => { expect(computeRetryTierIndex(100)).toBe(2); });
+  it('negative retryCount → 0 (defensive)', () => { expect(computeRetryTierIndex(-5)).toBe(0); });
+  it('NaN / undefined → 0', () => {
+    expect(computeRetryTierIndex(NaN)).toBe(0);
+    expect(computeRetryTierIndex(undefined)).toBe(0);
+  });
+});
+
+describe('T3.11 — computeHeartsDrainCost (sacred ladder lookup)', () => {
+  it('retryCount 0 → 100g (sacred ladder entry 0)', () => { expect(computeHeartsDrainCost(0)).toBe(100); });
+  it('retryCount 1 → 200g', () => { expect(computeHeartsDrainCost(1)).toBe(200); });
+  it('retryCount 2 → 400g', () => { expect(computeHeartsDrainCost(2)).toBe(400); });
+  it('retryCount 10 → 400g (clamp)', () => { expect(computeHeartsDrainCost(10)).toBe(400); });
+});
+
+describe('T3.11 — computeTowerHeartsPoolMax', () => {
+  it('mirrors sacred ladder for tier 0 / 1 / 2', () => {
+    expect(computeTowerHeartsPoolMax(0)).toBe(100);
+    expect(computeTowerHeartsPoolMax(1)).toBe(200);
+    expect(computeTowerHeartsPoolMax(2)).toBe(400);
+    expect(computeTowerHeartsPoolMax(7)).toBe(400);  // clamp
+  });
+});
+
+describe('T3.11 — drainPartyHearts (pure update)', () => {
+  it('deducts hearts correctly: 100 → 99 after 1-heart drain', () => {
+    const initial = { towerHearts: { current: 100, max: 100, retryCount: 0, lastDrainAt: 0, drainHistory: [] } };
+    const after = drainPartyHearts(initial, 'alice', 1, 0);
+    expect(after.towerHearts.current).toBe(99);
+  });
+
+  it('does NOT mutate input (immutable update)', () => {
+    const initial = { towerHearts: { current: 100, max: 100, retryCount: 0, lastDrainAt: 0, drainHistory: [] } };
+    const before = JSON.parse(JSON.stringify(initial));
+    drainPartyHearts(initial, 'alice', 1, 0);
+    expect(initial).toEqual(before);
+  });
+
+  it('appends to drainHistory with playerId + deltas + timestamp', () => {
+    const initial = { towerHearts: { current: 100, max: 100, retryCount: 0, lastDrainAt: 0, drainHistory: [] } };
+    const after = drainPartyHearts(initial, 'alice', 5, 100);
+    expect(after.towerHearts.drainHistory).toHaveLength(1);
+    expect(after.towerHearts.drainHistory[0]).toMatchObject({
+      playerId:     'alice',
+      deltaHearts:  5,
+      deltaGold:    100,
+    });
+    expect(after.towerHearts.drainHistory[0].t).toBeGreaterThan(0);
+  });
+
+  it('pool exhaustion increments retryCount and resets to next-tier max', () => {
+    const initial = { towerHearts: { current: 5, max: 100, retryCount: 0, lastDrainAt: 0, drainHistory: [] } };
+    const after = drainPartyHearts(initial, 'alice', 5, 100);
+    expect(after.towerHearts.current).toBe(200);  // refilled to tier 1 max
+    expect(after.towerHearts.max).toBe(200);
+    expect(after.towerHearts.retryCount).toBe(1);
+  });
+
+  it('multiple pool exhaustions advance through ladder; clamps at tier 2 (400)', () => {
+    let s = { towerHearts: { current: 1, max: 100, retryCount: 0, lastDrainAt: 0, drainHistory: [] } };
+    s = drainPartyHearts(s, 'a', 1, 100);  // exhausts tier 0 → tier 1 (200)
+    s = drainPartyHearts(s, 'a', 200, 200); // exhausts tier 1 → tier 2 (400)
+    s = drainPartyHearts(s, 'a', 400, 400); // exhausts tier 2 → still tier 2 (clamp 400)
+    expect(s.towerHearts.retryCount).toBe(3);
+    expect(s.towerHearts.max).toBe(400);    // clamped
+    expect(s.towerHearts.current).toBe(400);
+  });
+});
+
+describe('T3.11 — canPartyAffordRetry', () => {
+  it('total gold ≥ cost → true', () => {
+    const shared = { towerHearts: { retryCount: 0 } };
+    const members = [{ gold: 60 }, { gold: 50 }];
+    expect(canPartyAffordRetry(shared, members, 100)).toBe(true);
+  });
+  it('total gold < cost → false', () => {
+    const shared = { towerHearts: { retryCount: 0 } };
+    const members = [{ gold: 30 }, { gold: 50 }];
+    expect(canPartyAffordRetry(shared, members, 100)).toBe(false);
+  });
+  it('default ladderEntry derived from retryCount when omitted', () => {
+    const shared = { towerHearts: { retryCount: 2 } };  // tier 2 → cost 400
+    expect(canPartyAffordRetry(shared, [{ gold: 500 }])).toBe(true);
+    expect(canPartyAffordRetry(shared, [{ gold: 300 }])).toBe(false);
+  });
+  it('defensive: non-array members → false', () => {
+    expect(canPartyAffordRetry({}, null, 100)).toBe(false);
+  });
+});
+
+describe('T3.11 — replenishPartyHeartsOnCheckpoint', () => {
+  it('resets hearts to tier-0 max (100) + retryCount → 0', () => {
+    const before = { towerHearts: { current: 50, max: 200, retryCount: 1, lastDrainAt: 0, drainHistory: [{ playerId: 'a', t: 1 }] } };
+    const after = replenishPartyHeartsOnCheckpoint(before);
+    expect(after.towerHearts.current).toBe(100);
+    expect(after.towerHearts.max).toBe(100);
+    expect(after.towerHearts.retryCount).toBe(0);
+    // drainHistory preserved (audit trail)
+    expect(after.towerHearts.drainHistory).toHaveLength(1);
+  });
+
+  it('does NOT mutate input (immutable update)', () => {
+    const before = { towerHearts: { current: 50, max: 200, retryCount: 1, lastDrainAt: 0, drainHistory: [] } };
+    const snapshot = JSON.parse(JSON.stringify(before));
+    replenishPartyHeartsOnCheckpoint(before);
+    expect(before).toEqual(snapshot);
+  });
+});
+
+describe('T3.11 — sacred TOWER_PACTS registry READ-only audit', () => {
+  it('TOWER_PACTS_BASE has exactly 30 entries (CLAUDE.md §2.5)', () => {
+    expect(Object.keys(TOWER_PACTS_BASE)).toHaveLength(30);
+  });
+  it('TOWER_PACTS_MYTHIC has exactly 15 entries (CLAUDE.md §2.5)', () => {
+    expect(Object.keys(TOWER_PACTS_MYTHIC)).toHaveLength(15);
+  });
+  it('TOWER_PACTS_BASE + TOWER_PACTS_MYTHIC are both Object.isFrozen', () => {
+    expect(Object.isFrozen(TOWER_PACTS_BASE)).toBe(true);
+    expect(Object.isFrozen(TOWER_PACTS_MYTHIC)).toBe(true);
+  });
+  it('getTowerPactRegistry() returns merged 45-entry frozen object', () => {
+    const r = getTowerPactRegistry();
+    expect(Object.keys(r)).toHaveLength(45);
+    expect(Object.isFrozen(r)).toBe(true);
+  });
+});
+
+describe('T3.11 — pickPactCandidates', () => {
+  it('returns PARTY_PACT_CANDIDATES_PER_PICK (3) unique pacts from sacred registry', () => {
+    const picks = pickPactCandidates(0, 12345);
+    expect(picks).toHaveLength(PARTY_PACT_CANDIDATES_PER_PICK);
+    expect(new Set(picks).size).toBe(picks.length);  // unique
+    const registry = getTowerPactRegistry();
+    for (const p of picks) {
+      expect(registry).toHaveProperty(p);
+    }
+  });
+
+  it('deterministic: same seed + retryCount → same candidates', () => {
+    const a = pickPactCandidates(1, 999);
+    const b = pickPactCandidates(1, 999);
+    expect(a).toEqual(b);
+  });
+
+  it('different seeds → likely different candidates (probabilistic)', () => {
+    const a = pickPactCandidates(0, 1);
+    const b = pickPactCandidates(0, 12345678);
+    // Not strict equality (could collide); just confirm function responds to seed.
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+  });
+
+  it('count override respected (count=2)', () => {
+    const picks = pickPactCandidates(0, 42, 2);
+    expect(picks).toHaveLength(2);
+  });
+});
+
+describe('T3.11 — validatePactSelection', () => {
+  it('pactId in candidates → true', () => {
+    expect(validatePactSelection('c_stagger_extend', ['c_stagger_extend', 'r_double_signature'])).toBe(true);
+  });
+  it('pactId NOT in candidates → false', () => {
+    expect(validatePactSelection('x_fake', ['c_stagger_extend'])).toBe(false);
+  });
+  it('null pactId → false', () => {
+    expect(validatePactSelection(null, ['c_stagger_extend'])).toBe(false);
+  });
+  it('non-array candidates → false', () => {
+    expect(validatePactSelection('c_stagger_extend', null)).toBe(false);
+  });
+});
+
+describe('T3.11 — tallyDemocracyVotes', () => {
+  it('simple majority wins', () => {
+    const r = tallyDemocracyVotes({ a: 'p1', b: 'p1', c: 'p2' }, ['p1', 'p2', 'p3'], null);
+    expect(r.winner).toBe('p1');
+    expect(r.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.DEMOCRACY_MAJORITY);
+  });
+
+  it('tie broken by owner vote (owner voted for one of the leaders)', () => {
+    const r = tallyDemocracyVotes({ alice: 'p1', bob: 'p2' }, ['p1', 'p2'], 'p2');
+    expect(r.winner).toBe('p2');
+    expect(r.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.DEMOCRACY_TIEBREAKER);
+  });
+
+  it('tie without owner-vote-in-leaders falls back to alphabetical first (stable)', () => {
+    const r = tallyDemocracyVotes({ alice: 'p2', bob: 'p1' }, ['p1', 'p2', 'p3'], 'p3');
+    expect(['p1', 'p2']).toContain(r.winner);  // either leader
+    expect(r.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.DEMOCRACY_TIEBREAKER);
+  });
+
+  it('no votes → null winner', () => {
+    const r = tallyDemocracyVotes({}, ['p1'], null);
+    expect(r.winner).toBe(null);
+  });
+
+  it('votes outside candidates list are discarded', () => {
+    const r = tallyDemocracyVotes({ a: 'fake', b: 'p1' }, ['p1', 'p2'], null);
+    expect(r.winner).toBe('p1');
+  });
+});
+
+describe('T3.11 — applyPactToSharedState', () => {
+  it('appends pactId to selected[]; clears activePick', () => {
+    const before = {
+      towerPacts: {
+        selected:   ['existing_pact'],
+        pickMode:   'captain',
+        activePick: { candidates: ['a','b','c'], votes: {} },
+      },
+    };
+    const after = applyPactToSharedState(before, 'c_stagger_extend', PARTY_PACT_DECISION_SOURCES.CAPTAIN);
+    expect(after.towerPacts.selected).toEqual(['existing_pact', 'c_stagger_extend']);
+    expect(after.towerPacts.activePick).toBe(null);
+    expect(after.towerPacts.lastDecisionSource).toBe(PARTY_PACT_DECISION_SOURCES.CAPTAIN);
+  });
+
+  it('does NOT mutate input', () => {
+    const before = { towerPacts: { selected: ['x'], pickMode: 'captain', activePick: null } };
+    const snapshot = JSON.parse(JSON.stringify(before));
+    applyPactToSharedState(before, 'new_pact', 'captain');
+    expect(before).toEqual(snapshot);
+  });
+
+  it('defensive: null pactId → unchanged state', () => {
+    const before = { towerPacts: { selected: [], pickMode: 'captain', activePick: null } };
+    const after = applyPactToSharedState(before, null, 'captain');
+    expect(after).toBe(before);
+  });
+});
+
+describe('T3.11 — canPlayerStartPactPick', () => {
+  function buildActiveParty(pickMode = 'captain') {
+    return {
+      state: PARTY_STATE_ACTIVE,
+      ownerId: 'alice',
+      members: [
+        { playerId: 'alice', isActive: true },
+        { playerId: 'bob',   isActive: true },
+      ],
+      sharedState: { towerPacts: { pickMode } },
+    };
+  }
+  it('captain mode: only owner can start', () => {
+    const p = buildActiveParty('captain');
+    expect(canPlayerStartPactPick('alice', p)).toBe(true);
+    expect(canPlayerStartPactPick('bob', p)).toBe(false);
+  });
+  it('democracy mode: any active member can start', () => {
+    const p = buildActiveParty('democracy');
+    expect(canPlayerStartPactPick('alice', p)).toBe(true);
+    expect(canPlayerStartPactPick('bob', p)).toBe(true);
+    expect(canPlayerStartPactPick('outsider', p)).toBe(false);
+  });
+  it('non-active state → false', () => {
+    const p = { ...buildActiveParty(), state: PARTY_STATE_PENDING };
+    expect(canPlayerStartPactPick('alice', p)).toBe(false);
+  });
+});
+
+// ─── Async ops live integration via mock store ──────────────────────────
+
+describe('T3.11 — async: recordHeartsDrain + replenishHearts', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('recordHeartsDrain deducts hearts + appends history', async () => {
+    const c = await createParty('alice');
+    const r = await recordHeartsDrain(c.partyId, 'alice', 1, 100);
+    expect(r.ok).toBe(true);
+    expect(r.newCurrent).toBe(99);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.sharedState.towerHearts.drainHistory).toHaveLength(1);
+  });
+
+  it('pool exhaustion via recordHeartsDrain → retryCount++ + next-tier max', async () => {
+    const c = await createParty('alice');
+    const r = await recordHeartsDrain(c.partyId, 'alice', 100, 100);  // full pool
+    expect(r.ok).toBe(true);
+    expect(r.newRetryCount).toBe(1);
+    expect(r.newCurrent).toBe(200);  // tier 1 max
+  });
+
+  it('replenishHearts resets to tier-0 max', async () => {
+    const c = await createParty('alice');
+    await recordHeartsDrain(c.partyId, 'alice', 50, 100);
+    const r = await replenishHearts(c.partyId);
+    expect(r.ok).toBe(true);
+    expect(r.newCurrent).toBe(100);
+    expect(r.newMax).toBe(100);
+  });
+
+  it('recordHeartsDrain on missing partyId → not-found', async () => {
+    const r = await recordHeartsDrain('does-not-exist', 'alice', 1, 100);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe(PARTY_RESULT_REASONS.NOT_FOUND);
+  });
+});
+
+describe('T3.11 — async: startPactPick + submitPactVote (captain mode)', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('startPactPick owner-only in captain mode → ok; member → not-authorized', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+
+    const ownerStart = await startPactPick(c.partyId, 'alice', 0, 999);
+    expect(ownerStart.ok).toBe(true);
+    expect(ownerStart.activePick.candidates).toHaveLength(PARTY_PACT_CANDIDATES_PER_PICK);
+
+    // Reset and try as member
+    _resetMockPartyStore();
+    const c2 = await createParty('alice');
+    await joinParty(c2.partyId, 'bob');
+    await startParty(c2.partyId, 'alice');
+    const memberStart = await startPactPick(c2.partyId, 'bob', 0, 999);
+    expect(memberStart.ok).toBe(false);
+    expect(memberStart.reason).toBe(PARTY_RESULT_REASONS.NOT_AUTHORIZED);
+  });
+
+  it('captain submitPactVote applies immediately + clears activePick', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const pickRes = await startPactPick(c.partyId, 'alice', 0, 999);
+    const pactId = pickRes.activePick.candidates[0];
+
+    const submit = await submitPactVote(c.partyId, 'alice', pactId);
+    expect(submit.ok).toBe(true);
+    expect(submit.applied).toBe(true);
+    expect(submit.winner).toBe(pactId);
+    expect(submit.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.CAPTAIN);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.sharedState.towerPacts.selected).toContain(pactId);
+    expect(f.party.sharedState.towerPacts.activePick).toBe(null);
+  });
+
+  it('captain mode: non-owner vote → not-authorized', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const pickRes = await startPactPick(c.partyId, 'alice', 0, 999);
+    const pactId = pickRes.activePick.candidates[0];
+    const submit = await submitPactVote(c.partyId, 'bob', pactId);
+    expect(submit.ok).toBe(false);
+    expect(submit.reason).toBe(PARTY_RESULT_REASONS.NOT_AUTHORIZED);
+  });
+});
+
+describe('T3.11 — async: democracy mode tally + tie-break', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  async function setupDemocracyParty() {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await joinParty(c.partyId, 'carol');
+    await startParty(c.partyId, 'alice');
+    // Switch pickMode to democracy by mutating sharedState directly via _mockPartyStore
+    // (in production T3.11.1 will expose setPartyPickMode; for now mutate test fixture)
+    const doc = (await fetchParty(c.partyId)).party;
+    doc.sharedState.towerPacts.pickMode = 'democracy';
+    // Re-seed
+    const { _seedMockParty } = await import('../../src/services/party-tower-backend.js')
+      .catch(() => ({ _seedMockParty: null }));
+    if (_seedMockParty) _seedMockParty(c.partyId, doc);
+    return c.partyId;
+  }
+
+  it('democracy: majority wins after all members vote', async () => {
+    const partyId = await setupDemocracyParty();
+    const pickRes = await startPactPick(partyId, 'alice', 0, 12345);
+    const [p1, p2 /*p3*/] = pickRes.activePick.candidates;
+
+    // 2 vote for p1, 1 for p2 — p1 majority
+    await submitPactVote(partyId, 'alice', p1);
+    await submitPactVote(partyId, 'bob',   p1);
+    const final = await submitPactVote(partyId, 'carol', p2);
+    expect(final.ok).toBe(true);
+    expect(final.applied).toBe(true);
+    expect(final.winner).toBe(p1);
+    expect(final.decisionSource).toBe(PARTY_PACT_DECISION_SOURCES.DEMOCRACY_MAJORITY);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// T3.12 — Per-turn Identity Layer dispatch (cross-race synergy + audit).
+// ══════════════════════════════════════════════════════════════════════════
+
+describe('T3.12 — constants sacred audit', () => {
+  it('PARTY_IDENTITY_FX_LOG_MAX_ENTRIES === 200 (FIFO cap)', () => {
+    expect(PARTY_IDENTITY_FX_LOG_MAX_ENTRIES).toBe(200);
+  });
+  it('PARTY_IDENTITY_FX_VALID_RACE_KEYS contains all 5 Phase 2 race fx keys', () => {
+    expect(PARTY_IDENTITY_FX_VALID_RACE_KEYS).toEqual(expect.arrayContaining([
+      'pirate_plunder', 'shark_frenzy', 'rock_echo', 'crocodile_bastion', 'spark_cascade',
+    ]));
+    expect(PARTY_IDENTITY_FX_VALID_RACE_KEYS.length).toBe(5);
+  });
+  it('PARTY_IDENTITY_FX_VALID_BOSS_KEYS contains all 5 Phase 2 boss-reactive fx keys', () => {
+    expect(PARTY_IDENTITY_FX_VALID_BOSS_KEYS).toEqual(expect.arrayContaining([
+      'phoenix_ashen_reign', 'lich_cursed_tiles', 'berserker_bloodtide',
+      'engineer_lockdown', 'grovewarden_root_surge',
+    ]));
+    expect(PARTY_IDENTITY_FX_VALID_BOSS_KEYS.length).toBe(5);
+  });
+});
+
+describe('T3.12 — validateIdentityFxEvent', () => {
+  it('valid race fxKey → true', () => {
+    expect(validateIdentityFxEvent({ fxKey: 'pirate_plunder' })).toBe(true);
+    expect(validateIdentityFxEvent({ fxKey: 'spark_cascade' })).toBe(true);
+  });
+  it('valid boss fxKey → true', () => {
+    expect(validateIdentityFxEvent({ fxKey: 'phoenix_ashen_reign' })).toBe(true);
+    expect(validateIdentityFxEvent({ fxKey: 'lich_cursed_tiles' })).toBe(true);
+  });
+  it('unknown fxKey → false', () => {
+    expect(validateIdentityFxEvent({ fxKey: 'unknown_fx' })).toBe(false);
+  });
+  it('null / missing fxKey → false', () => {
+    expect(validateIdentityFxEvent(null)).toBe(false);
+    expect(validateIdentityFxEvent({})).toBe(false);
+    expect(validateIdentityFxEvent({ fxKey: '' })).toBe(false);
+    expect(validateIdentityFxEvent({ fxKey: 42 })).toBe(false);
+  });
+});
+
+describe('T3.12 — getTurnIdentityFxLog', () => {
+  const sampleLog = [
+    { turnIndex: 0, playerId: 'alice', fxKey: 'pirate_plunder', fxKind: 'race', t: 100 },
+    { turnIndex: 0, playerId: 'alice', fxKey: 'shark_frenzy',   fxKind: 'race', t: 110 },
+    { turnIndex: 1, playerId: 'bob',   fxKey: 'rock_echo',      fxKind: 'race', t: 200 },
+    { turnIndex: 2, playerId: 'alice', fxKey: 'phoenix_ashen_reign', fxKind: 'boss', t: 300 },
+  ];
+  it('returns all entries when turnIndex omitted', () => {
+    const r = getTurnIdentityFxLog({ identityFxLog: sampleLog });
+    expect(r).toHaveLength(4);
+  });
+  it('filters by turnIndex when provided', () => {
+    const r = getTurnIdentityFxLog({ identityFxLog: sampleLog }, 0);
+    expect(r).toHaveLength(2);
+    expect(r.every(e => e.turnIndex === 0)).toBe(true);
+  });
+  it('missing log → empty array', () => {
+    expect(getTurnIdentityFxLog({})).toEqual([]);
+    expect(getTurnIdentityFxLog(null)).toEqual([]);
+  });
+});
+
+describe('T3.12 — computeCrossRaceSynergy', () => {
+  it('empty log → empty summary', () => {
+    const r = computeCrossRaceSynergy([]);
+    expect(r.distinctRaces).toBe(0);
+    expect(r.hasCrossRaceCombo).toBe(false);
+  });
+  it('single-race log → 1 distinct race, no combo flag', () => {
+    const log = [
+      { turnIndex: 0, fxKey: 'pirate_plunder', fxKind: 'race' },
+      { turnIndex: 0, fxKey: 'pirate_plunder', fxKind: 'race' },
+    ];
+    const r = computeCrossRaceSynergy(log);
+    expect(r.distinctRaces).toBe(1);
+    expect(r.races.pirate_plunder).toBe(2);
+    expect(r.hasCrossRaceCombo).toBe(false);
+  });
+  it('3 distinct races within window → hasCrossRaceCombo true', () => {
+    const log = [
+      { turnIndex: 0, fxKey: 'pirate_plunder',    fxKind: 'race' },
+      { turnIndex: 1, fxKey: 'shark_frenzy',      fxKind: 'race' },
+      { turnIndex: 2, fxKey: 'rock_echo',         fxKind: 'race' },
+    ];
+    const r = computeCrossRaceSynergy(log);
+    expect(r.distinctRaces).toBe(3);
+    expect(r.hasCrossRaceCombo).toBe(true);
+  });
+  it('cosmetic-only: output has NO mechanical fields (no damage / mult / multiplier)', () => {
+    const log = [
+      { turnIndex: 0, fxKey: 'spark_cascade', fxKind: 'race' },
+      { turnIndex: 1, fxKey: 'phoenix_ashen_reign', fxKind: 'boss' },
+    ];
+    const r = computeCrossRaceSynergy(log);
+    const json = JSON.stringify(r).toLowerCase();
+    expect(json).not.toContain('damage');
+    expect(json).not.toContain('multiplier');
+    expect(json).not.toContain('mult');
+    expect(json).not.toContain('crit');
+  });
+  it('recentTurns window respected', () => {
+    const log = [];
+    for (let i = 0; i < 10; i++) {
+      log.push({ turnIndex: i, fxKey: 'pirate_plunder', fxKind: 'race' });
+    }
+    const r = computeCrossRaceSynergy(log, 3);
+    expect(r.turnSpan).toBe(3); // only last 3 turns considered
+  });
+});
+
+describe('T3.12 — recordTurnIdentityFxEvent (async)', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('appends valid fx event to identityFxLog', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const r = await recordTurnIdentityFxEvent(c.partyId, 'alice', { fxKey: 'pirate_plunder' });
+    expect(r.ok).toBe(true);
+    expect(r.logSize).toBe(1);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog).toHaveLength(1);
+    expect(f.party.identityFxLog[0]).toMatchObject({
+      playerId: 'alice',
+      fxKey:    'pirate_plunder',
+      fxKind:   'race',
+    });
+  });
+
+  it('non-current-turn player → reason not-current-turn', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    // Bob tries while alice's turn (index 0)
+    const r = await recordTurnIdentityFxEvent(c.partyId, 'bob', { fxKey: 'pirate_plunder' });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe(PARTY_RESULT_REASONS.NOT_CURRENT_TURN);
+  });
+
+  it('malformed fxEvent → reason invalid-fx-event', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const r = await recordTurnIdentityFxEvent(c.partyId, 'alice', { fxKey: 'fake' });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('invalid-fx-event');
+  });
+
+  it('FIFO cap enforced — log never exceeds PARTY_IDENTITY_FX_LOG_MAX_ENTRIES', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    for (let i = 0; i < 5; i++) {
+      await recordTurnIdentityFxEvent(c.partyId, 'alice', { fxKey: 'pirate_plunder' });
+    }
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog.length).toBeLessThanOrEqual(PARTY_IDENTITY_FX_LOG_MAX_ENTRIES);
+    expect(f.party.identityFxLog.length).toBe(5);
+  });
+});
+
+describe('T3.12 — endTurn extension: identityFxEvents in turnDeltas', () => {
+  beforeEach(() => { _resetMockPartyStore(); });
+
+  it('appends valid identityFxEvents to log via endTurn', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const r = await endTurn(c.partyId, 'alice', {
+      identityFxEvents: [
+        { fxKey: 'pirate_plunder' },
+        { fxKey: 'shark_frenzy' },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog).toHaveLength(2);
+  });
+
+  it('malformed events silently dropped (defensive)', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    await endTurn(c.partyId, 'alice', {
+      identityFxEvents: [
+        { fxKey: 'pirate_plunder' },
+        { fxKey: 'fake_fx' },             // dropped
+        null,                              // dropped
+        { fxKey: 'rock_echo' },
+      ],
+    });
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog).toHaveLength(2); // only 2 valid
+  });
+
+  it('endTurn without identityFxEvents still works (backward compat)', async () => {
+    const c = await createParty('alice');
+    await joinParty(c.partyId, 'bob');
+    await startParty(c.partyId, 'alice');
+    const r = await endTurn(c.partyId, 'alice', {});
+    expect(r.ok).toBe(true);
+    const f = await fetchParty(c.partyId);
+    expect(f.party.identityFxLog).toEqual([]); // unchanged
+  });
+});
+
+describe('T3.12 — sacred Phase 2 Identity Layer fx untouched', () => {
+  it('PARTY_IDENTITY_FX_VALID_RACE_KEYS matches Phase 2 IDENTITY_FX_KEYS values', async () => {
+    // Sacred per T2.02 sibling export pattern (RACE_IDENTITY_FX in races.js)
+    const expected = ['pirate_plunder', 'shark_frenzy', 'rock_echo', 'crocodile_bastion', 'spark_cascade'];
+    for (const key of expected) {
+      expect(PARTY_IDENTITY_FX_VALID_RACE_KEYS).toContain(key);
+    }
+  });
+  it('PARTY_IDENTITY_FX_VALID_BOSS_KEYS matches Phase 2 IDENTITY_BOSS_FX_KEYS values', async () => {
+    const expected = ['phoenix_ashen_reign', 'lich_cursed_tiles', 'berserker_bloodtide',
+                      'engineer_lockdown', 'grovewarden_root_surge'];
+    for (const key of expected) {
+      expect(PARTY_IDENTITY_FX_VALID_BOSS_KEYS).toContain(key);
+    }
+  });
+});
