@@ -208,3 +208,61 @@ export async function downloadStorageBlob(path) {
     return null;
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// 2026-05-13 — TASK-050 (T3.02): Firestore clan-collection helpers (ADDITIVE).
+//
+// T3.02 ships the Adventures backend. Clan docs land at
+// `adventures/{clanId}` per docs/design/endgame-social.md §2.1. The
+// Firestore SDK may be wired live (legacy CDN module dispatch) or absent
+// (T3.02 ships without it — these helpers no-op gracefully and the
+// clan-backend module falls back to its in-memory mock store).
+//
+// All helpers are DEFENSIVE — if Firestore isn't bound by the legacy
+// module dispatch, they return null and the clan-backend module silently
+// uses the mock path. Live SDK wiring deferred to T3.02.1 follow-up.
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get a Firestore collection reference for clans (`adventures`). Returns
+ * null when the Firestore SDK isn't initialized. Pure read — never throws.
+ *
+ * @returns {object|null}
+ */
+export function getClansCollectionRef() {
+  try {
+    const db = getDb();
+    if (!db) return null;
+    if (typeof db.collection === 'function') {
+      return db.collection('adventures');
+    }
+    // Modular SDK shape — `collection(db, name)` is a free function the
+    // legacy CDN dispatch exposes as `window.fbFirestore.collection`. Defer
+    // to T3.02.1 once npm-bundled Firestore lands; until then null + mock
+    // fallback in clan-backend.js handles the no-SDK path.
+    return null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+/**
+ * Get a Firestore document reference at `adventures/{clanId}`. Returns null
+ * when the SDK is absent or the clanId is invalid. Pure read — never throws.
+ *
+ * @param {string} clanId
+ * @returns {object|null}
+ */
+export function getClanDocRef(clanId) {
+  if (!clanId || typeof clanId !== 'string') return null;
+  try {
+    const coll = getClansCollectionRef();
+    if (!coll) return null;
+    if (typeof coll.doc === 'function') {
+      return coll.doc(clanId);
+    }
+    return null;
+  } catch (_e) {
+    return null;
+  }
+}

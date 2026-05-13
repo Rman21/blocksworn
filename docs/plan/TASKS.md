@@ -343,6 +343,120 @@ Commit: `[T3.09] Codex Moments Replay button — Phase 2 → Phase 3 bridge mome
 
 ---
 
+### TASK-050 (T3.02) — REVIEW (2026-05-13) — FOURTH Phase 3 implementation task — Adventures backend (Wave-3 foundation)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** CRITICAL — Wave-3 foundation; T3.03 UI + T3.04 weekly rotation + T3.05 contributor stats all depend on this data layer
+**Phase:** 3 (Endgame Social) — 4/N (Wave-3 opener)
+**Estimated complexity:** L — backend module + data config + 9 CRUD ops + 100 unit + 10 smoke + Firestore rules doc
+**Depends on:** ✅ T3.07 (replay-backend pattern reference for graceful no-sdk fallback) + ✅ T3.01 spec §2 + ESC-03 Q1 ruling (5-15 HARD CAP)
+
+**Implementation summary:**
+
+T3.02 ships the Firestore data layer for the Adventures async clan subsystem per docs/design/endgame-social.md §2. Backend-only — T3.03 will ship the UI on top of this; T3.04 wires the weekly-boss rotation; T3.05 surfaces contributor stats. T3.02 is pure data layer (8 pure-math helpers + 9 async CRUD operations) and stays standalone — no consumption of game state, no V_HAPTICS / NARRATOR_LINES / RACE_SYNERGY interaction.
+
+**New files (additive only — sacred-cow safety):**
+
+- `src/services/clan-backend.js` (~600 LoC):
+  - 8 pure-math helpers: `computeClanPower`, `computeContributorPercent`, `computeClanLevel`, `validateClanSize` (HARD CAP 5-15 client-mirror per ESC-03 Q1), `validateClanName` (3-30 chars), `canPlayerJoinClan`, `canPlayerLeaveClan`, `unlockCosmeticAtLevel`.
+  - 9 async CRUD operations: `createClan`, `fetchClan`, `joinClan`, `leaveClan`, `recordContribution`, `closeWeek` (T3.04 dependency stub), `transferOwnership`, `listClansForPlayer`, `searchClansByName`. All defensive — return `{ok:false, reason:'no-sdk'}` when Firestore SDK is absent (mirrors T3.07 replay-backend pattern). MVP uses in-memory mock store; live SDK wiring deferred to T3.02.1 follow-up (T3.03 UI can work against the mock).
+  - Constants: `CLAN_MIN_SIZE = 5`, `CLAN_MAX_SIZE = 15` (HARD CAP per ESC-03 Q1), `CLAN_NAME_MIN_LEN = 3`, `CLAN_NAME_MAX_LEN = 30`, `CLAN_DESCRIPTION_MAX_LEN = 200`, `CLAN_LEVEL_WEEKS_PER_LEVEL = 4`, `CLAN_COLLECTION = 'adventures'` (spec §2.1 ruling), `CLAN_RESULT_REASONS` frozen registry.
+- `src/data/clan-config.js` (~80 LoC):
+  - `CLAN_COSMETIC_TIERS = ['bronze', 'silver', 'gold', 'platinum', 'mythic']` (frozen).
+  - `CLAN_LEVEL_COSMETIC_UNLOCKS` — frozen per-level cosmetic unlock table (levels 1/2/4/5/7/8/10/15/20/25). Every entry has shape `{kind, value}` only — no banned mechanical fields per ADR-003 (statically verified by unit + smoke audits).
+  - The mechanical-feeling spec §2.4 entries (level 3 contribution-cap raise, level 6 grace week) intentionally OMITTED from this table — those are T3.04 weekly-rotation concerns; T3.02 cosmetic table stays no-P2W by construction.
+- `firebase-security-rules.txt` (~100 LoC, repo root):
+  - Firestore security rule intent for `/adventures/{clanId}` — HARD CAP 5-15 server-enforced via `data.members.size() <= 15`; create requires authenticated user; update requires existing member; delete forbidden (mark inactive via update).
+  - Cosmetic-only invariant enforced server-side: rule rejects any clan doc containing banned fields `stat / damage / hp / winRate / progressionBoost / gemDiscount`.
+  - Pre-deploy test plan documented (10 cases — name validation, HARD CAP, auth checks, transfer flow).
+  - Deploy at Phase 3 PR merge time (gated on 0 sacred-cow regressions verified).
+
+**Modified files (additive only):**
+
+- `src/services/firebase.js` (+~50 LoC): Add `getClansCollectionRef()` + `getClanDocRef(clanId)` Firestore helpers. Both defensive — return null when SDK absent (mirrors existing Storage helpers from T3.07). EXISTING `getApp` / `getAuth` / `getDb` / `getAnalytics` / Storage helpers UNTOUCHED.
+- `src/main.js` (+~20 LoC): Direct-import `listClansForPlayer` (mirrors T3.08/T3.09 precedent), expose ONE minimal bridge `window.__getPlayerClanCount(playerId)` for the legacy menu badge use case. T3.03 UI consumes the 8 pure helpers + 9 CRUD ops via DIRECT-IMPORT (not via 9 new bridges). Bridge count: 38 → 39 (+1 minimal entry per brief direction).
+
+**New test files:**
+
+- `tests/unit/clan-backend.test.js` (~600 LoC, **100 tests**):
+  - Constants — sacred audit (`CLAN_MAX_SIZE === 15` BYTE-PERFECT per ESC-03 Q1; `CLAN_MIN_SIZE === 5`; `CLAN_LEVEL_WEEKS_PER_LEVEL === 4`; role tags; collection name)
+  - ADR-003 audit — cosmetic unlocks contain NO banned mechanical fields (BANNED_FIELDS list: `stat / damage / hp / winRate / progressionBoost / gemDiscount / attack / defense / critChance / multiplier`); every unlock entry has exact `{kind, value}` shape; kinds restricted to `banner / emblem / badge / motto`.
+  - 8 pure-math helpers — exhaustive boundary cases (5/15/16 HARD CAP, 4/8/12 weeks → level 2/3/4, 0/100/-1 weeks defaults, 3/30/31 name length boundaries, contributor percent divide-by-zero guard, sums to 1.0 distribution).
+  - 9 async CRUD operations — happy + edge + no-sdk + invalid-input paths.
+  - Performance — `computeClanPower` over 15 members < 1ms; `validateClanSize` < 1ms over 1000 iterations.
+- `tests/smoke/adventures-backend.spec.js` (~280 LoC, **10 tests × 2 projects = 20 cases**):
+  1. Legacy single HTML still loads without pageerrors (Adventures no-regression)
+  2. Vite shell boots with +1 minimal `__getPlayerClanCount` bridge
+  3. `createClan` + `fetchClan` happy path — owner is first member with role "owner"
+  4. Join flow: 4 more players → clan size 5 → `validateClanSize` ok
+  5. HARD CAP 5-15 (ESC-03 Q1) — 16th join rejected with `clan-full`
+  6. `recordContribution` + `computeContributorPercent` sums to 1.0 across 3 members
+  7. Transfer ownership: roma → kira, roma demoted to member
+  8. Leave clan: regular member leaves OK; owner blocked (must transfer first)
+  9. Cross-mechanic regression: all 38 T2.B+T3.07 bridges + new `__getPlayerClanCount` intact end-to-end
+  10. Sacred audit — clan cosmetic unlocks contain NO banned mechanical fields (ADR-003)
+
+**Sacred-cow audit (verified clean):**
+
+| System | Status |
+|---|---|
+| 22 v2.1 P4 reactivity handlers (`src/core/reactivity-events.js`) | UNTOUCHED ✅ (no diff) |
+| NARRATOR_LINES (`src/feel/narrator-lines.js`) | UNTOUCHED ✅ (no diff) |
+| 10 Identity Layer fx (`src/feel/identity-fx.js`) | UNTOUCHED ✅ (no diff) |
+| T3.07 replay-backend (`src/services/replay-backend.js`) | UNTOUCHED ✅ (no diff) |
+| T3.08 replay-viewer (`src/ui/replay-viewer.js`) | UNTOUCHED ✅ (no diff) |
+| T3.09 Codex Moments Replay button (`src/ui/codex.js`) | UNTOUCHED ✅ (no diff) |
+| `getPlayerSegment()` T1.20 sacred | READ-only (no writes from T3.02) ✅ |
+| Codex localStorage schema (`blocksworn_codex_state`) | UNTOUCHED ✅ (Adventures uses Firestore, not localStorage — no cross-pollination) |
+| Combo crit formula (legacy line 64005) | UNTOUCHED ✅ |
+| Phase 2 Codex recorder signatures | UNTOUCHED ✅ |
+| `CLAN_MAX_SIZE === 15` HARD CAP | BYTE-PERFECT ✅ (ESC-03 Q1 — server-enforced via security rules + client-enforced via `validateClanSize`) |
+| `CLAN_MIN_SIZE === 5` | BYTE-PERFECT ✅ |
+| ADR-003 no-P2W invariant | CLEAN ✅ (cosmetic unlocks contain NO `stat / damage / hp / winRate / progressionBoost / gemDiscount` fields — statically verified) |
+| 38 existing window-bridge functions (26 T2.B + 12 T3.07) | UNTOUCHED ✅ (+1 minimal `__getPlayerClanCount` entry added per brief direction; T3.03 UI consumes via direct-import per T3.08/T3.09 precedent) |
+| Magic numbers | NONE — all constants in `src/data/clan-config.js` + named constants in `src/services/clan-backend.js` |
+| Stagger Loop / Phoenix / Berserker / Engineer / Battle Pass / GEM_PACKS / Tower retry | UNTOUCHED ✅ |
+| New V_HAPTICS keys | NONE ✅ |
+| New NARRATOR_LINES additions | NONE ✅ |
+
+**Performance (verified):**
+
+| Metric | Before T3.02 | After T3.02 | Budget |
+|---|---|---|---|
+| Unit tests | 713 | **813** | +100 ✅ |
+| Smoke tests (× 2 projects) | 272 | **292** | +20 ✅ |
+| Pure helpers (`computeClanPower` on 15-member doc) | n/a | **<0.001ms avg** | <1ms ✅ |
+| CRUD ops in mock-mode | n/a | **<1ms avg** | n/a (no live SDK) |
+| Build JS (main bundle) | 281.81 KB | **283.73 KB** | +1.92 KB ✅ |
+| Build CSS | 399.24 KB | **399.24 KB** | UNCHANGED ✅ |
+| Build replay-viewer chunk | 11.21 KB | **11.21 KB** | UNCHANGED ✅ |
+| Build time | 480ms | **515ms** | ✅ |
+| Lint | clean | **clean** | ✅ |
+
+**Strategic significance:**
+
+T3.02 is the Wave-3 foundation task — without the Firestore data layer in place, T3.03 (clan create/join UI), T3.04 (weekly boss rotation), and T3.05 (contributor stats + persistent progression) cannot ship. With T3.02 landed:
+
+- `src/services/clan-backend.js` exposes a complete pure-helpers + CRUD surface that T3.03 UI consumes via direct-import (no window-bridge bloat per T3.08/T3.09 precedent)
+- Firestore live wiring deferred to T3.02.1 follow-up — mock store handles MVP, T3.03 UI can ship against it
+- HARD CAP 5-15 invariant statically verifiable: client-mirror via `validateClanSize` + server-enforced via `firebase-security-rules.txt`
+- Cosmetic-only progression statically verifiable: `CLAN_LEVEL_COSMETIC_UNLOCKS` table is frozen + audit test rejects any banned field
+
+The Wave-3 pipeline (T3.02 backend → T3.03 UI → T3.04 weekly rotation → T3.05 contributor stats) can now proceed. T3.06 friend leaderboard, T3.10-T3.13 Party Tower, T3.14-T3.15 Tower seasons remain in parallel.
+
+**Deferred follow-ups (not blocking T3.02):**
+
+- T3.02.1 — Live Firestore SDK wire-up. Currently each CRUD op writes to in-memory mock store; T3.02.1 replaces with real `setDoc` / `getDoc` calls (or batch writes for atomic ops like `transferOwnership`). Mock store stays as offline-fallback path. The `{ok, reason}` envelope is unchanged so T3.03 UI doesn't change shape.
+- T3.04 — Weekly boss rotation logic. T3.02 ships the `closeWeek(clanId, didDefeat)` stub; T3.04 wires the Monday 00:00 UTC server cron + boss-of-the-week selection algorithm per spec §2.2.
+- T3.03 — Clan create / join / browse UI per spec §2.1. T3.03 consumes clan-backend's 17 exports via direct-import.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.02] Adventures backend — clan-backend.js + 5-15 hard cap + cosmetic-only progression`
+
+---
+
 ### TASK-040 (T2.B Game Dev portion) — ✅ DONE 2026-05-12 — Legacy Bridge: Identity Layer integration moment
 
 **CTO acceptance 2026-05-12 (Game Dev portion):** PASS. Strictest sacred-cow proximity of Phase 2 cleared. Combo crit formula at line 63825 `critMult = 1 + domCount * count * CRIT_MULT_K` BYTE-PERFECT (grep returns 1 occurrence in code); single `domCount` definition extended by `+ (ctx._dominantCountModifier || 0)` at line 63816 per ESC-02 O3 "WITHIN BOUNDARY". CRIT_MULT_K = 0.1 / CRIT_MIN_COMBO = 2 byte-perfect (lines 20159-20160). All T2.07-T2.12 invariants maintained. 22 P4 handlers byte-perfect. Codex localStorage isolation maintained. 26 window-bridge functions exposed; 8 discrete legacy insertion points; bridge overhead <0.001ms per call. 150/150 smoke pass (+10 LIVE integration tests × 2 projects). Commit `e6acb6d`.

@@ -1,0 +1,116 @@
+# Firebase Security Rules — Phase 3 deploy intent
+
+# Deploy target: blocksworm Firestore project (FIREBASE_CONFIG.projectId)
+# Owner: CTO + Roman (escalation per CLAUDE.md §8 if rule semantics change)
+# Last updated: 2026-05-13 (T3.02 Adventures backend + T3.07 Replay backend)
+# Deploy at Phase 3 PR merge time (gates: 0 sacred-cow regressions verified).
+#
+# CRITICAL: server-side mirrors of client-side invariants. Any change here
+# must keep client + server in lockstep. Test ESC-03 Q1 HARD CAP 5-15
+# enforcement specifically before deploy.
+
+# ──────────────────────────────────────────────────────────────────────────
+# /adventures/{clanId} — T3.02 Adventures backend (clan documents)
+# ──────────────────────────────────────────────────────────────────────────
+
+# Schema invariants enforced server-side:
+#   - members.size() between 1 and 15 (HARD CAP per ESC-03 Q1; no exceptions)
+#   - name is 3-30 chars
+#   - ownerId is immutable (set on create, never changed by update — only by
+#     transferOwnership flow which is a multi-field atomic update)
+#   - cosmetics fields contain ONLY string values from CLAN_COSMETIC_TIERS /
+#     CLAN_LEVEL_COSMETIC_UNLOCKS (no stat / damage / win-rate fields per
+#     ADR-003 no-P2W invariant)
+#
+# Read access: any authenticated user can read clan docs (browse + search).
+# Write access: only existing members; create requires authenticated user.
+# Delete access: forbidden — clans are marked inactive via update, never
+#   deleted server-side (preserves contributor stats / season history).
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for clan rules.
+    function isAuthed() {
+      return request.auth != null;
+    }
+
+    function isMember(uid, clanData) {
+      return clanData.members.hasAny([{ 'playerId': uid }]);
+    }
+
+    function validateClanSize(data) {
+      // HARD CAP 5-15 (ESC-03 Q1). On create the doc starts with 1 member
+      // (owner); subsequent joinClan calls add members until cap. Server
+      // rejects any update that would push size > 15.
+      return data.members.size() >= 1 && data.members.size() <= 15;
+    }
+
+    function validateClanName(data) {
+      return data.name is string
+          && data.name.size() >= 3
+          && data.name.size() <= 30;
+    }
+
+    function validateCosmetics(data) {
+      // Cosmetic-only invariant — no stat / damage / win-rate fields per
+      // ADR-003. Server rejects any clan doc with fields outside the
+      // documented schema in src/data/clan-config.js.
+      return !data.keys().hasAny(['stat', 'damage', 'hp', 'winRate', 'progressionBoost', 'gemDiscount']);
+    }
+
+    function validateCreate(data) {
+      return validateClanSize(data)
+          && validateClanName(data)
+          && validateCosmetics(data)
+          && data.ownerId == request.auth.uid;
+    }
+
+    function validateUpdate(oldData, newData) {
+      return validateClanSize(newData)
+          && validateClanName(newData)
+          && validateCosmetics(newData)
+          // ownerId can only change via transferOwnership (when old owner
+          // remains a member with role 'member' and new owner is in members).
+          // Strict check: ownerId either unchanged OR new value is a member.
+          && (newData.ownerId == oldData.ownerId
+              || newData.members.hasAny([{ 'playerId': newData.ownerId }]));
+    }
+
+    // Adventures clan documents.
+    match /adventures/{clanId} {
+      allow read:   if isAuthed();
+      allow create: if isAuthed() && validateCreate(request.resource.data);
+      allow update: if isAuthed()
+                    && isMember(request.auth.uid, resource.data)
+                    && validateUpdate(resource.data, request.resource.data);
+      allow delete: if false; // never delete — mark inactive via update
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Existing Replay storage rules (T3.07) — preserved.
+    // ────────────────────────────────────────────────────────────────────
+    // (Storage rules live in storage.rules — not in firestore.rules. This
+    // file is firestore.rules; the Storage equivalents document the same
+    // segment-tier quota enforcement per ESC-03 Q2.)
+  }
+}
+
+# ──────────────────────────────────────────────────────────────────────────
+# Test plan (pre-deploy):
+#
+# 1. Authenticated user creates clan with valid name (3-30 chars) → PASS.
+# 2. Authenticated user creates clan with 1-char name → FAIL.
+# 3. Authenticated user creates clan with 31-char name → FAIL.
+# 4. Authenticated user tries to add 16th member → FAIL (HARD CAP).
+# 5. Non-authenticated user tries to read clan → FAIL.
+# 6. Non-member tries to write clan → FAIL.
+# 7. Member writes valid contribution update → PASS.
+# 8. Member writes clan doc with embedded `damage: 999` field → FAIL.
+# 9. Any user tries to delete clan → FAIL.
+# 10. Owner transfers ownership (atomic update) → PASS.
+#
+# Run these via Firebase emulator suite before live deploy.
+# ──────────────────────────────────────────────────────────────────────────

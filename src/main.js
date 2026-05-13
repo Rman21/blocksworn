@@ -120,6 +120,17 @@ import {
   onPartyTowerRunClearTrigger,
 } from './services/replay-backend.js';
 
+// 2026-05-13 — TASK-050 (T3.02): Adventures backend bridge (MINIMAL — +1 entry).
+// Wave-3 Phase 3 task. Backend-only — see src/services/clan-backend.js for
+// the full contract + spec §2 / §15. T3.03 UI consumes the 8 pure helpers +
+// 9 CRUD ops via DIRECT-IMPORT (mirrors T3.08/T3.09 precedent — keeps the
+// window-bridge surface at 38 + 1 = 39 total, NOT 38 + 9 CRUD). The single
+// minimal entry below lets the legacy menu badge surface "is player in any
+// clan?" without dragging the full clan-backend module into legacy.
+import {
+  listClansForPlayer as _listClansForPlayer_t302,
+} from './services/clan-backend.js';
+
 // T1.13.5 (2026-05-12): bridge `showScreen` onto window so legacy inline
 // onclick="showScreen('menu')" handlers (still present in any scaffold the
 // new shell mounts) resolve. Cosmetic — required for compatibility with the
@@ -200,6 +211,20 @@ if (typeof window !== 'undefined') {
   window.__onTowerMilestoneTrigger          = onTowerMilestoneTrigger;
   window.__onAdventureWeeklyDefeatTrigger   = onAdventureWeeklyDefeatTrigger;
   window.__onPartyTowerRunClearTrigger      = onPartyTowerRunClearTrigger;
+
+  // 2026-05-13 — TASK-050 (T3.02): Adventures backend — MINIMAL bridge.
+  // ONE function exposed: legacy menu badge ("is player in any Adventure?")
+  // needs cheap async lookup without importing the full clan-backend module.
+  // All 9 CRUD operations + 8 pure helpers stay direct-import (T3.03 UI
+  // mirrors T3.08/T3.09 precedent). Bridge count: 38 → 39 (1 minimal entry).
+  // ── Player-clan membership probe (called from legacy menu badge) ────────
+  window.__getPlayerClanCount               = async function _getPlayerClanCountBridge(playerId) {
+    try {
+      const result = await _listClansForPlayer_t302(playerId);
+      if (result && result.ok && Array.isArray(result.clans)) return result.clans.length;
+    } catch (_e) { /* swallow — badge defaults to 0 on any failure */ }
+    return 0;
+  };
 }
 
 // T1.20 — Read lifetime USD spend from the canonical legacy key
