@@ -1679,6 +1679,50 @@ mainstream crypto gaming media (Wave 2) + general (Wave 3).
 
 ---
 
+## 13.6 ROMAN RULING APPENDIX — ESC-04 RESOLVED 2026-05-13
+
+Roman authorized "do whats need to be done for perfect game (AAA+)" — interpreting per ESC-02 + ESC-03 precedent: apply CTO recommendations matching Designer's recommendations. All 5 ESC-04 questions resolved:
+
+| ID | Question | Ruling | Effect on Phase 4 |
+|---|---|---|---|
+| **Q1** | Sage vs Chia Wallet primary | ✅ **A — Sage primary at V1** | T4.02 ships Sage only; Chia Wallet deferred to T4.02.1 optional follow-up if T4.11 beta demands |
+| **Q2** | Mint fee schedule | ✅ **As proposed; 2.5% royalty; NO F2P-walleted discount** | Skin tiers 0.01/0.1/1.0 XCH; achievements 0.001 XCH; DAO descriptor 0.05 XCH; uniform fee across all wallet tiers (ADR-003 honored) |
+| **Q3** | Founder Badge distribution | ✅ **A — gift at mainnet launch (T4.12 Wave 1)** | Treasury wallet batch-mints + auto-transfers to participating wallets; zero recipient effort |
+| **Q4** | On-chain achievement storage | ✅ **C — Hybrid** | On-chain: id + timestamp + minter; IPFS: art + lore; survives Blocksworn retirement |
+| **Q5** | Closed beta gate (T4.11) | ✅ **A — firm 100 minimum, soft 200-300, hard 500; Chia-community recruitment (Twitter + Discord + Chia forum); no paid acquisition** | 2-week minimum beta duration; extend on critical bugs or active growth |
+
+### Phase 4 implementation green-lit per ruling
+
+- **T4.02** Sage Wallet integration — UNBLOCKED ✅ (Q1 ruled Sage primary)
+- **T4.03–T4.06** NFT-hero mint/trade/data — UNBLOCKED ✅ (depends T4.02)
+- **T4.07** Adventure DAO — UNBLOCKED ✅
+- **T4.08** PURE PATH CHAIN leaderboard column — UNBLOCKED ✅ (additive to sacred TOWER_LEADERBOARDS)
+- **T4.09** Mobile feature flag — UNBLOCKED ✅ (no Q-ruling needed; foundational)
+- **T4.10** Anti-P2W parity audit — UNBLOCKED ✅ (gates T4.11 beta)
+- **T4.11** Closed beta with 100+ crypto testers — Chia-community recruitment per Q5 ruling
+- **T4.12** Production launch sequence — Wave 1 Chia community → Wave 2 crypto media → Wave 3 mainstream
+- **T4.13** Legacy Bridge — mirrors T2.B / T3.16 patterns
+
+### Sacred cow status after ruling
+
+Phase 4 plan remains purely additive. Roman's ruling does NOT change the 50-row sacred audit in §8 — 0 modifications planned. All sacred Tower / Hero stat / Battle Pass / Phase 1/2/3 systems remain byte-perfect.
+
+### Quality gates added by ruling
+
+1. **T4.10 anti-P2W statistical audit MUST PASS before T4.12 launches** — 9-metric parity test (PURE PATH vs PURE PATH CHAIN); if statistically different on any metric → Phase 4 ships WITHOUT NFT-hero variants (cosmetic-only roll-back to Founder Badge + achievements)
+2. **T4.11 closed beta is HARD GATE** — minimum 100 testers + 2-week duration + 0 critical bugs before T4.12 production launch
+3. **`isChiaEnabled()` feature flag invariant** — mobile build with `VITE_CHIA_ENABLED=false` must have ZERO Chia DOM surfaces (T4.09 smoke verifies)
+4. **HERO_ROSTER stat-block identity invariant** — NFT skin overlay is render-time only; HERO_ROSTER entries byte-perfect across all 25 heroes
+
+### Phase 4 first wave green-lit
+
+**Wave 1 (parallel-friendly start):**
+- T4.09 feature flag (dependency-free) → starts NOW inline
+- T4.08 PURE PATH CHAIN column (additive) → can start in parallel
+- T4.02 Sage Wallet integration (per Q1 ruling) → starts NOW via agent
+
+---
+
 ## 14. Acceptance criteria — design ready
 
 - [x] §0 Overview: endgame layer framing + Phase 3 extension narrative +
