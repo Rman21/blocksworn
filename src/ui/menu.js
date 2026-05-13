@@ -87,6 +87,11 @@ export function renderMenu() {
   // create/browse/join/view/leave). Additive — placed below CODEX entry.
   // FTUE-gated (matches Codex / dailies / tower / season visibility pattern).
   try { vRenderAdventuresDrawerEntry(); } catch(e){ log.warn('vRenderAdventuresDrawerEntry failed:', e); }
+  // T3.06 (2026-05-13): Friend leaderboard mini-block widget per spec §5.
+  // Mounted inline on menu (NOT a new screen). Additive — placed below the
+  // Adventures drawer entry. FTUE-gated. Dynamic-import keeps the menu-path
+  // bundle slim — friend-leaderboard module only loads after menu render.
+  try { vRenderFriendLeaderboardMount(); } catch(e){ log.warn('vRenderFriendLeaderboardMount failed:', e); }
   // 2026-04-30 — Polish v0.2 Track I §I.4.4: WHAT'S NEW accordion
   // visibility + auto-expire. No-ops if no Ch.1-unlock timestamp is set
   // or if the 3-day window has passed.
@@ -529,6 +534,52 @@ function _refreshAdventuresBadge(btn) {
       } catch (_e) {}
     }).catch(() => {});
   } catch (_e) {}
+}
+
+// ─── vRenderFriendLeaderboardMount (T3.06, 2026-05-13) ──────────────────────
+// Spec: docs/design/endgame-social.md §5 (Friend leaderboard mini-block).
+// Mounts a friend-leaderboard widget INLINE on the menu (below Adventures
+// drawer entry). Additive — does NOT rearrange existing menu items.
+// FTUE-gated so the widget stays hidden during tutorial (matches Codex /
+// Adventures visibility pattern). Dynamic-import keeps the menu-path bundle
+// slim — friend-leaderboard module only loads after menu render.
+//
+// Mount-point resolution (best-effort, order):
+//   1. #vMenuDrawer (legacy hub drawer container if present)
+//   2. #vHubNavRow  (alt drawer location)
+//   3. #screenMenu  (final fallback)
+//
+// No-op if no mount point exists. Idempotent — re-running creates the
+// host only once (id-keyed).
+function vRenderFriendLeaderboardMount() {
+  if (typeof document === 'undefined') return;
+  // FTUE gate — friend widget hidden during tutorial.
+  try {
+    if (typeof isFtueActive === 'function' && isFtueActive()) {
+      const existing = document.getElementById('friendLeaderboardWidgetMount');
+      if (existing) existing.style.display = 'none';
+      return;
+    }
+  } catch (_e) {}
+  let host = document.getElementById('friendLeaderboardWidgetMount');
+  if (!host) {
+    const mount = document.getElementById('vMenuDrawer')
+               || document.getElementById('vHubNavRow')
+               || document.getElementById('screenMenu');
+    if (!mount) return;
+    host = document.createElement('div');
+    host.id = 'friendLeaderboardWidgetMount';
+    mount.appendChild(host);
+  } else {
+    host.style.display = '';
+  }
+  // Dynamic import — friend-leaderboard module loads lazily on first menu
+  // render after FTUE. Defensive: never throws into the menu render path.
+  import('./friend-leaderboard.js').then(mod => {
+    try {
+      mod.renderFriendLeaderboardWidget(host);
+    } catch (e) { log.warn('renderFriendLeaderboardWidget failed:', e); }
+  }).catch(e => log.warn('friend-leaderboard dynamic import failed:', e));
 }
 
 // ─── vRenderCosmicMemorial — DELETED in T1.15 ───────────────────────────────

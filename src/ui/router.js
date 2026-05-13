@@ -100,7 +100,7 @@ export function showScreen(name) {
   // T3.03 (2026-05-13): added 'adventures' route for Adventures screen (Phase 3
   // §2 — async clan create/browse/join/view/leave). Dynamic-import per replay-
   // viewer precedent — only loads when the player opens the screen.
-  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex', 'replay-viewer': 'screenReplayViewer', adventures: 'screenAdventures' };
+  const map = { menu: 'screenMenu', select: 'screenSelect', battle: 'screenBattle', shop: 'screenShop', dailies: 'screenDailies', tower: 'screenTower', season: 'screenSeason', profile: 'screenProfile', codex: 'screenCodex', 'replay-viewer': 'screenReplayViewer', adventures: 'screenAdventures', friends: 'screenFriends' };
   for (const key in map) {
     const el = document.getElementById(map[key]);
     if (el) el.classList.toggle('active', key === name);
@@ -153,6 +153,18 @@ export function showScreen(name) {
         try { if (typeof window !== 'undefined') window.__adventuresInitialCtx = null; } catch (_e) {}
       } catch (e) { log.warn('renderAdventures failed:', e); }
     }).catch(e => log.warn('adventures dynamic import failed:', e));
+  }
+  // T3.06 (2026-05-13): Friends full-list dynamic import on screen activation.
+  // Dynamic to keep the menu-path bundle slim (full list only loads when used).
+  // The mini-block widget is mounted inline on the menu via menu.js.
+  // Defensive try/catch — render never crashes screen switching.
+  if (name === 'friends') {
+    import('./friend-leaderboard.js').then(mod => {
+      try {
+        const mount = document.getElementById('screenFriends');
+        if (mount) mod.renderFullFriendList(mount);
+      } catch (e) { log.warn('renderFullFriendList failed:', e); }
+    }).catch(e => log.warn('friend-leaderboard dynamic import failed:', e));
   }
   // V3.0 Phase 2 Vivid Stylized: sync bottom-nav active state on every transition.
   try { activateNavFor(name); } catch(e) {}

@@ -21,6 +21,7 @@
 @import './components/icon.css';
 @import './components/hero-card.css';
 @import './components/modal.css';
+@import './components/friend-leaderboard.css';
 
 /* Utilities — generic helpers / cross-cutting rules that don't belong
  * to a single component or screen. */

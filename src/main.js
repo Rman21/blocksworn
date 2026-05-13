@@ -280,6 +280,21 @@ function _readReplayDeeplinkId() {
   }
 }
 
+// T3.06 (2026-05-13): Read `?invite=<token>` query parameter for the friend
+// invite deeplink handler. Pure read — never mutates. Returns empty when
+// no query, no match, or in non-browser context. Additive to T3.08
+// replay deeplink (does NOT modify _readReplayDeeplinkId).
+function _readInviteDeeplinkToken() {
+  try {
+    if (typeof window === 'undefined' || !window.location || !window.location.search) return '';
+    const m = /[?&]invite=([^&]+)/.exec(window.location.search);
+    if (!m || !m[1]) return '';
+    return decodeURIComponent(m[1]);
+  } catch (_e) {
+    return '';
+  }
+}
+
 async function main() {
   // 1. Sentry first — every subsequent error goes to Sentry.
   try { initSentry(); } catch (err) { log.error('[boot] initSentry failed:', err); }
@@ -352,6 +367,7 @@ async function main() {
     // precedence so a fresh install still goes through the tutorial.
     try {
       const replayDeeplinkId = _readReplayDeeplinkId();
+      const inviteDeeplinkToken = _readInviteDeeplinkToken();
       if (replayDeeplinkId && !isFtueActive()) {
         try {
           window.__replayViewerCurrentId = replayDeeplinkId;
@@ -364,6 +380,26 @@ async function main() {
         routeByFtue();
       } else {
         showScreen('menu');
+      }
+      // T3.06 (2026-05-13): `?invite=<token>` friend-invite deeplink handler.
+      // Runs AFTER the initial screen is set (so the toast lands on top of
+      // the menu, not a transient first-render frame). FTUE-blocking takes
+      // precedence — fresh installs still go through tutorial; the invite
+      // is consumed silently when FTUE is active so the token isn't lost.
+      if (inviteDeeplinkToken && !isFtueActive()) {
+        import('./services/friend-graph-backend.js').then(mod => {
+          try {
+            mod.parseAndConsumeInvite(inviteDeeplinkToken).then(result => {
+              try {
+                if (result && result.ok) {
+                  import('./ui/friend-leaderboard.js').then(ui => {
+                    try { ui.showFriendToast('Friend added!'); } catch (_e) { /* swallow */ }
+                  }).catch(() => { /* swallow — dynamic import failure non-fatal */ });
+                }
+              } catch (_e) { /* swallow */ }
+            }).catch(() => { /* swallow — invite consumption failure non-fatal */ });
+          } catch (_e) { /* swallow */ }
+        }).catch(() => { /* swallow — dynamic import failure non-fatal */ });
       }
     } catch (err) {
       log.warn('[boot] initial screen render:', err);

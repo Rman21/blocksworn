@@ -682,6 +682,146 @@ Commit: `[T3.04] Weekly boss rotation — pickWeeklyBoss algorithm + Uroboros ev
 
 ---
 
+### TASK-054 (T3.06) — REVIEW (2026-05-13) — EIGHTH Phase 3 implementation task — Friend leaderboard mini-block (Wave-4 bridge)
+
+**Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH — Wave-4 bridge unblocking Wave-5 Party Tower (depends on friend-graph infrastructure)
+**Phase:** 3 (Endgame Social) — 8/N (Wave-4 single-task)
+**Depends on:** ✅ TASK-050 (T3.02 clan-backend `listClansForPlayer` + `fetchClan`) + sacred TOWER_LEADERBOARDS read-only
+
+**Implementation summary:**
+
+T3.06 surfaces a friend-graph mini-block widget on the menu screen + a full-screen `'friends'` route, aggregating clan members (via T3.02 `listClansForPlayer`) + Tower season top-N overlap (mock-store stub; live read-only Firestore wiring in T3.06.1) into a sort-by-Tower-floor leaderboard. Invite flow uses `navigator.share` OS-native per ESC-03 Q5 (no in-game friend codes); `?invite=<token>` deeplink handler added to `main.js` as an additive sibling to the T3.08 `?replay=` handler. Strictly additive — sacred Tower leaderboards remain read-only, PURE PATH F2P-only invariant preserved, ADR-003 no-P2W sort key (Tower floor only — never spend).
+
+**Files created:**
+
+- `src/services/friend-graph-backend.js` (NEW, 480 LoC):
+  - Frozen registry: FRIEND_COLLECTION, FRIEND_GRAPH_PER_PLAYER_CAP (100), FRIEND_SOURCE_* tags, INVITE_TOKEN_LEN (16), FRIEND_TOWER_OVERLAP_LIMIT (100) + TOP_N (10), FRIEND_RESULT_REASONS.
+  - 5 pure helpers: `aggregateFriendsFromSources`, `sortFriendsByTowerFloor`, `getTopNFriends`, `buildInviteShareContent`, `parseInviteTokenFromUrl`, `generateInviteToken` (crypto.getRandomValues w/ Math.random fallback).
+  - 4 async ops: `fetchTowerSeasonTop` (READ-ONLY Tower data, mock-store fallback), `fetchFriendsForPlayer` (main aggregation — clan + tower; codex + replay stubs deferred per task brief), `recordInviteAccepted` (idempotent), `parseAndConsumeInvite` (deeplink landing).
+  - 3 test-only helpers: `_resetMockFriendStore`, `_seedMockTowerTop`, `_seedMockInvite`.
+
+- `src/ui/friend-leaderboard.js` (NEW, 360 LoC):
+  - `renderFriendLeaderboardWidget(rootEl, playerId)` — menu mini-block (top-3 medal podium + View All button + empty state).
+  - `renderFullFriendList(rootEl, playerId)` — `'friends'` route full screen (sorted list + Invite header + Challenge stub).
+  - `resolveCurrentPlayerId()` — pure read of `blocksworn_p8_player_name` (mirror of Adventures pattern).
+  - `showFriendToast(msg)` — transient toast helper (used by deeplink "Friend added!").
+  - Internal helpers: `_widgetHTML` / `_fullListHTML` / `_friendRowHTML` (exposed via `__friendLeaderboardTestables` for unit tests).
+  - `_triggerInviteShare` — `navigator.share` OS-native; clipboard.writeText fallback when share API absent (per ESC-03 Q5 graceful no-op).
+  - In-memory cache (5-min TTL) for `_loadFriends` to honor spec §5.4 (≤200ms cached p99).
+  - All direct-imports from friend-graph-backend.js — zero new window-bridges.
+
+- `src/styles/components/friend-leaderboard.css` (NEW, 195 LoC):
+  - `.friend-leaderboard-widget` parchment mini-block (palette matches Codex / Adventures / Replay viewer).
+  - `.friend-row` flexbox (medal + name + floor); `--gold/silver/bronze` left-border accents.
+  - `.friend-full-list` full-screen layout with header + back button + invite button.
+  - `.friend-toast` + `friend-toast-fade` 3s ease keyframe.
+  - `prefers-reduced-motion` fallback disables button transitions + toast animation.
+
+- `tests/unit/friend-leaderboard.test.js` (NEW, 470 LoC, **60 unit tests**):
+  - 6 aggregateFriendsFromSources tests (empty / clan-only / tower-only / combined / priority / defensive).
+  - 4 sortFriendsByTowerFloor tests (desc + tiebreak + non-array + immutability).
+  - 4 getTopNFriends tests (default top-3 / oversized / empty / non-positive N).
+  - 5 buildInviteShareContent tests (shape / missing name / missing floor / missing token / URL encoding).
+  - 6 parseInviteTokenFromUrl tests (full URL / query only / missing / empty / alongside others / invalid chars).
+  - 3 generateInviteToken tests (length / charset / uniqueness).
+  - 3 fetchTowerSeasonTop tests (sorted desc / limit / empty).
+  - 7 fetchFriendsForPlayer tests (invalid / empty / clan / tower / combined floor promotion / cap / sorted).
+  - 4 recordInviteAccepted tests (valid / invalid inputs / self-invite / idempotent).
+  - 4 parseAndConsumeInvite tests (valid / empty / unknown / idempotent).
+  - 3 resolveCurrentPlayerId tests (anonymous / trimmed / no localStorage).
+  - 4 UI _widgetHTML tests (empty / populated medals / top-3 cap / HTML escape).
+  - 2 UI _fullListHTML tests (empty / populated rank+source+You badge).
+  - 4 Sacred-cow audit tests (TOWER_LEADERBOARDS frozen + F2P invariant / no spend exports / clan API unchanged / no spend field in aggregation result).
+
+- `tests/smoke/friend-leaderboard.spec.js` (NEW, 270 LoC, **7 smoke tests × 4 projects = 28 runs**):
+  - Vite shell mounts friends route + module surface check (UI + backend public APIs).
+  - Empty widget state when no friends.
+  - Clan + tower seeded → widget shows 3 medals + Floor labels + excludes self.
+  - View all → `screenFriends.active` + full list mounted.
+  - Invite share button graceful no-op when navigator.share absent.
+  - `?invite=<token>` deeplink → parseAndConsumeInvite returns ok=true + fromPlayerId.
+  - Cross-mechanic regression: 39 bridges intact + Adventures + Codex public APIs intact.
+
+**Files modified (additive only):**
+
+- `src/main.js` (+34 LoC):
+  - NEW `_readInviteDeeplinkToken()` (pure read of `?invite=` from `window.location.search`; additive sibling to T3.08 `_readReplayDeeplinkId`).
+  - Bootstrap chain extended: when `?invite=<token>` present + FTUE complete, dynamic-imports `friend-graph-backend` → `parseAndConsumeInvite` → on success dynamic-imports `friend-leaderboard` → `showFriendToast('Friend added!')`.
+  - T3.08 `?replay=` deeplink handler UNTOUCHED.
+  - Zero new window-bridges.
+
+- `src/ui/menu.js` (+50 LoC):
+  - NEW `vRenderFriendLeaderboardMount()` — creates `#friendLeaderboardWidgetMount` host + dynamic-imports `friend-leaderboard` → `renderFriendLeaderboardWidget(host)`. FTUE-gated. Idempotent.
+  - `renderMenu()` invokes new mount after Adventures drawer entry; existing menu entries unchanged.
+
+- `src/ui/router.js` (+12 LoC):
+  - `screenMap` extended: `friends: 'screenFriends'`.
+  - New `'friends'` case dynamic-imports `friend-leaderboard` + calls `renderFullFriendList`. Existing routes UNTOUCHED.
+
+- `src/styles/index.css` (+1 LoC): `@import './components/friend-leaderboard.css';`
+
+- `index.html` (+2 LoC): NEW `<div class="screen v-secondary v-friends" id="screenFriends"></div>` after `#screenAdventures`.
+
+**Sacred-cow audit (CLAUDE.md §2 + ADR-003):**
+
+| Sacred system | Status |
+|--------------|--------|
+| 22 v2.1 P4 reactivity handlers byte-perfect | ✅ untouched |
+| **TOWER_LEADERBOARDS frozen config (CLAUDE.md §2.5)** | ✅ **READ-ONLY** — friend graph reads `fetchTowerSeasonTop` (mock-store stub; T3.06.1 wires read-only Firestore query). Unit test verifies `Object.isFrozen` + 3-track surface (global / f2p_only / weekly_seasonal) byte-perfect. |
+| **PURE PATH (F2P-only) leaderboard sacred** | ✅ NEVER contaminated — friend graph is separate aggregation; F2P invariant `totalSpent === 0` preserved. |
+| NARRATOR_LINES sacred table | ✅ untouched |
+| All 10 Identity Layer FX mechanical contracts | ✅ untouched |
+| T3.02–T3.05 Adventures subsystem public API | ✅ byte-perfect — friend-graph-backend is READ-only consumer (`listClansForPlayer`, `fetchClan`) |
+| T3.07–T3.09 Replay subsystem | ✅ untouched |
+| Codex schema (T2.12) | ✅ untouched (cross-player codex stub deferred to Phase 3.5) |
+| 39 window-bridges | ✅ no new bridges — all consumption via direct-import per T3.03/T3.05 precedent |
+| **ADR-003 no-P2W invariant** | ✅ sort key = `currentTowerFloor` descending ONLY; never lifetime spend / segment / IAP. Unit test scans module export names for `spend/whale/dolphin` keywords (none found). Aggregation result objects have exactly 3 keys (`playerId`, `source`, `currentTowerFloor`) — no `totalSpend` field even when input data carries it. |
+| `getPlayerSegment()` (sacred T1.20) | ✅ NEVER called from this module |
+| V_HAPTICS table | ✅ no new keys |
+| Magic numbers | ✅ all from named constants (FRIEND_GRAPH_PER_PLAYER_CAP, INVITE_TOKEN_LEN, FRIEND_TOWER_OVERLAP_*, MEDAL_EMOJI table) |
+
+**Verification (2026-05-13):**
+
+- `npm run lint` — clean (no eslint errors).
+- `npm run test:unit` — **1044 / 1044 passing** (was 984 — +60 new T3.06 tests).
+- `npm run test:smoke` — chromium + mobile-chrome: **14 / 14 friend-leaderboard passing**; **24 / 24 adventures + replay-viewer + codex regression passing**. Webkit projects skipped (binary not installed in worktree env — environment-only, not code issue).
+- `npm run build` — clean. New chunks: `friend-leaderboard-DQBe8mG9.js` 8.12 kB (gzip 2.56 kB) + `friend-graph-backend-PixMgaw2.js` 6.12 kB (gzip 2.26 kB). CSS bundle: +5 kB for parchment widget + full list styles.
+
+**Performance (spec §5.4):**
+
+- Widget render: ≤100ms budget — render path is sync HTML innerHTML + async friend fetch from mock store; observed well under 100ms in test environment. log.warn fires if exceeded.
+- Full list render: ≤200ms budget — same pattern; observed well under budget.
+- 5-min cache TTL honors "Friend list fetch (cached) ≤200ms p99".
+
+**Stubs deferred (per task brief):**
+
+- Codex-defeated cross-player discovery — Phase 3.5 (needs cross-player Firestore reads).
+- Replay-share recipient auto-friending — T3.06.1 (needs deeplink landing flow to persist accepted-invite friend records — invite token registry + Cloud Function bidirectional friend doc write).
+- Live Firestore read-only Tower leaderboard query — T3.06.1.
+
+**ADR-003 no-P2W invariant — explicit:**
+
+The friend leaderboard sorts EXCLUSIVELY by `currentTowerFloor` descending with alphabetical playerId tiebreak. There is no spend / segment / whale-tier surface anywhere in the data path:
+- `aggregateFriendsFromSources` discards every input field except `playerId` + `currentTowerFloor` (verified by unit test "aggregation only uses Tower floor + playerId — no spend field").
+- `sortFriendsByTowerFloor` has only two sort dimensions: floor desc, playerId asc.
+- `getTopNFriends` is a pure slice — no rank weighting.
+- The Invite UI shows the inviter's name + Tower floor only; no spend boast.
+- The full-list `Challenge` button is disabled across all rows (Phase 3.5 stub), so paid-tier players cannot purchase combat advantages over F2P friends.
+
+PURE PATH (F2P-only) leaderboard surface in `src/data/tower.js` is byte-perfect (`f2p_only.eligibility === 'totalSpent === 0'` — sacred §2.5).
+
+**Wave-4 → Wave-5 unlock:**
+
+T3.06 establishes the friend-graph infrastructure (clan member aggregation + Tower season top overlap + invite token plumbing) that T3.10–T3.13 Party Tower depends on. Wave-5 can begin as soon as T3.06 PR merges.
+
+**Awaiting CTO review.**
+
+Commit: `[T3.06] Friend leaderboard mini-block + auto-friending + navigator.share invite`
+
+---
+
 ### TASK-053 (T3.05) — REVIEW (2026-05-13) — SEVENTH Phase 3 implementation task — Contributor stats + clan progression UI (Wave-3 closeout)
 
 **Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)

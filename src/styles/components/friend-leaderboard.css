@@ -1,0 +1,262 @@
+/* 2026-05-13 — TASK-054 (T3.06): Friend leaderboard mini-block styling.
+ *
+ * Spec: docs/design/endgame-social.md §5 (Friend leaderboard mini-block).
+ *
+ * Parchment / archive aesthetic matching Codex (T2.12) + Adventures (T3.03)
+ * + Replay viewer (T3.08). Reuses the same palette so all Phase 2/3
+ * secondary surfaces feel like one chronicle.
+ *
+ * Palette:
+ *   - Background:   parchment beige  (#E8DAB6)
+ *   - Body text:    ink brown        (#2C2014)
+ *   - Borders:      gold-leaf        (#A88033)
+ *   - Accent:       muted gold       (#8C5E1A)
+ *   - Gold medal:   #D4AF37
+ *   - Silver medal: #B5B5B5
+ *   - Bronze medal: #CD7F32
+ *
+ * Sacred safety:
+ *   - All styles scoped under .friend-* — never touches battle / menu /
+ *     profile / shop / tower / season / codex / adventures / replay
+ *     selectors.
+ *   - prefers-reduced-motion fallback disables hover transforms.
+ */
+
+/* ===== Widget container (mini-block on menu) ===== */
+.friend-leaderboard-widget {
+  background: #E8DAB6;
+  color: #2C2014;
+  border: 2px solid #A88033;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px auto;
+  max-width: 340px;
+  font-family: 'Cinzel', 'Garamond', 'Times New Roman', serif;
+  box-shadow: 0 2px 6px rgba(44, 32, 20, 0.18);
+}
+
+.friend-leaderboard-widget__header {
+  border-bottom: 1px solid #A88033;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+.friend-leaderboard-widget__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #8C5E1A;
+  text-align: center;
+}
+
+.friend-leaderboard-widget__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.friend-leaderboard-widget__footer {
+  margin-top: 8px;
+  text-align: right;
+}
+
+/* ===== Friend row (shared by widget + full list) ===== */
+.friend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px dashed rgba(168, 128, 51, 0.35);
+  font-size: 13px;
+}
+.friend-row:last-child { border-bottom: none; }
+
+.friend-row--gold   { border-left: 3px solid #D4AF37; padding-left: 6px; }
+.friend-row--silver { border-left: 3px solid #B5B5B5; padding-left: 6px; }
+.friend-row--bronze { border-left: 3px solid #CD7F32; padding-left: 6px; }
+
+.friend-medal {
+  width: 22px;
+  text-align: center;
+  font-size: 16px;
+  line-height: 1;
+}
+.friend-name {
+  flex: 1;
+  font-weight: 600;
+  color: #2C2014;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.friend-floor {
+  font-size: 12px;
+  color: #5E4A2A;
+  font-style: italic;
+  white-space: nowrap;
+}
+.friend-source {
+  font-size: 11px;
+  color: #8C5E1A;
+  padding: 1px 5px;
+  border: 1px solid rgba(140, 94, 26, 0.3);
+  border-radius: 3px;
+}
+.friend-rank {
+  width: 28px;
+  font-size: 12px;
+  color: #8C5E1A;
+  font-weight: 700;
+}
+.friend-you-badge {
+  margin-left: 4px;
+  font-size: 11px;
+  color: #8C5E1A;
+  font-style: italic;
+}
+
+/* ===== Buttons ===== */
+.friend-view-all-btn,
+.friend-invite-btn,
+.friend-back-btn,
+.friend-challenge-btn {
+  background: rgba(168, 128, 51, 0.12);
+  border: 1px solid #A88033;
+  color: #2C2014;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 120ms ease, transform 80ms ease;
+}
+.friend-view-all-btn:hover,
+.friend-invite-btn:hover,
+.friend-back-btn:hover {
+  background: rgba(168, 128, 51, 0.28);
+}
+.friend-view-all-btn:active,
+.friend-invite-btn:active {
+  transform: translateY(1px);
+}
+
+.friend-back-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.friend-challenge-btn:disabled,
+.friend-challenge-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.friend-invite-btn--header {
+  margin-left: auto;
+}
+
+/* ===== Empty / loading / error states ===== */
+.friend-leaderboard-widget__empty,
+.friend-full-list__empty {
+  padding: 16px 8px;
+  text-align: center;
+  color: #5E4A2A;
+}
+.friend-leaderboard-widget__empty-text,
+.friend-full-list__empty-text {
+  font-size: 13px;
+  margin-bottom: 10px;
+  font-style: italic;
+}
+.friend-leaderboard-widget__loading,
+.friend-leaderboard-widget__error {
+  padding: 12px 8px;
+  text-align: center;
+  font-style: italic;
+  color: #5E4A2A;
+  font-size: 13px;
+}
+
+/* ===== Full list (full-screen 'friends' route) ===== */
+.friend-full-list {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 14px 32px;
+  background: #E8DAB6;
+  color: #2C2014;
+  font-family: 'Cinzel', 'Garamond', 'Times New Roman', serif;
+  min-height: 100vh;
+}
+.friend-full-list__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 2px solid #A88033;
+  margin-bottom: 12px;
+}
+.friend-full-list__title {
+  margin: 0;
+  flex: 1;
+  text-align: center;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  color: #8C5E1A;
+}
+.friend-full-list__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.friend-row--full {
+  padding: 10px 6px;
+  font-size: 14px;
+  gap: 10px;
+}
+
+/* ===== Toast ===== */
+.friend-toast-host {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.friend-toast {
+  background: #2C2014;
+  color: #E8DAB6;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  border: 1px solid #A88033;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  animation: friend-toast-fade 3s ease forwards;
+}
+
+@keyframes friend-toast-fade {
+  0%   { opacity: 0; transform: translateY(-8px); }
+  10%  { opacity: 1; transform: translateY(0); }
+  90%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+/* ===== prefers-reduced-motion fallback ===== */
+@media (prefers-reduced-motion: reduce) {
+  .friend-view-all-btn,
+  .friend-invite-btn,
+  .friend-back-btn,
+  .friend-challenge-btn {
+    transition: none;
+  }
+  .friend-toast {
+    animation: none;
+    opacity: 1;
+  }
+}
