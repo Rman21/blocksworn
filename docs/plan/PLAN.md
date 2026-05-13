@@ -127,13 +127,13 @@
 
 ### High-level Tasks
 - [x] T3.01 — Phase 3 Endgame Social design spec (Designer) — **DONE 2026-05-13** (`7c5ec5c`; 1572 LoC `docs/design/endgame-social.md`; 5 systems × 14 sections + 47-row sacred audit + 16 new files + 7 additive modifications + 5 ESC-03 questions Q1–Q5)
-- [ ] T3.07 — Replay capture infrastructure — **NEXT** per Designer recommendation (lateral dependency unblocking Codex Moments Replay button; Phase 2 → Phase 3 bridge moment)
+- [x] T3.07 — Replay capture infrastructure — **DONE 2026-05-13** (`b9c9a84`; +1835 LoC across 7 files; +71 unit tests (581→652); 222/222 smoke pass; 0 sacred-cow modifications. 12 new replay window-bridge functions; 9 trigger predicates (7 live + 2 stubs T3.04/T3.13); 4fps rolling 240-frame buffer ~2.4 MB; storage tier from sacred `getPlayerSegment()`; <4ms/frame overhead. Identity Layer fx NOT in diff — replay listens at dispatcher level. Bundle JS 272 → 278 KB.)
 - [ ] T3.02 — Adventures backend
 - [ ] T3.03 — Clan create/join flow
 - [ ] T3.04 — Weekly target / boss-of-the-week rotation
 - [ ] T3.05 — Contributor stats + clan progression
 - [ ] T3.06 — Friend leaderboard mini-block
-- [ ] T3.08 — Replay viewer
+- [ ] T3.08 — Replay viewer — **ACTIVE** (Wave 2; depends T3.07)
 - [ ] T3.09 — Codex Moments tab Replay button integration
 - [ ] T3.10 — Party Tower async architecture (per ADR-002)
 - [ ] T3.11 — Shared Tower-Hearts pool + shared TOWER_PACTS selection
