@@ -3992,6 +3992,96 @@ Sibling export `RACE_IDENTITY_FX` added to `src/data/races.js` (NOT inside `RACE
 
 ## GAME DESIGNER
 
+### TASK-060 (T4.01) — REVIEW (2026-05-13) — Phase 4 Chia Integration design spec (Phase 4 start, FINAL phase)
+
+**Status:** IN PROGRESS → **REVIEW** (Designer submitted 2026-05-13)
+**Started:** 2026-05-13
+**Priority:** HIGH
+**Phase:** 4 (Chia Integration) — **1/12 (first task, FINAL planned phase)**
+**Estimated complexity:** XL — master spec for 12-task scope
+**Depends on:** Phase 3 (Endgame Social) PR #162 ready for merge (T3.01 design spec landed at `docs/design/endgame-social.md` per `04aeb7f`; T3.02–T3.15 implementation pending); Phase 2 ✅ DONE 2026-05-12 merged at `6545b57`; Phase 1 ✅ DONE 2026-05-12 merged at `4aea3ce`
+
+**Output:**
+- Document: `docs/design/chia-integration.md` (~1785 LoC)
+- Sections: 15 (Overview, architectural fit, NFT-hero data model, on-chain achievements, wallet login, Adventure DAO, PURE PATH CHAIN leaderboard, mobile feature flag, sacred cow audit, performance budgets, implementation dependencies, visual regression, test coverage, open questions, ESC-04 block)
+- 50-row sacred cow audit confirms 0 modifications planned (all Phase 1/2/3 invariants + sacred TOWER_LEADERBOARDS 3 keys + HERO_ROSTER stat blocks + Battle Pass formula + Tower retry ladder byte-perfect)
+- ADR-003 strict no-P2W applied as recursive question at every section boundary
+- ADR-002 async-only honored (no real-time wallet sync; trades happen off-game on Sage)
+- ADR-004 src/ only honored (6 new files + 11 modify-additively, never legacy)
+- Mobile feature flag `isChiaEnabled()` wraps every Chia entry point (compile-time via `VITE_CHIA_ENABLED` + runtime check)
+- 5 open questions formalized as ESC-04 with Designer recommendations
+
+**Spec contents by section:**
+- §0 Overview — Chia as endgame layer, NOT monetization-poверх; how Phase 4 extends Phase 3 social systems (Adventure DAO extends `clan-backend.js`; PURE PATH CHAIN extends sacred TOWER_LEADERBOARDS; Codex on-chain Achievement Wall extends Phase 2 §4.5 Moments tab)
+- §1 Architectural fit (hard rules) — ADR-003 recursive question; ADR-002/003/004 honored; wallet OPTIONAL; sacred cows immutable
+- §2 NFT-hero data model — stat-block identity invariant (NFT === base stats); cosmetic skin overlay at render time (not separate HERO_ROSTER record); mint flow (T4.03); trade flow off-game on Sage (T4.06); Founder Badge (T4.04) for closed-beta testers gift at mainnet launch
+- §3 On-chain achievements — ~40-entry V1 catalog (per-boss first-kill 25, Tower milestones 5, Adventures 3, Party Tower 2, Identity Layer 2, Founder 1, seasonal recurring 12-per-season); mint opt-in; profile Achievement Wall display; hybrid storage (on-chain id+timestamp; IPFS art+lore)
+- §4 Wallet login flow — Sage (primary) / Chia Wallet (secondary, Q1 ruling); session-only V1; explicit reconnect each session; profile entry point only; disconnect always available; F2P state restored on disconnect
+- §5 Adventure DAO — extends Phase 3 §2; wallet-gated clan; cosmetic banner NFT to creator + member badges; **identical** weekly contribution cap + reward distribution as non-DAO clans (sacred Phase 3 math byte-perfect); cross-clan competition on shared Adventures leaderboards
+- §6 PURE PATH CHAIN leaderboard — 4th sacred TOWER_LEADERBOARDS column (additive, existing 3 byte-perfect); eligibility `totalSpent===0 && walletConnected && minted90d`; parity audit (T4.10) verifies <5% performance delta vs PURE PATH F2P
+- §7 Mobile feature flag — `src/services/feature-flags.js` (new); compile-time env + runtime check; 8 wrapped UI surfaces; mobile build smoke verifies zero Chia DOM
+- §8 Sacred cow safety audit — 50-row table, 0 modifications
+- §8.5 PURE PATH CHAIN parity audit (T4.10) — 9-metric statistical audit, monthly during T4.11, per-season post-launch; 2-consecutive-fail triggers ESC + NFT mint freeze
+- §9 Performance budgets — wallet connect ≤3s p99; NFT mint ≤30s p99; wallet status check ≤500ms; +≤2ms/frame; bundle delta ≤500KB JS / 200KB CSS
+- §10 Implementation dependencies — 18 new files (6 prod + 12 test/style) + 11 modify-additively + 4 waves + Legacy Bridge T4.13 eventual
+- §11 Visual regression — ~30 new baselines (4 new surfaces × 2 viewports) + 1 intentional Codex Moments update
+- §12 Test coverage — 5 smoke + 3 unit + 30 visual + manual (2-wallet end-to-end with real Chia testnet) + T4.11 closed beta (100-300 testers, 2-4 weeks)
+- §13 Open questions Q1–Q5 — Sage-vs-Chia primary, mint fee schedule + royalty, Founder Badge distribution, achievement metadata storage, closed-beta gate threshold + recruitment
+- §15 ESC-04 formal escalation block with all 5 questions + Designer recommendations + CTO recommendation
+
+**Open questions for Roman (ESC-04):**
+- Q1 — Sage primary at V1 (Chia Wallet deferred to T4.02.1)? Designer recs: yes, Sage primary
+- Q2 — Mint fee schedule (0.01/0.1/1.0 XCH common/rare/legendary skin; 0.001 XCH achievement; 0.05 XCH DAO descriptor; 2.5% royalty; no F2P-walleted discount)? Designer recs: as proposed
+- Q3 — Founder Badge gift at mainnet launch (no claim flow)? Designer recs: gift at launch
+- Q4 — Hybrid metadata storage (on-chain id+timestamp; IPFS art+lore)? Designer recs: hybrid
+- Q5 — Closed beta: firm 100, soft 200-300, hard 500 cap; Chia-community-first recruitment? Designer recs: yes
+
+**Implementation dependencies surfaced for Game Developer:**
+- New files (6 prod): `src/services/chia-wallet.js`, `src/services/nft-backend.js`, `src/services/feature-flags.js`, `src/data/chia-config.js`, `src/ui/wallet-connect.js`, `src/ui/nft-mint.js`, `src/ui/dao-adventures.js`
+- Modify-additively (11): `src/services/analytics.js` (wallet-status flag — `getPlayerSegment()` thresholds preserved sacred), `src/data/tower.js` (4th key `f2p_walleted` — existing 3 keys byte-perfect), `src/services/clan-backend.js` (DAO mode branch), `src/ui/profile.js` (wallet entry + NFT inventory + Achievement Wall), `src/ui/codex.js` (mint button on Moments), `src/ui/tower.js` (CHAIN tab), `src/ui/battle-screen.js` (skin overlay), `src/ui/adventures.js` (DAO create button), `src/main.js` (feature-flags boot), `vite.config.js` (VITE_CHIA_ENABLED env)
+- Wave sequence (4 waves): W1 infrastructure (T4.09 → T4.02 → T4.08) → W2 core NFT (T4.03/4/5/6) → W3 DAO + audit (T4.07 + T4.10) → W4 closed beta + launch (T4.11 + T4.12)
+
+**Phase 4 Go/No-Go criteria (per Execution Plan §9.5) addressed:**
+- ✅ Wallet integration scope (Sage primary; design in §4)
+- ✅ NFT mint/transfer flow design (§2.4 + §2.5)
+- ✅ On-chain achievement registry design (§3)
+- ✅ Adventure DAO design (§5)
+- ✅ PURE PATH CHAIN separation design (§6)
+- ✅ Anti-P2W audit framework (§8.5; T4.10 task)
+- ✅ Closed beta requirement (§13 Q5 + T4.11)
+- ✅ Mobile feature flag (§7; T4.09)
+
+**Sacred cow audit confirms 0 modifications planned:**
+- HERO_ROSTER stat blocks byte-perfect (NFT cosmetic overlay only)
+- TOWER_LEADERBOARDS extended additively (4th frozen key); sacred 3 keys byte-perfect
+- Battle Pass formula `500 + (tier-1) × 150` byte-perfect (mint fee separate from BP tier xp)
+- GEM_PACKS / First Purchase Bonus / Tower retry ladder `[100, 200, 400]` untouched
+- All Phase 1/2/3 invariants preserved (22 P4 handlers, V_HAPTICS, NARRATOR_LINES, Identity Layer race FX, Phase 3 Adventures math, Phase 3 Party Tower math)
+
+**Designer recommendation for next-task sequencing:**
+- T4.09 (feature flag) is dependency-free and can start immediately after Roman ESC-04 ruling
+- T4.02 (wallet integration) is the gating task for T4.03/4/5/6 NFT work — recommend as first implementation task once ESC-04 resolved (Q1 ruling needed)
+- T4.08 (PURE PATH CHAIN leaderboard column) is dependency-light (additive `TOWER_LEADERBOARDS` entry + clan-backend eligibility check) and can start in parallel with T4.02
+
+**Constraints honored:**
+- No code written (Designer role boundary)
+- No sacred-cow values modified (CLAUDE.md §2.7)
+- No src/ touched (Designer role boundary)
+- No real-time multiplayer (ADR-002 honored)
+- No P2W mechanics (ADR-003 honored — recursive question applied at every section)
+- All new code planned to land in src/ only (ADR-004 honored)
+- Mobile compatibility via feature flag (Execution Plan §9.4)
+- Closed beta gate (T4.11) explicit with 100+ minimum (Execution Plan §9.5)
+- No play-to-earn tokens (Execution Plan §9.2)
+- No NFT artifacts (Execution Plan §9.2 + Phase 1 T1.14)
+- No push to remote
+
+**Time:** ~4 hours (research existing Phase 1/2/3 systems → ADR-003 invariant application → 7-section technical spec → sacred cow 50-row audit → 5-question ESC formulation).
+
+**Commit:** see git log — `[T4.01] Phase 4 Chia Integration design spec (Phase 4 start)`
+
+---
+
 ### TASK-028 (T2.01) — ✅ DONE 2026-05-12 — Identity Layer design spec (Phase 2 start)
 
 **Status:** TODO → IN PROGRESS → REVIEW → **DONE** (CTO sign-off 2026-05-12)
