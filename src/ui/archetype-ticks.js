@@ -88,6 +88,7 @@
 
 // T1.13.1: /* global */ → ES imports for resolved src/ exports.
 import { _stormBlizzardFreezes, _stormEarthquakeLocks } from '../core/bosses.js';
+import { mirrorWindowProp } from '../utils/window-mirror.js';
 
 /* global currentBoss, currentChapter, bossHP, bossMaxHP, bossAttackDmgMult,
    bossArchetype, grid, SIZE, hp, shieldCount, battleDamageTaken, gameEnded,
@@ -2038,21 +2039,9 @@ export function _tickBattery(phase) {
 // here. The bosses.js bridges for these were retired in T1.13.2 alongside
 // the duplicate exports.
 if (typeof window !== 'undefined') {
-  Object.defineProperty(window, '_ch3BossId', {
-    configurable: true,
-    get: () => _ch3BossId,
-    set: (v) => { _ch3BossId = v; },
-  });
-  Object.defineProperty(window, '_ch3State', {
-    configurable: true,
-    get: () => _ch3State,
-    set: (v) => { _ch3State = v; },
-  });
-  Object.defineProperty(window, '_ch3LastDualState', {
-    configurable: true,
-    get: () => _ch3LastDualState,
-    set: (v) => { _ch3LastDualState = v; },
-  });
+  mirrorWindowProp('_ch3BossId', () => _ch3BossId, (v) => { _ch3BossId = v; });
+  mirrorWindowProp('_ch3State', () => _ch3State, (v) => { _ch3State = v; });
+  mirrorWindowProp('_ch3LastDualState', () => _ch3LastDualState, (v) => { _ch3LastDualState = v; });
   window._stormApplyBlizzardFreeze    = _stormApplyBlizzardFreeze;
   window._stormApplyEarthquakeLock    = _stormApplyEarthquakeLock;
   window._stormApplyLightningRow      = _stormApplyLightningRow;
