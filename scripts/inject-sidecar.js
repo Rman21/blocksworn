@@ -20,7 +20,20 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const LEGACY_PATH = resolve(process.cwd(), 'dist', 'blocksworn_index_fixed.html');
-const SCRIPT_TAG = '<script type="module" src="/assets/sidecar.js" defer></script>';
+
+// 2026-05-14 — Cache-bust version. Increment when the cached sidecar.js
+// on returning visitors' browsers is incompatible with the new build and
+// must be force-refetched. Browsers treat URL+query as a separate cache
+// key — bumping this number forces a fresh fetch even when the old
+// content was cached with `immutable max-age=1y`.
+//
+// History:
+//   v2 — 2026-05-14 — break out of legacy `immutable` cache that shipped
+//        with the original Phase 4.1 sidecar before Phase A swapped the
+//        Cache-Control header to `max-age=0, must-revalidate`.
+const SIDECAR_VERSION = '2';
+
+const SCRIPT_TAG = `<script type="module" src="/assets/sidecar.js?v=${SIDECAR_VERSION}" defer></script>`;
 const MARKER = '<!-- BSW-SIDECAR-INJECTED -->';
 
 async function main() {
