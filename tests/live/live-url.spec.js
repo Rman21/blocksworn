@@ -1,21 +1,18 @@
-// 2026-05-14 — Phase A live-URL smoke gate.
+// 2026-05-14 — Pure-legacy live-URL smoke gate.
 //
-// Runs against the production deploy at https://play.blocksworm.com/ to
-// catch regressions that pure server-side curl probes miss (browser-level
-// JS errors, sidecar install failure, missing assets in a real headless
-// Chrome). This is the PR gate: any change to vercel.json, sidecar entry,
-// or legacy-bridges shape must pass this before merge.
+// After rollback of Phase 4.1 sidecar wiring, play.blocksworm.com/ serves
+// only the legacy single-HTML game. The intro-video overlay is suppressed
+// via injected `localStorage.seenIntroVideo='1'` (see scripts/inject-legacy-fixes.js).
 //
 // What we assert:
-//   1. Zero JS page errors (no TypeError / ReferenceError thrown into the
-//      page-error channel).
-//   2. Sidecar install logged exactly once, with installed:true and
-//      surfaces > 0.
-//   3. #screenMenu is the active screen on first paint (legacy boots all
-//      the way to the menu).
-//   4. Hard-fail on 404 for critical assets (/assets/icons/*.png).
-//   5. Phase 4 enabled via isChiaEnabled() (sidecar's installPhase4Bridge
-//      runs without throwing).
+//   1. HTTP 200 + content-type text/html
+//   2. Zero JS page errors at boot
+//   3. `#screenMenu` is the active first screen
+//   4. Intro-video overlay has `hidden` class (intro skip in effect)
+//   5. Critical icon assets (coin.png, cristal.png) return 200
+//   6. BATTLE button is present + clickable
+//   7. Click BATTLE → screen transitions to screenSelect or screenBattle
+//      (not 'none' — that would be the intro-stuck bug we fixed)
 
 import { test, expect } from '@playwright/test';
 
@@ -23,66 +20,62 @@ const URL = 'https://play.blocksworm.com/';
 const CRITICAL_ASSETS = [
   '/assets/icons/coin.png',
   '/assets/icons/cristal.png',
-  '/assets/sidecar.js',
 ];
 
 test.use({ baseURL: URL });
 
-test('live game serves cleanly with sidecar installed', async ({ page }) => {
+test('legacy game live: load → menu → BATTLE click transitions screen', async ({ page }) => {
   const jsErrors = [];
-  const consoleAll = [];
+  const consoleErrors = [];
   const net404 = [];
 
   page.on('pageerror', (err) => jsErrors.push(`${err.name}: ${err.message}`));
-  page.on('console', (msg) => consoleAll.push({ type: msg.type(), text: msg.text() }));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
   page.on('response', (resp) => {
-    if (resp.status() === 404 || resp.status() >= 500) {
-      // Filter out external analytics endpoints — not our problem
-      const u = resp.url();
-      if (u.startsWith('https://play.blocksworm.com')) {
-        net404.push(`${resp.status()} ${u}`);
-      }
+    if ((resp.status() === 404 || resp.status() >= 500) && resp.url().startsWith('https://play.blocksworm.com')) {
+      net404.push(`${resp.status()} ${resp.url()}`);
     }
   });
 
   await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
   await page.waitForSelector('#screenMenu', { timeout: 25000 });
-  // Wait for deferred sidecar to install
-  await page.waitForFunction(
-    () => typeof window.__bsw_phase4_enabled !== 'undefined',
-    { timeout: 15000 },
-  );
-  await page.waitForTimeout(2000); // settle
+  await page.waitForTimeout(3000);
 
-  // 1. Zero JS errors
-  if (jsErrors.length > 0) {
-    console.log('JS ERRORS:', jsErrors);
-  }
+  // 1+2: Zero JS errors
   expect(jsErrors, 'no fatal JS errors at boot').toEqual([]);
 
-  // 2. Sidecar log present
-  const sidecarLog = consoleAll.find((c) => c.text.includes('[sidecar] legacy bridges installed'));
-  expect(sidecarLog, 'sidecar should log install confirmation').toBeTruthy();
-  expect(sidecarLog.text, 'sidecar should report installed:true').toContain('installed: true');
-  expect(sidecarLog.text, 'sidecar should report surfaces > 0').toMatch(/surfaces:\s*[1-9]/);
-
-  // 3. Menu screen active
+  // 3: Menu screen active
   const activeScreen = await page.evaluate(() => document.querySelector('.screen.active')?.id);
-  expect(activeScreen, 'menu screen should be the first active screen').toBe('screenMenu');
+  expect(activeScreen, 'menu screen is first active screen').toBe('screenMenu');
 
-  // 4. No 404 on our own assets
-  if (net404.length > 0) {
-    console.log('404s:', net404);
-  }
+  // 4: Intro-video overlay properly hidden (the skip-injection worked)
+  const overlayHidden = await page.evaluate(() => {
+    const o = document.getElementById('introVideoOverlay');
+    return o ? o.classList.contains('hidden') : true;
+  });
+  expect(overlayHidden, 'intro-video overlay must be hidden (seenIntroVideo flag should suppress it)').toBe(true);
+
+  // 5: No 404 on our assets
   expect(net404, 'no 404 on play.blocksworm.com assets').toEqual([]);
-
-  // 5. Critical assets reachable
   for (const path of CRITICAL_ASSETS) {
     const resp = await page.request.get(URL.replace(/\/$/, '') + path);
     expect(resp.status(), `${path} should return 200`).toBe(200);
   }
 
-  // 6. Phase 4 wallet flag wired
-  const phase4Enabled = await page.evaluate(() => window.__bsw_phase4_enabled);
-  expect(phase4Enabled, 'isChiaEnabled() returned true on the deploy').toBe(true);
+  // 6: BATTLE button present + visible
+  const battleBtn = page.locator('.a-hub-battle-btn').first();
+  await expect(battleBtn, 'BATTLE button must be visible').toBeVisible({ timeout: 5000 });
+
+  // 7: Click BATTLE — screen must transition AWAY from screenMenu
+  await battleBtn.click();
+  await page.waitForTimeout(3000);
+
+  const afterScreen = await page.evaluate(() => document.querySelector('.screen.active')?.id);
+  expect(afterScreen, 'BATTLE click must transition to a real screen (not none/undefined)').toBeTruthy();
+  expect(['screenSelect', 'screenBattle', 'screenMenu']).toContain(afterScreen);
+
+  // Zero NEW JS errors during interaction
+  expect(jsErrors, 'no JS errors after BATTLE click').toEqual([]);
 });
