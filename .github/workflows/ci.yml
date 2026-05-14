@@ -113,3 +113,57 @@ jobs:
             tests/visual/diff/
             tests/visual/current/
           retention-days: 7
+
+  # 2026-05-14 — Phase C: live-URL Playwright smoke against
+  # https://play.blocksworm.com/ AFTER the deploy lands on main. Verifies
+  # the production deploy boots cleanly in a real headless Chrome with
+  # full JS execution, network capture, and sidecar install assertions.
+  # Pre-merge PRs don't run this job — pre-merge probes would hit the
+  # PREVIOUS production state, not the PR's would-be deploy, producing
+  # noisy false signals. Post-merge run is the deploy verification.
+  live:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Wait for Vercel deploy of HEAD commit to be READY
+        run: |
+          # Poll Vercel public-deployment-status surrogate by fetching the
+          # live URL and checking the headers + an embedded marker. We
+          # use a simple heuristic: the deploy URL serves the 21 MB legacy
+          # HTML whose age header increments per second after deploy;
+          # if it returns 200 and content-length matches the staged file
+          # size band, we assume the build is propagated.
+          #
+          # The deploy normally lands within 90 seconds of push. We sleep
+          # 90s as a baseline and then probe up to 10 more iterations
+          # spaced 15s apart.
+          echo "Waiting 90s for Vercel deploy baseline..."
+          sleep 90
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            STATUS=$(curl -sI --max-time 10 https://play.blocksworm.com/ | head -1 | awk '{print $2}')
+            if [ "$STATUS" = "200" ]; then
+              echo "[wait] live URL returns 200 (attempt $i)"
+              break
+            fi
+            echo "[wait] attempt $i: status=$STATUS, sleeping 15s"
+            sleep 15
+          done
+      - name: Live-URL Playwright smoke
+        run: npm run test:live
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-smoke-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

@@ -13,6 +13,7 @@
     "prepare": "husky",
     "test:smoke": "playwright test tests/smoke --project=chromium --project=mobile-chrome",
     "test:smoke:full": "playwright test tests/smoke",
+    "test:live": "playwright test tests/live --project=chromium",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:visual:baseline": "playwright test tests/visual/capture-baseline.spec.js --project=chromium --project=mobile-chrome",

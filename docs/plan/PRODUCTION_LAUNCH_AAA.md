@@ -125,12 +125,12 @@ If Phase A regresses the live game:
 
 ## Status tracker
 
-- [ ] **A.1** vercel.json cache split
-- [ ] **A.2** copy `./assets/icons/` to `./public/`
-- [ ] **A.3** live-url.spec.js
-- [ ] **A.4** local green
-- [ ] **A.5** ship + verify deploy
-- [ ] **A.6** Roman confirms in regular browser
-- [ ] **B.1-5** Defensive guards
-- [ ] **C.1-3** CI gate
+- [x] **A.1** vercel.json cache split (PR #173)
+- [x] **A.2** copy `./assets/icons/` to `./public/` (PR #173)
+- [x] **A.3** live-url.spec.js (PR #173)
+- [x] **A.4** local green (PR #173)
+- [x] **A.5** ship + verify deploy (PR #173)
+- [x] **A.6** Roman confirms in regular browser
+- [x] **B.1-5** Defensive guards (PR #174 — 130 sites guarded)
+- [x] **C.1-3** CI gate (PR #175 — `live` job runs post-main)
 - [ ] **D** Phase 4.2 UI mounts (deferred)
