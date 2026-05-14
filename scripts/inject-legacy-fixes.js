@@ -27,7 +27,21 @@ import { resolve } from 'node:path';
 const LEGACY_PATH = resolve(process.cwd(), 'dist', 'blocksworn_index_fixed.html');
 
 const MARKER = '<!-- BSW-LEGACY-FIXES-INJECTED -->';
-const INTRO_SKIP = `<script>try{localStorage.setItem('seenIntroVideo','1')}catch(_){}</script>`;
+
+// Seed two localStorage keys synchronously BEFORE any other legacy script runs:
+//   1. `blocksworn_save_version` = '2' (current SAVE_VERSION constant in legacy).
+//      Legacy's `_saveVersionGate` IIFE at the top of its scripts compares the
+//      stored value with SAVE_VERSION and CALLS `_wipeAllBlocksworn` when the
+//      stored value is missing or lower — which ALSO removes `seenIntroVideo`.
+//      Pre-seeding the save_version key short-circuits the wipe so our intro-
+//      skip survives.
+//   2. `seenIntroVideo` = '1' so `_maybeShowIntroVideo` exits early and the
+//      intro-video overlay stays in its initial `hidden` state.
+//
+// `if (!localStorage.getItem(...))` guards ensure we don't clobber values a
+// returning player has already accumulated — we only seed when keys are
+// missing.
+const INTRO_SKIP = `<script>try{var ls=localStorage;if(!ls.getItem('blocksworn_save_version'))ls.setItem('blocksworn_save_version','2');if(!ls.getItem('seenIntroVideo'))ls.setItem('seenIntroVideo','1')}catch(_){}</script>`;
 const INJECTION = `  ${MARKER}\n  ${INTRO_SKIP}\n`;
 
 async function main() {
