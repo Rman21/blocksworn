@@ -107,8 +107,18 @@ export function installLegacyBridges() {
     return { installed: false, surfaces: 0 };
   }
 
-  // T1.13.5: legacy onclick="showScreen('menu')" compat shim.
-  window.showScreen = showScreen;
+  // T1.13.5: legacy onclick="showScreen('menu')" compat shim — ONLY when
+  // the new modular shell is the runtime (no pre-existing showScreen).
+  //
+  // CRITICAL: when the sidecar entry runs INSIDE the legacy single-HTML
+  // (post Phase 4.1 — play.blocksworm.com/), legacy has already defined
+  // its OWN `window.showScreen` (function, line ~24310 of legacy). Clobbering
+  // it with the modular router routes navigation through the new shell
+  // (which has no battle/tower/shop screen renderers), breaking the game.
+  // Skip the assignment whenever legacy's showScreen is already present.
+  if (typeof window.showScreen !== 'function') {
+    window.showScreen = showScreen;
+  }
 
   // ── T2.B Identity Layer dispatcher entrypoints ─────────────────────────
   window.__dispatchIdentityFx               = dispatchIdentityFx;
