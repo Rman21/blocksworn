@@ -17,6 +17,7 @@ export default [
     files: [
       'src/**/*.js',
       'tests/**/*.js',
+      'scripts/**/*.js',
       'playwright.config.js',
       'vite.config.js',
       'eslint.config.js',
