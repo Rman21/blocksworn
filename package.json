@@ -6,7 +6,7 @@
   "description": "Blocksworn — block puzzle RPG (Vite + ES Modules scaffold)",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && mv dist/index.html dist/shell.html",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:staged": "lint-staged",
