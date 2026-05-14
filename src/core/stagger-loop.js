@@ -957,55 +957,55 @@ export function renderSquadPressureForecast() {
 // same module-private state + function instances.
 if (typeof window !== 'undefined') {
   // PR #2.A — state machine + cap
-  window.getFireMultCap        = getFireMultCap;
-  window.enterStaggerState     = enterStaggerState;
-  window.extendStaggerState    = extendStaggerState;
-  window.enterRecoveryState    = enterRecoveryState;
-  window.executeRevengeAttack  = executeRevengeAttack;
-  window.enterActiveState      = enterActiveState;
-  window.tickStaggerState      = tickStaggerState;
-  window.resetStaggerState     = resetStaggerState;
+  if (typeof window.getFireMultCap === 'undefined') window.getFireMultCap = getFireMultCap;
+  if (typeof window.enterStaggerState === 'undefined') window.enterStaggerState = enterStaggerState;
+  if (typeof window.extendStaggerState === 'undefined') window.extendStaggerState = extendStaggerState;
+  if (typeof window.enterRecoveryState === 'undefined') window.enterRecoveryState = enterRecoveryState;
+  if (typeof window.executeRevengeAttack === 'undefined') window.executeRevengeAttack = executeRevengeAttack;
+  if (typeof window.enterActiveState === 'undefined') window.enterActiveState = enterActiveState;
+  if (typeof window.tickStaggerState === 'undefined') window.tickStaggerState = tickStaggerState;
+  if (typeof window.resetStaggerState === 'undefined') window.resetStaggerState = resetStaggerState;
   // PR #2.B — Pressure central
-  window.addPressure           = addPressure;
-  window.showPressureGainFX    = showPressureGainFX;
+  if (typeof window.addPressure === 'undefined') window.addPressure = addPressure;
+  if (typeof window.showPressureGainFX === 'undefined') window.showPressureGainFX = showPressureGainFX;
   // PR #2.C — Overflow conversion
-  window._getPhaseGateHP            = _getPhaseGateHP;
-  window.applyOverflowConversion    = applyOverflowConversion;
-  window._distributeOverflowToULT   = _distributeOverflowToULT;
-  window._distributeOverflowToEssence = _distributeOverflowToEssence;
-  window.showOverflowRewardFX       = showOverflowRewardFX;
+  if (typeof window._getPhaseGateHP === 'undefined') window._getPhaseGateHP = _getPhaseGateHP;
+  if (typeof window.applyOverflowConversion === 'undefined') window.applyOverflowConversion = applyOverflowConversion;
+  if (typeof window._distributeOverflowToULT === 'undefined') window._distributeOverflowToULT = _distributeOverflowToULT;
+  if (typeof window._distributeOverflowToEssence === 'undefined') window._distributeOverflowToEssence = _distributeOverflowToEssence;
+  if (typeof window.showOverflowRewardFX === 'undefined') window.showOverflowRewardFX = showOverflowRewardFX;
   // PR #2.D — UI render
-  window.renderPressureMeter         = renderPressureMeter;
-  window.renderBossStateBanner       = renderBossStateBanner;
-  window.showStaggerEntryFX          = showStaggerEntryFX;
-  window.showRecoveryEntryFX         = showRecoveryEntryFX;
-  window.renderPressureContribution  = renderPressureContribution;
-  window.renderSquadPressureForecast = renderSquadPressureForecast;
-  window._estimateHeroPressureContribution = _estimateHeroPressureContribution;
+  if (typeof window.renderPressureMeter === 'undefined') window.renderPressureMeter = renderPressureMeter;
+  if (typeof window.renderBossStateBanner === 'undefined') window.renderBossStateBanner = renderBossStateBanner;
+  if (typeof window.showStaggerEntryFX === 'undefined') window.showStaggerEntryFX = showStaggerEntryFX;
+  if (typeof window.showRecoveryEntryFX === 'undefined') window.showRecoveryEntryFX = showRecoveryEntryFX;
+  if (typeof window.renderPressureContribution === 'undefined') window.renderPressureContribution = renderPressureContribution;
+  if (typeof window.renderSquadPressureForecast === 'undefined') window.renderSquadPressureForecast = renderSquadPressureForecast;
+  if (typeof window._estimateHeroPressureContribution === 'undefined') window._estimateHeroPressureContribution = _estimateHeroPressureContribution;
   // PR #2.E — FTUE intros
-  window._maybeTriggerPressureIntro = _maybeTriggerPressureIntro;
-  window._maybeTriggerStaggerIntro  = _maybeTriggerStaggerIntro;
-  window._maybeTriggerRecoveryIntro = _maybeTriggerRecoveryIntro;
-  window._maybeTriggerOverflowIntro = _maybeTriggerOverflowIntro;
+  if (typeof window._maybeTriggerPressureIntro === 'undefined') window._maybeTriggerPressureIntro = _maybeTriggerPressureIntro;
+  if (typeof window._maybeTriggerStaggerIntro === 'undefined') window._maybeTriggerStaggerIntro = _maybeTriggerStaggerIntro;
+  if (typeof window._maybeTriggerRecoveryIntro === 'undefined') window._maybeTriggerRecoveryIntro = _maybeTriggerRecoveryIntro;
+  if (typeof window._maybeTriggerOverflowIntro === 'undefined') window._maybeTriggerOverflowIntro = _maybeTriggerOverflowIntro;
   // Constants — legacy bodies read these as ambient identifiers (banner
   // class toggles, Stagger-trigger threshold fallback in heroes.js, etc.).
-  window.BOSS_STATE_ACTIVE   = BOSS_STATE_ACTIVE;
-  window.BOSS_STATE_STAGGER  = BOSS_STATE_STAGGER;
-  window.BOSS_STATE_RECOVERY = BOSS_STATE_RECOVERY;
-  window.PRESSURE_MAX        = PRESSURE_MAX;
-  window.PRESSURE_GAIN       = PRESSURE_GAIN;
-  window.STAGGER_DURATION_TURNS  = STAGGER_DURATION_TURNS;
-  window.RECOVERY_DURATION_TURNS = RECOVERY_DURATION_TURNS;
-  window.STAGGER_CHAINING_ENABLED = STAGGER_CHAINING_ENABLED;
-  window.FIRE_MULT_CAP_BASE  = FIRE_MULT_CAP_BASE;
-  window.FIRE_MULT_CAP_TOWER = FIRE_MULT_CAP_TOWER;
-  window.FIRE_MULT_ACTIVE_RATIO   = FIRE_MULT_ACTIVE_RATIO;
-  window.FIRE_MULT_STAGGER_RATIO  = FIRE_MULT_STAGGER_RATIO;
-  window.FIRE_MULT_RECOVERY_RATIO = FIRE_MULT_RECOVERY_RATIO;
-  window.OVERFLOW_TO_ULT     = OVERFLOW_TO_ULT;
-  window.OVERFLOW_TO_ESSENCE = OVERFLOW_TO_ESSENCE;
-  window.OVERFLOW_PER_SHIELD = OVERFLOW_PER_SHIELD;
-  window.OVERFLOW_TO_TOWER   = OVERFLOW_TO_TOWER;
+  if (typeof window.BOSS_STATE_ACTIVE === 'undefined') window.BOSS_STATE_ACTIVE = BOSS_STATE_ACTIVE;
+  if (typeof window.BOSS_STATE_STAGGER === 'undefined') window.BOSS_STATE_STAGGER = BOSS_STATE_STAGGER;
+  if (typeof window.BOSS_STATE_RECOVERY === 'undefined') window.BOSS_STATE_RECOVERY = BOSS_STATE_RECOVERY;
+  if (typeof window.PRESSURE_MAX === 'undefined') window.PRESSURE_MAX = PRESSURE_MAX;
+  if (typeof window.PRESSURE_GAIN === 'undefined') window.PRESSURE_GAIN = PRESSURE_GAIN;
+  if (typeof window.STAGGER_DURATION_TURNS === 'undefined') window.STAGGER_DURATION_TURNS = STAGGER_DURATION_TURNS;
+  if (typeof window.RECOVERY_DURATION_TURNS === 'undefined') window.RECOVERY_DURATION_TURNS = RECOVERY_DURATION_TURNS;
+  if (typeof window.STAGGER_CHAINING_ENABLED === 'undefined') window.STAGGER_CHAINING_ENABLED = STAGGER_CHAINING_ENABLED;
+  if (typeof window.FIRE_MULT_CAP_BASE === 'undefined') window.FIRE_MULT_CAP_BASE = FIRE_MULT_CAP_BASE;
+  if (typeof window.FIRE_MULT_CAP_TOWER === 'undefined') window.FIRE_MULT_CAP_TOWER = FIRE_MULT_CAP_TOWER;
+  if (typeof window.FIRE_MULT_ACTIVE_RATIO === 'undefined') window.FIRE_MULT_ACTIVE_RATIO = FIRE_MULT_ACTIVE_RATIO;
+  if (typeof window.FIRE_MULT_STAGGER_RATIO === 'undefined') window.FIRE_MULT_STAGGER_RATIO = FIRE_MULT_STAGGER_RATIO;
+  if (typeof window.FIRE_MULT_RECOVERY_RATIO === 'undefined') window.FIRE_MULT_RECOVERY_RATIO = FIRE_MULT_RECOVERY_RATIO;
+  if (typeof window.OVERFLOW_TO_ULT === 'undefined') window.OVERFLOW_TO_ULT = OVERFLOW_TO_ULT;
+  if (typeof window.OVERFLOW_TO_ESSENCE === 'undefined') window.OVERFLOW_TO_ESSENCE = OVERFLOW_TO_ESSENCE;
+  if (typeof window.OVERFLOW_PER_SHIELD === 'undefined') window.OVERFLOW_PER_SHIELD = OVERFLOW_PER_SHIELD;
+  if (typeof window.OVERFLOW_TO_TOWER === 'undefined') window.OVERFLOW_TO_TOWER = OVERFLOW_TO_TOWER;
   // State getters — legacy reads bare identifiers; we expose accessors
   // so consumers can also call out for the same value via a stable name
   // once T1.10.9 lands import-based wire-up.

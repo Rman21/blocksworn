@@ -2042,14 +2042,14 @@ if (typeof window !== 'undefined') {
   mirrorWindowProp('_ch3BossId', () => _ch3BossId, (v) => { _ch3BossId = v; });
   mirrorWindowProp('_ch3State', () => _ch3State, (v) => { _ch3State = v; });
   mirrorWindowProp('_ch3LastDualState', () => _ch3LastDualState, (v) => { _ch3LastDualState = v; });
-  window._stormApplyBlizzardFreeze    = _stormApplyBlizzardFreeze;
-  window._stormApplyEarthquakeLock    = _stormApplyEarthquakeLock;
-  window._stormApplyLightningRow      = _stormApplyLightningRow;
-  window.initChapter3Boss             = initChapter3Boss;
-  window.tickChapter3Boss             = tickChapter3Boss;
-  window._ch3HasDebuff                = _ch3HasDebuff;
-  window._ch3HasSeal                  = _ch3HasSeal;
-  window._ch3TwilightMult             = _ch3TwilightMult;
-  window._ch3RenderBossAura           = _ch3RenderBossAura;
-  window._ch3MaybeAnnounceDualState   = _ch3MaybeAnnounceDualState;
+  if (typeof window._stormApplyBlizzardFreeze === 'undefined') window._stormApplyBlizzardFreeze = _stormApplyBlizzardFreeze;
+  if (typeof window._stormApplyEarthquakeLock === 'undefined') window._stormApplyEarthquakeLock = _stormApplyEarthquakeLock;
+  if (typeof window._stormApplyLightningRow === 'undefined') window._stormApplyLightningRow = _stormApplyLightningRow;
+  if (typeof window.initChapter3Boss === 'undefined') window.initChapter3Boss = initChapter3Boss;
+  if (typeof window.tickChapter3Boss === 'undefined') window.tickChapter3Boss = tickChapter3Boss;
+  if (typeof window._ch3HasDebuff === 'undefined') window._ch3HasDebuff = _ch3HasDebuff;
+  if (typeof window._ch3HasSeal === 'undefined') window._ch3HasSeal = _ch3HasSeal;
+  if (typeof window._ch3TwilightMult === 'undefined') window._ch3TwilightMult = _ch3TwilightMult;
+  if (typeof window._ch3RenderBossAura === 'undefined') window._ch3RenderBossAura = _ch3RenderBossAura;
+  if (typeof window._ch3MaybeAnnounceDualState === 'undefined') window._ch3MaybeAnnounceDualState = _ch3MaybeAnnounceDualState;
 }
