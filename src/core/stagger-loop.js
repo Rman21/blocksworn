@@ -164,6 +164,7 @@ import { _getBossSignatureTier, CHANNEL_SIGNATURE_DMG, applyChannelDamage } from
 import { getHeroLevel, saveProgress } from './progression.js';
 import { STIHIYAS } from '../data/elements.js';
 import { isFtueActive } from './ftue-state.js';
+import { mirrorWindowProp } from '../utils/window-mirror.js';
 // T1.13.4: playDialog flipped from /* global */ to ES import; seenDialogs stays
 // /* global */ — bridged on window from src/ui/dialog.js with defensive typeof reads.
 import { playDialog } from '../ui/dialog.js';
@@ -1008,11 +1009,11 @@ if (typeof window !== 'undefined') {
   // State getters — legacy reads bare identifiers; we expose accessors
   // so consumers can also call out for the same value via a stable name
   // once T1.10.9 lands import-based wire-up.
-  Object.defineProperty(window, 'bossState',              { configurable: true, get: () => bossState });
-  Object.defineProperty(window, 'bossPressure',           { configurable: true, get: () => bossPressure });
-  Object.defineProperty(window, 'staggerTurnsRemaining',  { configurable: true, get: () => staggerTurnsRemaining });
-  Object.defineProperty(window, 'recoveryTurnsRemaining', { configurable: true, get: () => recoveryTurnsRemaining });
-  Object.defineProperty(window, 'totalStaggersThisFight', { configurable: true, get: () => totalStaggersThisFight });
+  mirrorWindowProp('bossState', () => bossState);
+  mirrorWindowProp('bossPressure', () => bossPressure);
+  mirrorWindowProp('staggerTurnsRemaining', () => staggerTurnsRemaining);
+  mirrorWindowProp('recoveryTurnsRemaining', () => recoveryTurnsRemaining);
+  mirrorWindowProp('totalStaggersThisFight', () => totalStaggersThisFight);
 }
 
 // Quiet T1.10.6 boot acknowledgement — confirms the module side-effects

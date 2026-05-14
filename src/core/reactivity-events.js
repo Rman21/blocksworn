@@ -172,6 +172,7 @@ import { applyChannelDamage } from './damage-channels.js';
 import { bossAttack } from './battle.js';
 import { isFtueActive } from './ftue-state.js';
 import { isHeroMythic } from './progression.js';
+import { mirrorWindowProp } from '../utils/window-mirror.js';
 // T1.13.4: playDialog + seenDialogs flipped from /* global */ to ES import.
 import { playDialog, showBossPhaseDialog } from '../ui/dialog.js';
 import { vHaptic } from '../feel/haptics.js';
@@ -1662,26 +1663,26 @@ if (typeof window !== 'undefined') {
   window._maybeTriggerReactivityIntro = _maybeTriggerReactivityIntro;
   window._maybeTriggerTelegraphIntro  = _maybeTriggerTelegraphIntro;
   // ===== Reactivity state vars (getters + setters via Object.defineProperty) =====
-  Object.defineProperty(window, 'bossShieldCount',         { configurable: true, get: () => bossShieldCount,         set: v => { bossShieldCount = v; } });
-  Object.defineProperty(window, 'bossStaggerImmuneTurns',  { configurable: true, get: () => bossStaggerImmuneTurns,  set: v => { bossStaggerImmuneTurns = v; } });
-  Object.defineProperty(window, 'bossFireAuraActive',      { configurable: true, get: () => bossFireAuraActive,      set: v => { bossFireAuraActive = v; } });
-  Object.defineProperty(window, 'bossFireAuraDmg',         { configurable: true, get: () => bossFireAuraDmg,         set: v => { bossFireAuraDmg = v; } });
-  Object.defineProperty(window, 'bossStealthTurns',        { configurable: true, get: () => bossStealthTurns,        set: v => { bossStealthTurns = v; } });
-  Object.defineProperty(window, 'bossNextAttackBonus',     { configurable: true, get: () => bossNextAttackBonus,     set: v => { bossNextAttackBonus = v; } });
-  Object.defineProperty(window, 'bossBackstabChainTurns',  { configurable: true, get: () => bossBackstabChainTurns,  set: v => { bossBackstabChainTurns = v; } });
-  Object.defineProperty(window, 'bossDualSuggestActive',   { configurable: true, get: () => bossDualSuggestActive,   set: v => { bossDualSuggestActive = v; } });
-  Object.defineProperty(window, 'squadSilencedTurns',      { configurable: true, get: () => squadSilencedTurns,      set: v => { squadSilencedTurns = v; } });
-  Object.defineProperty(window, 'frenzyMaxStacks',         { configurable: true, get: () => frenzyMaxStacks,         set: v => { frenzyMaxStacks = v; } });
-  Object.defineProperty(window, 'frenzyMaulComboActive',   { configurable: true, get: () => frenzyMaulComboActive,   set: v => { frenzyMaulComboActive = v; } });
-  Object.defineProperty(window, 'frenzyMaulInterval',      { configurable: true, get: () => frenzyMaulInterval,      set: v => { frenzyMaulInterval = v; } });
-  Object.defineProperty(window, 'skipPlayerTurnsCount',    { configurable: true, get: () => skipPlayerTurnsCount,    set: v => { skipPlayerTurnsCount = v; } });
-  Object.defineProperty(window, 'bossChargeRateMult',      { configurable: true, get: () => bossChargeRateMult,      set: v => { bossChargeRateMult = v; } });
-  Object.defineProperty(window, 'pressureGainMult',        { configurable: true, get: () => pressureGainMult,        set: v => { pressureGainMult = v; } });
-  Object.defineProperty(window, 'engineerElectrifiedRows', { configurable: true, get: () => engineerElectrifiedRows, set: v => { engineerElectrifiedRows = v; } });
-  Object.defineProperty(window, '_phase4FrenzyAttackCounter', { configurable: true, get: () => _phase4FrenzyAttackCounter, set: v => { _phase4FrenzyAttackCounter = v; } });
-  Object.defineProperty(window, '_phase4LastReactivityFiredAt', { configurable: true, get: () => _phase4LastReactivityFiredAt, set: v => { _phase4LastReactivityFiredAt = v; } });
+  mirrorWindowProp('bossShieldCount', () => bossShieldCount, v => { bossShieldCount = v; });
+  mirrorWindowProp('bossStaggerImmuneTurns', () => bossStaggerImmuneTurns, v => { bossStaggerImmuneTurns = v; });
+  mirrorWindowProp('bossFireAuraActive', () => bossFireAuraActive, v => { bossFireAuraActive = v; });
+  mirrorWindowProp('bossFireAuraDmg', () => bossFireAuraDmg, v => { bossFireAuraDmg = v; });
+  mirrorWindowProp('bossStealthTurns', () => bossStealthTurns, v => { bossStealthTurns = v; });
+  mirrorWindowProp('bossNextAttackBonus', () => bossNextAttackBonus, v => { bossNextAttackBonus = v; });
+  mirrorWindowProp('bossBackstabChainTurns', () => bossBackstabChainTurns, v => { bossBackstabChainTurns = v; });
+  mirrorWindowProp('bossDualSuggestActive', () => bossDualSuggestActive, v => { bossDualSuggestActive = v; });
+  mirrorWindowProp('squadSilencedTurns', () => squadSilencedTurns, v => { squadSilencedTurns = v; });
+  mirrorWindowProp('frenzyMaxStacks', () => frenzyMaxStacks, v => { frenzyMaxStacks = v; });
+  mirrorWindowProp('frenzyMaulComboActive', () => frenzyMaulComboActive, v => { frenzyMaulComboActive = v; });
+  mirrorWindowProp('frenzyMaulInterval', () => frenzyMaulInterval, v => { frenzyMaulInterval = v; });
+  mirrorWindowProp('skipPlayerTurnsCount', () => skipPlayerTurnsCount, v => { skipPlayerTurnsCount = v; });
+  mirrorWindowProp('bossChargeRateMult', () => bossChargeRateMult, v => { bossChargeRateMult = v; });
+  mirrorWindowProp('pressureGainMult', () => pressureGainMult, v => { pressureGainMult = v; });
+  mirrorWindowProp('engineerElectrifiedRows', () => engineerElectrifiedRows, v => { engineerElectrifiedRows = v; });
+  mirrorWindowProp('_phase4FrenzyAttackCounter', () => _phase4FrenzyAttackCounter, v => { _phase4FrenzyAttackCounter = v; });
+  mirrorWindowProp('_phase4LastReactivityFiredAt', () => _phase4LastReactivityFiredAt, v => { _phase4LastReactivityFiredAt = v; });
   // ===== Voidfang shroud slice =====
-  Object.defineProperty(window, '_voidfangShroudActive',   { configurable: true, get: () => _voidfangShroudActive,   set: v => { _voidfangShroudActive = v; } });
+  mirrorWindowProp('_voidfangShroudActive', () => _voidfangShroudActive, v => { _voidfangShroudActive = v; });
   // Legacy line 30457 exposes `voidfangDefeated` as a FUNCTION (not the raw
   // boolean). We mirror the function shape so any legacy caller calling
   // `voidfangDefeated()` keeps working AND any caller reading the variable

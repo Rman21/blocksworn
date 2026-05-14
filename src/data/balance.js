@@ -1,3 +1,4 @@
+import { mirrorWindowProp } from '../utils/window-mirror.js';
 // 2026-05-11 — TASK-008 (T1.07): game-balance constants relocated from legacy.
 // 2026-05-11 — TASK-018 (T1.13.4): SQUAD_MAX named export added; legacy-only
 //   constant gets a proper home. Mutable per-boss-defeat progression (3 → 4
@@ -258,9 +259,5 @@ export function setSquadMax(n) {
 }
 
 if (typeof window !== 'undefined') {
-  Object.defineProperty(window, 'SQUAD_MAX', {
-    configurable: true,
-    get: () => _squadMax,
-    set: (v) => { _squadMax = v; },
-  });
+  mirrorWindowProp('SQUAD_MAX', () => _squadMax, (v) => { _squadMax = v; });
 }

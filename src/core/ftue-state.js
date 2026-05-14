@@ -72,6 +72,7 @@ import {
 import { resetBossVoiceFlags } from './bosses.js';
 import { ASSETS } from '../data/assets.js';
 import { playDialogScript } from '../ui/dialog.js';
+import { mirrorWindowProp } from '../utils/window-mirror.js';
 import {
   startPyredrakeFtueBattle,
   startGruntFtueBattle,
@@ -108,11 +109,7 @@ let ftueBeat = 'not_started';
 // window.ftueBeat bypass transition validation by design (legacy semantics
 // — same as resetFtue path).
 if (typeof window !== 'undefined') {
-  Object.defineProperty(window, 'ftueBeat', {
-    configurable: true,
-    get: () => ftueBeat,
-    set: (v) => { ftueBeat = v; },
-  });
+  mirrorWindowProp('ftueBeat', () => ftueBeat, (v) => { ftueBeat = v; });
 }
 
 // Battle-scoped flag — reset at every battle start (legacy 24117).

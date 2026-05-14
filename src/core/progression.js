@@ -128,6 +128,7 @@ import { renderSelect } from '../ui/select.js';
 import { logEvent, EVT } from '../services/analytics.js';
 import * as storage from '../services/storage.js';
 import { log } from '../services/logger.js';
+import { mirrorWindowProp } from '../utils/window-mirror.js';
 
 // ─── T1.13.2: Canonical writable-globals bindings ─────────────────────────
 // Per the T1.10.6 stagger-loop.js / T1.10.7 bosses.js bridge pattern: declare
@@ -190,22 +191,22 @@ let selectedBossIdx = null;
 // pattern. Cross-module legacy-style bare reads/writes go through these
 // accessors so the module-private binding stays the single source of truth.
 if (typeof window !== 'undefined') {
-  Object.defineProperty(window, 'gold',                  { configurable: true, get: () => gold,                  set: (v) => { gold = v; } });
-  Object.defineProperty(window, 'essences',              { configurable: true, get: () => essences,              set: (v) => { essences = v; } });
-  Object.defineProperty(window, 'activeSquad',           { configurable: true, get: () => activeSquad,           set: (v) => { activeSquad = v; } });
-  Object.defineProperty(window, 'favorites',             { configurable: true, get: () => favorites,             set: (v) => { favorites = v; } });
-  Object.defineProperty(window, 'activeModifiers',       { configurable: true, get: () => activeModifiers,       set: (v) => { activeModifiers = v; } });
-  Object.defineProperty(window, 'chapterProgress',       { configurable: true, get: () => chapterProgress,       set: (v) => { chapterProgress = v; } });
-  Object.defineProperty(window, 'bossesDefeated',        { configurable: true, get: () => bossesDefeated,        set: (v) => { bossesDefeated = v; } });
-  Object.defineProperty(window, 'heroUpgrades',          { configurable: true, get: () => heroUpgrades,          set: (v) => { heroUpgrades = v; } });
+  mirrorWindowProp('gold', () => gold, (v) => { gold = v; });
+  mirrorWindowProp('essences', () => essences, (v) => { essences = v; });
+  mirrorWindowProp('activeSquad', () => activeSquad, (v) => { activeSquad = v; });
+  mirrorWindowProp('favorites', () => favorites, (v) => { favorites = v; });
+  mirrorWindowProp('activeModifiers', () => activeModifiers, (v) => { activeModifiers = v; });
+  mirrorWindowProp('chapterProgress', () => chapterProgress, (v) => { chapterProgress = v; });
+  mirrorWindowProp('bossesDefeated', () => bossesDefeated, (v) => { bossesDefeated = v; });
+  mirrorWindowProp('heroUpgrades', () => heroUpgrades, (v) => { heroUpgrades = v; });
   // T1.14: window bridges for artifactsOwned / equippedArtifacts /
   // artDropPityCounter removed — legacy reads of these now resolve to
   // `undefined` (no bridge installed). All callsites have been deleted from
   // both src/ and legacy.
-  Object.defineProperty(window, 'chapter2Unlocked',      { configurable: true, get: () => chapter2Unlocked,      set: (v) => { chapter2Unlocked = v; } });
-  Object.defineProperty(window, 'chapter3Unlocked',      { configurable: true, get: () => chapter3Unlocked,      set: (v) => { chapter3Unlocked = v; } });
-  Object.defineProperty(window, 'chapter4Unlocked',      { configurable: true, get: () => chapter4Unlocked,      set: (v) => { chapter4Unlocked = v; } });
-  Object.defineProperty(window, 'selectedBossIdx',       { configurable: true, get: () => selectedBossIdx,       set: (v) => { selectedBossIdx = v; } });
+  mirrorWindowProp('chapter2Unlocked', () => chapter2Unlocked, (v) => { chapter2Unlocked = v; });
+  mirrorWindowProp('chapter3Unlocked', () => chapter3Unlocked, (v) => { chapter3Unlocked = v; });
+  mirrorWindowProp('chapter4Unlocked', () => chapter4Unlocked, (v) => { chapter4Unlocked = v; });
+  mirrorWindowProp('selectedBossIdx', () => selectedBossIdx, (v) => { selectedBossIdx = v; });
 }
 
 // ─── First-clear + boss-stars state (legacy 19485-19488) ──────────────────

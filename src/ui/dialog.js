@@ -29,6 +29,7 @@ import { HERO_ROSTER } from '../core/heroes.js';
 import { ASSETS } from '../data/assets.js';
 import { STIHIYA_COLORS } from '../data/elements.js';
 import { log } from '../services/logger.js';
+import { mirrorWindowProp } from '../utils/window-mirror.js';
 
 // ─── DIALOG_LINES (legacy 30046-30186 base + 30396-30451 voidfang) ────────
 // Every entry copied byte-perfect. Shape:
@@ -298,11 +299,11 @@ loadSeenDialogs();
 // /* global */ consumers (feel-layer plate-defer logic, FTUE teardown,
 // stagger-loop seenDialogs check, etc.) keep resolving to the same live value.
 if (typeof window !== 'undefined') {
-  Object.defineProperty(window, 'dialogActive',          { configurable: true, get: () => _dialogActive,          set: (v) => { _dialogActive = v; } });
-  Object.defineProperty(window, 'dialogClickLock',       { configurable: true, get: () => _dialogClickLock,       set: (v) => { _dialogClickLock = v; } });
-  Object.defineProperty(window, '_pendingDialogRequest', { configurable: true, get: () => _pendingDialogRequest, set: (v) => { _pendingDialogRequest = v; } });
-  Object.defineProperty(window, '_dialogDeferredQueue',  { configurable: true, get: () => _dialogDeferredQueue,  set: (v) => { _dialogDeferredQueue = v; } });
-  Object.defineProperty(window, 'seenDialogs',           { configurable: true, get: () => _seenDialogs,           set: (v) => { _seenDialogs = v; } });
+  mirrorWindowProp('dialogActive', () => _dialogActive, (v) => { _dialogActive = v; });
+  mirrorWindowProp('dialogClickLock', () => _dialogClickLock, (v) => { _dialogClickLock = v; });
+  mirrorWindowProp('_pendingDialogRequest', () => _pendingDialogRequest, (v) => { _pendingDialogRequest = v; });
+  mirrorWindowProp('_dialogDeferredQueue', () => _dialogDeferredQueue, (v) => { _dialogDeferredQueue = v; });
+  mirrorWindowProp('seenDialogs', () => _seenDialogs, (v) => { _seenDialogs = v; });
   // Public registries also exposed (legacy 30295: window.DIALOG_LINES = DIALOG_LINES)
   window.DIALOG_LINES = DIALOG_LINES;
 }

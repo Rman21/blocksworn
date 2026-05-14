@@ -39,6 +39,7 @@ import { isFtueActive, ftueBlockNavIfActive } from '../core/ftue-state.js';
 import { renderMenu, renderResourceBar } from './menu.js';
 import { renderSelect } from './select.js';
 import { renderProfile } from './profile.js';
+import { mirrorWindowProp } from '../utils/window-mirror.js';
 // T2.12 (2026-05-12): Codex screen renderer — Identity Layer aggregation surface.
 // Pure read of game state + writes only to its own localStorage key. Additive
 // — never modifies any sacred table per CLAUDE.md §2.
@@ -83,8 +84,8 @@ import { log } from '../services/logger.js';
 let currentScreen = 'menu';
 let _currentRacePureRace = null;
 if (typeof window !== 'undefined') {
-  Object.defineProperty(window, 'currentScreen',          { configurable: true, get: () => currentScreen,          set: (v) => { currentScreen = v; } });
-  Object.defineProperty(window, '_currentRacePureRace',   { configurable: true, get: () => _currentRacePureRace,   set: (v) => { _currentRacePureRace = v; } });
+  mirrorWindowProp('currentScreen', () => currentScreen, (v) => { currentScreen = v; });
+  mirrorWindowProp('_currentRacePureRace', () => _currentRacePureRace, (v) => { _currentRacePureRace = v; });
 }
 
 // ─── showScreen — top-level screen dispatcher (legacy 66426-66471) ─────────

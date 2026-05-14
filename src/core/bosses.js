@@ -136,6 +136,7 @@
 import { hasCompletedChapter, _isChapterContentUnlocked } from './progression.js';
 import { logEvent } from '../services/analytics.js';
 import { CHAPTERS } from '../data/chapters.js';
+import { mirrorWindowProp } from '../utils/window-mirror.js';
 import {
   BOSS_TTK_TARGETS,
   EXPECTED_DPS_BY_CHAPTER,
@@ -827,42 +828,15 @@ if (typeof window !== 'undefined') {
   window.computeBossHP           = computeBossHP;
   window.getCurrentBossPhase     = getCurrentBossPhase;
   // ===== Boss identity state (getters + setters via Object.defineProperty) =====
-  Object.defineProperty(window, 'currentBoss', {
-    configurable: true,
-    get: () => currentBoss,
-    set: (v) => { currentBoss = v; },
-  });
-  Object.defineProperty(window, 'currentChapter', {
-    configurable: true,
-    get: () => currentChapter,
-    set: (v) => { currentChapter = v; },
-  });
-  Object.defineProperty(window, 'currentBossIdx', {
-    configurable: true,
-    get: () => currentBossIdx,
-    set: (v) => { currentBossIdx = v; },
-  });
-  Object.defineProperty(window, 'bossHP', {
-    configurable: true,
-    get: () => bossHP,
-    set: (v) => { bossHP = v; },
-  });
-  Object.defineProperty(window, 'bossMaxHP', {
-    configurable: true,
-    get: () => bossMaxHP,
-    set: (v) => { bossMaxHP = v; },
-  });
-  Object.defineProperty(window, '_currentBossRoleTier', {
-    configurable: true,
-    get: () => _currentBossRoleTier,
-    set: (v) => { _currentBossRoleTier = v; },
-  });
+  mirrorWindowProp('currentBoss', () => currentBoss, (v) => { currentBoss = v; });
+  mirrorWindowProp('currentChapter', () => currentChapter, (v) => { currentChapter = v; });
+  mirrorWindowProp('currentBossIdx', () => currentBossIdx, (v) => { currentBossIdx = v; });
+  mirrorWindowProp('bossHP', () => bossHP, (v) => { bossHP = v; });
+  mirrorWindowProp('bossMaxHP', () => bossMaxHP, (v) => { bossMaxHP = v; });
+  mirrorWindowProp('_currentBossRoleTier', () => _currentBossRoleTier, (v) => { _currentBossRoleTier = v; });
   // BOSSES dynamic getter — reads CHAPTERS[currentChapter-1].bosses on
   // every access. Legacy expects `BOSSES.length`, `BOSSES[idx]`, etc.
-  Object.defineProperty(window, 'BOSSES', {
-    configurable: true,
-    get: getBosses,
-  });
+  mirrorWindowProp('BOSSES', getBosses);
   window.setChapter             = setChapter;
   window.applyBossEmblems       = applyBossEmblems;
   // ===== Boss voices =====

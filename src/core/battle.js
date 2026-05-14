@@ -133,6 +133,7 @@ import { gridFillRatio, newPieces } from './grid.js';
 import { STIHIYA_COLORS } from '../data/elements.js';
 import { CHAPTERS } from '../data/chapters.js';
 import { ASSETS } from '../data/assets.js';
+import { mirrorWindowProp } from '../utils/window-mirror.js';
 import {
   BOSS_ARCHETYPES, ARMORED_SHIELD_COUNT, applyBossEmblems,
   resetBossVoiceFlags, maybeFireBossVoiceIntro, maybeFireBossVoiceMidfight,
@@ -314,12 +315,12 @@ let placementCount = 0;
 let revivesRemaining = 0;
 let gameEnded = false;
 if (typeof window !== 'undefined') {
-  Object.defineProperty(window, 'attackCountdown',  { configurable: true, get: () => attackCountdown,  set: (v) => { attackCountdown = v; } });
-  Object.defineProperty(window, 'battleStartTime',  { configurable: true, get: () => battleStartTime,  set: (v) => { battleStartTime = v; } });
-  Object.defineProperty(window, 'damageDealt',      { configurable: true, get: () => damageDealt,      set: (v) => { damageDealt = v; } });
-  Object.defineProperty(window, 'placementCount',   { configurable: true, get: () => placementCount,   set: (v) => { placementCount = v; } });
-  Object.defineProperty(window, 'revivesRemaining', { configurable: true, get: () => revivesRemaining, set: (v) => { revivesRemaining = v; } });
-  Object.defineProperty(window, 'gameEnded',        { configurable: true, get: () => gameEnded,        set: (v) => { gameEnded = v; } });
+  mirrorWindowProp('attackCountdown', () => attackCountdown, (v) => { attackCountdown = v; });
+  mirrorWindowProp('battleStartTime', () => battleStartTime, (v) => { battleStartTime = v; });
+  mirrorWindowProp('damageDealt', () => damageDealt, (v) => { damageDealt = v; });
+  mirrorWindowProp('placementCount', () => placementCount, (v) => { placementCount = v; });
+  mirrorWindowProp('revivesRemaining', () => revivesRemaining, (v) => { revivesRemaining = v; });
+  mirrorWindowProp('gameEnded', () => gameEnded, (v) => { gameEnded = v; });
 }
 
 // Helper: sleep promise — used by bossAttack for the 300ms beat between
