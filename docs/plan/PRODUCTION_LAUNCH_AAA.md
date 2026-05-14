@@ -89,20 +89,109 @@ Goal: catch future regressions BEFORE merge.
 | C.2 | Add a separate workflow job `live-smoke` in `.github/workflows/ci.yml` that runs the live test on every PR + main push. |
 | C.3 | Document in CLAUDE.md: any PR that modifies `vercel.json`, `src/legacy-bridges.js`, `src/sidecar.js`, or `scripts/inject-sidecar.js` requires green live-smoke before merge. |
 
-## Phase D — Phase 4.2 UI mount points (optional, future)
+## Phase D — Phase 4.2 UI mount points (next session, ~1-2 days)
 
 Goal: surface Phase 3 (Adventures, Party Tower, Replay viewer, Friend
-leaderboard) and Phase 4 (Wallet, NFT inventory, Adventure DAO, PURE PATH
-CHAIN) UI entries inside the legacy menu, so the back-end work that's
-already live becomes user-visible.
+leaderboard, Tower Seasonal) and Phase 4 (Wallet, NFT inventory, Adventure
+DAO, PURE PATH CHAIN) UI entries inside the legacy menu, so the back-end
+work that's already live becomes user-visible.
 
-Approach (to be designed):
-- Option D.1: sidecar performs runtime DOM injection into legacy menu.
-- Option D.2: complete the T1.13 modular-shell migration so the new shell
-  becomes the primary runtime.
+### Approach (recommended): runtime DOM injection from sidecar
 
-Decision deferred — Phase D is not required to ship the existing v2.1
-game cleanly.
+- ✅ No edits to `docs/_legacy/_archive_v1/blocksworn_index_fixed.html`
+  (sacred reference stays read-only per CLAUDE.md).
+- ✅ Reuses the existing modular UI in `src/ui/adventures.js`,
+  `src/ui/party-tower.js`, `src/ui/tower-season.js`,
+  `src/ui/replay-viewer.js`, `src/ui/friend-leaderboard.js`.
+- ✅ Phase 4 surfaces stay gated by `isChiaEnabled()` (mobile build
+  remains Chia-free).
+
+### Sub-tasks
+
+**D.1 — Vendor src/ CSS into legacy at build time**
+
+The legacy HTML doesn't load `assets/main.css` (only `shell.html` does).
+Phase 3/4 screen CSS won't apply without it.
+
+- Pin Vite's CSS output filename via `rollupOptions.output.assetFileNames`
+  (already done for sidecar, extend pattern to main.css).
+- `scripts/inject-sidecar.js` also injects `<link rel="stylesheet"
+  href="/assets/main.css">` into legacy before `</body>`. Idempotent
+  marker.
+
+**D.2 — Phase 3 mount points + drawer entries**
+
+Sidecar's `installLegacyBridges()` is extended (or a new
+`installPhase3Surfaces()` is added) to inject:
+
+- 5 new `<div class="screen">` containers (one per Phase 3 UI) into
+  legacy `<body>` after `#screenSettings` (or wherever the existing
+  screens end). All hidden by default. Switched on via legacy's
+  `showScreen()`.
+- A drawer/menu group titled "ENDGAME" with 5 buttons:
+  Adventures · Party Tower · Tower Season · Replay Viewer · Friend
+  Leaderboard. Inserted into legacy's main menu hamburger.
+
+Click handlers call legacy `showScreen(targetId)` then dispatch the
+matching src/ render function (`renderAdventuresScreen()` etc.).
+
+**D.3 — Phase 4 mount points + buttons (Chia-gated)**
+
+Similar to D.2 but gated:
+
+- `if (!isChiaEnabled()) return;` at the top of the Phase 4 injector.
+- Mount: `<div id="screenWallet">`, `<div id="screenNftInventory">`.
+- Menu surfaces: "Connect Wallet" in profile header, "Mint" buttons on
+  Codex Moments, "CHAIN" tab on Tower leaderboard, "DAO Adventure"
+  toggle on Adventures create form.
+
+**D.4 — Test infrastructure**
+
+- New Playwright spec: `tests/smoke/phase3-mounts.spec.js` — click each
+  drawer entry, assert the matching screen activates, expected DOM
+  fingerprint present.
+- New Playwright spec: `tests/smoke/phase4-mounts.spec.js` — same for
+  Phase 4 surfaces.
+- Live-URL spec extended: walk through the new buttons; assert 0 JS
+  errors on each.
+- Visual regression: ~10 new baselines (Adventures menu, Party Tower
+  empty state, Replay viewer empty, Friend leaderboard widget, Wallet
+  connect modal, NFT inventory empty, etc.).
+
+**D.5 — Sacred-cow re-audit**
+
+- HERO_ROSTER stat blocks: still byte-perfect (Phase 4.2 doesn't touch
+  combat values).
+- TOWER_LEADERBOARDS sacred 3 keys: unchanged; PURE PATH CHAIN remains
+  additive 4th key per ADR-003.
+- V_HAPTICS / NARRATOR_LINES / GEM_PACKS / Battle Pass formula /
+  Tower retry / TOWER_PACTS — all byte-perfect.
+
+**D.6 — Ship sequence**
+
+1. Single PR with D.1-D.3 changes.
+2. Local: lint + unit + smoke + visual all green.
+3. Squash-merge to main.
+4. Vercel auto-deploy.
+5. `live` CI job verifies post-deploy.
+6. Roman manually clicks each new button in a regular browser session.
+
+### Risk / rollback
+
+- If runtime DOM injection breaks legacy layout: revert the PR; sidecar
+  remains active for Phase 2 FX which works without any new DOM.
+- If `isChiaEnabled()` flag corner case surfaces: Phase 4 buttons hide
+  gracefully; Phase 3 buttons stay (not gated by Chia).
+
+### Estimate
+
+- D.1 CSS vendor: 30 min
+- D.2 Phase 3 surfaces (5 screens × 1 button = 5 injections): 2-3 hours
+- D.3 Phase 4 surfaces (3-4 injections + Chia gating): 2 hours
+- D.4 tests + baselines: 1-2 hours
+- D.5-6 audit + ship: 30 min
+
+Total: **~1 working day**. Defer to next session.
 
 ## Rollback plan
 
