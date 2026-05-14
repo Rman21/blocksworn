@@ -1632,36 +1632,36 @@ export function resetBattlePhases() {
 // with explicit imports.
 if (typeof window !== 'undefined') {
   // ===== BOSS_PHASES table + EFFECT_HANDLERS + REACTIVITY_HANDLERS =====
-  window.BOSS_PHASES                  = BOSS_PHASES;
-  window.EFFECT_HANDLERS              = EFFECT_HANDLERS;
-  window.REACTIVITY_HANDLERS          = REACTIVITY_HANDLERS;
-  window.REACTIVITY_ARCHETYPE_COLORS  = REACTIVITY_ARCHETYPE_COLORS;
-  window.REACTIVITY_PHASE_GATES       = REACTIVITY_PHASE_GATES;
-  window.battlePhasesTriggered        = battlePhasesTriggered;
+  if (typeof window.BOSS_PHASES === 'undefined') window.BOSS_PHASES = BOSS_PHASES;
+  if (typeof window.EFFECT_HANDLERS === 'undefined') window.EFFECT_HANDLERS = EFFECT_HANDLERS;
+  if (typeof window.REACTIVITY_HANDLERS === 'undefined') window.REACTIVITY_HANDLERS = REACTIVITY_HANDLERS;
+  if (typeof window.REACTIVITY_ARCHETYPE_COLORS === 'undefined') window.REACTIVITY_ARCHETYPE_COLORS = REACTIVITY_ARCHETYPE_COLORS;
+  if (typeof window.REACTIVITY_PHASE_GATES === 'undefined') window.REACTIVITY_PHASE_GATES = REACTIVITY_PHASE_GATES;
+  if (typeof window.battlePhasesTriggered === 'undefined') window.battlePhasesTriggered = battlePhasesTriggered;
   // ===== Dispatch =====
-  window.maybePhaseTransition         = maybePhaseTransition;
-  window.triggerReactivityEvent       = triggerReactivityEvent;
-  window.firePhase                    = firePhase;
-  window._phaseSubtitleFromEffects    = _phaseSubtitleFromEffects;
-  window._resetReactivityState        = _resetReactivityState;
-  window._archetypeFromEventId        = _archetypeFromEventId;
+  if (typeof window.maybePhaseTransition === 'undefined') window.maybePhaseTransition = maybePhaseTransition;
+  if (typeof window.triggerReactivityEvent === 'undefined') window.triggerReactivityEvent = triggerReactivityEvent;
+  if (typeof window.firePhase === 'undefined') window.firePhase = firePhase;
+  if (typeof window._phaseSubtitleFromEffects === 'undefined') window._phaseSubtitleFromEffects = _phaseSubtitleFromEffects;
+  if (typeof window._resetReactivityState === 'undefined') window._resetReactivityState = _resetReactivityState;
+  if (typeof window._archetypeFromEventId === 'undefined') window._archetypeFromEventId = _archetypeFromEventId;
   // ===== Cinematic =====
-  window.vPlayPhaseTransition         = vPlayPhaseTransition;
-  window._toRoman                     = _toRoman;
-  window.showPhaseTransitionOverlay   = showPhaseTransitionOverlay;
-  window.showBossPhaseDialog          = showBossPhaseDialog;
+  if (typeof window.vPlayPhaseTransition === 'undefined') window.vPlayPhaseTransition = vPlayPhaseTransition;
+  if (typeof window._toRoman === 'undefined') window._toRoman = _toRoman;
+  if (typeof window.showPhaseTransitionOverlay === 'undefined') window.showPhaseTransitionOverlay = showPhaseTransitionOverlay;
+  if (typeof window.showBossPhaseDialog === 'undefined') window.showBossPhaseDialog = showBossPhaseDialog;
   // ===== UI surfaces =====
-  window.showReactivityTelegraph      = showReactivityTelegraph;
-  window.showReactivityFX             = showReactivityFX;
-  window.renderBossPhaseIndicator     = renderBossPhaseIndicator;
-  window.showBossIntelOverlay         = showBossIntelOverlay;
-  window.renderSquadTTKForecast       = renderSquadTTKForecast;
-  window._computeSquadEffectiveDPS    = _computeSquadEffectiveDPS;
+  if (typeof window.showReactivityTelegraph === 'undefined') window.showReactivityTelegraph = showReactivityTelegraph;
+  if (typeof window.showReactivityFX === 'undefined') window.showReactivityFX = showReactivityFX;
+  if (typeof window.renderBossPhaseIndicator === 'undefined') window.renderBossPhaseIndicator = renderBossPhaseIndicator;
+  if (typeof window.showBossIntelOverlay === 'undefined') window.showBossIntelOverlay = showBossIntelOverlay;
+  if (typeof window.renderSquadTTKForecast === 'undefined') window.renderSquadTTKForecast = renderSquadTTKForecast;
+  if (typeof window._computeSquadEffectiveDPS === 'undefined') window._computeSquadEffectiveDPS = _computeSquadEffectiveDPS;
   // ===== FTUE intros =====
-  window._registerPhase4Dialogs       = _registerPhase4Dialogs;
-  window._maybeTriggerPhaseIntro      = _maybeTriggerPhaseIntro;
-  window._maybeTriggerReactivityIntro = _maybeTriggerReactivityIntro;
-  window._maybeTriggerTelegraphIntro  = _maybeTriggerTelegraphIntro;
+  if (typeof window._registerPhase4Dialogs === 'undefined') window._registerPhase4Dialogs = _registerPhase4Dialogs;
+  if (typeof window._maybeTriggerPhaseIntro === 'undefined') window._maybeTriggerPhaseIntro = _maybeTriggerPhaseIntro;
+  if (typeof window._maybeTriggerReactivityIntro === 'undefined') window._maybeTriggerReactivityIntro = _maybeTriggerReactivityIntro;
+  if (typeof window._maybeTriggerTelegraphIntro === 'undefined') window._maybeTriggerTelegraphIntro = _maybeTriggerTelegraphIntro;
   // ===== Reactivity state vars (getters + setters via Object.defineProperty) =====
   mirrorWindowProp('bossShieldCount', () => bossShieldCount, v => { bossShieldCount = v; });
   mirrorWindowProp('bossStaggerImmuneTurns', () => bossStaggerImmuneTurns, v => { bossStaggerImmuneTurns = v; });
@@ -1687,19 +1687,19 @@ if (typeof window !== 'undefined') {
   // boolean). We mirror the function shape so any legacy caller calling
   // `voidfangDefeated()` keeps working AND any caller reading the variable
   // via `getVoidfangDefeated()` resolves through the module's getter.
-  window.voidfangDefeated             = () => voidfangDefeated;
-  window.VOIDFANG_DEFEATED_KEY        = VOIDFANG_DEFEATED_KEY;
-  window.shroudTick                   = shroudTick;
-  window.clearVoidfangTints           = clearVoidfangTints;
+  if (typeof window.voidfangDefeated === 'undefined') window.voidfangDefeated = () => voidfangDefeated;
+  if (typeof window.VOIDFANG_DEFEATED_KEY === 'undefined') window.VOIDFANG_DEFEATED_KEY = VOIDFANG_DEFEATED_KEY;
+  if (typeof window.shroudTick === 'undefined') window.shroudTick = shroudTick;
+  if (typeof window.clearVoidfangTints === 'undefined') window.clearVoidfangTints = clearVoidfangTints;
   // ===== Console helpers =====
-  window.forcePhase                   = forcePhase;
-  window.resetBattlePhases            = resetBattlePhases;
+  if (typeof window.forcePhase === 'undefined') window.forcePhase = forcePhase;
+  if (typeof window.resetBattlePhases === 'undefined') window.resetBattlePhases = resetBattlePhases;
   // ===== T2.07 — Identity Layer · boss-reactive dispatch =====
   // T2.B legacy bridge calls `window.triggerIdentityBossEvent(eventId)` from
   // legacy `maybePhoenixRevive` after the sacred revive completes.
-  window.IDENTITY_BOSS_HANDLERS       = IDENTITY_BOSS_HANDLERS;
-  window.triggerIdentityBossEvent     = triggerIdentityBossEvent;
-  window.resetIdentityBossState       = resetIdentityBossState;
+  if (typeof window.IDENTITY_BOSS_HANDLERS === 'undefined') window.IDENTITY_BOSS_HANDLERS = IDENTITY_BOSS_HANDLERS;
+  if (typeof window.triggerIdentityBossEvent === 'undefined') window.triggerIdentityBossEvent = triggerIdentityBossEvent;
+  if (typeof window.resetIdentityBossState === 'undefined') window.resetIdentityBossState = resetIdentityBossState;
 }
 
 // Quiet T1.10.8 boot acknowledgement — confirms the module side-effects

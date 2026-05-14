@@ -811,22 +811,22 @@ export { BOSS_TTK_TARGETS, EXPECTED_DPS_BY_CHAPTER, TOWER_DPS_REFERENCE, TOWER_B
 // imports.
 if (typeof window !== 'undefined') {
   // ===== Archetype + matchup data =====
-  window.BOSS_ARCHETYPES        = BOSS_ARCHETYPES;
-  window.ARCHETYPE_MATCHUP      = ARCHETYPE_MATCHUP;
-  window.BERSERKER_ENRAGE_HP_PCT = BERSERKER_ENRAGE_HP_PCT;
-  window.BERSERKER_ENRAGE_MULT   = BERSERKER_ENRAGE_MULT;
-  window.ARMORED_SHIELD_COUNT    = ARMORED_SHIELD_COUNT;
-  window.ARMORED_SHIELD_ABSORB   = ARMORED_SHIELD_ABSORB;
-  window.PHOENIX_REVIVE_HP_PCT   = PHOENIX_REVIVE_HP_PCT;
-  window.PHOENIX_IMMUNE_TURNS    = PHOENIX_IMMUNE_TURNS;
+  if (typeof window.BOSS_ARCHETYPES === 'undefined') window.BOSS_ARCHETYPES = BOSS_ARCHETYPES;
+  if (typeof window.ARCHETYPE_MATCHUP === 'undefined') window.ARCHETYPE_MATCHUP = ARCHETYPE_MATCHUP;
+  if (typeof window.BERSERKER_ENRAGE_HP_PCT === 'undefined') window.BERSERKER_ENRAGE_HP_PCT = BERSERKER_ENRAGE_HP_PCT;
+  if (typeof window.BERSERKER_ENRAGE_MULT === 'undefined') window.BERSERKER_ENRAGE_MULT = BERSERKER_ENRAGE_MULT;
+  if (typeof window.ARMORED_SHIELD_COUNT === 'undefined') window.ARMORED_SHIELD_COUNT = ARMORED_SHIELD_COUNT;
+  if (typeof window.ARMORED_SHIELD_ABSORB === 'undefined') window.ARMORED_SHIELD_ABSORB = ARMORED_SHIELD_ABSORB;
+  if (typeof window.PHOENIX_REVIVE_HP_PCT === 'undefined') window.PHOENIX_REVIVE_HP_PCT = PHOENIX_REVIVE_HP_PCT;
+  if (typeof window.PHOENIX_IMMUNE_TURNS === 'undefined') window.PHOENIX_IMMUNE_TURNS = PHOENIX_IMMUNE_TURNS;
   // ===== Phase gates + telegraph + HP formula =====
-  window.PHASE_GATE_P1_TO_P2     = PHASE_GATE_P1_TO_P2;
-  window.PHASE_GATE_P2_TO_P3     = PHASE_GATE_P2_TO_P3;
-  window.PHASE_GATE_DEATH        = PHASE_GATE_DEATH;
-  window.REACTIVITY_TELEGRAPH_MS = REACTIVITY_TELEGRAPH_MS;
-  window.REACTIVITY_BANNER_DURATION_MS = REACTIVITY_BANNER_DURATION_MS;
-  window.computeBossHP           = computeBossHP;
-  window.getCurrentBossPhase     = getCurrentBossPhase;
+  if (typeof window.PHASE_GATE_P1_TO_P2 === 'undefined') window.PHASE_GATE_P1_TO_P2 = PHASE_GATE_P1_TO_P2;
+  if (typeof window.PHASE_GATE_P2_TO_P3 === 'undefined') window.PHASE_GATE_P2_TO_P3 = PHASE_GATE_P2_TO_P3;
+  if (typeof window.PHASE_GATE_DEATH === 'undefined') window.PHASE_GATE_DEATH = PHASE_GATE_DEATH;
+  if (typeof window.REACTIVITY_TELEGRAPH_MS === 'undefined') window.REACTIVITY_TELEGRAPH_MS = REACTIVITY_TELEGRAPH_MS;
+  if (typeof window.REACTIVITY_BANNER_DURATION_MS === 'undefined') window.REACTIVITY_BANNER_DURATION_MS = REACTIVITY_BANNER_DURATION_MS;
+  if (typeof window.computeBossHP === 'undefined') window.computeBossHP = computeBossHP;
+  if (typeof window.getCurrentBossPhase === 'undefined') window.getCurrentBossPhase = getCurrentBossPhase;
   // ===== Boss identity state (getters + setters via Object.defineProperty) =====
   mirrorWindowProp('currentBoss', () => currentBoss, (v) => { currentBoss = v; });
   mirrorWindowProp('currentChapter', () => currentChapter, (v) => { currentChapter = v; });
@@ -837,32 +837,32 @@ if (typeof window !== 'undefined') {
   // BOSSES dynamic getter — reads CHAPTERS[currentChapter-1].bosses on
   // every access. Legacy expects `BOSSES.length`, `BOSSES[idx]`, etc.
   mirrorWindowProp('BOSSES', getBosses);
-  window.setChapter             = setChapter;
-  window.applyBossEmblems       = applyBossEmblems;
+  if (typeof window.setChapter === 'undefined') window.setChapter = setChapter;
+  if (typeof window.applyBossEmblems === 'undefined') window.applyBossEmblems = applyBossEmblems;
   // ===== Boss voices =====
-  window.BOSS_VOICES                  = BOSS_VOICES;
-  window.BOSS_VOICE_MIDFIGHT_HP_PCT   = BOSS_VOICE_MIDFIGHT_HP_PCT;
-  window._bossVoiceTrigger            = _bossVoiceTrigger;
-  window.maybeFireBossVoiceIntro      = maybeFireBossVoiceIntro;
-  window.maybeFireBossVoiceMidfight   = maybeFireBossVoiceMidfight;
-  window.maybeFireBossVoiceDeath      = maybeFireBossVoiceDeath;
-  window.resetBossVoiceFlags          = resetBossVoiceFlags;
+  if (typeof window.BOSS_VOICES === 'undefined') window.BOSS_VOICES = BOSS_VOICES;
+  if (typeof window.BOSS_VOICE_MIDFIGHT_HP_PCT === 'undefined') window.BOSS_VOICE_MIDFIGHT_HP_PCT = BOSS_VOICE_MIDFIGHT_HP_PCT;
+  if (typeof window._bossVoiceTrigger === 'undefined') window._bossVoiceTrigger = _bossVoiceTrigger;
+  if (typeof window.maybeFireBossVoiceIntro === 'undefined') window.maybeFireBossVoiceIntro = maybeFireBossVoiceIntro;
+  if (typeof window.maybeFireBossVoiceMidfight === 'undefined') window.maybeFireBossVoiceMidfight = maybeFireBossVoiceMidfight;
+  if (typeof window.maybeFireBossVoiceDeath === 'undefined') window.maybeFireBossVoiceDeath = maybeFireBossVoiceDeath;
+  if (typeof window.resetBossVoiceFlags === 'undefined') window.resetBossVoiceFlags = resetBossVoiceFlags;
   // ===== FTUE bosses =====
-  window.EMBER_GRUNT            = EMBER_GRUNT;
-  window.CHRONICLE              = CHRONICLE;
-  window.FTUE_GRUNT_VOID_SPAWN  = FTUE_GRUNT_VOID_SPAWN;
+  if (typeof window.EMBER_GRUNT === 'undefined') window.EMBER_GRUNT = EMBER_GRUNT;
+  if (typeof window.CHRONICLE === 'undefined') window.CHRONICLE = CHRONICLE;
+  if (typeof window.FTUE_GRUNT_VOID_SPAWN === 'undefined') window.FTUE_GRUNT_VOID_SPAWN = FTUE_GRUNT_VOID_SPAWN;
   // ===== Ch3 shared Maps (canonical owner: bosses.js — consumed by
   // archetype-ticks.js Storm tick, battle-screen.js cell render, grid.js
   // canPlace gates). The Ch3 state machine itself (_ch3BossId / _ch3State /
   // _ch3LastDualState) + the storm helpers + tickChapter3Boss family are
   // canonical in src/ui/archetype-ticks.js as of T1.13.2.
-  window._stormBlizzardFreezes        = _stormBlizzardFreezes;
-  window._stormEarthquakeLocks        = _stormEarthquakeLocks;
+  if (typeof window._stormBlizzardFreezes === 'undefined') window._stormBlizzardFreezes = _stormBlizzardFreezes;
+  if (typeof window._stormEarthquakeLocks === 'undefined') window._stormEarthquakeLocks = _stormEarthquakeLocks;
   // ===== FTUE_BOSS_GUARANTEES (sacred per CLAUDE.md §2.5) =====
-  window.FTUE_BOSS_GUARANTEES   = FTUE_BOSS_GUARANTEES;
-  window.FTUE_TUTORIAL_TEXTS    = FTUE_TUTORIAL_TEXTS;
+  if (typeof window.FTUE_BOSS_GUARANTEES === 'undefined') window.FTUE_BOSS_GUARANTEES = FTUE_BOSS_GUARANTEES;
+  if (typeof window.FTUE_TUTORIAL_TEXTS === 'undefined') window.FTUE_TUTORIAL_TEXTS = FTUE_TUTORIAL_TEXTS;
   // ===== UROBOROS sacred config =====
-  window.TOWER_UROBOROS_SEASONAL = TOWER_UROBOROS_SEASONAL;
+  if (typeof window.TOWER_UROBOROS_SEASONAL === 'undefined') window.TOWER_UROBOROS_SEASONAL = TOWER_UROBOROS_SEASONAL;
 }
 
 // Quiet T1.10.7 boot acknowledgement — confirms the module side-effects

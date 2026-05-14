@@ -1496,7 +1496,7 @@ export function fxCrocodileLineClear(rows, cols, squad, ctx) {
         const _clamped = clampShieldsToSquadMax(_current, shieldsToGrant, _sacredCap);
         _shieldsGranted = _clamped - _current;
         if (_shieldsGranted > 0) {
-          window.shieldCount = _clamped;
+          if (typeof window.shieldCount === 'undefined') window.shieldCount = _clamped;
         }
       }
     } catch (e) {

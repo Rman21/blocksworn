@@ -326,7 +326,7 @@ export function returnToMenuFromBattle() {
   // T1.13.2: gameEnded canonical ownership lives in src/core/battle.js;
   // route the legacy mutation through window.gameEnded so the battle.js
   // module-private binding stays the single source of truth.
-  window.gameEnded = true;
+  if (typeof window.gameEnded === 'undefined') window.gameEnded = true;
   // 2026-04-29 — Race-Pure run flag must clear on retreat so the next battle
   // doesn't inherit the +20% HP / ×2 loot envelope from an abandoned challenge.
   try { _currentRacePureRace = null; } catch (e) {}

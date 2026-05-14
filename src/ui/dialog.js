@@ -305,7 +305,7 @@ if (typeof window !== 'undefined') {
   mirrorWindowProp('_dialogDeferredQueue', () => _dialogDeferredQueue, (v) => { _dialogDeferredQueue = v; });
   mirrorWindowProp('seenDialogs', () => _seenDialogs, (v) => { _seenDialogs = v; });
   // Public registries also exposed (legacy 30295: window.DIALOG_LINES = DIALOG_LINES)
-  window.DIALOG_LINES = DIALOG_LINES;
+  if (typeof window.DIALOG_LINES === 'undefined') window.DIALOG_LINES = DIALOG_LINES;
 }
 
 // ─── clearDialogTimer (legacy 24719-24724) ────────────────────────────────
@@ -579,13 +579,13 @@ export function maybePlayChapterIntro(chapter) {
 
 // ─── Console helpers (legacy 30294-30308) ─────────────────────────────────
 if (typeof window !== 'undefined') {
-  window.playDialog = playDialog;
-  window.playDialogScript = playDialogScript;
-  window.showBossPhaseDialog = showBossPhaseDialog;
-  window.maybePlayChapterIntro = maybePlayChapterIntro;
-  window.replayDialog = replayDialog;
-  window.markDialogSeen = markDialogSeen;
-  window.previewDialog = playDialog;
+  if (typeof window.playDialog === 'undefined') window.playDialog = playDialog;
+  if (typeof window.playDialogScript === 'undefined') window.playDialogScript = playDialogScript;
+  if (typeof window.showBossPhaseDialog === 'undefined') window.showBossPhaseDialog = showBossPhaseDialog;
+  if (typeof window.maybePlayChapterIntro === 'undefined') window.maybePlayChapterIntro = maybePlayChapterIntro;
+  if (typeof window.replayDialog === 'undefined') window.replayDialog = replayDialog;
+  if (typeof window.markDialogSeen === 'undefined') window.markDialogSeen = markDialogSeen;
+  if (typeof window.previewDialog === 'undefined') window.previewDialog = playDialog;
   window.markAllDialogsSeen = function () {
     Object.keys(DIALOG_LINES).forEach((id) => _seenDialogs.add(id));
     saveSeenDialogs();
