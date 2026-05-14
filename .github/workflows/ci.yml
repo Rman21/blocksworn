@@ -57,12 +57,19 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
-      - name: Enforce bundle <5MB
+      - name: Enforce Vite bundle <5MB (JS+CSS only; media + 21MB legacy HTML excluded)
         run: |
-          BUNDLE_KB=$(du -sk dist | cut -f1)
-          echo "Bundle size: ${BUNDLE_KB} KB"
+          # AAA+ standard (CLAUDE.md §3.2): JS+CSS bundle <5MB.
+          # dist also contains: 21MB legacy HTML (sacred reference served as-is),
+          # 84MB audio assets in public/assets/audio/, and ~4MB images. Those
+          # are media, not "bundle" — exempt them from the gate.
+          BUNDLE_BYTES=$(find dist/assets -type f \( -name '*.js' -o -name '*.css' \) -print0 2>/dev/null | xargs -0 stat -c %s 2>/dev/null | awk '{s+=$1} END {print s+0}')
+          BUNDLE_KB=$(( (BUNDLE_BYTES + 1023) / 1024 ))
+          TOTAL_KB=$(du -sk dist | cut -f1)
+          echo "JS+CSS bundle:   ${BUNDLE_KB} KB"
+          echo "Total dist size: ${TOTAL_KB} KB (incl. media + legacy HTML)"
           if [ "$BUNDLE_KB" -gt 5120 ]; then
-            echo "Bundle exceeds 5MB limit (5120 KB)"
+            echo "Vite JS+CSS bundle exceeds 5MB AAA+ limit (5120 KB)"
             exit 1
           fi
 
