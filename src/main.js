@@ -51,22 +51,219 @@ import { setupRouting, showScreen } from './ui/router.js';
 // so the in-memory cache is warm before the first dispatch fires. The Codex
 // writes ONLY to localStorage[blocksworn_codex_state] per spec §4.10 (READ-
 // ONLY of game state, never mutates sacred tables).
-import { getCodexState } from './ui/codex.js';
+import {
+  getCodexState,
+  recordRaceTrigger,
+  recordBossEncounter,
+  recordBossDefeat,
+  recordMomentTrigger,
+} from './ui/codex.js';
 
-// 2026-05-14 — Phase 4.1: window-bridge install centralized in
-// ./legacy-bridges.js so this modular shell entry AND the sidecar entry
-// (src/sidecar.js, injected into the legacy single-HTML at build time)
-// share a single 47-surface installer. See ADR-004 hybrid coexistence.
-// Imports the 7 module families (identity-fx, reactivity-events, codex,
-// replay-backend, clan-backend, party-tower-backend, phase4-bridge) and
-// owns the `window.__*` assignments + `installPhase4Bridge()` call.
-import { installLegacyBridges } from './legacy-bridges.js';
+// T2.B (2026-05-12): Legacy Bridge — Identity Layer integration moment.
+// Expose all 10 mechanics' dispatcher + predicates + reset hooks onto window
+// under the `__` prefix (matching the existing `__dispatchIdentityFx` /
+// `__pushRecentClear` naming convention seeded by T2.07-T2.11 reports). The
+// legacy single-HTML primary runtime (per ADR-004 hybrid coexistence) reads
+// these via `window.__*` and calls them defensively (try/catch) from
+// `clearLines`, `canPlace`, `maybePhoenixRevive`, `bossAttack`, and
+// `startBossBattle`. Module-side fx + identity-bridge contract was verified
+// by T2.02-T2.12 (581 unit + 140 smoke green). Now LIVE in legacy gameplay.
+//
+// Sacred-cow safety: every bridge function below is a PURE EXPORT from
+// `src/feel/identity-fx.js` or `src/core/reactivity-events.js` — exposing
+// them on window is additive (no sacred numeric / formula / handler change).
+// Legacy bridge call sites are wrapped in try/catch so the sacred line-clear
+// pipeline NEVER regresses if an identity bridge throws.
+import {
+  dispatchIdentityFx,
+  canPlacePieceDuringAshenReign,
+  isAshenReignActive,
+  isCellCursed,
+  isCellLockedByLockdownProtocol,
+  isCellRooted,
+  onRootCellCleared,
+  incrementBloodtideClearCount,
+  consumeBloodtidePulse,
+  pushRecentClear,
+  resetAshenReign,
+  resetCursedTiles,
+  resetBloodtide,
+  resetEngineerLockdowns,
+  resetGrovewardenRootSurge,
+  resetCrocFragmentBank,
+  fxLichCursedTilesTick,
+  fxEngineerLockdownTick,
+  fxGrovewardenRootSurgeTick,
+  shouldRootSurgeFire,
+  getRecentClearsSnapshot,
+} from './feel/identity-fx.js';
+import {
+  triggerIdentityBossEvent,
+  resetIdentityBossState,
+} from './core/reactivity-events.js';
 
-// T2.B / T3.02 / T3.07 / T3.10 / T4.13: install all 47 window-bridges that
-// the legacy single-HTML runtime calls via `window.__*`. Centralized in
-// ./legacy-bridges.js so the modular shell AND the sidecar entry share an
-// identical bridge surface. Idempotent — safe at module top-level.
-installLegacyBridges();
+// 2026-05-13 — TASK-047 (T3.07): Replay capture backend bridge.
+// First Phase 3 task. Read-only of game state. See
+// src/services/replay-backend.js for the full contract + spec §4.1 / §15.
+import {
+  startReplayCapture,
+  stopReplayCapture,
+  resetReplayBuffer,
+  onBossDefeatedTrigger,
+  onTetrisCritTrigger,
+  onIdentityFxTrigger,
+  onIdentityBossReactivityTrigger,
+  onBigComboTrigger,
+  onStaggerEntryTrigger,
+  onTowerMilestoneTrigger,
+  onAdventureWeeklyDefeatTrigger,
+  onPartyTowerRunClearTrigger,
+} from './services/replay-backend.js';
+
+// 2026-05-13 — TASK-050 (T3.02): Adventures backend bridge (MINIMAL — +1 entry).
+// Wave-3 Phase 3 task. Backend-only — see src/services/clan-backend.js for
+// the full contract + spec §2 / §15. T3.03 UI consumes the 8 pure helpers +
+// 9 CRUD ops via DIRECT-IMPORT (mirrors T3.08/T3.09 precedent — keeps the
+// window-bridge surface at 38 + 1 = 39 total, NOT 38 + 9 CRUD). The single
+// minimal entry below lets the legacy menu badge surface "is player in any
+// clan?" without dragging the full clan-backend module into legacy.
+import {
+  listClansForPlayer as _listClansForPlayer_t302,
+} from './services/clan-backend.js';
+
+// 2026-05-13 — TASK-055 (T3.10): Party Tower backend bridge (MINIMAL — +1 entry).
+// Wave-5 Phase 3 task. Backend-only — see src/services/party-tower-backend.js
+// for the full contract + spec §3 / §15 ESC-03 Q3 (24h Standard default).
+// T3.11+ UI consumes the 10 pure helpers + 10 async CRUD ops via DIRECT-IMPORT
+// (mirrors T3.02/T3.06 precedent — keeps the window-bridge surface at 39 + 1
+// = 40 total, NOT 39 + 10 CRUD). The single minimal entry below lets the
+// legacy menu badge surface "is player in any Party Tower run?" without
+// dragging the full party-tower-backend module into legacy.
+import {
+  listPartiesForPlayer as _listPartiesForPlayer_t310,
+} from './services/party-tower-backend.js';
+
+// T4.13 (2026-05-13): Phase 4 Chia integration Legacy Bridge. Wires all
+// Phase 4 src/ modules (feature-flags, wallet-connect, nft-backend,
+// tower-leaderboard-chain, anti-p2w-audit) onto window under the
+// `__bsw_phase4_*` namespace for legacy modal consumption. When chia is
+// disabled (mobile build via VITE_CHIA_ENABLED=false), bridges are no-op
+// stubs — legacy surface is byte-identical to pre-Phase-4. Sacred 50-row
+// audit (design spec §8) verified inside sacredCowAudit() at boot.
+import { installPhase4Bridge } from './services/phase4-bridge.js';
+
+// T1.13.5 (2026-05-12): bridge `showScreen` onto window so legacy inline
+// onclick="showScreen('menu')" handlers (still present in any scaffold the
+// new shell mounts) resolve. Cosmetic — required for compatibility with the
+// legacy-style call sites that survived the T1.12 switchover.
+if (typeof window !== 'undefined') {
+  window.showScreen = showScreen;
+
+  // T2.B (2026-05-12): Identity Layer legacy bridge surface. All hooks are
+  // namespaced with the `__` prefix so they cannot collide with legacy
+  // identifiers (every search of legacy returned 0 hits for the names below
+  // before this commit). Per ADR-004 hybrid coexistence: legacy is primary
+  // runtime; src/ exports the truth; bridges below let legacy call src/
+  // without legacy importing src/ directly (which it cannot — single-HTML
+  // has no module system).
+  //
+  // CRITICAL — sacred safety:
+  //   1. NONE of these exports modify sacred values. They wrap a pure src/
+  //      function or pure read accessor.
+  //   2. Legacy bridge call sites are DEFENSIVE (try/catch around every
+  //      bridge call) so an identity-layer bug NEVER regresses the sacred
+  //      line-clear / placement / boss-attack pipelines.
+  //   3. The Spark combo-crit `_dominantCountModifier` input modification
+  //      at legacy line 63659 is a 1-line domCount EXTENSION (sacred
+  //      formula at line 63664 stays byte-perfect). Per ESC-02 O3 ruling
+  //      ("WITHIN BOUNDARY") this is the established input-mutation
+  //      precedent (same architectural pattern as legacy cascade).
+  //
+  // ── Dispatcher entrypoints (called from legacy clearLines + reactivity) ──
+  window.__dispatchIdentityFx               = dispatchIdentityFx;
+  window.__dispatchIdentityBossEvent        = triggerIdentityBossEvent;
+  // ── Placement gates (called from legacy canPlace) ───────────────────────
+  window.__canPlacePieceDuringAshenReign    = canPlacePieceDuringAshenReign;
+  window.__isAshenReignActive               = isAshenReignActive;
+  window.__isCellCursed                     = isCellCursed;
+  window.__isCellLockedByLockdownProtocol   = isCellLockedByLockdownProtocol;
+  window.__isCellRooted                     = isCellRooted;
+  // ── Cross-layer accumulators (Bloodtide pulse + Grove root reward) ──────
+  window.__onRootCellCleared                = onRootCellCleared;
+  window.__incrementBloodtideClearCount     = incrementBloodtideClearCount;
+  window.__consumeBloodtidePulse            = consumeBloodtidePulse;
+  window.__pushRecentClear                  = pushRecentClear;
+  window.__shouldRootSurgeFire              = shouldRootSurgeFire;
+  window.__getRecentClearsSnapshot          = getRecentClearsSnapshot;
+  // ── Per-turn tick hooks (called from legacy turn dispatcher) ────────────
+  window.__fxLichCursedTilesTick            = fxLichCursedTilesTick;
+  window.__fxEngineerLockdownTick           = fxEngineerLockdownTick;
+  window.__fxGrovewardenRootSurgeTick       = fxGrovewardenRootSurgeTick;
+  // ── Battle-pipeline reset hooks (called from legacy startBossBattle) ────
+  window.__resetAshenReign                  = resetAshenReign;
+  window.__resetCursedTiles                 = resetCursedTiles;
+  window.__resetBloodtide                   = resetBloodtide;
+  window.__resetEngineerLockdowns           = resetEngineerLockdowns;
+  window.__resetGrovewardenRootSurge        = resetGrovewardenRootSurge;
+  window.__resetCrocFragmentBank            = resetCrocFragmentBank;
+  window.__resetIdentityBossState           = resetIdentityBossState;
+  // ── Codex aggregation (called from legacy fx end-of-fire + battle hooks) ──
+  window.__recordRaceTrigger                = recordRaceTrigger;
+  window.__recordBossEncounter              = recordBossEncounter;
+  window.__recordBossDefeat                 = recordBossDefeat;
+  window.__recordMomentTrigger              = recordMomentTrigger;
+
+  // 2026-05-13 — TASK-047 (T3.07): Replay capture backend bridge surface.
+  // Phase 3 FIRST task. Read-only of game state — never mutates sacred
+  // tables. All bridge call sites in legacy are wrapped in try/catch so the
+  // sacred boss/clear/stagger pipelines never regress if replay throws.
+  // Additive — leaves the 26 T2.B bridges above untouched.
+  // ── Lifecycle (called from legacy startBossBattle + battle-end hooks) ──
+  window.__startReplayCapture               = startReplayCapture;
+  window.__stopReplayCapture                = stopReplayCapture;
+  window.__resetReplayBuffer                = resetReplayBuffer;
+  // ── 9 trigger predicates (7 live + 2 deferred stubs for T3.04 / T3.13) ──
+  window.__onBossDefeatedTrigger            = onBossDefeatedTrigger;
+  window.__onTetrisCritTrigger              = onTetrisCritTrigger;
+  window.__onIdentityFxTrigger              = onIdentityFxTrigger;
+  window.__onIdentityBossReactivityTrigger  = onIdentityBossReactivityTrigger;
+  window.__onBigComboTrigger                = onBigComboTrigger;
+  window.__onStaggerEntryTrigger            = onStaggerEntryTrigger;
+  window.__onTowerMilestoneTrigger          = onTowerMilestoneTrigger;
+  window.__onAdventureWeeklyDefeatTrigger   = onAdventureWeeklyDefeatTrigger;
+  window.__onPartyTowerRunClearTrigger      = onPartyTowerRunClearTrigger;
+
+  // 2026-05-13 — TASK-050 (T3.02): Adventures backend — MINIMAL bridge.
+  // ONE function exposed: legacy menu badge ("is player in any Adventure?")
+  // needs cheap async lookup without importing the full clan-backend module.
+  // All 9 CRUD operations + 8 pure helpers stay direct-import (T3.03 UI
+  // mirrors T3.08/T3.09 precedent). Bridge count: 38 → 39 (1 minimal entry).
+  // ── Player-clan membership probe (called from legacy menu badge) ────────
+  window.__getPlayerClanCount               = async function _getPlayerClanCountBridge(playerId) {
+    try {
+      const result = await _listClansForPlayer_t302(playerId);
+      if (result && result.ok && Array.isArray(result.clans)) return result.clans.length;
+    } catch (_e) { /* swallow — badge defaults to 0 on any failure */ }
+    return 0;
+  };
+
+  // 2026-05-13 — TASK-055 (T3.10): Party Tower backend — MINIMAL bridge.
+  // ONE function exposed: legacy menu badge ("is player in any Party Tower
+  // run?") needs cheap async lookup without importing the full
+  // party-tower-backend module. All 10 CRUD operations + 10 pure helpers
+  // stay direct-import (T3.11+ UI mirrors T3.02/T3.06 precedent).
+  // Bridge count: 39 → 40 (1 minimal entry).
+  // Per ADR-002: async-only; no presence channel. Per ADR-003: badge is
+  // segment-agnostic — never reads spend / segment / paid tier.
+  // ── Player-party membership probe (called from legacy menu badge) ───────
+  window.__getPlayerPartyCount              = async function _getPlayerPartyCountBridge(playerId) {
+    try {
+      const result = await _listPartiesForPlayer_t310(playerId);
+      if (result && result.ok && Array.isArray(result.parties)) return result.parties.length;
+    } catch (_e) { /* swallow — badge defaults to 0 on any failure */ }
+    return 0;
+  };
+}
 
 // T1.20 — Read lifetime USD spend from the canonical legacy key
 // (`blocksworn_p5_spending`, written by legacy `trackSpending(usdAmount)`
@@ -244,6 +441,18 @@ async function main() {
       }
     } catch (err) {
       log.warn('[boot] initial screen render:', err);
+    }
+
+    // 9. T4.13 — Phase 4 Legacy Bridge. Installs wallet/NFT/PURE PATH CHAIN/
+    //    anti-P2W audit surfaces on window under `__bsw_phase4_*`. When
+    //    chia is disabled (mobile build), bridges are no-op stubs and the
+    //    surface count is unchanged from Phase 3. Defensive: bridge install
+    //    NEVER throws into the main bootstrap chain.
+    try {
+      const r = installPhase4Bridge();
+      log.info('[boot] phase4-bridge:', r);
+    } catch (err) {
+      log.warn('[boot] installPhase4Bridge:', err);
     }
 
     log.info('[boot] main complete');

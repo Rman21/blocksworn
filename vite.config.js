@@ -44,27 +44,6 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    // 2026-05-14 — Phase 4.1 sidecar build.
-    // Two entry points:
-    //   1. index.html  → the modular shell at /shell (post-build renamed)
-    //   2. src/sidecar.js → injected into dist/blocksworn_index_fixed.html
-    //                       via scripts/inject-sidecar.js, pinned to a
-    //                       stable filename (no hash) so the <script> tag
-    //                       in legacy HTML stays valid across builds.
-    rollupOptions: {
-      input: {
-        main: resolve('.', 'index.html'),
-        sidecar: resolve('.', 'src/sidecar.js'),
-      },
-      output: {
-        entryFileNames: (chunkInfo) => {
-          if (chunkInfo.name === 'sidecar') return 'assets/sidecar.js';
-          return 'assets/[name]-[hash].js';
-        },
-        chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]',
-      },
-    },
   },
   server: {
     port: 5173,

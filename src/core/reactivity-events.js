@@ -172,7 +172,6 @@ import { applyChannelDamage } from './damage-channels.js';
 import { bossAttack } from './battle.js';
 import { isFtueActive } from './ftue-state.js';
 import { isHeroMythic } from './progression.js';
-import { mirrorWindowProp } from '../utils/window-mirror.js';
 // T1.13.4: playDialog + seenDialogs flipped from /* global */ to ES import.
 import { playDialog, showBossPhaseDialog } from '../ui/dialog.js';
 import { vHaptic } from '../feel/haptics.js';
@@ -1632,74 +1631,74 @@ export function resetBattlePhases() {
 // with explicit imports.
 if (typeof window !== 'undefined') {
   // ===== BOSS_PHASES table + EFFECT_HANDLERS + REACTIVITY_HANDLERS =====
-  if (typeof window.BOSS_PHASES === 'undefined') window.BOSS_PHASES = BOSS_PHASES;
-  if (typeof window.EFFECT_HANDLERS === 'undefined') window.EFFECT_HANDLERS = EFFECT_HANDLERS;
-  if (typeof window.REACTIVITY_HANDLERS === 'undefined') window.REACTIVITY_HANDLERS = REACTIVITY_HANDLERS;
-  if (typeof window.REACTIVITY_ARCHETYPE_COLORS === 'undefined') window.REACTIVITY_ARCHETYPE_COLORS = REACTIVITY_ARCHETYPE_COLORS;
-  if (typeof window.REACTIVITY_PHASE_GATES === 'undefined') window.REACTIVITY_PHASE_GATES = REACTIVITY_PHASE_GATES;
-  if (typeof window.battlePhasesTriggered === 'undefined') window.battlePhasesTriggered = battlePhasesTriggered;
+  window.BOSS_PHASES                  = BOSS_PHASES;
+  window.EFFECT_HANDLERS              = EFFECT_HANDLERS;
+  window.REACTIVITY_HANDLERS          = REACTIVITY_HANDLERS;
+  window.REACTIVITY_ARCHETYPE_COLORS  = REACTIVITY_ARCHETYPE_COLORS;
+  window.REACTIVITY_PHASE_GATES       = REACTIVITY_PHASE_GATES;
+  window.battlePhasesTriggered        = battlePhasesTriggered;
   // ===== Dispatch =====
-  if (typeof window.maybePhaseTransition === 'undefined') window.maybePhaseTransition = maybePhaseTransition;
-  if (typeof window.triggerReactivityEvent === 'undefined') window.triggerReactivityEvent = triggerReactivityEvent;
-  if (typeof window.firePhase === 'undefined') window.firePhase = firePhase;
-  if (typeof window._phaseSubtitleFromEffects === 'undefined') window._phaseSubtitleFromEffects = _phaseSubtitleFromEffects;
-  if (typeof window._resetReactivityState === 'undefined') window._resetReactivityState = _resetReactivityState;
-  if (typeof window._archetypeFromEventId === 'undefined') window._archetypeFromEventId = _archetypeFromEventId;
+  window.maybePhaseTransition         = maybePhaseTransition;
+  window.triggerReactivityEvent       = triggerReactivityEvent;
+  window.firePhase                    = firePhase;
+  window._phaseSubtitleFromEffects    = _phaseSubtitleFromEffects;
+  window._resetReactivityState        = _resetReactivityState;
+  window._archetypeFromEventId        = _archetypeFromEventId;
   // ===== Cinematic =====
-  if (typeof window.vPlayPhaseTransition === 'undefined') window.vPlayPhaseTransition = vPlayPhaseTransition;
-  if (typeof window._toRoman === 'undefined') window._toRoman = _toRoman;
-  if (typeof window.showPhaseTransitionOverlay === 'undefined') window.showPhaseTransitionOverlay = showPhaseTransitionOverlay;
-  if (typeof window.showBossPhaseDialog === 'undefined') window.showBossPhaseDialog = showBossPhaseDialog;
+  window.vPlayPhaseTransition         = vPlayPhaseTransition;
+  window._toRoman                     = _toRoman;
+  window.showPhaseTransitionOverlay   = showPhaseTransitionOverlay;
+  window.showBossPhaseDialog          = showBossPhaseDialog;
   // ===== UI surfaces =====
-  if (typeof window.showReactivityTelegraph === 'undefined') window.showReactivityTelegraph = showReactivityTelegraph;
-  if (typeof window.showReactivityFX === 'undefined') window.showReactivityFX = showReactivityFX;
-  if (typeof window.renderBossPhaseIndicator === 'undefined') window.renderBossPhaseIndicator = renderBossPhaseIndicator;
-  if (typeof window.showBossIntelOverlay === 'undefined') window.showBossIntelOverlay = showBossIntelOverlay;
-  if (typeof window.renderSquadTTKForecast === 'undefined') window.renderSquadTTKForecast = renderSquadTTKForecast;
-  if (typeof window._computeSquadEffectiveDPS === 'undefined') window._computeSquadEffectiveDPS = _computeSquadEffectiveDPS;
+  window.showReactivityTelegraph      = showReactivityTelegraph;
+  window.showReactivityFX             = showReactivityFX;
+  window.renderBossPhaseIndicator     = renderBossPhaseIndicator;
+  window.showBossIntelOverlay         = showBossIntelOverlay;
+  window.renderSquadTTKForecast       = renderSquadTTKForecast;
+  window._computeSquadEffectiveDPS    = _computeSquadEffectiveDPS;
   // ===== FTUE intros =====
-  if (typeof window._registerPhase4Dialogs === 'undefined') window._registerPhase4Dialogs = _registerPhase4Dialogs;
-  if (typeof window._maybeTriggerPhaseIntro === 'undefined') window._maybeTriggerPhaseIntro = _maybeTriggerPhaseIntro;
-  if (typeof window._maybeTriggerReactivityIntro === 'undefined') window._maybeTriggerReactivityIntro = _maybeTriggerReactivityIntro;
-  if (typeof window._maybeTriggerTelegraphIntro === 'undefined') window._maybeTriggerTelegraphIntro = _maybeTriggerTelegraphIntro;
+  window._registerPhase4Dialogs       = _registerPhase4Dialogs;
+  window._maybeTriggerPhaseIntro      = _maybeTriggerPhaseIntro;
+  window._maybeTriggerReactivityIntro = _maybeTriggerReactivityIntro;
+  window._maybeTriggerTelegraphIntro  = _maybeTriggerTelegraphIntro;
   // ===== Reactivity state vars (getters + setters via Object.defineProperty) =====
-  mirrorWindowProp('bossShieldCount', () => bossShieldCount, v => { bossShieldCount = v; });
-  mirrorWindowProp('bossStaggerImmuneTurns', () => bossStaggerImmuneTurns, v => { bossStaggerImmuneTurns = v; });
-  mirrorWindowProp('bossFireAuraActive', () => bossFireAuraActive, v => { bossFireAuraActive = v; });
-  mirrorWindowProp('bossFireAuraDmg', () => bossFireAuraDmg, v => { bossFireAuraDmg = v; });
-  mirrorWindowProp('bossStealthTurns', () => bossStealthTurns, v => { bossStealthTurns = v; });
-  mirrorWindowProp('bossNextAttackBonus', () => bossNextAttackBonus, v => { bossNextAttackBonus = v; });
-  mirrorWindowProp('bossBackstabChainTurns', () => bossBackstabChainTurns, v => { bossBackstabChainTurns = v; });
-  mirrorWindowProp('bossDualSuggestActive', () => bossDualSuggestActive, v => { bossDualSuggestActive = v; });
-  mirrorWindowProp('squadSilencedTurns', () => squadSilencedTurns, v => { squadSilencedTurns = v; });
-  mirrorWindowProp('frenzyMaxStacks', () => frenzyMaxStacks, v => { frenzyMaxStacks = v; });
-  mirrorWindowProp('frenzyMaulComboActive', () => frenzyMaulComboActive, v => { frenzyMaulComboActive = v; });
-  mirrorWindowProp('frenzyMaulInterval', () => frenzyMaulInterval, v => { frenzyMaulInterval = v; });
-  mirrorWindowProp('skipPlayerTurnsCount', () => skipPlayerTurnsCount, v => { skipPlayerTurnsCount = v; });
-  mirrorWindowProp('bossChargeRateMult', () => bossChargeRateMult, v => { bossChargeRateMult = v; });
-  mirrorWindowProp('pressureGainMult', () => pressureGainMult, v => { pressureGainMult = v; });
-  mirrorWindowProp('engineerElectrifiedRows', () => engineerElectrifiedRows, v => { engineerElectrifiedRows = v; });
-  mirrorWindowProp('_phase4FrenzyAttackCounter', () => _phase4FrenzyAttackCounter, v => { _phase4FrenzyAttackCounter = v; });
-  mirrorWindowProp('_phase4LastReactivityFiredAt', () => _phase4LastReactivityFiredAt, v => { _phase4LastReactivityFiredAt = v; });
+  Object.defineProperty(window, 'bossShieldCount',         { configurable: true, get: () => bossShieldCount,         set: v => { bossShieldCount = v; } });
+  Object.defineProperty(window, 'bossStaggerImmuneTurns',  { configurable: true, get: () => bossStaggerImmuneTurns,  set: v => { bossStaggerImmuneTurns = v; } });
+  Object.defineProperty(window, 'bossFireAuraActive',      { configurable: true, get: () => bossFireAuraActive,      set: v => { bossFireAuraActive = v; } });
+  Object.defineProperty(window, 'bossFireAuraDmg',         { configurable: true, get: () => bossFireAuraDmg,         set: v => { bossFireAuraDmg = v; } });
+  Object.defineProperty(window, 'bossStealthTurns',        { configurable: true, get: () => bossStealthTurns,        set: v => { bossStealthTurns = v; } });
+  Object.defineProperty(window, 'bossNextAttackBonus',     { configurable: true, get: () => bossNextAttackBonus,     set: v => { bossNextAttackBonus = v; } });
+  Object.defineProperty(window, 'bossBackstabChainTurns',  { configurable: true, get: () => bossBackstabChainTurns,  set: v => { bossBackstabChainTurns = v; } });
+  Object.defineProperty(window, 'bossDualSuggestActive',   { configurable: true, get: () => bossDualSuggestActive,   set: v => { bossDualSuggestActive = v; } });
+  Object.defineProperty(window, 'squadSilencedTurns',      { configurable: true, get: () => squadSilencedTurns,      set: v => { squadSilencedTurns = v; } });
+  Object.defineProperty(window, 'frenzyMaxStacks',         { configurable: true, get: () => frenzyMaxStacks,         set: v => { frenzyMaxStacks = v; } });
+  Object.defineProperty(window, 'frenzyMaulComboActive',   { configurable: true, get: () => frenzyMaulComboActive,   set: v => { frenzyMaulComboActive = v; } });
+  Object.defineProperty(window, 'frenzyMaulInterval',      { configurable: true, get: () => frenzyMaulInterval,      set: v => { frenzyMaulInterval = v; } });
+  Object.defineProperty(window, 'skipPlayerTurnsCount',    { configurable: true, get: () => skipPlayerTurnsCount,    set: v => { skipPlayerTurnsCount = v; } });
+  Object.defineProperty(window, 'bossChargeRateMult',      { configurable: true, get: () => bossChargeRateMult,      set: v => { bossChargeRateMult = v; } });
+  Object.defineProperty(window, 'pressureGainMult',        { configurable: true, get: () => pressureGainMult,        set: v => { pressureGainMult = v; } });
+  Object.defineProperty(window, 'engineerElectrifiedRows', { configurable: true, get: () => engineerElectrifiedRows, set: v => { engineerElectrifiedRows = v; } });
+  Object.defineProperty(window, '_phase4FrenzyAttackCounter', { configurable: true, get: () => _phase4FrenzyAttackCounter, set: v => { _phase4FrenzyAttackCounter = v; } });
+  Object.defineProperty(window, '_phase4LastReactivityFiredAt', { configurable: true, get: () => _phase4LastReactivityFiredAt, set: v => { _phase4LastReactivityFiredAt = v; } });
   // ===== Voidfang shroud slice =====
-  mirrorWindowProp('_voidfangShroudActive', () => _voidfangShroudActive, v => { _voidfangShroudActive = v; });
+  Object.defineProperty(window, '_voidfangShroudActive',   { configurable: true, get: () => _voidfangShroudActive,   set: v => { _voidfangShroudActive = v; } });
   // Legacy line 30457 exposes `voidfangDefeated` as a FUNCTION (not the raw
   // boolean). We mirror the function shape so any legacy caller calling
   // `voidfangDefeated()` keeps working AND any caller reading the variable
   // via `getVoidfangDefeated()` resolves through the module's getter.
-  if (typeof window.voidfangDefeated === 'undefined') window.voidfangDefeated = () => voidfangDefeated;
-  if (typeof window.VOIDFANG_DEFEATED_KEY === 'undefined') window.VOIDFANG_DEFEATED_KEY = VOIDFANG_DEFEATED_KEY;
-  if (typeof window.shroudTick === 'undefined') window.shroudTick = shroudTick;
-  if (typeof window.clearVoidfangTints === 'undefined') window.clearVoidfangTints = clearVoidfangTints;
+  window.voidfangDefeated             = () => voidfangDefeated;
+  window.VOIDFANG_DEFEATED_KEY        = VOIDFANG_DEFEATED_KEY;
+  window.shroudTick                   = shroudTick;
+  window.clearVoidfangTints           = clearVoidfangTints;
   // ===== Console helpers =====
-  if (typeof window.forcePhase === 'undefined') window.forcePhase = forcePhase;
-  if (typeof window.resetBattlePhases === 'undefined') window.resetBattlePhases = resetBattlePhases;
+  window.forcePhase                   = forcePhase;
+  window.resetBattlePhases            = resetBattlePhases;
   // ===== T2.07 — Identity Layer · boss-reactive dispatch =====
   // T2.B legacy bridge calls `window.triggerIdentityBossEvent(eventId)` from
   // legacy `maybePhoenixRevive` after the sacred revive completes.
-  if (typeof window.IDENTITY_BOSS_HANDLERS === 'undefined') window.IDENTITY_BOSS_HANDLERS = IDENTITY_BOSS_HANDLERS;
-  if (typeof window.triggerIdentityBossEvent === 'undefined') window.triggerIdentityBossEvent = triggerIdentityBossEvent;
-  if (typeof window.resetIdentityBossState === 'undefined') window.resetIdentityBossState = resetIdentityBossState;
+  window.IDENTITY_BOSS_HANDLERS       = IDENTITY_BOSS_HANDLERS;
+  window.triggerIdentityBossEvent     = triggerIdentityBossEvent;
+  window.resetIdentityBossState       = resetIdentityBossState;
 }
 
 // Quiet T1.10.8 boot acknowledgement — confirms the module side-effects

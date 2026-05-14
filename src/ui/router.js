@@ -39,7 +39,6 @@ import { isFtueActive, ftueBlockNavIfActive } from '../core/ftue-state.js';
 import { renderMenu, renderResourceBar } from './menu.js';
 import { renderSelect } from './select.js';
 import { renderProfile } from './profile.js';
-import { mirrorWindowProp } from '../utils/window-mirror.js';
 // T2.12 (2026-05-12): Codex screen renderer — Identity Layer aggregation surface.
 // Pure read of game state + writes only to its own localStorage key. Additive
 // — never modifies any sacred table per CLAUDE.md §2.
@@ -84,8 +83,8 @@ import { log } from '../services/logger.js';
 let currentScreen = 'menu';
 let _currentRacePureRace = null;
 if (typeof window !== 'undefined') {
-  mirrorWindowProp('currentScreen', () => currentScreen, (v) => { currentScreen = v; });
-  mirrorWindowProp('_currentRacePureRace', () => _currentRacePureRace, (v) => { _currentRacePureRace = v; });
+  Object.defineProperty(window, 'currentScreen',          { configurable: true, get: () => currentScreen,          set: (v) => { currentScreen = v; } });
+  Object.defineProperty(window, '_currentRacePureRace',   { configurable: true, get: () => _currentRacePureRace,   set: (v) => { _currentRacePureRace = v; } });
 }
 
 // ─── showScreen — top-level screen dispatcher (legacy 66426-66471) ─────────
@@ -326,7 +325,7 @@ export function returnToMenuFromBattle() {
   // T1.13.2: gameEnded canonical ownership lives in src/core/battle.js;
   // route the legacy mutation through window.gameEnded so the battle.js
   // module-private binding stays the single source of truth.
-  if (typeof window.gameEnded === 'undefined') window.gameEnded = true;
+  window.gameEnded = true;
   // 2026-04-29 — Race-Pure run flag must clear on retreat so the next battle
   // doesn't inherit the +20% HP / ×2 loot envelope from an abandoned challenge.
   try { _currentRacePureRace = null; } catch (e) {}
