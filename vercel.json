@@ -6,7 +6,7 @@
   "installCommand": "npm ci",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/", "destination": "/blocksworn_index_fixed.html" }
+    { "source": "/", "destination": "/blocksworn_index_fixed" }
   ],
   "headers": [
     {
