@@ -385,10 +385,18 @@ import { mountTopHud, destroyTopHud, updateTopHud } from '../feel/top-hud.js';
 // is "playable in new design" per plan §10).
 import { mountPressureMeter, destroyPressureMeter, updatePressureMeter } from '../feel/pressure-meter.js';
 
+// 2026-05-16 — TASK-CP-005: import synergy bar mount/destroy. First Tier-2
+// polish task on top of the MVP gate. Same Option A wiring contract — bar
+// mounts here, not in src/core/*. Sacred-cow boundaries (Element synergy
+// 2x/3x/5x thresholds = −2/−4/−6 ULT + +20%/+50% dmg + 30% start charge,
+// dominantCount computation in src/core/battle.js) all preserved per
+// plan §12 + CLAUDE.md §2.1.
+import { mountSynergyBar, destroySynergyBar, updateSynergyBar } from '../feel/synergy-bar.js';
+
 // Re-export updateBossScene + updateHeroStrip + updateTopHud + updatePressureMeter
-// so battle orchestrators / route handlers can refresh scene+strip+hud+meter
-// state without a fresh import.
-export { updateBossScene, updateHeroStrip, updateTopHud, updatePressureMeter };
+// + updateSynergyBar so battle orchestrators / route handlers can refresh
+// scene+strip+hud+meter+synergy state without a fresh import.
+export { updateBossScene, updateHeroStrip, updateTopHud, updatePressureMeter, updateSynergyBar };
 
 export function setupBattleScreenEventListeners() {
   // TODO(T1.12): attach delegated 'click' / 'pointerdown' listeners to:
@@ -468,6 +476,21 @@ export function setupBattleScreenEventListeners() {
           if (hasAnyP) updatePressureMeter(pSeed);
         }
       } catch (_e) { /* defensive — meter degrades; legacy bar continues */ }
+
+      // TASK-CP-005 — mount synergy bar (5 hex emblems for element-synergy
+      // tier 2x/3x/5x). Auxiliary strip anchored to bottom of boss scene
+      // (placement rationale in synergy-bar.js header). Idempotent; emblems
+      // render idle until synergy state pipes through. Defensive try/catch
+      // so bar mount failure never breaks scene + strip + HUD + meter mounts.
+      try {
+        mountSynergyBar(battleRoot);
+        // Initial state refresh — best-effort defensive read of window-bridge
+        // synergy state when legacy is loaded. window.synergyState shape
+        // mirrors the bar's accepted state ({ activeElements: [...] }).
+        if (typeof window !== 'undefined' && window.synergyState) {
+          updateSynergyBar(window.synergyState);
+        }
+      } catch (_e) { /* defensive — bar degrades; legacy synergy continues */ }
     }
   } catch (_err) {
     // Mount failure is non-fatal — scene degrades to legacy-only render.
@@ -511,6 +534,14 @@ export function cleanupBattleScreen() {
   // so a meter teardown failure never blocks subsequent cleanup callers.
   try {
     destroyPressureMeter();
+  } catch (_err) {
+    // Idempotent destroy — safe to ignore failures.
+  }
+
+  // TASK-CP-005 — tear down synergy bar. Idempotent; separate try/catch so
+  // a bar teardown failure never blocks subsequent cleanup callers.
+  try {
+    destroySynergyBar();
   } catch (_err) {
     // Idempotent destroy — safe to ignore failures.
   }

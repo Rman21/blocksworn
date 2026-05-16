@@ -242,6 +242,21 @@
   background-repeat: no-repeat;
   background-position: center;
   flex-shrink: 0;
+  /* TASK-CP-005: gentle pulse echoing the synergy bar's 2x baseline so the
+   * boss's domain marker reads as visually contiguous with the squad's
+   * elemental bearing. Pure transform animation (60fps); reduced-motion
+   * guard below disables it cleanly. */
+  animation: bw-emblem-pulse 2400ms ease-in-out infinite;
+  will-change: transform;
+}
+
+/* TASK-CP-005: domain-marker pulse — same shape as synergy 2x baseline
+ * (subtle scale breathing). Lives here (boss-scene.css) because it animates
+ * the .bw-boss-emblem owned by boss-scene.js; synergy-bar.css owns the
+ * multi-emblem bar component animations separately. */
+@keyframes bw-emblem-pulse {
+  0%, 100% { transform: scale(1);    }
+  50%      { transform: scale(1.08); }
 }
 
 /* HP gauge — single bar spanning full width. Element-colored fill via
@@ -278,7 +293,8 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
 }
 
-/* Respect prefers-reduced-motion — disable all ambient particle motion. */
+/* Respect prefers-reduced-motion — disable all ambient particle motion +
+ * TASK-CP-005 emblem domain-marker pulse. */
 @media (prefers-reduced-motion: reduce) {
   .bw-boss-bg { transform: none; filter: blur(2px); }
   .bw-boss-ambient::before,
@@ -287,7 +303,8 @@
   .bw-ambient--snowflakes::before, .bw-ambient--snowflakes::after,
   .bw-ambient--leaves::before, .bw-ambient--leaves::after,
   .bw-ambient--golden_motes::before, .bw-ambient--golden_motes::after,
-  .bw-ambient--wisps::before, .bw-ambient--wisps::after {
+  .bw-ambient--wisps::before, .bw-ambient--wisps::after,
+  .bw-boss-emblem {
     animation: none !important;
   }
 }
