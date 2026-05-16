@@ -393,10 +393,26 @@ import { mountPressureMeter, destroyPressureMeter, updatePressureMeter } from '.
 // plan §12 + CLAUDE.md §2.1.
 import { mountSynergyBar, destroySynergyBar, updateSynergyBar } from '../feel/synergy-bar.js';
 
+// 2026-05-16 — TASK-CP-006: import damage channel FX mount/destroy + the
+// spawn/trigger helpers. Same Option A wiring contract — FX layer mounts
+// here, not in src/core/*. Sacred-cow boundaries (channel string keys
+// 'deadzone' / 'void_tick' / 'signature' / 'saturation' + CHANNEL_* values
+// + MITIGATION_CAP=0.70 + sacred colors #FF4D1F deadzone / #9B59E8 void)
+// all preserved per plan §12 + CLAUDE.md §2.5.
+import {
+  mountDamageChannelFx,
+  destroyDamageChannelFx,
+  updateDamageChannelFx,
+  spawnDamageNumber,
+  triggerChannelFx,
+} from '../feel/damage-channel-fx.js';
+
 // Re-export updateBossScene + updateHeroStrip + updateTopHud + updatePressureMeter
-// + updateSynergyBar so battle orchestrators / route handlers can refresh
-// scene+strip+hud+meter+synergy state without a fresh import.
+// + updateSynergyBar + damage-channel helpers so battle orchestrators / route
+// handlers can refresh scene+strip+hud+meter+synergy state and fire per-channel
+// damage FX without a fresh import.
 export { updateBossScene, updateHeroStrip, updateTopHud, updatePressureMeter, updateSynergyBar };
+export { updateDamageChannelFx, spawnDamageNumber, triggerChannelFx };
 
 export function setupBattleScreenEventListeners() {
   // TODO(T1.12): attach delegated 'click' / 'pointerdown' listeners to:
@@ -491,6 +507,17 @@ export function setupBattleScreenEventListeners() {
           updateSynergyBar(window.synergyState);
         }
       } catch (_e) { /* defensive — bar degrades; legacy synergy continues */ }
+
+      // TASK-CP-006 — mount damage channel FX layer (floating damage
+      // numbers + per-channel overlay cue). Idempotent; the floating-
+      // number layer is created lazily on first spawnDamageNumber() call.
+      // Defensive try/catch so a FX mount failure never breaks the prior
+      // mounts. The dispatcher in src/core/damage-channels.js stays sacred
+      // and untouched — this layer is invoked from the integration layer
+      // (spawnDamageNumber / triggerChannelFx exports above).
+      try {
+        mountDamageChannelFx(battleRoot);
+      } catch (_e) { /* defensive — FX degrades; legacy channel toasts continue */ }
     }
   } catch (_err) {
     // Mount failure is non-fatal — scene degrades to legacy-only render.
@@ -542,6 +569,14 @@ export function cleanupBattleScreen() {
   // a bar teardown failure never blocks subsequent cleanup callers.
   try {
     destroySynergyBar();
+  } catch (_err) {
+    // Idempotent destroy — safe to ignore failures.
+  }
+
+  // TASK-CP-006 — tear down damage channel FX layer. Idempotent; separate
+  // try/catch so a teardown failure never blocks subsequent cleanup callers.
+  try {
+    destroyDamageChannelFx();
   } catch (_err) {
     // Idempotent destroy — safe to ignore failures.
   }
