@@ -407,12 +407,29 @@ import {
   triggerChannelFx,
 } from '../feel/damage-channel-fx.js';
 
+// 2026-05-16 — TASK-CP-007: import stagger FX mount/destroy + update.
+// Third and FINAL Tier-2 polish task — this commit CLOSES the Combat
+// Polish Polish gate (Tasks 5-7 complete). Same Option A wiring contract:
+// chromatic shift + Recovery telegraph + countdown mount here, not in
+// src/core/*. Sacred-cow boundaries (boss-state strings 'active' /
+// 'stagger' / 'recovery' + STAGGER_DURATION_TURNS=4 +
+// RECOVERY_DURATION_TURNS=2 + FIRE_MULT_*_RATIO 0.7/1.5/0.7 + legacy
+// `.stagger-slow-mo` class application untouched) all preserved per
+// plan §12 + CLAUDE.md §2.5.
+import {
+  mountStaggerFx,
+  destroyStaggerFx,
+  updateStaggerFx,
+} from '../feel/stagger-fx.js';
+
 // Re-export updateBossScene + updateHeroStrip + updateTopHud + updatePressureMeter
-// + updateSynergyBar + damage-channel helpers so battle orchestrators / route
-// handlers can refresh scene+strip+hud+meter+synergy state and fire per-channel
-// damage FX without a fresh import.
+// + updateSynergyBar + damage-channel helpers + updateStaggerFx so battle
+// orchestrators / route handlers can refresh scene+strip+hud+meter+synergy
+// state, fire per-channel damage FX, and pulse the stagger FX layer without
+// a fresh import.
 export { updateBossScene, updateHeroStrip, updateTopHud, updatePressureMeter, updateSynergyBar };
 export { updateDamageChannelFx, spawnDamageNumber, triggerChannelFx };
+export { updateStaggerFx };
 
 export function setupBattleScreenEventListeners() {
   // TODO(T1.12): attach delegated 'click' / 'pointerdown' listeners to:
@@ -518,6 +535,36 @@ export function setupBattleScreenEventListeners() {
       try {
         mountDamageChannelFx(battleRoot);
       } catch (_e) { /* defensive — FX degrades; legacy channel toasts continue */ }
+
+      // TASK-CP-007 — mount stagger FX layer (chromatic shift on Stagger,
+      // pulsing amber telegraph + countdown on Recovery, SIGNATURE-channel
+      // revenge FX on Recovery→Active transition). Idempotent; classes are
+      // applied to battleRoot via updateStaggerFx() once state pipes
+      // through. Defensive try/catch so a FX mount failure never breaks
+      // the prior mounts. The sacred boss state machine in
+      // src/core/stagger-loop.js stays untouched — this layer reads state
+      // via window.bossState / staggerTurnsRemaining / recoveryTurnsRemaining
+      // populated by the legacy bridge. Closes the Combat Polish Polish gate
+      // (Tasks 5-7 complete).
+      try {
+        mountStaggerFx(battleRoot);
+        // Initial state refresh — best-effort defensive read of window-bridge
+        // stagger vars when legacy is loaded. Safe no-op when missing.
+        if (typeof window !== 'undefined') {
+          const sSeed = {
+            bossState:
+              (typeof window.bossState === 'string') ? window.bossState : undefined,
+            staggerTurnsRemaining:
+              (typeof window.staggerTurnsRemaining === 'number')
+                ? window.staggerTurnsRemaining : undefined,
+            recoveryTurnsRemaining:
+              (typeof window.recoveryTurnsRemaining === 'number')
+                ? window.recoveryTurnsRemaining : undefined,
+          };
+          const hasAnyS = Object.values(sSeed).some((v) => v !== undefined);
+          if (hasAnyS) updateStaggerFx(sSeed);
+        }
+      } catch (_e) { /* defensive — FX degrades; legacy stagger-slow-mo continues */ }
     }
   } catch (_err) {
     // Mount failure is non-fatal — scene degrades to legacy-only render.
@@ -577,6 +624,16 @@ export function cleanupBattleScreen() {
   // try/catch so a teardown failure never blocks subsequent cleanup callers.
   try {
     destroyDamageChannelFx();
+  } catch (_err) {
+    // Idempotent destroy — safe to ignore failures.
+  }
+
+  // TASK-CP-007 — tear down stagger FX layer (chromatic shift + telegraph +
+  // countdown). Idempotent; clears the bw-stagger-fx--* classes from the
+  // battle root + removes the slot DOM. Separate try/catch so a teardown
+  // failure never blocks subsequent cleanup callers.
+  try {
+    destroyStaggerFx();
   } catch (_err) {
     // Idempotent destroy — safe to ignore failures.
   }
