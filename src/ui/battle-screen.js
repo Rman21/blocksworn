@@ -377,10 +377,18 @@ import { mountHeroStrip, destroyHeroStrip, updateHeroStrip } from '../feel/hero-
 // game state, haptic triggers) all preserved per plan §12 + CLAUDE.md §2.1.
 import { mountTopHud, destroyTopHud, updateTopHud } from '../feel/top-hud.js';
 
-// Re-export updateBossScene + updateHeroStrip + updateTopHud so battle
-// orchestrators / route handlers can refresh scene+strip+hud state without
-// a fresh import.
-export { updateBossScene, updateHeroStrip, updateTopHud };
+// 2026-05-16 — TASK-CP-004: import pressure meter mount/destroy. Same Option A
+// wiring contract — meter mounts here, not in src/core/*. Sacred-cow
+// boundaries (PRESSURE_MAX=100, PRESSURE_GAIN 9 values, Stagger trigger logic
+// in src/core/stagger-loop.js) all preserved per plan §12 + CLAUDE.md §2.5.
+// This commit CLOSES the Combat Polish MVP gate (Tasks 1-4 complete — game
+// is "playable in new design" per plan §10).
+import { mountPressureMeter, destroyPressureMeter, updatePressureMeter } from '../feel/pressure-meter.js';
+
+// Re-export updateBossScene + updateHeroStrip + updateTopHud + updatePressureMeter
+// so battle orchestrators / route handlers can refresh scene+strip+hud+meter
+// state without a fresh import.
+export { updateBossScene, updateHeroStrip, updateTopHud, updatePressureMeter };
 
 export function setupBattleScreenEventListeners() {
   // TODO(T1.12): attach delegated 'click' / 'pointerdown' listeners to:
@@ -441,6 +449,25 @@ export function setupBattleScreenEventListeners() {
           if (hasAny) updateTopHud(seed);
         }
       } catch (_e) { /* defensive — HUD degrades to legacy top bar */ }
+
+      // TASK-CP-004 — mount Sekiro-style pressure gauge between boss scene
+      // and hero strip. Idempotent; fill renders at 0% until state pipes
+      // through. Defensive try/catch so meter mount failure never breaks
+      // scene + strip + HUD mounts above. Closes Combat Polish MVP gate.
+      try {
+        mountPressureMeter(battleRoot);
+        // Initial state refresh — best-effort defensive read of window-bridge
+        // pressure vars when legacy is loaded. window.bossPressure is the
+        // canonical source per src/core/stagger-loop.js render path.
+        if (typeof window !== 'undefined') {
+          const pSeed = {
+            pressure:    (typeof window.bossPressure === 'number') ? window.bossPressure : undefined,
+            pressureMax: (typeof window.PRESSURE_MAX === 'number')  ? window.PRESSURE_MAX  : undefined,
+          };
+          const hasAnyP = Object.values(pSeed).some((v) => v !== undefined);
+          if (hasAnyP) updatePressureMeter(pSeed);
+        }
+      } catch (_e) { /* defensive — meter degrades; legacy bar continues */ }
     }
   } catch (_err) {
     // Mount failure is non-fatal — scene degrades to legacy-only render.
@@ -476,6 +503,14 @@ export function cleanupBattleScreen() {
   // teardown failure never blocks subsequent cleanup callers.
   try {
     destroyTopHud();
+  } catch (_err) {
+    // Idempotent destroy — safe to ignore failures.
+  }
+
+  // TASK-CP-004 — tear down pressure meter. Idempotent; separate try/catch
+  // so a meter teardown failure never blocks subsequent cleanup callers.
+  try {
+    destroyPressureMeter();
   } catch (_err) {
     // Idempotent destroy — safe to ignore failures.
   }

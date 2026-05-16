@@ -1,0 +1,232 @@
+/* 2026-05-16 — TASK-CP-004 (combat-polish-implementation-plan.md §9 Task 4):
+ *
+ * Pressure meter — Sekiro-style horizontal gauge.
+ *
+ * Per plan §7.3:
+ *
+ *   ┌──────────────────────────────────────────────────────────────────┐
+ *   │ ⚡  ▓▓▓▓▓▓░░░░░░░░░░░░░░░░░░░░░░░░░░░░  STAGGER →  62/100      │
+ *   └──────────────────────────────────────────────────────────────────┘
+ *
+ * Contract:
+ *   - 32px target height on iPhone 16 (28/32/36 SE/16/Max — inherited from
+ *     --bw-pressure-h in battle-layout.css; this stylesheet never overrides).
+ *   - Fill direction: left→right. Threshold "STAGGER →" label at 100% mark.
+ *   - Gold gradient endpoints per plan §7.3 (#FFD53D → #FF9F1C); approximated
+ *     via existing --a-solar + --a-gold-300 family (no new tokens — see
+ *     commit message for rationale). When fill ≥80% the gradient saturates
+ *     to its hotter (#FF9F1C → ember-warm) endpoint.
+ *   - Surge animation (one-shot, ~520ms) fires only on line_quad events —
+ *     scale+glow pulse on the fill. Uses transform/opacity only (60fps).
+ *   - prefers-reduced-motion → surge animation disabled.
+ *
+ * Sacred-cow protection (CLAUDE.md §2 + plan §12):
+ *   - Uses --a-solar + --a-gold-* + --a-ember-* tokens only — no hex hardcodes
+ *     (plan §7.3 endpoints derived via tokens, see .bw-pressure-fill below).
+ *   - No animations on hot path (only the surge keyframes, opt-in via class).
+ *   - Never overrides .v-fx-crit-flash / .v-fx-shake / .stagger-slow-mo /
+ *     .boss-death-pause / .phase-2 / .phase-3 / .cell--engineer-welded
+ *     (JS-readable contract).
+ *   - SE / 16 / Pro Max height vars (28/32/36) inherit from battle-layout.css
+ *     (--bw-pressure-h). This stylesheet never overrides --bw-pressure-h.
+ */
+
+/* ─── Meter container — occupies .bw-zone-pressure (grid-row 3) ──────────── */
+.bw-pressure-meter {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  color: var(--a-text-primary, #f5e8d0);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ─── Icon — placeholder ⚡ (Task 5 swaps to element emblem) ──────────────── */
+.bw-pressure-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  font-size: 14px;
+  line-height: 1;
+  /* Subtle gold glow so the placeholder glyph reads against dark surface. */
+  filter: drop-shadow(0 0 1px rgba(255, 184, 74, 0.55));
+}
+
+/* ─── Track — the horizontal channel housing the fill ────────────────────── */
+.bw-pressure-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 10px;
+  min-width: 0;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  /* Inner shadow gives the track a recessed feel matching the grid arena. */
+  box-shadow:
+    inset 0 1px 1px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* ─── Fill — gold gradient bar growing left→right ────────────────────────── */
+/* Plan §7.3 — gradient endpoints #FFD53D → #FF9F1C. We approximate via the
+ * existing token family (--a-solar #ffe14a is close to #FFD53D; --a-gold-300
+ * #ffb84a sits a hair shy of #FF9F1C but stays inside the warm-gold family).
+ * No new tokens added — see commit message for the deliberate rationale.
+ *
+ * Width is driven by JS (.bw-pressure-fill.style.width = "62%"). All visual
+ * authority on saturation lives in CSS via .bw-pressure-meter--near-max.
+ */
+.bw-pressure-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--a-solar, #ffe14a) 0%,
+    var(--a-gold-300, #ffb84a) 100%
+  );
+  border-radius: 4px 0 0 4px;
+  /* Smooth width transition for non-quad events (build-up feel). Surge events
+   * still play the keyframe animation on top — transform is the hot path. */
+  transition: width 220ms cubic-bezier(0.25, 0.7, 0.3, 1);
+  /* Subtle warm glow even at idle so the fill reads as energetic. */
+  box-shadow:
+    0 0 6px rgba(255, 184, 74, 0.45),
+    inset 0 0 4px rgba(255, 225, 74, 0.35);
+  will-change: transform, filter;
+}
+
+/* Near-max saturation — gradient warms to ember when ≥80%. Communicates
+ * "approaching Stagger" without overriding the canonical .stagger-slow-mo
+ * gold flash that fires at 100% (animations.js owns that). */
+.bw-pressure-meter--near-max .bw-pressure-fill {
+  background: linear-gradient(
+    90deg,
+    var(--a-gold-300, #ffb84a) 0%,
+    var(--a-ember-lt, #ff8a4a) 100%
+  );
+  box-shadow:
+    0 0 10px rgba(255, 138, 74, 0.65),
+    inset 0 0 6px rgba(255, 184, 74, 0.55);
+}
+
+/* ─── Threshold label — "STAGGER →" right-aligned next to fill end ───────── */
+.bw-pressure-threshold {
+  display: inline-block;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--a-gold-300, #ffb84a);
+  text-shadow: 0 0 4px rgba(255, 184, 74, 0.35);
+  line-height: 1;
+}
+
+/* ─── Numeric value — "<pressure>/<max>" ─────────────────────────────────── */
+.bw-pressure-value {
+  display: inline-block;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: var(--a-text-primary, #f5e8d0);
+  min-width: 56px;       /* prevents layout jank as digits change width */
+  text-align: right;
+}
+
+/* ─── Surge animation — line_quad mastery moment ─────────────────────────── */
+/* One-shot ~520ms pulse on the fill. Pulses scale + brightness using only
+ * transform/filter (no layout-thrash). Opt-in via .bw-pressure-meter--surge
+ * class (added by updatePressureMeter when recentEvent === 'line_quad').
+ *
+ * 60fps hot-path discipline:
+ *   - transform-origin pinned left so the fill's anchor doesn't shift
+ *   - will-change hint declared on .bw-pressure-fill (above)
+ *   - no width/box-shadow tweens (keyframes use transform/filter only)
+ */
+@keyframes bw-pressure-surge {
+  0%   { transform: scaleY(1);    filter: brightness(1)    saturate(1); }
+  18%  { transform: scaleY(1.4);  filter: brightness(1.5)  saturate(1.4); }
+  60%  { transform: scaleY(1.15); filter: brightness(1.25) saturate(1.2); }
+  100% { transform: scaleY(1);    filter: brightness(1)    saturate(1); }
+}
+
+.bw-pressure-meter--surge .bw-pressure-fill {
+  transform-origin: left center;
+  animation: bw-pressure-surge 520ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* prefers-reduced-motion — surge animation suppressed. The fill width still
+ * updates (instant snap) so functionally line_quad still increments pressure;
+ * only the animated mastery flair is removed. */
+@media (prefers-reduced-motion: reduce) {
+  .bw-pressure-fill {
+    transition: none;
+  }
+  .bw-pressure-meter--surge .bw-pressure-fill {
+    animation: none;
+  }
+}
+
+/* ─── Small-device adjustments (iPhone SE, pressure-h = 28px) ────────────── */
+@media (max-height: 700px) {
+  .bw-pressure-meter {
+    gap: 6px;
+    font-size: 11px;
+  }
+  .bw-pressure-icon {
+    width: 16px;
+    height: 16px;
+    font-size: 13px;
+  }
+  .bw-pressure-track {
+    height: 8px;
+    border-radius: 4px;
+  }
+  .bw-pressure-threshold {
+    font-size: 9px;
+  }
+  .bw-pressure-value {
+    font-size: 11px;
+    min-width: 52px;
+  }
+}
+
+/* ─── Large-device adjustments (iPhone Pro Max, pressure-h = 36px) ───────── */
+@media (min-height: 900px) {
+  .bw-pressure-meter {
+    gap: 10px;
+    font-size: 13px;
+  }
+  .bw-pressure-icon {
+    width: 20px;
+    height: 20px;
+    font-size: 16px;
+  }
+  .bw-pressure-track {
+    height: 12px;
+    border-radius: 6px;
+  }
+  .bw-pressure-threshold {
+    font-size: 11px;
+  }
+  .bw-pressure-value {
+    font-size: 13px;
+    min-width: 60px;
+  }
+}
