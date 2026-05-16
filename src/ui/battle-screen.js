@@ -371,9 +371,16 @@ import { mountBossScene, destroyBossScene, updateBossScene } from '../feel/boss-
 // ULT-firing logic) all preserved per plan §12 + CLAUDE.md §2.1.
 import { mountHeroStrip, destroyHeroStrip, updateHeroStrip } from '../feel/hero-card.js';
 
-// Re-export updateBossScene + updateHeroStrip so battle orchestrators /
-// route handlers can refresh scene+strip state without a fresh import.
-export { updateBossScene, updateHeroStrip };
+// 2026-05-16 — TASK-CP-003: import top HUD mount/destroy. Same Option A
+// wiring contract — HUD mounts here, not in src/core/*. Sacred-cow
+// boundaries (MAX_HP=100, FIRE_MULT_ACTIVE_RATIO=0.7, HP value source from
+// game state, haptic triggers) all preserved per plan §12 + CLAUDE.md §2.1.
+import { mountTopHud, destroyTopHud, updateTopHud } from '../feel/top-hud.js';
+
+// Re-export updateBossScene + updateHeroStrip + updateTopHud so battle
+// orchestrators / route handlers can refresh scene+strip+hud state without
+// a fresh import.
+export { updateBossScene, updateHeroStrip, updateTopHud };
 
 export function setupBattleScreenEventListeners() {
   // TODO(T1.12): attach delegated 'click' / 'pointerdown' listeners to:
@@ -409,6 +416,31 @@ export function setupBattleScreenEventListeners() {
         const squad = (typeof window !== 'undefined') ? window.currentSquad : null;
         if (Array.isArray(squad)) updateHeroStrip(squad);
       } catch (_e) { /* defensive — strip degrades to legacy hero cards */ }
+
+      // TASK-CP-003 — mount top HUD chip row. Idempotent; chips render `--`
+      // placeholders until battle state pipes through. Defensive try/catch
+      // so a HUD mount failure never breaks scene + strip mount above.
+      try {
+        mountTopHud(battleRoot);
+        // Initial state refresh — best-effort defensive read of window-bridge
+        // battle vars when legacy is loaded. Safe no-op when missing.
+        if (typeof window !== 'undefined') {
+          const seed = {
+            hp:             (typeof window.hp === 'number') ? window.hp : undefined,
+            shieldPct:      (typeof window.shieldMitigationPct === 'number')
+                            ? window.shieldMitigationPct
+                            : undefined,
+            turn:           (typeof window.turnNumber === 'number') ? window.turnNumber : undefined,
+            fireMultActive: (typeof window.fireMultActive === 'number')
+                            ? window.fireMultActive
+                            : undefined,
+          };
+          // Only push update when at least one field is defined — avoids
+          // overwriting clean `--` placeholders with another `--` pass.
+          const hasAny = Object.values(seed).some((v) => v !== undefined);
+          if (hasAny) updateTopHud(seed);
+        }
+      } catch (_e) { /* defensive — HUD degrades to legacy top bar */ }
     }
   } catch (_err) {
     // Mount failure is non-fatal — scene degrades to legacy-only render.
@@ -436,6 +468,14 @@ export function cleanupBattleScreen() {
   // failure never blocks subsequent cleanup callers.
   try {
     destroyHeroStrip();
+  } catch (_err) {
+    // Idempotent destroy — safe to ignore failures.
+  }
+
+  // TASK-CP-003 — tear down top HUD. Idempotent; separate try/catch so a HUD
+  // teardown failure never blocks subsequent cleanup callers.
+  try {
+    destroyTopHud();
   } catch (_err) {
     // Idempotent destroy — safe to ignore failures.
   }
