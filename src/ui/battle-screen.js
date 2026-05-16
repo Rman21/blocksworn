@@ -422,14 +422,30 @@ import {
   updateStaggerFx,
 } from '../feel/stagger-fx.js';
 
+// 2026-05-17 — TASK-CP-008: import race FX polish mount/destroy + update.
+// First Tier-3 Identity polish task — layers refined visual accents over
+// the existing identity-fx.js race FX (Pirate / Shark / Rock / Crocodile /
+// Spark / Grove) via pure CSS cascade + a NEW cross-race combo banner DOM
+// element. Same Option A wiring contract — FX layer mounts here, not in
+// src/core/* or src/feel/identity-fx.js. Sacred-cow boundaries (PIRATE_
+// PLUNDER_* / SHARK_FRENZY_* / ROCK_ECHO_* / CROCODILE_BASTION_* / SPARK_
+// CASCADE_* / ROOT_SURGE_* constants + decay timings + identity-fx.js
+// handler signatures) all preserved per plan §12 + CLAUDE.md §2.1.
+import {
+  mountRaceFxPolish,
+  destroyRaceFxPolish,
+  updateRaceFxPolish,
+} from '../feel/identity-fx-polish.js';
+
 // Re-export updateBossScene + updateHeroStrip + updateTopHud + updatePressureMeter
-// + updateSynergyBar + damage-channel helpers + updateStaggerFx so battle
-// orchestrators / route handlers can refresh scene+strip+hud+meter+synergy
-// state, fire per-channel damage FX, and pulse the stagger FX layer without
-// a fresh import.
+// + updateSynergyBar + damage-channel helpers + updateStaggerFx + race FX
+// polish so battle orchestrators / route handlers can refresh scene+strip+
+// hud+meter+synergy state, fire per-channel damage FX, pulse the stagger
+// FX layer, and trigger cross-race combo banner without a fresh import.
 export { updateBossScene, updateHeroStrip, updateTopHud, updatePressureMeter, updateSynergyBar };
 export { updateDamageChannelFx, spawnDamageNumber, triggerChannelFx };
 export { updateStaggerFx };
+export { updateRaceFxPolish };
 
 export function setupBattleScreenEventListeners() {
   // TODO(T1.12): attach delegated 'click' / 'pointerdown' listeners to:
@@ -565,6 +581,23 @@ export function setupBattleScreenEventListeners() {
           if (hasAnyS) updateStaggerFx(sSeed);
         }
       } catch (_e) { /* defensive — FX degrades; legacy stagger-slow-mo continues */ }
+
+      // TASK-CP-008 — mount race FX polish layer (refined accents over
+      // existing identity-fx.js race FX + cross-race combo banner DOM).
+      // Idempotent; the cross-race banner is hidden until updateRaceFxPolish
+      // ({ hasCrossRaceCombo: true }) is invoked (or the window-bridge
+      // entry window.__triggerCrossRaceCombo() is called by Phase 3 T3.12
+      // cross-race compute in src/services/party-tower-backend.js). The
+      // 6-race CSS polish requires no JS state — pure cascade over the
+      // existing identity-fx.js .identity-* DOM classes. Defensive
+      // try/catch so a FX mount failure never breaks the prior mounts.
+      // The sacred 80+ exported handlers in src/feel/identity-fx.js stay
+      // BYTE-PERFECT UNTOUCHED — this polish layer reads no state from
+      // identity-fx.js and never mutates its DOM. First Tier-3 Identity
+      // polish task — the LARGEST single Combat Polish block (6 races).
+      try {
+        mountRaceFxPolish(battleRoot);
+      } catch (_e) { /* defensive — FX degrades; legacy identity-fx continues */ }
     }
   } catch (_err) {
     // Mount failure is non-fatal — scene degrades to legacy-only render.
@@ -634,6 +667,19 @@ export function cleanupBattleScreen() {
   // failure never blocks subsequent cleanup callers.
   try {
     destroyStaggerFx();
+  } catch (_err) {
+    // Idempotent destroy — safe to ignore failures.
+  }
+
+  // TASK-CP-008 — tear down race FX polish layer (cross-race combo banner
+  // DOM + window-bridge entry points + any pending FROM SOIL label timers).
+  // Idempotent; removes the bw-race-fx-polish slot from the battle root.
+  // Separate try/catch so a teardown failure never blocks subsequent
+  // cleanup callers. The pure-CSS race polish accents (Pirate / Shark /
+  // Rock / Crocodile / Spark / Grove) self-clean — they style existing
+  // identity-fx.js DOM that identity-fx.js itself tears down.
+  try {
+    destroyRaceFxPolish();
   } catch (_err) {
     // Idempotent destroy — safe to ignore failures.
   }
