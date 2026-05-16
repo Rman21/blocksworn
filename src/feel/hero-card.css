@@ -1,0 +1,270 @@
+/* 2026-05-16 — TASK-CP-002 (combat-polish-implementation-plan.md §9 Task 2):
+ *
+ * Hero strip — 5-slot horizontal row + per-hero card styling.
+ *
+ * Per plan §7.4 (Hero strip 108px on iPhone 16, scales 92/108/120 SE/16/Max):
+ *
+ *   ┌────────────┐
+ *   │ [⚔]    Lv4 │  ← header row: class icon (top-left) + level badge (top-right)
+ *   │ ╭────────╮ │
+ *   │ │ AVATAR │ │  ← circular SVG energy ring (--a-{element})
+ *   │ │   ◯    │ │     filled clockwise via stroke-dashoffset
+ *   │ ╰────────╯ │
+ *   │ ▓▓▓░░░░░░░ │  ← HP bar (3px thin, red→green gradient)
+ *   └────────────┘
+ *      THORGAR     ← 11px caps name below card
+ *
+ * Sacred-cow protection (CLAUDE.md §2 + plan §12):
+ *   - Uses --a-{ember|tide|grove|solar|umbra} tokens only — no hex hardcodes.
+ *   - Animations use transform / opacity only (hot-path 60 FPS preserved).
+ *   - prefers-reduced-motion disables ready-state pulse.
+ *   - Never overrides .v-fx-* / .stagger-slow-mo / .boss-death-pause classes.
+ *
+ * Performance notes:
+ *   - 5 cards × static SVG (1 track + 1 fill circle) = 10 SVG nodes — well
+ *     under the §3 budget. stroke-dashoffset transitions are GPU-friendly.
+ *   - Ready-state glow uses box-shadow on the ring-wrap container only —
+ *     not on every card child — keeping repaint scope tight.
+ */
+
+/* ─── Strip container — occupies .bw-zone-heroes (grid-row 4) ─────────────── */
+.bw-hero-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  padding: 4px 8px;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+/* ─── Card root — button so tap is keyboard-accessible by default ─────────── */
+.bw-hero-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 4px 2px 2px;
+  background: rgba(15, 10, 28, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  color: var(--a-text-primary, #f5e8d0);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  /* No hover transition on transform — keep hot path 60fps. */
+  transition: border-color 180ms ease-out, background 180ms ease-out;
+}
+.bw-hero-card:focus-visible {
+  border-color: var(--a-gold-300, #ffb84a);
+}
+
+/* ─── Header row — class icon (left) + level badge (right) ────────────────── */
+.bw-hero-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 4px;
+  height: 14px;
+  box-sizing: border-box;
+}
+.bw-hero-class-icon {
+  width: 14px;
+  height: 14px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0;
+}
+.bw-hero-level {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--a-gold-300, #ffb84a);
+  line-height: 1;
+}
+
+/* ─── Energy ring + avatar — circular composition ─────────────────────────── */
+.bw-hero-ring-wrap {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bw-hero-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Rotate -90deg so the dash fill begins at 12 o'clock (clockwise sweep) */
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+.bw-hero-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 3;
+}
+.bw-hero-ring-fill {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  /* Smooth fill on energy changes; not a hot-path animation. */
+  transition: stroke-dashoffset 220ms ease-out;
+}
+
+/* Avatar — circular slot inside the ring. Lock state shows '+' centred. */
+.bw-hero-avatar {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: rgba(10, 6, 18, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--a-text-secondary, #a09080);
+}
+
+/* ─── HP bar (3px thin) ───────────────────────────────────────────────────── */
+.bw-hero-hp {
+  position: relative;
+  width: 92%;
+  height: 3px;
+  margin-top: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.bw-hero-hp-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    #d83b3b 0%,
+    #d8a83b 50%,
+    #5fc94a 100%
+  );
+  transition: width 220ms ease-out;
+  border-radius: 2px;
+}
+
+/* ─── Hero name (11px caps) ───────────────────────────────────────────────── */
+.bw-hero-name {
+  margin-top: 3px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--a-text-primary, #f5e8d0);
+  text-align: center;
+  line-height: 1.1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+/* ─── Lock placeholder state ──────────────────────────────────────────────── */
+.bw-hero-card--lock {
+  opacity: 0.55;
+  background: rgba(15, 10, 28, 0.3);
+  border-color: rgba(255, 255, 255, 0.04);
+}
+.bw-hero-card--lock .bw-hero-avatar {
+  color: var(--a-text-muted, #6a5840);
+  background: rgba(10, 6, 18, 0.55);
+}
+.bw-hero-card--lock .bw-hero-hp {
+  visibility: hidden;
+}
+
+/* ─── Ready state — pulsing glow around ring in element colour ────────────── */
+/* Uses a wrapper-level box-shadow + opacity keyframe; no transform on hot
+ * path. CSS variable --a-{element} is set inline by hero-card.js. */
+.bw-hero-card--ready .bw-hero-ring-wrap {
+  animation: bw-hero-ready-pulse 1.2s ease-in-out infinite;
+}
+.bw-hero-card--ready .bw-hero-class-icon {
+  animation: bw-hero-tapme-bob 1.2s ease-in-out infinite;
+}
+
+/* Per-element ready glow — driven by data-element attribute on .bw-hero-card. */
+.bw-hero-card[data-element="ember"]  .bw-hero-ring-wrap { --bw-ready-glow: var(--a-ember, #ff5a3a); }
+.bw-hero-card[data-element="tide"]   .bw-hero-ring-wrap { --bw-ready-glow: var(--a-tide,  #4adbff); }
+.bw-hero-card[data-element="grove"]  .bw-hero-ring-wrap { --bw-ready-glow: var(--a-grove, #7aec4a); }
+.bw-hero-card[data-element="solar"]  .bw-hero-ring-wrap { --bw-ready-glow: var(--a-solar, #ffe14a); }
+.bw-hero-card[data-element="umbra"]  .bw-hero-ring-wrap { --bw-ready-glow: var(--a-umbra, #c06adf); }
+
+@keyframes bw-hero-ready-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 rgba(255, 255, 255, 0),
+      0 0 8px 0 var(--bw-ready-glow, var(--a-umbra, #c06adf));
+    opacity: 1;
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.04),
+      0 0 16px 2px var(--bw-ready-glow, var(--a-umbra, #c06adf));
+    opacity: 0.92;
+  }
+}
+
+@keyframes bw-hero-tapme-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-1px); }
+}
+
+/* ─── Respect prefers-reduced-motion — disable pulse + bob ───────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .bw-hero-card--ready .bw-hero-ring-wrap,
+  .bw-hero-card--ready .bw-hero-class-icon {
+    animation: none !important;
+  }
+  .bw-hero-ring-fill,
+  .bw-hero-hp-fill {
+    transition: none !important;
+  }
+}
+
+/* ─── Small-device adjustments (iPhone SE) ────────────────────────────────── */
+@media (max-height: 700px) {
+  .bw-hero-strip {
+    gap: 4px;
+    padding: 2px 6px;
+  }
+  .bw-hero-ring-wrap {
+    width: 48px;
+    height: 48px;
+  }
+  .bw-hero-name {
+    font-size: 9px;
+    margin-top: 2px;
+  }
+}
+
+/* ─── Large-device adjustments (iPhone Pro Max) ───────────────────────────── */
+@media (min-height: 900px) {
+  .bw-hero-strip {
+    gap: 8px;
+    padding: 6px 10px;
+  }
+  .bw-hero-ring-wrap {
+    width: 64px;
+    height: 64px;
+  }
+  .bw-hero-name {
+    font-size: 11px;
+  }
+}

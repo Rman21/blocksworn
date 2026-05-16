@@ -365,9 +365,15 @@ export function _tickChoice(phase) {
 // combat-polish-implementation-plan.md §8.3 "src/core/* NEVER touched".
 import { mountBossScene, destroyBossScene, updateBossScene } from '../feel/boss-scene.js';
 
-// Re-export updateBossScene so battle orchestrators / route handlers can
-// refresh scene state (HP, name, element swap) without a fresh import.
-export { updateBossScene };
+// 2026-05-16 — TASK-CP-002: import hero strip mount/destroy. Same Option A
+// wiring contract — strip mounts here, not in src/core/*. Sacred-cow
+// boundaries (HERO_ULT_COST_BY_NEWROLE values, RACE_TO_STIHIYA mapping,
+// ULT-firing logic) all preserved per plan §12 + CLAUDE.md §2.1.
+import { mountHeroStrip, destroyHeroStrip, updateHeroStrip } from '../feel/hero-card.js';
+
+// Re-export updateBossScene + updateHeroStrip so battle orchestrators /
+// route handlers can refresh scene+strip state without a fresh import.
+export { updateBossScene, updateHeroStrip };
 
 export function setupBattleScreenEventListeners() {
   // TODO(T1.12): attach delegated 'click' / 'pointerdown' listeners to:
@@ -394,6 +400,15 @@ export function setupBattleScreenEventListeners() {
         const boss = (typeof window !== 'undefined') ? window.currentBoss : null;
         if (boss) updateBossScene(boss);
       } catch (_e) { /* defensive — no boss data yet, fine */ }
+
+      // TASK-CP-002 — mount hero strip. Idempotent; lock placeholders render
+      // until squad data lands via updateHeroStrip(). Defensive try/catch so
+      // a strip mount failure never breaks scene mount above.
+      try {
+        mountHeroStrip(battleRoot);
+        const squad = (typeof window !== 'undefined') ? window.currentSquad : null;
+        if (Array.isArray(squad)) updateHeroStrip(squad);
+      } catch (_e) { /* defensive — strip degrades to legacy hero cards */ }
     }
   } catch (_err) {
     // Mount failure is non-fatal — scene degrades to legacy-only render.
@@ -412,6 +427,15 @@ export function cleanupBattleScreen() {
   // TASK-CP-001 — tear down boss scene + restore bossImg to legacy parent.
   try {
     destroyBossScene();
+  } catch (_err) {
+    // Idempotent destroy — safe to ignore failures.
+  }
+
+  // TASK-CP-002 — tear down hero strip. Idempotent; safe even if mount was
+  // skipped (no battle root present). Separate try/catch so a strip teardown
+  // failure never blocks subsequent cleanup callers.
+  try {
+    destroyHeroStrip();
   } catch (_err) {
     // Idempotent destroy — safe to ignore failures.
   }
