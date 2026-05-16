@@ -1,0 +1,293 @@
+/* 2026-05-16 — TASK-CP-001 (combat-polish-implementation-plan.md §9 Task 1):
+ *
+ * Boss scene — layered render of the boss-as-theatrical-presence.
+ *
+ * Per plan §7.2 Z-layer stack (bottom → top):
+ *
+ *   Z0 — Element background (.bw-boss-bg)
+ *        object-fit: cover, blur 2-4px for depth focus on character.
+ *        Source: ELEMENT_ASSETS[element].bg (lazy-loaded per boss).
+ *
+ *   Z1 — Vignette gradient (.bw-boss-vignette)
+ *        CSS radial darkening edges; focuses viewer on center.
+ *
+ *   Z2 — Boss character (#bossImg or .bw-boss-character)
+ *        Existing legacy bossImg preserved verbatim (JS reads it for
+ *        particle direction via vPlayLineClearBurst); mix-blend-mode
+ *        lighten as interim fix for navy-fringe per plan §4.
+ *
+ *   Z3 — Ambient particles (.bw-boss-ambient)
+ *        CSS @keyframes per element — sparks/snowflakes/leaves/motes/wisps.
+ *        Steady-state under 2ms render budget per plan §3 perf budget.
+ *
+ *   Z4 — HP gauge + boss name + element emblem (.bw-boss-overlay)
+ *        DOM overlay positioned bottom; element-colored HP gradient.
+ *
+ * Sacred-cow protection:
+ *   - #bossImg element ID + .phase-2 / .phase-3 classes UNTOUCHED
+ *     (JS writes them; particle direction depends on bossImg coords).
+ *   - vPlayLineClearBurst sacred direction toward bossImg preserved.
+ *   - --a-{element} tokens used everywhere; no element hex hardcodes.
+ *   - Steady-state animation budget honored: 2ms per plan §3.
+ */
+
+.bw-boss-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  isolation: isolate;   /* establishes stacking context for z-index layers */
+  overflow: hidden;
+}
+
+/* Z0 — Element background. Lazy-loaded via inline style background-image
+ * set by boss-scene.js mount() — keeps initial bundle without 7 MB of
+ * eager image data. Blurred for depth focus on character. */
+.bw-boss-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center 30%;   /* slight upper bias — ground frames character */
+  background-repeat: no-repeat;
+  filter: blur(3px) saturate(0.85);  /* defocus + slight desat for character pop */
+  transform: scale(1.05);            /* prevent blur edge halos */
+}
+
+/* Z1 — Vignette. Darkens edges, focuses on character. CSS gradient only —
+ * zero image cost, zero runtime cost. */
+.bw-boss-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse at center 60%,
+      transparent 30%,
+      rgba(5, 3, 8, 0.55) 75%,
+      rgba(5, 3, 8, 0.85) 100%
+    );
+}
+
+/* Z2 — Boss character. Wraps existing #bossImg from legacy DOM.
+ * mix-blend-mode lighten is the navy-fringe mitigation interim (plan §4).
+ * When alpha-channel boss artwork lands, can remove this filter. */
+.bw-boss-character {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;             /* preserve tap-on-boss handler hook */
+}
+.bw-boss-character > img,
+.bw-boss-character #bossImg {
+  max-width: 85%;
+  max-height: 90%;
+  object-fit: contain;
+  mix-blend-mode: lighten;          /* interim navy-fringe mitigation */
+}
+
+/* Z3 — Ambient particles container. Per-element CSS @keyframes handle the
+ * actual motion (sparks float up for ember, snowflakes drift for tide, etc).
+ * Container is invisible; particles are pseudo-elements or DOM children. */
+.bw-boss-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Element-specific ambient classes — applied by boss-scene.js based on
+ * ELEMENT_ASSETS[element].ambient field. Each element's ambient is a
+ * single @keyframes loop that runs under the 2ms steady-state budget. */
+
+/* ember — slow upward sparks (lava embers) */
+.bw-ambient--sparks::before,
+.bw-ambient--sparks::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle 2px at 20% 80%, var(--a-ember-lt, #ff8a4a) 0, transparent 60%),
+    radial-gradient(circle 1px at 55% 90%, var(--a-ember, #ff5a3a) 0, transparent 60%),
+    radial-gradient(circle 2px at 80% 75%, var(--a-ember-lt, #ff8a4a) 0, transparent 60%);
+  animation: bw-spark-rise 8s linear infinite;
+  opacity: 0.6;
+}
+.bw-ambient--sparks::after {
+  animation-delay: -4s;
+  opacity: 0.4;
+}
+@keyframes bw-spark-rise {
+  from { transform: translateY(0); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  to   { transform: translateY(-100%); opacity: 0; }
+}
+
+/* tide — drifting snowflakes / mist */
+.bw-ambient--snowflakes::before,
+.bw-ambient--snowflakes::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle 1.5px at 15% 20%, var(--a-tide-lt, #6ad5ff) 0, transparent 60%),
+    radial-gradient(circle 1px at 50% 30%, var(--a-tide, #4adbff) 0, transparent 60%),
+    radial-gradient(circle 1.5px at 85% 15%, var(--a-tide-lt, #6ad5ff) 0, transparent 60%);
+  animation: bw-flake-drift 12s linear infinite;
+  opacity: 0.5;
+}
+.bw-ambient--snowflakes::after { animation-delay: -6s; opacity: 0.3; }
+@keyframes bw-flake-drift {
+  from { transform: translate3d(0, -10%, 0); opacity: 0; }
+  10%  { opacity: 0.5; }
+  90%  { opacity: 0.5; }
+  to   { transform: translate3d(-3%, 100%, 0); opacity: 0; }
+}
+
+/* grove — drifting leaves */
+.bw-ambient--leaves::before,
+.bw-ambient--leaves::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle 2px at 25% 10%, var(--a-grove-lt, #9aff5a) 0, transparent 60%),
+    radial-gradient(circle 1.5px at 70% 5%, var(--a-grove, #7aec4a) 0, transparent 60%);
+  animation: bw-leaf-fall 14s linear infinite;
+  opacity: 0.5;
+}
+.bw-ambient--leaves::after { animation-delay: -7s; opacity: 0.3; }
+@keyframes bw-leaf-fall {
+  from { transform: translate3d(0, -10%, 0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.5; }
+  90%  { opacity: 0.5; }
+  to   { transform: translate3d(5%, 100%, 0) rotate(180deg); opacity: 0; }
+}
+
+/* solar — golden motes (radiant warmth) */
+.bw-ambient--golden_motes::before,
+.bw-ambient--golden_motes::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle 1.5px at 30% 40%, var(--a-solar-lt, #ffee8a) 0, transparent 60%),
+    radial-gradient(circle 1.5px at 75% 60%, var(--a-solar, #ffe14a) 0, transparent 60%);
+  animation: bw-mote-float 10s ease-in-out infinite;
+  opacity: 0.55;
+}
+.bw-ambient--golden_motes::after { animation-delay: -5s; opacity: 0.35; }
+@keyframes bw-mote-float {
+  0%,   100% { transform: translate3d(0, 0, 0);    opacity: 0.4; }
+  50%        { transform: translate3d(2%, -3%, 0); opacity: 0.6; }
+}
+
+/* umbra — purple wisps (shadow drift) */
+.bw-ambient--wisps::before,
+.bw-ambient--wisps::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle 2px at 40% 50%, var(--a-umbra-lt, #e199ff) 0, transparent 60%),
+    radial-gradient(circle 1.5px at 65% 35%, var(--a-umbra, #c06adf) 0, transparent 60%);
+  animation: bw-wisp-drift 11s ease-in-out infinite;
+  opacity: 0.5;
+}
+.bw-ambient--wisps::after { animation-delay: -5.5s; opacity: 0.3; }
+@keyframes bw-wisp-drift {
+  0%,   100% { transform: translate3d(0, 0, 0);     opacity: 0.4; }
+  33%        { transform: translate3d(-2%, -2%, 0); opacity: 0.55; }
+  66%        { transform: translate3d(2%, -1%, 0);  opacity: 0.55; }
+}
+
+/* Z4 — HP gauge + boss name + element emblem overlay. Sits at bottom of
+ * scene; element-colored gradient HP bar; M/K formatting for boss HP
+ * (Ch1 = 7200 → 7.2K; Ch5 finale = 248400 → 248K) per combat-mechanics.md §16. */
+.bw-boss-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  padding: 8px 12px 10px;
+  background: linear-gradient(180deg, transparent 0%, rgba(5, 3, 8, 0.75) 60%, rgba(5, 3, 8, 0.95) 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.bw-boss-nameline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--a-text-gold, #f5d888);
+}
+.bw-boss-name {
+  font-weight: 600;
+}
+.bw-boss-emblem {
+  width: 18px;
+  height: 18px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  flex-shrink: 0;
+}
+
+/* HP gauge — single bar spanning full width. Element-colored fill via
+ * CSS var --bw-boss-hp-fill set by boss-scene.js update(). */
+.bw-boss-hp {
+  position: relative;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.bw-boss-hp-fill {
+  position: absolute;
+  inset: 0;
+  width: var(--bw-boss-hp-pct, 100%);
+  background: linear-gradient(
+    90deg,
+    var(--bw-boss-hp-fill-dk, var(--a-umbra-dk, #2a0840)) 0%,
+    var(--bw-boss-hp-fill, var(--a-umbra, #c06adf)) 100%
+  );
+  transition: width 320ms ease-out;
+  border-radius: 4px;
+}
+.bw-boss-hp-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--a-text-primary, #f5e8d0);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+
+/* Respect prefers-reduced-motion — disable all ambient particle motion. */
+@media (prefers-reduced-motion: reduce) {
+  .bw-boss-bg { transform: none; filter: blur(2px); }
+  .bw-boss-ambient::before,
+  .bw-boss-ambient::after,
+  .bw-ambient--sparks::before, .bw-ambient--sparks::after,
+  .bw-ambient--snowflakes::before, .bw-ambient--snowflakes::after,
+  .bw-ambient--leaves::before, .bw-ambient--leaves::after,
+  .bw-ambient--golden_motes::before, .bw-ambient--golden_motes::after,
+  .bw-ambient--wisps::before, .bw-ambient--wisps::after {
+    animation: none !important;
+  }
+}

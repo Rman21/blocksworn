@@ -359,6 +359,16 @@ export function _tickChoice(phase) {
 // boss image, threat banner, HP bar). T1.12 will wire delegated listeners
 // via setupBattleScreenEventListeners().
 
+// 2026-05-16 — TASK-CP-001: import boss scene mount/destroy. Per readiness
+// doc §3 Option A (Roman ruling 2026-05-16) Combat Polish components mount
+// via this file, NOT via src/core/battle.js — preserves CLAUDE.md §2 +
+// combat-polish-implementation-plan.md §8.3 "src/core/* NEVER touched".
+import { mountBossScene, destroyBossScene, updateBossScene } from '../feel/boss-scene.js';
+
+// Re-export updateBossScene so battle orchestrators / route handlers can
+// refresh scene state (HP, name, element swap) without a fresh import.
+export { updateBossScene };
+
 export function setupBattleScreenEventListeners() {
   // TODO(T1.12): attach delegated 'click' / 'pointerdown' listeners to:
   //   #grid → cell-tap + drag-drop pipeline (place piece)
@@ -367,6 +377,28 @@ export function setupBattleScreenEventListeners() {
   //   #bossImg → boss-tap (currently dev-only)
   //   #towerAbandonBtn → abandonTowerRun
   //   #retreatBtn → returnToMenuFromBattle (from router.js)
+
+  // TASK-CP-001 — mount boss scene composition. Idempotent if already mounted
+  // (re-entry on screen re-activation). Looks for #screenBattle (legacy DOM)
+  // or .bw-battle-root (modular shell) as the host element.
+  try {
+    const battleRoot =
+         document.querySelector('.bw-battle-root')
+      || document.getElementById('screenBattle');
+    if (battleRoot) {
+      mountBossScene(battleRoot);
+      // Initial state refresh — defensive read of window-bridge boss data
+      // if available (modular shell will pass via update() once boss data
+      // pipes through). Safe no-op when window globals absent.
+      try {
+        const boss = (typeof window !== 'undefined') ? window.currentBoss : null;
+        if (boss) updateBossScene(boss);
+      } catch (_e) { /* defensive — no boss data yet, fine */ }
+    }
+  } catch (_err) {
+    // Mount failure is non-fatal — scene degrades to legacy-only render.
+    // Log routes through global error handler / Sentry per src/main.js init.
+  }
 }
 
 export function cleanupBattleScreen() {
@@ -376,6 +408,13 @@ export function cleanupBattleScreen() {
   // memos). These cleanups currently happen inline at battle-start in legacy
   // _resetPhase6ArchetypeState / _resetAbyssalTyrantState / initChapter3Boss —
   // call those from cleanupBattleScreen until T1.12 unifies the reset path.
+
+  // TASK-CP-001 — tear down boss scene + restore bossImg to legacy parent.
+  try {
+    destroyBossScene();
+  } catch (_err) {
+    // Idempotent destroy — safe to ignore failures.
+  }
 }
 
 // ─── T1.11.1 landed ─────────────────────────────────────────────────────────

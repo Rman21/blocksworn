@@ -1,0 +1,95 @@
+/* 2026-05-16 — TASK-CP-001 (combat-polish-implementation-plan.md §9 Task 1):
+ *
+ * Battle screen layout grid — new theatrical composition.
+ *
+ * Per plan §5.1 (iPhone 16 reference, 393×852, 759px usable after safe area):
+ *
+ *   44px  TOP HUD              (chip row — resource indicators)
+ *   260px BOSS SCENE           (layered render — bg + character + ambient + HP)
+ *   32px  PRESSURE METER       (Sekiro-style horizontal gauge — Task 4)
+ *   108px HERO STRIP           (5-slot fixed grid — Task 2)
+ *   ~240px GRID ARENA          (dark framed panel around game grid)
+ *   90-96px PIECE TRAY         (3-piece row)
+ *
+ * Vertical math: 44 + 260 + 32 + 108 + 240 + 90 = 774px, fits 759px with
+ * gap:0 absorbing minor overflow into internal section padding.
+ *
+ * Scaling strategy (plan §5.2): boss scene + grid scale most; HUD + pressure
+ * near-fixed; hero strip scales proportionally.
+ *
+ * Sacred-cow protection:
+ *   - Never overrides --cell-size formula (tokens.css line 23+).
+ *   - Never modifies .v-fx-shake / .v-fx-crit-flash / .stagger-slow-mo /
+ *     .boss-death-pause / .phase-2 / .phase-3 / .cell--engineer-welded.
+ *   - Existing legacy CSS (lines 1257-2048 §5.5 Resource bar etc) continues
+ *     to govern legacy runtime. This file governs the modular runtime.
+ */
+
+/* Root container — the new battle screen wrapper. Uses dynamic viewport
+ * (100dvh) to respect mobile address bar collapse. Safe-area insets handle
+ * iPhone notch / Dynamic Island / home indicator clearance. */
+.bw-battle-root {
+  display: grid;
+  grid-template-rows:
+    var(--bw-hud-h, 44px)
+    var(--bw-boss-h, 260px)
+    var(--bw-pressure-h, 32px)
+    var(--bw-heroes-h, 108px)
+    1fr        /* grid arena — flexes to fill */
+    var(--bw-tray-h, 96px);
+  height: 100dvh;
+  height: var(--viewport-height, 100dvh);
+  padding-top: var(--safe-area-top, 0px);
+  padding-bottom: var(--safe-area-bottom, 0px);
+  padding-left: var(--safe-area-left, 0px);
+  padding-right: var(--safe-area-right, 0px);
+  background: var(--a-bg-deepest, #050308);
+  color: var(--a-text-primary, #f5e8d0);
+  overflow: hidden;
+}
+
+/* iPhone SE (375×667) legacy fallback — compress zones per plan §5.2 */
+@media (max-height: 700px) {
+  .bw-battle-root {
+    --bw-hud-h: 40px;
+    --bw-boss-h: 200px;
+    --bw-pressure-h: 28px;
+    --bw-heroes-h: 92px;
+    --bw-tray-h: 87px;
+  }
+}
+
+/* iPhone Pro Max (430+×956+) — expand boss scene + grid presence */
+@media (min-height: 900px) {
+  .bw-battle-root {
+    --bw-boss-h: 320px;
+    --bw-pressure-h: 36px;
+    --bw-heroes-h: 120px;
+    --bw-tray-h: 110px;
+  }
+}
+
+/* Zone slots — each occupies one grid row. Sub-components mount inside. */
+.bw-zone-hud      { grid-row: 1; }
+.bw-zone-boss     { grid-row: 2; position: relative; overflow: hidden; }
+.bw-zone-pressure { grid-row: 3; display: flex; align-items: center; padding: 0 12px; }
+.bw-zone-heroes   { grid-row: 4; }
+.bw-zone-grid     { grid-row: 5; display: flex; align-items: center; justify-content: center; padding: 8px; }
+.bw-zone-tray     { grid-row: 6; }
+
+/* Grid arena frame — dark framed panel suggesting recessed combat zone.
+ * Plan §7.5: 4px border, 8px padding, rgba(15,18,24,0.85) background.
+ * Cell-size formula in src/core/grid.js + tokens.css UNTOUCHED. */
+.bw-grid-arena {
+  border: 4px solid var(--a-bg-surface, #150a1c);
+  background: rgba(15, 18, 24, 0.85);
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Inner gradient — slightly lighter inside (recessed feel) */
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 4px 16px rgba(0, 0, 0, 0.6);
+}

@@ -42,3 +42,12 @@
 @import './screens/adventures.css';
 @import './screens/party-tower.css';
 @import './screens/tower-season.css';
+
+/* Feel-layer CSS modules — TASK-CP-001+ (Combat Polish workstream).
+ * Cascade LAST so polish styles win specificity ties against legacy
+ * screens/*.css selectors. Sacred-cow boundary: these files NEVER override
+ * .v-fx-crit-flash / .v-fx-shake / .stagger-slow-mo / .boss-death-pause /
+ * .phase-2 / .phase-3 / .cell--engineer-welded (JS-readable contract).
+ */
+@import '../feel/battle-layout.css';
+@import '../feel/boss-scene.css';
