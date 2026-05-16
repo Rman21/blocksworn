@@ -437,6 +437,22 @@ import {
   updateRaceFxPolish,
 } from '../feel/identity-fx-polish.js';
 
+// 2026-05-17 — TASK-CP-009: import boss-death cinematic polish mount/destroy.
+// Second Tier-3 Identity polish task — refines the visual *content* of the
+// sacred 5-beat boss-death cinematic (Beat 0 shake amplitude curve / Beat 1
+// hit-pause desaturation intensity / Beat 2 themed-color flash tint / Beat 4
+// slow-zoom transform-origin + easing) within the sacred 440 / 300 / 260+220
+// / 420ms beat durations. Same Option A wiring contract — polish layer
+// mounts here, not in src/core/* or src/feel/animations.js. Sacred-cow
+// boundaries (5-beat durations + beat order + trigger condition + Voidfang
+// bespoke cinematic) all preserved per plan §12 + CLAUDE.md §2.2.
+//
+// animations.js stays BYTE-PERFECT — sacred SHA1 `41fd7ec0…` audited.
+import {
+  mountBossDeathPolish,
+  destroyBossDeathPolish,
+} from '../feel/boss-death-polish.js';
+
 // Re-export updateBossScene + updateHeroStrip + updateTopHud + updatePressureMeter
 // + updateSynergyBar + damage-channel helpers + updateStaggerFx + race FX
 // polish so battle orchestrators / route handlers can refresh scene+strip+
@@ -598,6 +614,22 @@ export function setupBattleScreenEventListeners() {
       try {
         mountRaceFxPolish(battleRoot);
       } catch (_e) { /* defensive — FX degrades; legacy identity-fx continues */ }
+
+      // TASK-CP-009 — mount boss-death cinematic polish layer. Installs a
+      // narrow MutationObserver on document.body that detects when the
+      // legacy `.p-boss-death-flash` element appears (created by
+      // vPlayBossDieFx at t=260ms) and applies `data-boss-element` so the
+      // CSS in boss-death-polish.css renders a themed-color radial gradient
+      // for Beat 2. The Beat 0 shake amplitude curve / Beat 1 desaturation
+      // / Beat 4 zoom origin polish is pure CSS cascade — no runtime cost.
+      // Idempotent; defensive try/catch so a polish mount failure never
+      // breaks the prior mounts. The sacred 5-beat orchestrator in
+      // src/feel/animations.js (sacred SHA1 baseline `41fd7ec0…`) stays
+      // BYTE-PERFECT UNTOUCHED — this polish layer reads no state from it
+      // and never mutates its DOM beyond the data-boss-element attribute.
+      try {
+        mountBossDeathPolish(battleRoot);
+      } catch (_e) { /* defensive — FX degrades; legacy white-only flash continues */ }
     }
   } catch (_err) {
     // Mount failure is non-fatal — scene degrades to legacy-only render.
@@ -680,6 +712,17 @@ export function cleanupBattleScreen() {
   // identity-fx.js DOM that identity-fx.js itself tears down.
   try {
     destroyRaceFxPolish();
+  } catch (_err) {
+    // Idempotent destroy — safe to ignore failures.
+  }
+
+  // TASK-CP-009 — tear down boss-death cinematic polish layer (disconnects
+  // the MutationObserver). Idempotent; safe even if mount was skipped (no
+  // battle root present). The sacred 5-beat cinematic in animations.js
+  // continues to fire its own DOM lifecycle — this teardown only releases
+  // the observer handle so a fresh battle entry can re-mount cleanly.
+  try {
+    destroyBossDeathPolish();
   } catch (_err) {
     // Idempotent destroy — safe to ignore failures.
   }
