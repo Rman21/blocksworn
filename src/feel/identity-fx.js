@@ -76,6 +76,7 @@ import {
   ASHEN_REIGN_DECAY_MS,
   ASHEN_REIGN_REQUIRED_ELEMENT,
   ASHEN_REIGN_HUD_COUNTDOWN_TEXT,
+  ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER,
   ASHEN_REIGN_INITIAL_BUDGET_MS,
   // T2.08 — Lich Cursed Tiles constants.
   CURSED_TILES_COUNT,
@@ -85,6 +86,7 @@ import {
   CURSED_TILES_TRIGGER_SHARK_THRESHOLD,
   CURSED_TILES_SKULL_DECAY_MS,
   CURSED_TILES_SKULL_COLOR,
+  CURSED_TILES_NARRATOR_LINE_PLACEHOLDER,
   CURSED_TILES_INITIAL_BUDGET_MS,
   CURSED_TILES_PER_TURN_TICK_BUDGET_MS,
   // T2.09 — Berserker / Frenzy Bloodtide Pulse constants.
@@ -2216,6 +2218,19 @@ export function fxPhoenixAshenReign(_bossState, _ctx) {
       fxPhoenixAshenReignRelease();
     }, ASHEN_REIGN_DURATION_MS);
 
+    // Phase 2.5 polish: PLACEHOLDER narrator line per ESC-02 O2 ruling.
+    // FINAL COPY pending Roman approval. Same pattern as T2.11 Root Surge:
+    // ctx.narratorApi (if T2.B bridge provides it) OR legacy flashStateBanner
+    // global. The line lives in the isolated ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER
+    // constant — NOT in the sacred NARRATOR_LINES table.
+    try {
+      if (_ctx && _ctx.narratorApi && typeof _ctx.narratorApi.show === 'function') {
+        _ctx.narratorApi.show(ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER);
+      } else if (typeof flashStateBanner !== 'undefined' && typeof flashStateBanner === 'function') {
+        flashStateBanner(ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER, '#FF4500');
+      }
+    } catch (_e) { /* swallow — narrator is non-essential to gameplay */ }
+
     // T2.12 (2026-05-12): Codex recording — Phoenix Ashen Reign moment witnessed.
     try { recordMomentTrigger('phoenix_ashen_reign'); } catch (_e) { /* defensive */ }
   } finally {
@@ -2727,6 +2742,19 @@ export function fxLichCursedTiles(_bossState, ctx) {
         el,
       });
     }
+
+    // Phase 2.5 polish: PLACEHOLDER narrator line per ESC-02 O2 ruling.
+    // FINAL COPY pending Roman approval. Same pattern as T2.11 Root Surge:
+    // ctx.narratorApi (if T2.B bridge provides it) OR legacy flashStateBanner
+    // global. The line lives in the isolated CURSED_TILES_NARRATOR_LINE_PLACEHOLDER
+    // constant — NOT in the sacred NARRATOR_LINES table.
+    try {
+      if (ctx && ctx.narratorApi && typeof ctx.narratorApi.show === 'function') {
+        ctx.narratorApi.show(CURSED_TILES_NARRATOR_LINE_PLACEHOLDER);
+      } else if (typeof flashStateBanner !== 'undefined' && typeof flashStateBanner === 'function') {
+        flashStateBanner(CURSED_TILES_NARRATOR_LINE_PLACEHOLDER, CURSED_TILES_SKULL_COLOR);
+      }
+    } catch (_e) { /* swallow — narrator is non-essential to gameplay */ }
 
     // T2.12 (2026-05-12): Codex recording — Lich Cursed Tiles moment witnessed.
     try { recordMomentTrigger('lich_cursed_tiles'); } catch (_e) { /* defensive */ }

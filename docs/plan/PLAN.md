@@ -90,12 +90,15 @@
 
 ## Phase 2: Identity Layer
 
-**Status:** ✅ **COMPLETE 14/14** 2026-05-12 — Bug Tester GO verdict (`216371a`). Awaiting Roman merge.
+**Status:** ✅ **COMPLETE 14/14** 2026-05-12 — Bug Tester GO verdict (`216371a`). **MERGED to main 2026-05-13 06:00 UTC** (squash `6545b57`, PR #159).
 **Goal:** Реализовать mechanics × race/boss identity — per-race line-clear flavor + boss-reactive mechanics. **ACHIEVED.**
 **Actual duration:** 2026-05-12 (single intensive session — same day as Phase 1 close)
 **Tasks:** T2.01 — T2.12 + T2.B + T2.B.QA = 14/14 done
 **Phase 1 milestone:** ✅ MERGED to main 2026-05-12 12:26 UTC (squash `4aea3ce`)
-**Phase 2 branch:** `claude/phase2-identity-layer` — ready for Phase 2 PR
+**Phase 2 milestone:** ✅ MERGED to main 2026-05-13 06:00 UTC (squash `6545b57`)
+
+### Phase 2.5 polish patch (2026-05-13)
+- [x] **TASK-042 (Phase 2.5)** — Phoenix Ashen Reign + Lich Cursed Tiles narrator lines wired per ESC-02 O2 — pending PR (see commit on `claude/phase2-5-narrator-polish` branch). Same isolated-constant + comment-marker pattern as T2.11 Root Surge. Sacred `NARRATOR_LINES` table BYTE-PERFECT (verified via empty `git diff main..HEAD -- src/feel/narrator-lines.js`). All 3 Phase 2 spec narrator lines now WIRED (Phoenix + Lich + Root Surge); Uroboros §3.7 line stays deferred to Phase 3 (out of Phase 2 scope).
 
 ### High-level Tasks
 - [x] T2.01 — Identity Layer design doc (Designer) — **DONE 2026-05-12** (`b325c30`; 1189 LoC spec `docs/design/mechanics/identity-layer.md` v1.1 with Roman ruling appendix; 5 race flavors + 7 boss mechanics + Codex + 36-row sacred audit)

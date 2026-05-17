@@ -145,6 +145,7 @@ import {
   ASHEN_REIGN_TELEGRAPH_MS,
   ASHEN_REIGN_REQUIRED_ELEMENT,
   ASHEN_REIGN_HUD_COUNTDOWN_TEXT,
+  ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER,
   ASHEN_REIGN_INITIAL_BUDGET_MS,
   ASHEN_REIGN_STEADY_STATE_BUDGET_MS,
   // T2.08 — Lich Cursed Tiles constants.
@@ -156,6 +157,7 @@ import {
   CURSED_TILES_TELEGRAPH_MS,
   CURSED_TILES_SKULL_DECAY_MS,
   CURSED_TILES_SKULL_COLOR,
+  CURSED_TILES_NARRATOR_LINE_PLACEHOLDER,
   CURSED_TILES_INITIAL_BUDGET_MS,
   CURSED_TILES_PER_TURN_TICK_BUDGET_MS,
   // T2.09 — Berserker / Frenzy Bloodtide Pulse constants.
@@ -2124,6 +2126,26 @@ describe('identity-layer · Phoenix Ashen Reign · constants & budgets', () => {
   });
 });
 
+describe('identity-layer · Phoenix Ashen Reign · Phase 2.5 narrator polish (ESC-02 O2)', () => {
+  it('ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER carries spec §3.1 field 6 string', () => {
+    // PLACEHOLDER per ESC-02 O2 ruling. FINAL COPY: pending Roman approval
+    // (Phase 2.5 review). The string lives in the isolated constant —
+    // sacred NARRATOR_LINES table stays byte-perfect.
+    expect(ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER).toBe('The ash remembers. Strike only with the flame that birthed it.');
+  });
+
+  it('NARRATOR_LINES sacred table UNTOUCHED — placeholder lives in isolated constant', () => {
+    // Same architectural discipline as T2.11 Root Surge: the new line lives
+    // in `src/data/identity-layer.js` as an isolated constant — NOT in
+    // `src/feel/narrator-lines.js` (the sacred NARRATOR_LINES table).
+    expect(typeof ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER).toBe('string');
+    expect(ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER.length).toBeGreaterThan(0);
+    // Designer-drafted string with Darkest-Dungeon-voice cadence (ash/flame motif).
+    expect(ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER).toContain('ash');
+    expect(ASHEN_REIGN_NARRATOR_LINE_PLACEHOLDER).toContain('flame');
+  });
+});
+
 describe('identity-layer · Phoenix Ashen Reign · cross-race regression (T2.02-T2.06 invariants)', () => {
   it('Ashen Reign active during mixed-race squad dispatch does NOT block race FX', () => {
     // Activate Phoenix's Ashen Reign window, then fire a race-FX line clear
@@ -2601,6 +2623,26 @@ describe('identity-layer · Lich Cursed Tiles · constants & budgets', () => {
   });
   it('BOSS_IDENTITY_FX.phoenix still present (T2.07 invariant — sibling registry growth, no regression)', () => {
     expect(BOSS_IDENTITY_FX.phoenix).toBe('phoenix_ashen_reign');
+  });
+});
+
+describe('identity-layer · Lich Cursed Tiles · Phase 2.5 narrator polish (ESC-02 O2)', () => {
+  it('CURSED_TILES_NARRATOR_LINE_PLACEHOLDER carries spec §3.2 field 6 string', () => {
+    // PLACEHOLDER per ESC-02 O2 ruling. FINAL COPY: pending Roman approval
+    // (Phase 2.5 review). The string lives in the isolated constant —
+    // sacred NARRATOR_LINES table stays byte-perfect.
+    expect(CURSED_TILES_NARRATOR_LINE_PLACEHOLDER).toBe('What you took, the deep remembers.');
+  });
+
+  it('NARRATOR_LINES sacred table UNTOUCHED — placeholder lives in isolated constant', () => {
+    // Same architectural discipline as T2.07 Ashen Reign + T2.11 Root Surge:
+    // new line lives in `src/data/identity-layer.js` as an isolated constant —
+    // NOT in `src/feel/narrator-lines.js` (the sacred NARRATOR_LINES table).
+    expect(typeof CURSED_TILES_NARRATOR_LINE_PLACEHOLDER).toBe('string');
+    expect(CURSED_TILES_NARRATOR_LINE_PLACEHOLDER.length).toBeGreaterThan(0);
+    // Designer-drafted string with Darkest-Dungeon-voice cadence (memory/deep motif).
+    expect(CURSED_TILES_NARRATOR_LINE_PLACEHOLDER).toContain('remembers');
+    expect(CURSED_TILES_NARRATOR_LINE_PLACEHOLDER).toContain('deep');
   });
 });
 
