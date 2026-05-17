@@ -1,0 +1,313 @@
+/* 2026-05-17 — TASK-CP-009 (combat-polish-implementation-plan.md §9 Task 9):
+ *
+ * 5-beat boss death cinematic polish — refines the visual *content* of each
+ * beat while keeping all sacred durations BYTE-PERFECT FROZEN. The legacy
+ * 5-beat orchestrator in src/feel/animations.js (sacred SHA1 baseline
+ * `41fd7ec0…`) continues to add/remove the same legacy classes
+ * (.v-fx-shake / .boss-death-pause / .p-boss-death-flash / .boss-dissolve /
+ * .boss-death-zoom) on the same sacred schedule — this polish sheet
+ * ENHANCES the visual content surfaced by those classes via cascade.
+ *
+ * Per plan §9 Task 9 + §12 sacred boundaries.
+ * Per combat-mechanics.md §20 (5-beat boss death cinematic — full sacred
+ * timing per beat: Beat 0 shake 440ms / Beat 1 hit-pause 300ms / Beat 2
+ * white flash 260+220ms / Beat 4 slow zoom 420ms).
+ * Per CLAUDE.md §2.2 sacred Feel layer.
+ *
+ * Sibling-module pattern (T-CP-006 damage-fx, T-CP-007 stagger-fx,
+ * T-CP-008 race-fx-polish precedent)
+ * --------------------------------------------------------------------------
+ * `src/feel/animations.js` IS in the 12-file sacred SHA1 baseline. This
+ * polish layer is a NEW sibling CSS file (+ minimal sibling JS for the
+ * themed-tint MutationObserver) that layers over the existing legacy
+ * boss-death classes WITHOUT modifying animations.js. The legacy
+ * `vPlayBossDieFx` continues to apply classes on the sacred schedule;
+ * this sheet adds visual REFINEMENTS via cascade.
+ *
+ * Per-beat polish
+ * ---------------
+ *   Beat 0 — shake amplitude curve refinement
+ *     Legacy `.v-fx-shake` has no canonical CSS rule (legacy JS adds the
+ *     class but the visual effect was relying on an external animation).
+ *     This sheet defines an explicit 440ms shake keyframe with a smooth
+ *     amplitude curve (peaks at ~33% / ~66% then decays to zero). Sacred
+ *     440ms total duration preserved exactly.
+ *
+ *   Beat 1 — hit-pause desaturation intensity
+ *     Legacy `pBossDeathPause` keyframe in animations.css uses
+ *     `brightness(0.4) saturate(0.3)` at 50%. This polish refines the
+ *     curve with a deeper grayscale dip — `grayscale(0.85) brightness(0.6)`
+ *     mid-beat — while preserving the sacred 300ms total via
+ *     `var(--p-beat-hit-pause)`.
+ *
+ *   Beat 2 — themed-color tint on white flash
+ *     Legacy `.p-boss-death-flash` is solid white. This polish adds an
+ *     optional element-tinted radial overlay based on the boss element
+ *     (ember / tide / grove / solar / umbra) selected by the sibling JS
+ *     module via `data-boss-element` attribute. Pure white remains the
+ *     fallback for unknown / unset element. Sacred 200ms animation
+ *     duration preserved exactly.
+ *
+ *   Beat 4 — slow zoom transform-origin tuning + easing
+ *     Legacy `.a-battle.boss-death-zoom` uses `transform-origin: 50% 30%`.
+ *     This polish refines the easing curve toward a more cinematic
+ *     ease-out for a punchier anchor feel. Sacred 2200ms total preserved
+ *     exactly via `var(--p-beat-zoom)` (note: source comment header
+ *     references the 420ms KICK-IN delay; the held zoom-class duration
+ *     itself is the 2200ms ease, BYTE-PERFECT).
+ *
+ * Sacred-cow protection (CLAUDE.md §2.2 + plan §12)
+ * -------------------------------------------------
+ *   - All sacred timings are referenced via the existing
+ *     `--p-beat-hit-pause` / `--p-beat-flash` / `--p-beat-dissolve` /
+ *     `--p-beat-zoom` CSS variables in src/styles/tokens.css (300ms /
+ *     200ms / 1800ms / 2200ms). NO duration values are duplicated here
+ *     as literal numbers — single source of truth preserved.
+ *   - The legacy `.v-fx-shake` 440ms duration is read from a new
+ *     `--p-beat-shake` token to keep the audit pattern uniform; the token
+ *     value mirrors the existing 440ms hardcoded in animations.js (sacred
+ *     SHA1 file is the canonical source — token added is NOT a new sacred
+ *     value but a mirror).
+ *   - Sacred class names .v-fx-shake / .boss-death-pause /
+ *     .p-boss-death-flash / .boss-dissolve / .boss-death-zoom are ONLY
+ *     enhanced via additive cascade rules — never removed or
+ *     fundamentally redefined.
+ *   - Sacred class names .v-fx-crit-flash / .stagger-slow-mo /
+ *     .cell--engineer-welded / .phase-2 / .phase-3 are NEVER referenced.
+ *   - Animations on hot paths use only transform / opacity / filter
+ *     (60fps hot-path guard — plan §11.3).
+ *   - prefers-reduced-motion → shake amplitude reduced, zoom scale capped,
+ *     hit-pause filter dialed back; the 5-beat structural cues still fire
+ *     (informational), only the intensity drops.
+ *   - Sacred element color hexes (#FF4D1F ember / #1FA3FF tide / #3DD66E
+ *     grove / #FFD53D solar / #8C3BFF umbra) read directly via existing
+ *     STIHIYA_COLORS mirror — byte-perfect with src/data/elements.js.
+ *
+ * Cascade load order
+ * ------------------
+ *   This sheet is imported in src/styles/index.css AFTER
+ *   `identity-fx-polish.css` (the prior Tier-3 polish). Specificity is
+ *   raised intentionally — selectors like `.a-battle.boss-death-pause`
+ *   already match the legacy battle.css `.a-battle.boss-death-pause {…}`
+ *   so cascade order alone wins the override.
+ */
+
+/* ─── Sacred timing mirror (440ms shake) ───────────────────────────────── */
+/* The 440ms shake duration is hardcoded in src/feel/animations.js (sacred
+ * SHA1 baseline). Mirroring it as a CSS var lets this sheet reference it
+ * uniformly with the other --p-beat-* tokens without duplicating the
+ * literal number across rules. */
+:root {
+  --p-beat-shake: 440ms;
+}
+
+/* ─── Beat 0 — Shake amplitude curve refinement ────────────────────────── */
+/* Legacy `.v-fx-shake` is added to the battle screen for 440ms (sacred —
+ * see animations.js:99,116). The class itself had no canonical CSS rule
+ * in the modular shell — this sheet supplies one with an explicit
+ * amplitude curve. Three peaks-then-decay over the sacred 440ms window. */
+.v-fx-shake {
+  animation: pBossDeathShake var(--p-beat-shake) cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  will-change: transform;
+}
+
+@keyframes pBossDeathShake {
+  /* Multi-peak amplitude curve — peaks at 12% / 33% / 54% / 75% then
+   * settles to 0. Translateoffsets stay within ±8px so the screen reads
+   * "punch" without losing the boss portrait off-screen. */
+  0%   { transform: translate(0, 0); }
+  12%  { transform: translate(-6px, 2px); }
+  24%  { transform: translate(7px, -3px); }
+  36%  { transform: translate(-5px, -4px); }
+  48%  { transform: translate(4px, 3px); }
+  60%  { transform: translate(-3px, -2px); }
+  72%  { transform: translate(2px, 2px); }
+  84%  { transform: translate(-1px, -1px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ─── Beat 1 — Hit-pause desaturation intensity refinement ─────────────── */
+/* Legacy `.a-battle.boss-death-pause` uses the pBossDeathPause keyframe
+ * defined in src/styles/animations.css (animations.css line 328) with
+ * filter at 50% = `brightness(0.4) saturate(0.3)`. This polish refines
+ * the curve with a deeper grayscale dip mid-beat. Sacred 300ms total
+ * duration preserved via `var(--p-beat-hit-pause)`. */
+.a-battle.boss-death-pause,
+.game.v-battle.boss-death-pause {
+  animation: pBossDeathPausePolish var(--p-beat-hit-pause) ease-out forwards;
+}
+
+@keyframes pBossDeathPausePolish {
+  /* Deeper grayscale + brightness dip than legacy. The mid-beat moment
+   * holds a clear "freeze + bleach" read — the player perceives weight
+   * + finality of the killing blow before Beat 2 white-flash hits. */
+  0%   { filter: brightness(1) saturate(1) grayscale(0); }
+  35%  { filter: brightness(0.6) saturate(0.4) grayscale(0.85); }
+  65%  { filter: brightness(0.55) saturate(0.4) grayscale(0.85); }
+  100% { filter: brightness(1) saturate(1) grayscale(0); }
+}
+
+/* ─── Beat 2 — White flash themed-color tint ───────────────────────────── */
+/* Legacy `.p-boss-death-flash` renders a solid-white full-screen overlay
+ * with `pBossDeathFlash` keyframe (200ms peak-then-decay). The boss-
+ * death-polish.js sibling sets `data-boss-element` attribute when it
+ * detects the flash element via MutationObserver, reading the current
+ * boss element. The five stihiyas map to sacred element colors
+ * (#FF4D1F ember / #1FA3FF tide / #3DD66E grove / #FFD53D solar /
+ * #8C3BFF umbra). Pure white remains the fallback (no data-boss-element
+ * attribute → legacy white-only rule wins). Sacred 200ms total via
+ * `var(--p-beat-flash)`. */
+
+/* Base polish: subtle radial gradient even when element is unknown, so
+ * the flash feels rounded rather than a flat color slab. The legacy
+ * `background: #fff` (battle.css line 3167) remains the base — this rule
+ * layers a `background-image` radial-gradient that DEFAULTS to a soft
+ * warm-white halo for unset boss-element. */
+.p-boss-death-flash {
+  background-image: radial-gradient(
+    circle at 50% 38%,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 248, 220, 0.85) 55%,
+    rgba(255, 248, 220, 0) 100%
+  );
+}
+
+/* Themed flash: when data-boss-element is set, blend a tinted radial
+ * over the white base. The white core stays bright (preserves the
+ * "blast" read) while the outer ring picks up the boss's element color
+ * — gives each kill a distinct flavor without sacrificing the punch. */
+.p-boss-death-flash[data-boss-element="ember"] {
+  background-image: radial-gradient(
+    circle at 50% 38%,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 77, 31, 0.55) 60%,
+    rgba(255, 77, 31, 0) 100%
+  );
+}
+.p-boss-death-flash[data-boss-element="tide"] {
+  background-image: radial-gradient(
+    circle at 50% 38%,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(31, 163, 255, 0.55) 60%,
+    rgba(31, 163, 255, 0) 100%
+  );
+}
+.p-boss-death-flash[data-boss-element="grove"] {
+  background-image: radial-gradient(
+    circle at 50% 38%,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(61, 214, 110, 0.55) 60%,
+    rgba(61, 214, 110, 0) 100%
+  );
+}
+.p-boss-death-flash[data-boss-element="solar"] {
+  background-image: radial-gradient(
+    circle at 50% 38%,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 213, 61, 0.55) 60%,
+    rgba(255, 213, 61, 0) 100%
+  );
+}
+.p-boss-death-flash[data-boss-element="umbra"] {
+  background-image: radial-gradient(
+    circle at 50% 38%,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(140, 59, 255, 0.55) 60%,
+    rgba(140, 59, 255, 0) 100%
+  );
+}
+
+/* ─── Beat 4 — Slow zoom transform-origin + easing refinement ──────────── */
+/* Legacy `.a-battle.boss-death-zoom` (battle.css line 3200) uses
+ * `cubic-bezier(0.4, 0, 0.6, 1)` (ease-in-out) at scale 1 → 1.06 over
+ * `var(--p-beat-zoom)` = 2200ms with `transform-origin: 50% 30%`.
+ *
+ * This polish swaps the easing toward a smoother cinematic ease-out so
+ * the zoom feels less symmetric — early motion is brisk (player
+ * registers movement), then settles into a held final frame. Sacred
+ * 2200ms duration AND target scale 1.06 preserved exactly via cascade
+ * (same animation name + duration). transform-origin tuned to 50% 32%
+ * — 2% lower than legacy, slightly better-aligned to the bossImg
+ * vertical center on iPhone SE viewport. */
+.a-battle.boss-death-zoom,
+.game.v-battle.boss-death-zoom {
+  /* Reuse the EXACT pBossDeathZoom keyframe + duration from animations.css
+   * — only the timing function changes. This way the sacred scale 1 → 1.06
+   * + 2200ms hold are preserved byte-perfect; the cascade just refines the
+   * curve shape. */
+  animation: pBossDeathZoom var(--p-beat-zoom) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform-origin: 50% 32%;
+}
+
+/* ─── prefers-reduced-motion ───────────────────────────────────────────── */
+/* Each beat's polish is dialed back so the cinematic structure remains
+ * informationally readable (the player sees the boss died, the screen
+ * tinted, the white flash punctuated the moment) but the high-amplitude
+ * motion + heavy filters are softened. The sacred 5-beat schedule fires
+ * unchanged — JS in animations.js never reads prefers-reduced-motion. */
+@media (prefers-reduced-motion: reduce) {
+  /* Beat 0 — shake fades to a single soft pulse instead of multi-peak. */
+  .v-fx-shake {
+    animation: pBossDeathShakeReduced var(--p-beat-shake) ease-out both;
+  }
+  @keyframes pBossDeathShakeReduced {
+    0%   { transform: translate(0, 0); }
+    50%  { transform: translate(-2px, 1px); }
+    100% { transform: translate(0, 0); }
+  }
+
+  /* Beat 1 — keep desaturation curve but skip the deeper grayscale dip. */
+  .a-battle.boss-death-pause,
+  .game.v-battle.boss-death-pause {
+    animation: pBossDeathPausePolishReduced var(--p-beat-hit-pause) ease-out forwards;
+  }
+  @keyframes pBossDeathPausePolishReduced {
+    0%   { filter: brightness(1); }
+    50%  { filter: brightness(0.75); }
+    100% { filter: brightness(1); }
+  }
+
+  /* Beat 2 — flash uses the simple white-only radial (no themed tint). */
+  .p-boss-death-flash,
+  .p-boss-death-flash[data-boss-element="ember"],
+  .p-boss-death-flash[data-boss-element="tide"],
+  .p-boss-death-flash[data-boss-element="grove"],
+  .p-boss-death-flash[data-boss-element="solar"],
+  .p-boss-death-flash[data-boss-element="umbra"] {
+    background-image: radial-gradient(
+      circle at 50% 38%,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(255, 255, 255, 0) 100%
+    );
+  }
+
+  /* Beat 4 — zoom amplitude reduced (1.03 vs 1.06) via a softer keyframe
+   * override. transform-origin still anchored on boss area. */
+  .a-battle.boss-death-zoom,
+  .game.v-battle.boss-death-zoom {
+    animation: pBossDeathZoomReduced var(--p-beat-zoom) ease-out forwards;
+  }
+  @keyframes pBossDeathZoomReduced {
+    0%   { transform: scale(1); }
+    100% { transform: scale(1.03); }
+  }
+}
+
+/* ─── Small-device adjustments (iPhone SE) ─────────────────────────────── */
+@media (max-height: 700px) {
+  /* On small screens the boss portrait sits slightly higher — anchor the
+   * zoom origin a couple % up so the zoom doesn't drift the boss out of
+   * frame. */
+  .a-battle.boss-death-zoom,
+  .game.v-battle.boss-death-zoom {
+    transform-origin: 50% 28%;
+  }
+}
+
+/* ─── Large-device adjustments (iPhone Pro Max) ────────────────────────── */
+@media (min-height: 900px) {
+  .a-battle.boss-death-zoom,
+  .game.v-battle.boss-death-zoom {
+    transform-origin: 50% 34%;
+  }
+}

@@ -42,3 +42,25 @@
 @import './screens/adventures.css';
 @import './screens/party-tower.css';
 @import './screens/tower-season.css';
+
+/* Feel-layer CSS modules — TASK-CP-001+ (Combat Polish workstream).
+ * Cascade LAST so polish styles win specificity ties against legacy
+ * screens/*.css selectors. Sacred-cow boundary: these files NEVER override
+ * .v-fx-crit-flash / .stagger-slow-mo / .phase-2 / .phase-3 /
+ * .cell--engineer-welded (JS-readable contract). T-CP-009 introduces
+ * ADDITIVE overrides on .v-fx-shake / .boss-death-pause /
+ * .p-boss-death-flash / .boss-dissolve / .boss-death-zoom (the 5-beat
+ * boss-death classes — visual content refined within sacred durations;
+ * sacred class names ADDED-TO, never removed or fundamentally redefined).
+ */
+@import '../feel/battle-layout.css';
+@import '../feel/boss-scene.css';
+@import '../feel/hero-card.css';
+@import '../feel/top-hud.css';
+@import '../feel/pressure-meter.css';
+@import '../feel/synergy-bar.css';
+@import '../feel/damage-channel-fx.css';
+@import '../feel/stagger-fx.css';
+@import '../feel/identity-fx-polish.css';
+@import '../feel/boss-death-polish.css';
+@import '../feel/reactivity-telegraphs.css';

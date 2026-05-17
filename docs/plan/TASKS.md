@@ -7,6 +7,303 @@
 
 ## GAME DEVELOPER
 
+---
+
+# 🚧 PHASE 5 WEEK 1 BACKLOG — BLOCKING PREPARATION (Gate 1)
+
+> **Per ADR-005.** None of TASK-061..TASK-067 may overlap. STRICTLY sequential. NO MIGRATION CODE until Gate 1 passes (TASK-068).
+> All 6 golden-path tests run against **legacy production build** (`npm run build && serve dist`, hitting `/blocksworn_index_fixed`). Their purpose is to establish the parity contract that migration must satisfy in Weeks 2-3.
+
+---
+
+### TASK-061 (T5.01.1) — TODO — Golden path smoke test: FTUE Chronicle Fight
+
+**Status:** TODO
+**Priority:** CRITICAL — Gate 1 blocker #1 of 7
+**Phase:** 5 (Migration & Production Readiness) — Week 1
+**Branch:** `claude/phase5-week1-golden-paths`
+**Estimated:** 4-6 hrs
+
+**Files to create:**
+- `tests/smoke/ftue.spec.js`
+
+**What to do:**
+
+Write a Playwright smoke test that walks the full FTUE flow against the legacy production artifact (`/blocksworn_index_fixed` route, NOT `/shell`). The test must assert:
+
+1. Page loads with 0 JS console errors and 0 same-origin 404s within 5 sec of navigation
+2. Chronicler intro dialog renders with the canonical opening line (assert exact NARRATOR_LINES string; do NOT hardcode in test — import from `src/feel/narrator.js` to enforce parity)
+3. ▶ BEGIN button is visible and clickable within 1 sec of dialog dismiss
+4. After ▶ BEGIN click, first battle screen (`#screenBattle.active`) renders within 2 sec
+5. First piece placement is possible (locate a piece, simulate placement on grid coordinate, assert grid state mutation via DOM)
+6. First line clear fires (verify `vPlayLineClearBurst` execution by asserting flash element appears + disappears within 300ms)
+7. First crit flash fires correctly (timing: 180ms flash + 440ms shake — assert via DOM observation, NOT V_HAPTICS table touch)
+8. Throughout: 0 `console.error` events; 0 unhandled promise rejections
+
+**DO NOT TOUCH:**
+- Any value in V_HAPTICS, NARRATOR_LINES, combo crit formula, MAX_HP, BOSS_TTK_TARGETS, HERO_ULT_COST_BY_NEWROLE, TIER_COSTS_V18 (CLAUDE.md §2 sacred cows)
+- Legacy HTML
+- src/ module contents — IMPORT for parity assertions, do NOT modify
+
+**Acceptance criteria:**
+- [ ] Test runs green against `npm run build && npx serve dist` legacy artifact
+- [ ] Test runs in CI on chromium + mobile-chrome projects
+- [ ] Test completes in <60 sec
+- [ ] No flakes across 5 consecutive runs
+- [ ] Imports NARRATOR_LINES from src/ to enforce parity (will catch any drift if migration touches narrator strings)
+
+---
+
+### TASK-062 (T5.01.2) — TODO — Golden path smoke test: Ch1 Boss1 (Pyredrake) fight to completion
+
+**Status:** TODO
+**Priority:** CRITICAL — Gate 1 blocker #2 of 7
+**Phase:** 5 — Week 1
+**Estimated:** 5-7 hrs
+
+**Files to create:**
+- `tests/smoke/ch1-boss1.spec.js`
+
+**What to do:**
+
+Walk Pyredrake encounter end-to-end. The test must assert:
+
+1. Pyredrake boss screen loads with correct HP value (initial = computed via `BOSS_TTK_TARGETS.tutorial × expected_squad_dps`; assert via DOM-readback)
+2. All 22 v2.1 P4 reactivity handlers register (verify via `window.REACTIVITY_HANDLERS` introspection)
+3. Boss state machine transitions: Active → Stagger → Recovery → Active. Assert via `getBossState()` window-bridge.
+4. Pyredrake-specific reactivity event fires at correct phase gate (Phoenix Ashen Reign mechanic if Phoenix race in squad; baseline behavior otherwise)
+5. Crit flash + boss damage number animation visible
+6. 5-beat boss death cinematic (`vPlayBossDieFx`) plays through completion
+7. Post-battle reward screen renders
+8. 0 console errors, 0 unhandled rejections
+
+**DO NOT TOUCH:**
+- BOSS_TTK_TARGETS, HP formula, 22 reactivity handlers, vPlayBossDieFx timing, Pyredrake stat block
+- Combo crit formula at legacy line 64005
+
+**Acceptance criteria:**
+- [ ] Green against legacy production artifact
+- [ ] Both chromium + mobile-chrome projects
+- [ ] <90 sec per run
+- [ ] No flakes 5/5
+- [ ] Asserts boss state machine via real window-bridge, not DOM snooping
+
+---
+
+### TASK-063 (T5.01.3) — TODO — Golden path smoke test: Tower run + retry ladder
+
+**Status:** TODO
+**Priority:** CRITICAL — Gate 1 blocker #3 of 7
+**Phase:** 5 — Week 1
+**Estimated:** 5-7 hrs
+
+**Files to create:**
+- `tests/smoke/tower.spec.js`
+
+**What to do:**
+
+Tower run flow assertions:
+
+1. Tower screen renders with TOWER_LEADERBOARDS 3 sacred tabs visible (Global / F2P / Weekly) — assert all 3 tab labels present
+2. Start Tower run; survive 5 floors with scripted piece placement
+3. On 6th-floor wipe, retry-with-gem modal renders with cost ladder `[100, 200, 400]` (assert all 3 amounts shown; do NOT hardcode in test — import `TOWER_RETRY_GEM_LADDER` from src/data/monetization-config.js)
+4. PURE PATH eligibility check: F2P player (totalSpent === 0) sees their score in PURE PATH column; whale does NOT
+5. Tower retry consumes gem balance correctly (read before/after via window-bridge)
+6. Leaderboard submit fires post-run completion
+7. 0 console errors
+
+**DO NOT TOUCH:**
+- TOWER_RETRY_GEM_LADDER, TOWER_LEADERBOARDS sacred 3 keys, PURE PATH `eligibility === 'totalSpent === 0'`, TOWER_PACTS_BASE=30 / TOWER_PACTS_MYTHIC=15
+
+**Acceptance criteria:**
+- [ ] Green against legacy production artifact
+- [ ] Both projects
+- [ ] <120 sec (Tower run is naturally longer)
+- [ ] PURE PATH F2P vs whale split asserted via 2 separate test cases in same spec
+- [ ] Sacred ladder values imported from src/ (parity contract enforced)
+
+---
+
+### TASK-064 (T5.01.4) — TODO — Golden path smoke test: Shop (GEM_PACKS + Battle Pass + First Purchase Bonus)
+
+**Status:** TODO
+**Priority:** CRITICAL — Gate 1 blocker #4 of 7
+**Phase:** 5 — Week 1
+**Estimated:** 3-5 hrs
+
+**Files to create:**
+- `tests/smoke/shop.spec.js`
+
+**What to do:**
+
+Shop rendering + monetization-display assertions (no real IAP — assert UI surface only):
+
+1. Shop screen renders all 6 GEM_PACKS SKUs with correct prices: $0.99 / $4.99 / $9.99 / $19.99 / $49.99 / $99.99
+2. Bonus % display correct: base / base / +10% / +15% / +20% MEGA / +30% WHALE — assert all 4 non-zero bonus labels
+3. Battle Pass widget renders with current tier + xp progress
+4. Battle Pass next-tier XP requirement matches sacred formula `500 + (tier-1) * 150` — import `battlePassXpForTier` from src/data/monetization-config.js
+5. First Purchase Bonus copy is visible if player has not made a purchase yet (`+50% gems + 1 Hero Card + Founder Badge` — assert exact string elements)
+6. Tower Hearts row visible with current balance
+7. 0 console errors
+
+**DO NOT TOUCH:**
+- GEM_PACKS prices/bonuses, Battle Pass formula, First Purchase Bonus copy, Tower Hearts
+
+**Acceptance criteria:**
+- [ ] All 6 SKUs asserted by exact price string
+- [ ] BP formula imported from src/ (parity enforced)
+- [ ] Both projects
+- [ ] <30 sec
+- [ ] No real IAP API calls (mock confirmed)
+
+---
+
+### TASK-065 (T5.01.5) — TODO — Golden path smoke test: Settings (audio/haptic toggles + reset confirm)
+
+**Status:** TODO
+**Priority:** HIGH — Gate 1 blocker #5 of 7
+**Phase:** 5 — Week 1
+**Estimated:** 2-4 hrs
+
+**Files to create:**
+- `tests/smoke/settings.spec.js`
+
+**What to do:**
+
+Settings flow assertions:
+
+1. Settings screen renders with audio toggle, haptic toggle, reset progress button
+2. Audio toggle: flip → music stops (assert `Audio.paused === true` on bgm element); flip back → music resumes
+3. Audio toggle persists across page reload (localStorage assertion)
+4. Haptic toggle: flip → `navigator.vibrate` becomes no-op (mock + verify); flip back → restores
+5. Haptic toggle persists across page reload
+6. Reset progress button → confirm modal renders → cancel returns to settings (no data loss); confirm wipes localStorage `blocksworn_*` keys
+7. After reset, page reload puts player back at FTUE Chronicler intro
+8. 0 console errors
+
+**DO NOT TOUCH:**
+- Localization (English-only per project memory; do not add i18n)
+- Save schema beyond reset confirm flow
+
+**Acceptance criteria:**
+- [ ] All 3 toggles persistence-tested
+- [ ] Reset confirm flow asserts BOTH cancel and confirm paths
+- [ ] Both projects
+- [ ] <45 sec
+- [ ] No localStorage pollution after test (cleanup in afterEach)
+
+---
+
+### TASK-066 (T5.01.6) — TODO — Golden path smoke test: Mythic ascension flow + one-per-save invariant
+
+**Status:** TODO
+**Priority:** HIGH — Gate 1 blocker #6 of 7
+**Phase:** 5 — Week 1
+**Estimated:** 4-6 hrs
+
+**Files to create:**
+- `tests/smoke/mythic.spec.js`
+
+**What to do:**
+
+Mythic ascension flow assertions:
+
+1. Pre-seeded save state: one hero at Tier 3, max-level, eligible for Mythic
+2. Mythic ascension commitment screen renders with hero portrait + tier preview + commitment copy
+3. Confirm ascension → hero promotes to Tier 4 Mythic
+4. **One-per-save invariant:** attempt second Mythic ascension on another eligible hero → ascension button disabled OR commitment modal shows "1/1 Mythic used" — assert via DOM
+5. Fire path: for each of 5 roles (warrior/mage/hunter/tank/captain), confirm Mythic ability descriptor matches src/data/heroes.js HERO_TIER_ABILITIES (25 ascended descriptors — assert all 25 exist)
+6. HP/damage stats unchanged (sacred MAX_HP=100; Mythic adds ability, not stat creep)
+7. 0 console errors
+
+**DO NOT TOUCH:**
+- HERO_TIER_ABILITIES, HERO_ROSTER stat blocks, MAX_HP, TIER_COSTS_V18
+
+**Acceptance criteria:**
+- [ ] One-per-save invariant proven via 2 ascension attempts in same test
+- [ ] All 25 descriptors enumerated and matched
+- [ ] Both projects
+- [ ] <60 sec
+- [ ] Save-state seed reusable for future regression tests (export helper)
+
+---
+
+### TASK-067 (T5.02) — TODO — Save migration framework (legacy v2 → modular runtime)
+
+**Status:** TODO
+**Priority:** CRITICAL — Gate 1 blocker #7 of 7
+**Phase:** 5 — Week 1
+**Estimated:** 12-16 hrs (largest Week 1 task)
+
+**Files to create:**
+- `src/services/storage/save-migration.js` (framework + per-version transformations)
+- `src/services/storage/save-snapshots.js` (test fixtures for 10+ real legacy snapshots)
+- `tests/unit/save-migration.test.js` (per-version, per-field assertions)
+- `tests/unit/save-snapshots-real.test.js` (round-trip tests on real harvested snapshots)
+- `scripts/harvest-real-saves.md` (Roman runbook: how to export 10+ real save snapshots from legacy localStorage)
+
+**What to do:**
+
+Build the save migration framework. Roman/CTO will harvest 10+ real `blocksworn_*` localStorage snapshots from his Chrome profile (legacy production) per the runbook. Framework requirements:
+
+1. **Read legacy v2 save shape.** Map every `blocksworn_*` localStorage key currently written by legacy. Document schema in JSDoc.
+2. **Transform to modular runtime shape.** Target shape = what src/ modules expect (heroes, battlePass, towerProgress, codex, friendList, clanMembership, nftRefs, mythicCommitment).
+3. **Preserve all sacred values** in the transformation: gems balance, hero collection state, Battle Pass XP + tier, Tower floor reached, Codex unlocks, friend list, clan membership, NFT ownership references, Mythic commitment state. Round-trip without value drift.
+4. **Reversibility.** Migration must store a `__legacy_v2_snapshot` blob alongside the modular state so a rollback transformation can restore the legacy save shape. NO ONE-WAY WIPES.
+5. **Per-version registration.** `registerMigration(fromVersion, toVersion, transformFn)`. Framework can chain v1→v2→v3 in future.
+6. **Test fixtures: 10+ real snapshots.** Each captures different player state: new player, mid-game, end-game F2P, end-game whale, Mythic-committed, in-clan, replay-history-rich.
+7. **No live wire-up.** Framework is dormant in Week 1. Migration sprint (Week 2-3) wires it into boot chain. Saved snapshots can be tested in unit tests without any UI touch.
+
+**DO NOT TOUCH:**
+- Legacy `_saveVersionGate` IIFE behavior (it stays in place until Phase 5 Gate 3 cutover)
+- Any sacred value during transformation (round-trip parity enforced by tests)
+
+**Acceptance criteria:**
+- [ ] Framework unit tests: per-key, per-version, per-transformation
+- [ ] Round-trip test: legacy v2 snapshot → modular shape → reverse transformation → byte-identical to original
+- [ ] 10+ real snapshots harvested + committed to repo (anonymized — no real player IDs/wallet addresses)
+- [ ] Test asserts all 10 snapshots round-trip successfully
+- [ ] `__legacy_v2_snapshot` storage verified in localStorage post-migration (reversibility proof)
+- [ ] 0 ESLint warnings, 0 new console.log statements
+- [ ] Framework is dormant — no boot-chain integration yet (that's Week 2-3)
+
+---
+
+### TASK-068 (T5.GATE1) — TODO — Gate 1 review: 6 golden paths + save framework verified
+
+**Status:** TODO — BLOCKING ALL WEEK 2-5 WORK
+**Priority:** GATE — release-blocking
+**Phase:** 5 — End of Week 1
+**Owner:** CTO + engineering lead (joint)
+
+**What to do:**
+
+Formal review meeting + REPORT-NN entry. Inputs:
+- TASK-061..066 all GREEN against legacy production artifact, in CI, no flakes
+- TASK-067 framework complete + 10+ real snapshots round-trip pass
+- Bundle CI gate still green (JS+CSS <5 MB; media exempt)
+- Lint 0 warnings; live-URL Playwright still green
+
+Pass criteria for Gate 1 (per ADR-005):
+- [ ] All 6 golden-path smoke tests green, 5/5 consecutive runs, both chromium + mobile-chrome projects
+- [ ] Save migration framework tested on 10+ real snapshots with reversibility verified
+- [ ] No regression in existing tests (1758 unit + 396 smoke + 25×2 visual)
+- [ ] Sacred cow grep+git audit clean (continue project-wide ZERO-modifications discipline)
+- [ ] CTO + engineering lead joint sign-off (if engineering lead not yet onboarded by end of Week 1, Roman + CTO decide whether to extend Week 1 — recommended — or accept reduced gate — NOT recommended)
+
+Output:
+- REPORT-NN entry with concrete metrics
+- PLAN.md updated to mark TASK-061..068 as ✅ DONE
+- Greenlight for TASK-069 (T5.03 — start migration sprint Week 2)
+
+**DO NOT proceed without Gate 1 PASS. Per ADR-005: "There is no negotiated partial pass."**
+
+---
+
+# 🟡 PHASE 3-4 REVIEW QUEUE (not blocking Phase 5 Week 1)
+
+---
+
 ### TASK-059 (T3.15) — REVIEW (2026-05-13) — FIFTEENTH Phase 3 implementation task — Tower seasonal UI (Wave-6 closer)
 
 **Status:** IN PROGRESS → **REVIEW** (Game Dev delivered 2026-05-13)
@@ -5073,6 +5370,580 @@ Sibling export `RACE_IDENTITY_FX` added to `src/data/races.js` (NOT inside `RACE
 **Estimated unit test count delta:** 37 → 65 (target was 37 → ~42; ran broader test coverage because helpers were cheap to test).
 **Bundle size delta:** +1.4 kB JS gzipped, +0.6 kB CSS gzipped (negligible).
 **Commit:** pending CTO review (will land as `[T2.02] Pirate's Plunder — line-clear flavor + dispatcher scaffold`).
+
+---
+
+## UI/UX DESIGNER (NEW ROLE — Phase 5 parallel workstream)
+
+> **Authoritative brief:** `/Users/rm/Downloads/game file/Instructions Game AAA+/Blocksworn_UI_UX_Polish_Strategy.md`
+> **Onboarding:** `docs/design/ui-ux/README.md` (read FIRST on Day 1)
+> **Sacred-cow boundary:** CLAUDE.md §2 — Designer NEVER touches code, NEVER modifies V_HAPTICS / NARRATOR_LINES / combat math / Battle Pass formula / GEM_PACKS / animation timing constants for sacred FX. Visual representation OK; underlying mechanic OFF-LIMITS.
+> **Communication:** all designer-to-engineering handoffs route through CTO. No direct Designer ↔ Dev chat (per Polish Strategy §8.2).
+
+---
+
+### TASK-UX-001 — TODO (awaiting hire) — Designer onboarding + sacred-cow briefing
+
+**Status:** TODO — blocked on Roman hire
+**Priority:** GATE — Designer cannot start any other UX task without this
+**Phase:** 5 — Week 0-1 (Designer's Day 1-2)
+**Estimated:** 4-6 hrs (designer self-paced read + 30 min CTO sync)
+
+**Inputs to Designer:**
+- `CLAUDE.md` §1, §2 (sacred cows), §3 (AAA+ standards), §6 (reference), §9 (glossary)
+- `/Users/rm/Downloads/game file/Instructions Game AAA+/Blocksworn_UI_UX_Polish_Strategy.md` (full)
+- `docs/design/ui-ux/README.md` (the onboarding doc)
+- `docs/reports/` (8 files for project state context)
+- `docs/adr/005-full-vite-migration-with-gates.md` (migration runs parallel)
+- Live game: https://play.blocksworm.com
+
+**Designer deliverable:**
+- Sign-off in `docs/design/ui-ux/onboarding-sign-off.md` confirming:
+  - [ ] Sacred cows list internalized (V_HAPTICS, NARRATOR_LINES, combat math, sacred timing constants, Battle Pass formula, GEM_PACKS)
+  - [ ] AAA+ standards (CLAUDE.md §3) understood
+  - [ ] Polish Strategy §1-§12 understood
+  - [ ] Tier S/A/B/C scope acknowledged
+  - [ ] CTO-gatekeeper communication model accepted
+
+**DO NOT TOUCH:** any code file. No PRs from Designer.
+
+---
+
+### TASK-UX-002 — TODO — Existing art library audit (`/Users/rm/Downloads/game/`)
+
+**Status:** TODO — blocked on TASK-UX-001
+**Priority:** HIGH — significant scope shift depending on findings
+**Phase:** 5 — Week 2 Day 1-3
+**Estimated:** 8-12 hrs
+
+**Context:** Roman disclosed an existing art library at `/Users/rm/Downloads/game/` on 2026-05-16 (~356 MB). Pre-audit findings (CTO):
+- `ingame_icons_cropped/set2_*.png` — appears Blocksworm-aligned (ember/tide/grove/solar/umbra emblems, UI icons)
+- `ingame_icons_cropped/set1_*.png` — generic game UI; useful for Tier S #4 (22 emoji replacement)
+- `race emblems/`, `races/` — WRONG roster (dark elf/golem/lion/orc/skeleton/troll/human vs Blocksworm pirate/shark/rock/croc/spark/grove)
+- `elements emblems/` — WRONG element set (generic dark/earth/fire/light/water vs Blocksworm ember/tide/grove/solar/umbra)
+- `boss emblems/` + `boss/` + `new boss/` + `Game bosses/` — Designer audits bosses against code roster (phoenix/lich/berserker/engineer/grovewarden)
+- `chapter emblems/`, `class emblem/`, `Armor/`, `Modifications emblems/`, `energy.png`, `cristal.png`, `coin.png` — Designer assesses
+
+**Designer deliverable:**
+- `docs/design/ui-ux/asset-library-audit.md` with per-folder verdict:
+  - REUSE-DIRECT (asset matches code 1:1, drop in)
+  - REUSE-RESTYLE (asset usable but needs polish for AAA+ feel)
+  - INSPIRATION-ONLY (asset doesn't match code roster but informs visual direction)
+  - DISCARD (stale, off-brand, not useful)
+- Aggregated asset-budget impact: how much of Polish Strategy §7 hours saved/redirected
+- Recommendation to Roman: which folders to archive vs keep
+
+**DO NOT TOUCH:** none of the existing assets at this stage — audit only, no edits.
+
+---
+
+### TASK-UX-003 — TODO — Design system foundational decisions (color tokens + typography + spacing + animation easings)
+
+**Status:** TODO — blocked on TASK-UX-002
+**Priority:** HIGH — gates all other UX tasks (every screen spec inherits from this)
+**Phase:** 5 — Week 2 Day 4 — Week 3 Day 3
+**Estimated:** 16-20 hrs
+
+**Designer deliverable:**
+- Figma file: `Blocksworm Design System v1`
+- Color palette tokens (export-ready as CSS variables — Engineering lead consumes in `src/styles/tokens.css`)
+- Typography scale (Darkest Dungeon-style serif headings + readable mobile body)
+- Spacing system (4/8/16/24/32/48 pt or chosen scale)
+- Animation tokens (durations + easings — must NOT conflict with sacred FX timings: 180ms crit flash, 440ms shake, V_HAPTICS table per CLAUDE.md §2.2)
+- Component library scaffolding (button states, card states, modal states, indicator states)
+- `docs/design/ui-ux/design-system.md` handover doc
+
+**Sacred timing constraints (CTO-enforced):**
+- Crit flash: 180ms — cannot change
+- Crit shake: 440ms — cannot change
+- vPlayBossDieFx 5-beat sequence — cannot change individual beats
+- vPlayLineClearBurst particle direction to bossImg — cannot change
+- Chronicler typewriter pacing — cannot change
+
+Designer MAY introduce new animations for NEW UI surfaces (healthbar pulse, damage number float, CTA press feedback) — these are NEW, not sacred.
+
+**CTO + Roman sign-off:** required before Engineering lead implements ADR-006 (Design System Foundational Decisions). ADR-006 authored by Designer + CTO joint, signed by Roman.
+
+---
+
+### TASK-UX-004 — TODO — Tier S screen specs (battle HUD redesign — 10 items)
+
+**Status:** TODO — blocked on TASK-UX-003
+**Priority:** CRITICAL — closes Polish Strategy §4 Tier S
+**Phase:** 5 — Week 3 Day 4 — Week 4
+**Estimated:** 30-40 hrs (largest single design block)
+
+**Per-screen Figma specs:**
+1. Battle screen HP indicator (animated healthbar replacing `100/100 ❤` text)
+2. Damage numbers (animated float-up + crit emphasis + 4-channel color per v2.1 P1)
+3. Pressure meter (build-up animation + Stagger threshold indicator per v2.1 P2)
+4. 22 custom icons (single coherent library; emoji replacement enumerated in Polish Strategy §2.3)
+5. Primary CTA buttons (BATTLE / ATTACK / ULT — distinct hierarchy, satisfying press)
+6. FTUE Chronicler intro typography pacing (sacred NARRATOR_LINES strings preserved; atmospheric visual layer added)
+7. Hero card visual hierarchy (T1/T2/T3/Mythic state differentiation)
+8. Mythic ascension ceremony screen (one-time commitment deserves weight)
+9. Boss panel per archetype (5 bosses × visual identity: phoenix glow, lich shadow, berserker pulse, engineer grid, grovewarden roots)
+10. Element icons (5 elements — ember/tide/grove/solar/umbra; reuse from `ingame_icons_cropped/set2_*` per TASK-UX-002 verdict)
+
+**Designer deliverable:** Figma file `Blocksworm Tier S Specs` with implementation-ready specs + asset exports queue.
+
+**CTO sign-off:** each screen reviewed against sacred cows before Engineering Lead implements.
+
+---
+
+### TASK-UX-005 — TODO — Tier A screen specs (home/shop/tower/BP/settings — 7 items)
+
+**Status:** TODO — blocked on TASK-UX-004 (or parallel if bandwidth)
+**Priority:** HIGH — closes Polish Strategy §4 Tier A
+**Phase:** 5 — Week 4 Day 4 — Week 5
+**Estimated:** 20-25 hrs
+
+**Per-screen specs:**
+1. Home hub layout (hierarchy — primary `▶ BATTLE` dominates, progressive disclosure)
+2. Shop bundle layouts (Starter "steal" perception, ladder Starter → Tower Climber → Premium → Whale)
+3. Tower screen (floor visualization, Pact slots, Uroboros menacing presence)
+4. Battle Pass rail (Free vs Premium tracks side-by-side)
+5. Settings menu sections (accessibility prominence — Reduce Motion + Colorblind toggles)
+6. Hero portrait integration (real art if roster final; placeholder otherwise — Roman art-direction decision)
+7. Race icons (5 races — pirate/shark/rock/croc/spark/grove; check TASK-UX-002 verdict on existing `race emblems/`)
+
+**CTO sign-off:** each screen reviewed before handoff.
+
+---
+
+### TASK-UX-006 — TODO — Asset production (Lottie animations + component states + exports)
+
+**Status:** TODO — blocked on TASK-UX-004 + TASK-UX-005
+**Priority:** HIGH — gates Engineering lead implementation Weeks 6-7
+**Phase:** 5 — Week 5
+**Estimated:** 30-40 hrs
+
+**Deliverables:**
+- Healthbar Lottie JSON (idle / damage flash / low-HP pulse / heal feedback states)
+- Damage number Lottie JSON (float-up + crit variant + per-channel color states)
+- Pressure meter Lottie JSON (build-up + stagger-threshold-cross + recovery states)
+- Primary CTA button Lottie/CSS animation specs (default / press / disabled / loading)
+- 22 custom icons SVG + PNG @1x/@2x/@3x exports
+- Boss panel archetype overlay frames (5 bosses × idle/active/reactivity-triggered states)
+- Mythic ascension ceremony animation sequence (Lottie or video reference)
+- `docs/design/ui-ux/asset-manifest.md` mapping each asset → screen → file path target
+
+**Performance budget (CTO-enforced):**
+- Each Lottie ≤16ms render budget per frame (60fps maintenance)
+- SVG icons ≤2 KB each (gzipped)
+- No bundle bloat beyond +200 KB total gzipped on top of current 94 KB modular bundle
+
+---
+
+### TASK-UX-007 — TODO — Implementation support (Designer-on-call during Engineering lead's Tier S+A integration)
+
+**Status:** TODO — active Weeks 6-7
+**Priority:** MEDIUM — Designer reviews implementation screenshots, iterates pixel-perfect where needed
+**Phase:** 5 — Weeks 6-7
+**Estimated:** 20 hrs across 2 weeks
+
+**Working model:**
+- Engineering lead screenshots each implemented screen in CI / staging
+- CTO routes screenshot to Designer
+- Designer marks Figma sticky-notes with deltas (within ±20ms timing tolerance per Polish Strategy §9.2)
+- Engineering lead iterates
+
+**No Designer code commits.** All visual deltas resolved via Figma comments + CTO-mediated handoff.
+
+---
+
+### TASK-UX-008 — TODO — Device matrix QA (Week 8)
+
+**Status:** TODO — closes the workstream
+**Priority:** GATE — Phase 5 Week 8 sign-off blocker
+**Phase:** 5 — Week 8
+**Estimated:** 10-15 hrs
+
+**Test matrix (per Polish Strategy §9.3):**
+- iPhone SE 375pt / 14 390pt / 14 Pro Max 430pt / 16 Pro 402pt / 16 Pro Max 440pt
+- Samsung S22 360pt / S24 384pt / S24 Ultra 412pt / Galaxy Fold5 folded 320pt (edge case)
+- Portrait orientation only
+- Touch targets ≥44pt iOS / ≥48dp Android
+- Safe area (notch / Dynamic Island / home indicator) handled
+- Performance 60fps maintained throughout
+- Accessibility: Reduce Motion + Colorblind verified
+
+**Designer deliverable:** `docs/design/ui-ux/sign-off-week-8.md` with per-device verdict (PASS / NEEDS-FIX / WAIVER) + ready-for-T4.11-beta confirmation.
+
+**Bug Tester partnership:** Bug Tester runs same matrix from QA perspective; both sign-offs required to release Week 9 beta.
+
+---
+
+### TASK-UX-009 — DEFERRED — Tier B post-launch polish
+
+**Status:** DEFERRED to post-T4.12
+**Scope:** Codex gallery polish, profile customization options, achievement icons (30+), tutorial library replay UX, deeper audio settings
+**Reason:** Polish Strategy §4 Tier B explicitly post-launch. Avoid Phase 5 scope creep (R22 in risk register).
+
+---
+
+### TASK-UX-010 — DEFERRED — Tier C Chia visual scope (Phase 4 features when operational)
+
+**Status:** DEFERRED to T4.11 closed beta operational provisioning (Phase 5 Weeks 7-8) and T4.12 launch (Week 13)
+**Scope:** NFT-hero visual identity, Adventure DAO UI, wallet connection flow, Founder Badge visual
+**Reason:** Chia features become user-visible at T4.11 beta; Designer engages then for Tier C polish in parallel with closed-beta iteration.
+
+---
+
+# 🎯 COMBAT POLISH WORKSTREAM (Phase 5 Weeks 6-8)
+
+> **Authoritative plan:** `/Users/rm/Downloads/game file/Instructions Game AAA+/combat-polish-implementation-plan.md` (Roman 2026-05-13)
+> **Pre-execution readiness:** `docs/design/ui-ux/combat-polish-readiness.md` (CTO 2026-05-16) — read before any TASK-CP-* starts
+> **Mechanical truth:** `docs/design/mechanics/combat-mechanics.md`
+> **Architecture:** all work in `src/feel/*.{js,css}` + minimal `src/ui/battle-screen.js` mount wiring (per readiness doc §3 Option A). **ZERO touches to `src/core/*`, `src/data/*`, `src/services/*`** — sacred-cow audit script must show 0 diff lines on those directories per task PR.
+> **Sequencing:** TASK-CP-001 BLOCKING for 002-004. Tier gates after 004 (MVP), 007 (polish), 010 (identity-complete).
+
+---
+
+### TASK-CP-001 — TODO (BLOCKED) — Composition foundation + Boss scene
+
+**Status:** TODO — BLOCKED on hiring + Phase 5 Gate 3 (asset + architectural rulings RESOLVED 2026-05-16)
+**Priority:** GATE — blocks all of TASK-CP-002..010
+**Phase:** 5 Week 6 Day 1-3
+**Resolved decisions (2026-05-16):**
+- ✅ **Mount-call location:** Option A — wire via `src/ui/battle-screen.js:setupBattleScreenEventListeners()` + `cleanupBattleScreen()`. ZERO edits to `src/core/battle.js`.
+- ✅ **Element backgrounds:** 5 files at `/Users/rm/Downloads/game file/assets/backgrounds/` (941×1672, 7.13 MB total). Bundling sub-step copies to `public/assets/backgrounds/` with rename.
+**Remaining blockers:**
+- Engineering Lead onboarded
+- Designer Tier S Figma spec delivered (end of Phase 5 Week 5)
+- Phase 5 Gate 1 passed (golden paths + save migration framework)
+- Phase 5 Gate 3 passed (Vite migration cutover complete)
+
+**Scope (per combat-polish-implementation-plan.md §9 Task 1):**
+
+**1.1 — Asset bundling (build-step)**
+```bash
+mkdir -p public/assets/backgrounds
+for elem in dark earth fire frost light; do
+  cp "/Users/rm/Downloads/game file/assets/backgrounds/${elem} background.png" \
+     "public/assets/backgrounds/${elem}_background.png"
+done
+# Verify: 5 files, each 1.39-1.46 MB, total ~7.13 MB, dims 941×1672
+git add public/assets/backgrounds/
+```
+
+**1.2 — Code creation**
+- Create `src/feel/battle-layout.css` — new layout grid (HUD 44px / Boss scene 260px / Pressure 32px / Heroes 108px / Grid ~240px / Tray 90-96px zones per plan §5.1)
+- Create `src/feel/boss-scene.js` + `boss-scene.css` — layered render Z-layers 0-4 per plan §7.2:
+  - Z0: element background (`object-fit: cover`, blur 2-4px) — sourced from `ELEMENT_ASSETS`
+  - Z1: vignette gradient (CSS radial)
+  - Z2: boss character (`mix-blend-mode: lighten` for navy-fringe mitigation per plan §4 interim)
+  - Z3: ambient particles (CSS @keyframes per element: sparks/snowflakes/leaves/motes/wisps)
+  - Z4: HP gauge + boss name + element emblem overlay
+- Create `src/feel/element-assets.js` with `ELEMENT_ASSETS = { ember, tide, grove, solar, umbra }` mapping to `public/assets/backgrounds/{fire,frost,earth,light,dark}_background.png` and existing emblem PNGs
+- Implement lazy-load: only load current boss's element background, not all 5 (saves ~5.7 MB on first paint per readiness §4.4)
+- Add `safe-area-inset-*` + `100dvh` viewport handling
+- Add grid frame (4px border, `rgba(15,18,24,0.85)` background per plan §7.5)
+
+**1.3 — Mount wiring (Option A — readiness §3)**
+- Edit `src/ui/battle-screen.js`:
+  - `setupBattleScreenEventListeners()` appends `mountBossScene(rootEl, currentBoss)` call
+  - `cleanupBattleScreen()` appends `destroyBossScene()` call
+- **ZERO edits to `src/core/battle.js`, `src/core/*`, `src/data/*`, `src/services/*`**
+
+**🔒 DO NOT TOUCH:**
+- `bossImg` element ID (JS reads it for particle direction)
+- `.phase-2`, `.phase-3` classes (legacy CSS:1810 + JS adds/removes them)
+- `--cell-size` formula in tokens.css + grid.js (proven layout)
+- `vPlayLineClearBurst` particle direction toward `bossImg`
+- Any constant in combat-polish-implementation-plan.md §12
+- `src/core/*`, `src/data/*`, `src/services/*` directories
+- `src/core/battle.js` (per Option A — mount goes in ui/, not core/)
+
+**🔒 DO NOT TOUCH:**
+- `bossImg` element ID (JS reads it for particle direction)
+- `.phase-2`, `.phase-3` classes (legacy CSS:1810 + JS adds/removes them)
+- `--cell-size` formula in tokens.css + grid.js (proven layout)
+- `vPlayLineClearBurst` particle direction toward `bossImg`
+- Any constant in §12 of combat-polish-implementation-plan.md
+- `src/core/*`, `src/data/*`, `src/services/*` directories
+
+**Verification (per plan §9 Task 1 + readiness §2 grep suite):**
+- [ ] Screenshots on iPhone SE (375), iPhone 16 (393), iPhone 16 Max (440) — all 5 element bosses
+- [ ] 60fps in Safari Web Inspector during boss scene animations
+- [ ] Sacred-cow audit: `git diff origin/main -- src/core/ src/data/ src/services/ | wc -l` returns 0
+- [ ] No content under notch / home indicator on any target device
+- [ ] `.phase-2`/`.phase-3` classes still apply correctly at 70%/35% HP gates
+- [ ] All Task-1 file targets created; no overwrites
+- [ ] Engineering Lead PR-review sign-off
+
+---
+
+### TASK-CP-002 — TODO (BLOCKED by 001) — Hero card (energy ring + 5-slot scaling)
+
+**Status:** TODO — BLOCKED on TASK-CP-001 complete
+**Priority:** HIGH — MVP tier
+**Phase:** 5 Week 6 Day 4-7
+**Parallelizable with:** TASK-CP-003, TASK-CP-004
+
+**Scope (per plan §9 Task 2):**
+- Create `src/feel/hero-card.js` + `hero-card.css`
+- 5-slot fixed grid; lock placeholders for empty slots
+- SVG circular energy ring around avatar (`stroke-dasharray` driven by `hero.energy / hero.maxEnergy`)
+- HP bar (3px thin) below avatar
+- Class icon top-left (use `public/assets/icons/class_*_emblem.png` — all 5 already in repo)
+- Level badge top-right
+- Ready-state pulse when `energy === maxEnergy`
+- Tap handler → existing ULT trigger (no logic change)
+- Reads `RACE_TO_STIHIYA` from [src/data/races.js:23](src/data/races.js:23) for ring color binding
+
+**🔒 DO NOT TOUCH:**
+- `HERO_ULT_COST_BY_NEWROLE` values (W:80 / M:100 / H:120 / T:80 / C:100)
+- Tap event logic that fires ULT
+- `RACE_TO_STIHIYA` mapping (read-only)
+- `src/core/heroes.js`, `src/data/heroes.js`
+
+**Verification:**
+- [ ] All 5 element rings render correct color from `--a-{element}` tokens
+- [ ] Ring fills smoothly as energy increases (no jumps, transform/opacity only)
+- [ ] Ready-state pulse runs at 60fps
+- [ ] Lock-slot navigates to hire screen on tap
+- [ ] 3/4/5 hero squad layouts all render without jank
+- [ ] Sacred-cow audit clean
+
+---
+
+### TASK-CP-003 — TODO (BLOCKED by 001) — Top HUD cleanup
+
+**Status:** TODO — BLOCKED on TASK-CP-001 complete
+**Priority:** HIGH — MVP tier
+**Phase:** 5 Week 6 Day 4-7
+**Parallelizable with:** TASK-CP-002, TASK-CP-004
+
+**Scope (per plan §9 Task 3):**
+- Compact 44px chip row replacing existing top bar
+- Remove DMG indicator (moves to victory screen)
+- Remove duplicate HP display (currently in both top bar AND boss card)
+- 8px gap between chips, 10px chip padding, 8px corner radius
+- Typography: 14px semibold values, 11px caps labels
+- WCAG AA 4.5:1 contrast minimum
+
+**🔒 DO NOT TOUCH:**
+- HP value source (still reads from game state)
+- Sacred haptic triggers tied to HUD events
+- Resource counters' underlying state
+
+**Verification:**
+- [ ] HUD ≤ 44px height on all target devices
+- [ ] All chips readable at 11px caps + 14px values
+- [ ] 4.5:1 contrast verified (axe-core or manual)
+- [ ] DMG appears in victory modal, NOT in HUD
+- [ ] Sacred-cow audit clean
+
+---
+
+### TASK-CP-004 — TODO (BLOCKED by 001) — Pressure meter (Sekiro-style)
+
+**Status:** TODO — BLOCKED on TASK-CP-001 complete
+**Priority:** HIGH — MVP tier
+**Phase:** 5 Week 6 Day 4-7
+**Parallelizable with:** TASK-CP-002, TASK-CP-003
+**MVP GATE:** end of TASK-CP-004 = "playable in new design" gate
+
+**Scope (per plan §9 Task 4):**
+- Create `src/feel/pressure-meter.css`
+- Extract pressure display from boss card (currently lives there)
+- Horizontal gauge between boss scene and hero strip
+- Threshold marker at 100% with "STAGGER →" label
+- Surge animation ONLY on `line_quad` event (+45 pressure — biggest single delta)
+- Gold gradient (`#FFD53D` → `#FF9F1C`), saturating near max
+
+**🔒 DO NOT TOUCH:**
+- `PRESSURE_GAIN` 9 values (line_single:5, line_double:12, line_triple:25, line_quad:45, inferno_proc:20, detonate_proc:20, hero_ult:15, signature_combo:30, cascade_per_cell:8)
+- `PRESSURE_MAX = 100`
+- Stagger trigger logic in `src/core/stagger-loop.js`
+
+**Verification:**
+- [ ] Gauge fills accurately per PRESSURE_GAIN values on each event type
+- [ ] Surge animation ONLY fires on line_quad (verify by triggering other 8 events and confirming no surge)
+- [ ] Threshold marker at exactly 100% position
+- [ ] Stagger entry still triggers existing `.stagger-slow-mo` class
+- [ ] Sacred-cow audit clean
+- [ ] **MVP GATE REVIEW:** game looks/feels new with composition + heroes + HUD + pressure — Engineering Lead + Designer + CTO sign-off
+
+---
+
+### TASK-CP-005 — TODO (BLOCKED by 004) — Element emblems integration
+
+**Status:** TODO — BLOCKED on MVP gate (end of TASK-CP-004)
+**Priority:** HIGH — polish tier
+**Phase:** 5 Week 7 Day 1-3
+**Parallelizable with:** TASK-CP-006, TASK-CP-007
+
+**Scope (per plan §9 Task 5):**
+- Create `src/feel/synergy-bar.js` + CSS
+- 5 hex emblems light up based on current synergy tier (2x → 3x → 5x escalating)
+- Boss "domain marker" — small emblem next to boss name in scene
+- Use `/Users/rm/Downloads/game/elements emblems/*.png` assets (5 files; rename spaces → underscores on copy to `public/assets/icons/elements/`)
+
+**🔒 DO NOT TOUCH:**
+- Synergy 2x/3x/5x thresholds (-2/-4/-6 ULT, +20%/+50% dmg, 30% start charge — sacred CLAUDE.md §2.1)
+- `dominantCount` computation logic in `src/core/battle.js`
+
+**Verification:**
+- [ ] Emblems light up at correct synergy tiers
+- [ ] 2x → 3x → 5x has clearly escalating visual treatment
+- [ ] 5x state has "ceremonial" framing (Marvel Snap snap-moment style)
+- [ ] All 5 element emblem assets bundled correctly
+- [ ] Sacred-cow audit clean
+
+---
+
+### TASK-CP-006 — TODO (BLOCKED by 004) — Damage channel color coding
+
+**Status:** TODO — BLOCKED on MVP gate
+**Priority:** HIGH — polish tier
+**Phase:** 5 Week 7 Day 1-3
+**Parallelizable with:** TASK-CP-005, TASK-CP-007
+
+**Scope (per plan §9 Task 6):**
+- Create `src/feel/damage-channel-fx.css`
+- 4 channels visually distinct at player HP bar: DEAD_ZONE / VOID / SIGNATURE / GRID_SATURATION
+- Floating damage numbers in per-channel color
+- Per-channel haptic pattern (VOID `[40,30,40]` already in CHANNEL FX_STYLE map at damage-channels.js:223)
+- Extend `src/feel/animations.js` (additive only — do not remove existing FX)
+
+**🔒 DO NOT TOUCH:**
+- Channel string identifiers (`'deadzone'`, `'void_tick'`, `'signature'`, `'saturation'`)
+- `MITIGATION_CAP = 0.70`
+- All `CHANNEL_*` values (DEADZONE_DMG=5, VOID_TICK_PCT=0.005, GRID_SATURATION_THRESHOLD=0.75, GRID_SATURATION_DMG=8)
+- `CHANNEL_SIGNATURE_DMG` tier map at damage-channels.js:171
+
+**Verification:**
+- [ ] Each channel visually distinguishable at a glance
+- [ ] Floating numbers use correct color per channel (`#FF4D1F` deadzone / `#9B59E8` void / boss-element signature / amber saturation)
+- [ ] Haptic pattern fires per channel
+- [ ] Sacred-cow audit clean
+
+---
+
+### TASK-CP-007 — TODO (BLOCKED by 004) — Stagger entry + chromatic shift
+
+**Status:** TODO — BLOCKED on MVP gate
+**Priority:** HIGH — polish tier
+**Phase:** 5 Week 7 Day 1-3
+**Parallelizable with:** TASK-CP-005, TASK-CP-006
+**POLISH GATE:** end of TASK-CP-007 = "game feels premium" gate
+
+**Scope (per plan §9 Task 7):**
+- Stagger entry: enhance existing gold flash + slow-mo with chromatic-shift CSS filter on battle screen for full 4-turn window
+- Recovery entry: telegraph border + 2-turn countdown visible
+- Boss revenge attack: channel-specific FX on player HP
+- Extend `src/feel/animations.js` additively
+
+**🔒 DO NOT TOUCH:**
+- `STAGGER_DURATION_TURNS = 4`
+- `RECOVERY_DURATION_TURNS = 2`
+- `FIRE_MULT_*_RATIO` (0.7 / 1.5 / 0.7)
+- Existing `.stagger-slow-mo` class application
+- Boss state machine in `src/core/stagger-loop.js`
+
+**Verification:**
+- [ ] Chromatic shift active for EXACTLY 4 turns (STAGGER_DURATION_TURNS sacred)
+- [ ] Recovery countdown visible and accurate (2 turns sacred)
+- [ ] 60fps maintained during chromatic shift (CSS filter perf check per readiness §11.3)
+- [ ] Sacred-cow audit clean
+- [ ] **POLISH GATE REVIEW:** game feels premium — sign-offs
+
+---
+
+### TASK-CP-008 — TODO (BLOCKED by 007) — Race FX visual polish (6 races)
+
+**Status:** TODO — BLOCKED on POLISH gate
+**Priority:** HIGH — identity tier
+**Phase:** 5 Week 8 Day 1-5
+**Sub-tasks (sequential per race):** 008.1 Pirate / 008.2 Shark / 008.3 Rock / 008.4 Crocodile / 008.5 Spark / 008.6 Grove
+
+**Scope (per plan §9 Task 8 + combat-mechanics.md §18):**
+- Polish visuals of 6 race line-clear FX (handler signatures + mechanics UNCHANGED)
+- Modify `src/feel/identity-fx.js` additively — visual polish only
+
+**🔒 DO NOT TOUCH:**
+- All HARD CAPS (32-coin pirate, 16-particle crocodile+spark, max-cell counts)
+- Modifier hooks (`_dominantCountModifier`, `_lastBittenCells`)
+- All decay timings (1000ms pirate, 500ms shark, 700ms rock, 600ms crocodile, 400ms spark)
+- Combo crit formula (legacy line 64005 BYTE-PERFECT — Spark modifies INPUT only)
+- Cross-race synergy compute (Phase 3 T3.12 — cosmetic output verified)
+- All handler signatures (`fxPirateLineClear`, `fxSharkLineClear`, etc)
+
+**Verification:**
+- [ ] Each race FX visually identifiable at a glance
+- [ ] No mechanical change verified by replaying scripted FTUE + Ch1 scenarios
+- [ ] Particle pools never exceed HARD CAPs (instrument DOM-node count)
+- [ ] Sacred-cow audit clean per sub-task
+
+---
+
+### TASK-CP-009 — TODO (BLOCKED by 007) — 5-beat boss death cinematic polish
+
+**Status:** TODO — BLOCKED on POLISH gate
+**Priority:** HIGH — identity tier
+**Phase:** 5 Week 8 Day 3-5
+**Parallelizable with:** TASK-CP-008 (last days)
+
+**Scope (per plan §9 Task 9 + combat-mechanics.md §20):**
+- Polish content of each beat within sacred durations:
+  - Beat 0 (shake): amplitude curve refinement
+  - Beat 1 (hit-pause): desaturation intensity
+  - Beat 2 (white flash): solid white vs themed-color tint
+  - Beat 4 (slow zoom): zoom target tuning
+- Modify `src/feel/animations.js:vPlayBossDieFx()` + `vCleanupBossDeathFx()` additively (no duration changes)
+
+**🔒 DO NOT TOUCH:**
+- Beat durations (300ms hit-pause, 260+220ms flash, 420ms zoom — BYTE-PERFECT)
+- Beat order
+- Trigger condition (only on FINAL death after Phoenix revive checks)
+- Voidfang bespoke 5-beat (legacy line 58175)
+- `vPlayLineClearBurst` direction toward bossImg
+
+**Verification:**
+- [ ] Total cinematic duration unchanged (instrument with performance.now())
+- [ ] Cleanup timing (300+220+1400 breathing) preserved
+- [ ] Next chapter unlock still works post-cinematic
+- [ ] Sacred-cow audit clean
+
+---
+
+### TASK-CP-010 — TODO (BLOCKED by 007) — Reactivity event telegraphs (22 handlers + 5 boss-reactive)
+
+**Status:** TODO — BLOCKED on POLISH gate
+**Priority:** HIGH — identity tier
+**Phase:** 5 Week 8 Day 4-7
+**Parallelizable with:** TASK-CP-008, TASK-CP-009
+**IDENTITY-COMPLETE GATE:** end of TASK-CP-010 = ship-ready for T4.11 beta
+
+**Scope (per plan §9 Task 10 + combat-mechanics.md §17 + §19):**
+- Banner styling per archetype (11 archetypes across 22 handlers in BOSS_PHASES registry)
+- Phoenix Ashen Reign flame border polish (180px sacred width preserved)
+- Lich Cursed Tiles purple glow + countdown polish
+- Engineer Lockdown copper weld VFX polish
+- Berserker Bloodtide red pulse polish
+- Grovewarden Root Surge boss-side mossy tendrils
+- Modify `src/feel/identity-fx.js` additively (visual polish only)
+
+**🔒 DO NOT TOUCH:**
+- `REACTIVITY_TELEGRAPH_MS = 3000`
+- `ASHEN_REIGN_DURATION_MS = 5000`, `ASHEN_REIGN_TELEGRAPH_MS = 3000`
+- `ASHEN_REIGN_FLAME_BORDER_WIDTH_PX = 180`
+- `BOSS_PHASES` registry at reactivity-events.js:263-290 (all 22 handler keys)
+- `CURSED_TILES_COUNT = 3`, `CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR = 3`
+- `BERSERKER_ENRAGE_MULT = 2.0`
+- Engineer Lockdown 40-turn duration, 4-cell shape, copper `#B87333`
+- Grove `ROOT_SURGE_OVERLAY_COLOR = '#2D8659'`
+- Shark `isSharkBiteBlocked` predicate (Lich integration)
+
+**Verification:**
+- [ ] All 11 archetypes have distinguishable banner styles
+- [ ] Phoenix flame border still 180px (perf-verified at 16ms initial / 2ms steady-state)
+- [ ] Telegraph always 3000ms before event lands (instrumented)
+- [ ] Shark + Lich cross-mechanic still works
+- [ ] Sacred-cow audit clean
+- [ ] **IDENTITY-COMPLETE GATE REVIEW:** every race + boss has distinct visual identity; Designer + Bug Tester + CTO sign-off → T4.11 beta ready
 
 ---
 

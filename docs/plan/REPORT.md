@@ -3098,4 +3098,87 @@ After merge: T4.11 closed beta → T4.12 production launch → **Blocksworn ship
 
 ---
 
+## REPORT-35: 🛑 Phase 4.1 sidecar postmortem CLOSED + 🚀 Phase 5 Vite Migration kickoff
+
+**Date:** 2026-05-16
+**Author:** CTO
+**Phase:** transitioning out of Phase 4 (operationally deferred) into Phase 5
+**Inputs:**
+- `docs/reports/03_SESSION_INCIDENTS.md` (full sidecar postmortem)
+- Consultant review (2026-05-13 — Senior Game Strategy Consultant; 9-block 30+ question audit)
+- Roman ruling (2026-05-16) — Decision 1 = Option C+ (Full Vite Migration with gates); Decision 2 = Defer Chia operational until Gate 3; Decision 3 = Option B engineering lead hire
+- New architectural authority: `docs/adr/005-full-vite-migration-with-gates.md`
+
+### Sidecar postmortem CLOSURE
+
+The Phase 4.1 sidecar wiring attempt (2026-05-13 session, PRs #170..#180) is **formally CLOSED with the following dispositions:**
+
+| Item | Disposition |
+|---|---|
+| Phase 4.1 sidecar architecture (legacy global-scope coexistence with src/ window-bridges) | **ABANDONED.** Will not be re-attempted. Superseded by Phase 5 full Vite migration per ADR-005. |
+| `scripts/inject-legacy-fixes.js` (single-line localStorage seed) | **KEPT** until Phase 5 Gate 3 cutover. Idempotent, marker-based, minimal surface. |
+| `tests/live/live-url.spec.js` post-deploy Playwright gate | **KEPT permanently.** Active compensating control. Catches the specific failure modes from the incident (intro overlay state, screen activation, asset 404s, console errors, music play). |
+| `vercel.json` cache headers (immutable for hashed assets; no-cache for stable-name entries) | **KEPT permanently.** Correct strategy independent of migration path. |
+| `mirrorWindowProp()` helper + 130 defensive guards in src/ | **WILL BE RETIRED** at Phase 5 Gate 3 — once Vite shell is primary, `Object.defineProperty(window, X)` collisions go away because legacy is no longer in scope. |
+| 5 hotfix band-aids (PRs #171, #172, #174, #177, #179) | Lessons documented in postmortem §2. Not reusable patterns. |
+| Director-facing reports in `docs/reports/` (8 files) | **KEPT.** Reference for ongoing director decision-making + onboarding new engineering lead. |
+
+### Root-cause acceptance
+
+The five root causes from the postmortem are accepted as accurate, in order of decreasing severity for forward decisions:
+
+1. **Architectural fragility of sidecar pattern at current legacy scope** — legacy declares ~130 names in global scope; any src/ module that writes to `window.X` collides. Defensive guards reduce TypeError surface but leave behavioral collisions. **This is the load-bearing finding behind ADR-005's "full migration not sidecar v2" decision.**
+2. **Ship-and-patch loop** instead of immediate revert — CTO process failure. Compensating control: live-URL Playwright gate now catches the failure modes; engineering lead from Week 2 onward gates merges.
+3. **Mistakenly deleted marketing Vercel project** — operational discipline failure. Compensating control: future destructive Vercel actions require explicit human confirmation; flagged in ADR-005 §Compliance.
+4. **Cache header strategy for stable-name entries** — fixed in `vercel.json`; correct strategy persists.
+5. **DNS state assumed cleaner than it was** — diagnostic discipline lesson; first diagnostic step for "site doesn't load" is now `dig +short` from user's terminal.
+
+### Phase 5 kickoff
+
+Per Roman directive 2026-05-16 ("Option C+ — Full Vite Migration с подготовкой"):
+
+- **5-week migration sequence** with 3 gates (see ADR-005 §Decision + PLAN.md §Phase 5)
+- **Total project timeline to T4.12 production launch: 13 weeks**
+- **Week 1 backlog created in TASKS.md** — 8 atomic tasks (TASK-061..TASK-068):
+  - TASK-061..066: 6 golden-path smoke tests from Execution Plan §10 (which DO NOT CURRENTLY EXIST — major gap discovered during consultant review)
+  - TASK-067: save migration framework + 10+ real snapshot round-trip tests
+  - TASK-068: Gate 1 joint review
+- **Engineering lead hire** is Roman's critical-path action item. Recommended profile + budget in PLAN.md §Phase 5.
+- **UI/UX Designer parallel workstream** is Roman's separate hire. Works in Figma, integrates Week 6-8.
+
+### Honest gaps disclosed (from consultant review)
+
+For audit trail:
+
+1. **6 golden-path smoke tests from Execution Plan §10 DO NOT EXIST in `tests/smoke/`.** Only `legacy-loads.spec.js` (one assertion suite) + 14 phase-specific stubs exist. This is the largest single test-coverage gap and is the load-bearing reason for Week 1 BLOCKING preparation.
+2. **75 task tags in git vs 63 claimed in reports** — discrepancy = 8 in-task sub-commits (T2.05a/b/c style). Not "extra hidden work," but worth disclosing as math correction.
+3. **Save migration framework does not exist.** Only 2 unit tests cover v1→v2 wipe + v2→v2 noop. Phase 5 Week 1 TASK-067 fills this gap.
+4. **Sacred cow Battle Pass formula** — implementation is `500 + (tier-1) * 150` whereas plan-literal notation read `500 + tier * 150`. ESC-02 Roman ruling 2026-05-12 confirmed (tier-1) semantically correct ("T1 starts at 500 base"). Not a violation; flagged as semantic discrepancy worth knowing during migration.
+5. **Bug Tester verdicts to date are unit/integration-test-level, not user-visible-feature-level** because Phase 2-4 features are dormant. Real verdicts on user-visible features will land at Phase 5 Gate 2.
+
+### Cumulative test trajectory through Phase 5 (projected)
+
+| Phase | Unit tests | Smoke tests | Visual baselines |
+|---|---|---|---|
+| Phase 1 close | 37 | 2 | 22 |
+| Phase 2 close | 581 | 204 | 22 (no UI changes) |
+| Phase 3 close | 1365 | 396 | 22 |
+| Phase 4 close (current) | 1758 | 396 | 25 desktop + 25 mobile |
+| **Phase 5 Gate 1 (target)** | ~1800 | **402** (6 new golden paths) | 50 |
+| **Phase 5 Gate 2 (target)** | ~2000 | ~450 (Phase 2-4 user-visible flows) | ~70 (new screens) |
+| **Phase 5 Gate 3 (target)** | ~2000 | ~450 | ~70 |
+
+### Status
+
+- **Phase 4.1 sidecar postmortem:** ✅ CLOSED
+- **ADR-004 (Hybrid coexistence):** active, scheduled retirement at Phase 5 Gate 3
+- **ADR-005 (Full Vite Migration with Gates):** ✅ accepted, in force from 2026-05-16
+- **Phase 5:** ACTIVE — Week 1 begins on engineering lead onboarding completion OR CTO solo if Roman approves bridge
+
+### Next REPORT entry
+
+REPORT-36 will be the Gate 1 review entry (end of Week 1). Until then, day-to-day task closure REPORTs are not generated for routine progress (per Roman 2026-05-16: "Не торопимся.").
+
+---
+
 **Maintained by:** CTO agent

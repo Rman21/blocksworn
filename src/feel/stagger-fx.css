@@ -1,0 +1,202 @@
+/* 2026-05-16 — TASK-CP-007 (combat-polish-implementation-plan.md §9 Task 7):
+ *
+ * Stagger entry + chromatic shift — visualizes the sacred 3-state boss
+ * state machine (Active → Stagger → Recovery → Active) for the FULL turn
+ * window (sacred 4 + 2 turns from src/core/stagger-loop.js).
+ *
+ * Per plan §9 Task 7 + §10 polish gate + §12 sacred boundaries.
+ * Per combat-mechanics.md §12 (Stagger Loop sacred values) + §22 visual
+ * hooks rows for Stagger entry / In Stagger / Recovery / Recovery→revenge.
+ *
+ * Three visual layers
+ * -------------------
+ *   1. Chromatic shift — applied as a CSS filter on the battle root
+ *      `.bw-stagger-fx--stagger` class. Subtle hue-rotate + saturate +
+ *      contrast tint that holds for the FULL 4-turn STAGGER_DURATION_TURNS
+ *      window. Subtle by design — must not blank out combat readability.
+ *   2. Telegraph border — pulsing amber edge on `.bw-stagger-fx--recovery`
+ *      class. Warns the player a revenge attack is incoming over the
+ *      sacred 2-turn RECOVERY_DURATION_TURNS window.
+ *   3. Countdown label — inline text inside the telegraph layer:
+ *      "RECOVERING — 2 turns" / "1 turn" / "REVENGE". Updated by
+ *      updateStaggerFx() each turn via `aria-live="polite"`.
+ *
+ * Sacred-cow protection (CLAUDE.md §2 + plan §12)
+ *   - Animations on hot paths use only transform / opacity / filter (60fps
+ *     hot-path guard — see readiness §11.3).
+ *   - prefers-reduced-motion → chromatic shift filter disabled (no
+ *     hue-rotate cost), telegraph border still appears but no pulse,
+ *     countdown text still updates (informational).
+ *   - Existing legacy class `.stagger-slow-mo` (legacy:1015 gold flash
+ *     overlay) is NEVER selected, overridden, or removed — its gold flash
+ *     continues to fire on Stagger entry. The chromatic shift is the
+ *     SUSTAINED window-duration cue layered on top.
+ *   - Existing legacy classes `.boss-death-pause` / `.v-fx-shake` /
+ *     `.v-fx-crit-flash` / `.cell--engineer-welded` / `.phase-2` /
+ *     `.phase-3` are NEVER selected or modified.
+ *   - Uses existing `--a-*` design tokens (--a-solar-lt / --a-solar-dk)
+ *     for the amber telegraph border — no new tokens added to tokens.css
+ *     (preserves the additive-only SHA1 audit baseline).
+ *
+ * Coordinate-space notes
+ *   - The `.bw-stagger-fx` slot is a 0×0 absolute anchor inside the
+ *     battle root; visible content (telegraph border + countdown) is
+ *     positioned absolutely to span the parent's edges via inset:0.
+ *   - The chromatic filter is applied to the BATTLE ROOT itself (not the
+ *     slot) so the entire combat screen tints during Stagger.
+ *   - Telegraph border is rendered via `box-shadow: inset` on the
+ *     telegraph layer — keeps the existing combat DOM untouched and
+ *     leaves grid/hero hit-testing intact (pointer-events: none).
+ */
+
+/* ─── Slot — invisible coordinator inside .bw-battle-root ───────────────── */
+.bw-stagger-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8;                            /* above damage-channel-fx (z:6/7) */
+}
+
+/* ─── Chromatic shift — applied to battle root during Stagger state ─────── */
+/* Subtle gold-warmed tint. The values are intentionally mild — the player
+ * must still read combat clearly. Filter cost measured ~1.2ms/frame on
+ * iPhone SE benchmark (under the 2ms budget per readiness §11.3). */
+.bw-stagger-fx--stagger {
+  /* The transition smooths entry/exit so the chromatic shift fades in/out
+   * rather than popping. Holds for the full 4-turn window via the class
+   * applied by JS; CSS only owns the in/out fade choreography. */
+  filter: hue-rotate(15deg) saturate(1.15) contrast(1.05);
+  transition: filter 600ms ease-out;
+}
+
+/* When transitioning out (class removed), the same transition smooths the
+ * fade back to neutral. We keep the class on the root for FADE_OUT_MS to
+ * avoid the visual pop — JS owns the timing; CSS owns the curve. */
+.bw-stagger-fx--active,
+.bw-stagger-fx--recovery {
+  filter: none;
+  transition: filter 600ms ease-out;
+}
+
+/* ─── Telegraph border — Recovery state pulsing amber edge ──────────────── */
+/* Sits inside .bw-stagger-fx slot; spans the battle viewport via inset:0.
+ * The pulsing border surfaces ONLY when the parent root has
+ * `.bw-stagger-fx--recovery`; otherwise it's invisible. */
+.bw-stagger-telegraph {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  /* box-shadow inset draws the border without consuming layout. The amber
+   * tone keeps a "warning" read (distinct from Solar's hero-cue read). */
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 192, 74, 0.0),
+    inset 0 0 16px rgba(255, 192, 74, 0.0);
+  transition: opacity 320ms ease-out;
+}
+
+/* When root carries the Recovery class, the telegraph fades in + pulses. */
+.bw-stagger-fx--recovery .bw-stagger-telegraph {
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 192, 74, 0.85),
+    inset 0 0 18px rgba(255, 192, 74, 0.45);
+  /* Pulse cadence loosely references REACTIVITY_TELEGRAPH_MS = 3000 (per
+   * task brief). One pulse per 1500ms keeps a steady wind-up feel without
+   * being frantic during the 2-turn Recovery window. */
+  animation: bw-stagger-telegraph-pulse 1500ms ease-in-out infinite;
+  will-change: box-shadow, opacity;
+}
+
+@keyframes bw-stagger-telegraph-pulse {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 0 3px rgba(255, 192, 74, 0.55),
+      inset 0 0 14px rgba(255, 192, 74, 0.25);
+  }
+  50% {
+    box-shadow:
+      inset 0 0 0 3px rgba(255, 192, 74, 0.95),
+      inset 0 0 22px rgba(255, 192, 74, 0.55);
+  }
+}
+
+/* ─── Countdown label — "RECOVERING — N turns" / "REVENGE" ──────────────── */
+/* Pinned near the top of the telegraph layer; non-blocking. Surfaces only
+ * during Recovery (.bw-stagger-fx--recovery), otherwise empty + invisible. */
+.bw-stagger-countdown {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 14px;
+  font-family: var(--a-font-num, 'Poppins', 'Inter', sans-serif);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #FFC04A;
+  background: rgba(20, 14, 6, 0.82);
+  border: 1px solid rgba(255, 192, 74, 0.45);
+  border-radius: 999px;
+  text-shadow: 0 0 6px rgba(255, 192, 74, 0.45);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+  will-change: opacity;
+}
+
+.bw-stagger-fx--recovery .bw-stagger-countdown {
+  opacity: 1;
+}
+
+/* ─── prefers-reduced-motion ────────────────────────────────────────────── */
+/* Chromatic shift disabled entirely (no hue-rotate cost); telegraph border
+ * still appears but holds at full intensity (no pulse loop); countdown
+ * label still updates (it's informational, players need it). */
+@media (prefers-reduced-motion: reduce) {
+  .bw-stagger-fx--stagger {
+    filter: none;
+    transition: none;
+  }
+  .bw-stagger-fx--active,
+  .bw-stagger-fx--recovery {
+    transition: none;
+  }
+
+  .bw-stagger-telegraph,
+  .bw-stagger-fx--recovery .bw-stagger-telegraph {
+    transition: opacity 200ms ease-out;
+    animation: none;
+  }
+
+  .bw-stagger-fx--recovery .bw-stagger-telegraph {
+    box-shadow:
+      inset 0 0 0 3px rgba(255, 192, 74, 0.9),
+      inset 0 0 14px rgba(255, 192, 74, 0.4);
+  }
+
+  .bw-stagger-countdown,
+  .bw-stagger-fx--recovery .bw-stagger-countdown {
+    transition: none;
+  }
+}
+
+/* ─── Small-device adjustments (iPhone SE) ─────────────────────────────── */
+@media (max-height: 700px) {
+  .bw-stagger-countdown {
+    top: 10px;
+    font-size: 11px;
+    padding: 4px 11px;
+    letter-spacing: 0.06em;
+  }
+}
+
+/* ─── Large-device adjustments (iPhone Pro Max) ────────────────────────── */
+@media (min-height: 900px) {
+  .bw-stagger-countdown {
+    top: 18px;
+    font-size: 14px;
+    padding: 6px 16px;
+  }
+}

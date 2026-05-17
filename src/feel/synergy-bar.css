@@ -1,0 +1,317 @@
+/* 2026-05-16 — TASK-CP-005 (combat-polish-implementation-plan.md §9 Task 5):
+ *
+ * Synergy bar — 5 hex emblems indicating current element-synergy tier.
+ *
+ * Per plan §9 Task 5 + §6.3 + combat-mechanics.md §6:
+ *
+ *   ┌──────────────────────────────────────────────────────────────────┐
+ *   │   [ember] [tide] [grove] [solar] [umbra]                          │
+ *   └──────────────────────────────────────────────────────────────────┘
+ *
+ * Placement decision (header rationale in synergy-bar.js):
+ *   Bar lives INSIDE .bw-zone-boss as an absolutely-positioned auxiliary
+ *   strip pinned to the bottom (overlapping the Z4 overlay gradient by
+ *   ~6-8px). This avoids inserting a 7th grid row in battle-layout.css
+ *   (which would push the 759px iPhone-16 budget further into overflow),
+ *   and anchors the bar visually to the boss frame — reinforcing the
+ *   reading "this is your squad's elemental bearing on the boss's domain".
+ *
+ *   Z-order: bar sits at z-index 5 inside .bw-zone-boss (above the Z4
+ *   .bw-boss-overlay which owns 0-4). Glow + halo stay inside the boss
+ *   scene's stacking context — no leakage onto HUD chips or grid arena.
+ *
+ * Per plan §9 Task 5 — emblem state escalation:
+ *
+ *   Tier idle  → grayscale + ~30% opacity, no glow
+ *   Tier 2x    → full color, subtle glow (element-colored, 6px halo)
+ *   Tier 3x    → full color, stronger glow + faint pulse (60fps; transform/opacity)
+ *   Tier 5x    → ceremonial glow + heavier pulse + halo expanding outward
+ *                 (Marvel-Snap snap-moment style)
+ *
+ * Sacred-cow protection (CLAUDE.md §2.1 + plan §12):
+ *   - Uses --a-{element} + --a-{element}-lt + --a-{element}-dk tokens —
+ *     no hex hardcodes. Element palette is the sacred color authority.
+ *   - Animations use only transform / opacity / filter on hot paths (60fps).
+ *   - prefers-reduced-motion → ALL pulse + halo animations suppressed; the
+ *     tier escalation still reads via static glow + color.
+ *   - Never overrides .v-fx-crit-flash / .v-fx-shake / .stagger-slow-mo /
+ *     .boss-death-pause / .phase-2 / .phase-3 / .cell--engineer-welded.
+ *   - Reuses ELEMENT_ASSETS emblem paths (src/feel/element-assets.js) —
+ *     no asset duplication; sacred boss-emblem path remains canonical.
+ */
+
+/* ─── Slot — auxiliary strip pinned to bottom of .bw-zone-boss ───────────── */
+/* The slot is positioned absolutely INSIDE .bw-zone-boss (which is
+ * position: relative per battle-layout.css line 74). The strip overlaps
+ * the Z4 .bw-boss-overlay gradient slightly to feel like part of the
+ * boss frame rather than a standalone HUD element.
+ *
+ * pointer-events: none → tap-through to the boss image below (preserves
+ * legacy boss-tap handler hook). Individual emblems re-enable pointer-events
+ * only if interactive (currently emblems are presentation-only).
+ */
+.bw-zone-synergy {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;                        /* overlap Z4 overlay gradient cleanly */
+  z-index: 5;                          /* above .bw-boss-overlay (z-index:4) */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px 12px 6px;
+  pointer-events: none;                /* tap-through to boss image */
+}
+
+/* ─── Bar — flex row of 5 hex emblems ────────────────────────────────────── */
+.bw-synergy-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;                    /* center-bound on tablets / large phones */
+  height: 28px;                        /* compact strip — doesn't displace zones */
+}
+
+/* ─── Emblem — hex-shaped element marker ─────────────────────────────────── */
+/* Each emblem is a square container with hex clip-path. The .img inside is
+ * the actual element emblem PNG from ELEMENT_ASSETS. Halo + glow ride on
+ * the container so they animate independently of the image.
+ *
+ * Hex clip-path: six-pointed flat-top hex per visual design language used
+ * elsewhere (.bw-boss-emblem follows the same shape via background-image).
+ */
+.bw-synergy-emblem {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 4px;                  /* falls back to square if clip-path unsupported */
+  -webkit-clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+          clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  transition:
+    filter 220ms ease-out,
+    opacity 220ms ease-out,
+    transform 220ms cubic-bezier(0.25, 0.7, 0.3, 1);
+  will-change: filter, transform;
+}
+
+.bw-synergy-emblem-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  position: relative;
+  z-index: 2;                          /* image sits above the halo layer */
+}
+
+/* ─── Halo — separate layer for the 5x ceremonial expanding ring ─────────── */
+/* Pseudo-position behind the emblem; animation kicks in only on 5x tier.
+ * Pure transform/opacity animation — no layout thrash. */
+.bw-synergy-emblem-halo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%) scale(0.85);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;                          /* halo behind image */
+}
+
+/* ─── Tier: idle — grayscale + low opacity ───────────────────────────────── */
+.bw-synergy-tier-idle {
+  filter: grayscale(1) brightness(0.7);
+  opacity: 0.3;
+  transform: scale(1);
+}
+
+/* ─── Tier: 2x — subtle element glow ─────────────────────────────────────── */
+.bw-synergy-tier-2 {
+  filter: grayscale(0) brightness(1);
+  opacity: 1;
+  transform: scale(1);
+}
+/* Subtle element-colored glow via a static box-shadow proxy on the wrapper.
+ * Per emblem element class (--ember / --tide / --grove / --solar / --umbra),
+ * the glow color is element-bound for tier 2 visual identity. */
+.bw-synergy-tier-2.bw-synergy-emblem--ember {
+  filter: drop-shadow(0 0 4px var(--a-ember, #ff5a3a));
+}
+.bw-synergy-tier-2.bw-synergy-emblem--tide {
+  filter: drop-shadow(0 0 4px var(--a-tide, #4adbff));
+}
+.bw-synergy-tier-2.bw-synergy-emblem--grove {
+  filter: drop-shadow(0 0 4px var(--a-grove, #7aec4a));
+}
+.bw-synergy-tier-2.bw-synergy-emblem--solar {
+  filter: drop-shadow(0 0 4px var(--a-solar, #ffe14a));
+}
+.bw-synergy-tier-2.bw-synergy-emblem--umbra {
+  filter: drop-shadow(0 0 4px var(--a-umbra, #c06adf));
+}
+
+/* ─── Tier: 3x — stronger glow + faint pulse (60fps) ─────────────────────── */
+.bw-synergy-tier-3 {
+  filter: grayscale(0) brightness(1.15);
+  opacity: 1;
+  transform: scale(1.05);
+  animation: bw-synergy-pulse-3x 1600ms ease-in-out infinite;
+}
+/* Element-scoped stronger drop-shadow — 8px glow with mild outer ring.
+ * The animation handles brightness pulsing on top. */
+.bw-synergy-tier-3.bw-synergy-emblem--ember {
+  filter: drop-shadow(0 0 8px var(--a-ember, #ff5a3a))
+          drop-shadow(0 0 2px var(--a-ember-lt, #ff8a4a));
+}
+.bw-synergy-tier-3.bw-synergy-emblem--tide {
+  filter: drop-shadow(0 0 8px var(--a-tide, #4adbff))
+          drop-shadow(0 0 2px var(--a-tide-lt, #6ad5ff));
+}
+.bw-synergy-tier-3.bw-synergy-emblem--grove {
+  filter: drop-shadow(0 0 8px var(--a-grove, #7aec4a))
+          drop-shadow(0 0 2px var(--a-grove-lt, #9aff5a));
+}
+.bw-synergy-tier-3.bw-synergy-emblem--solar {
+  filter: drop-shadow(0 0 8px var(--a-solar, #ffe14a))
+          drop-shadow(0 0 2px var(--a-solar-lt, #ffee8a));
+}
+.bw-synergy-tier-3.bw-synergy-emblem--umbra {
+  filter: drop-shadow(0 0 8px var(--a-umbra, #c06adf))
+          drop-shadow(0 0 2px var(--a-umbra-lt, #e199ff));
+}
+
+@keyframes bw-synergy-pulse-3x {
+  0%, 100% { transform: scale(1.05); }
+  50%      { transform: scale(1.12); }
+}
+
+/* ─── Tier: 5x — ceremonial framing (Marvel-Snap snap-moment) ─────────────── */
+/* Heavier pulse + halo expanding outward + saturated brightness.
+ * This is the sacred Element synergy 5x state (−6 ULT, +50% dmg, 30% start
+ * charge — CLAUDE.md §2.1). The visual elevates accordingly: this is the
+ * "snap moment" Marvel Snap calls out. */
+.bw-synergy-tier-5 {
+  filter: grayscale(0) brightness(1.35) saturate(1.2);
+  opacity: 1;
+  transform: scale(1.12);
+  animation: bw-synergy-pulse-5x 1100ms ease-in-out infinite;
+}
+.bw-synergy-tier-5.bw-synergy-emblem--ember {
+  filter: drop-shadow(0 0 14px var(--a-ember, #ff5a3a))
+          drop-shadow(0 0 4px var(--a-ember-lt, #ff8a4a))
+          brightness(1.35) saturate(1.2);
+}
+.bw-synergy-tier-5.bw-synergy-emblem--tide {
+  filter: drop-shadow(0 0 14px var(--a-tide, #4adbff))
+          drop-shadow(0 0 4px var(--a-tide-lt, #6ad5ff))
+          brightness(1.35) saturate(1.2);
+}
+.bw-synergy-tier-5.bw-synergy-emblem--grove {
+  filter: drop-shadow(0 0 14px var(--a-grove, #7aec4a))
+          drop-shadow(0 0 4px var(--a-grove-lt, #9aff5a))
+          brightness(1.35) saturate(1.2);
+}
+.bw-synergy-tier-5.bw-synergy-emblem--solar {
+  filter: drop-shadow(0 0 14px var(--a-solar, #ffe14a))
+          drop-shadow(0 0 4px var(--a-solar-lt, #ffee8a))
+          brightness(1.35) saturate(1.2);
+}
+.bw-synergy-tier-5.bw-synergy-emblem--umbra {
+  filter: drop-shadow(0 0 14px var(--a-umbra, #c06adf))
+          drop-shadow(0 0 4px var(--a-umbra-lt, #e199ff))
+          brightness(1.35) saturate(1.2);
+}
+
+@keyframes bw-synergy-pulse-5x {
+  0%, 100% { transform: scale(1.12); }
+  50%      { transform: scale(1.22); }
+}
+
+/* Halo — animated only on 5x tier. Pure transform/opacity. The halo's
+ * background uses radial-gradient with element color — the per-element
+ * tint comes from a CSS variable swap below. */
+.bw-synergy-tier-5 .bw-synergy-emblem-halo {
+  animation: bw-synergy-halo-5x 1400ms ease-out infinite;
+  background: radial-gradient(
+    circle at center,
+    var(--bw-synergy-halo-color, rgba(255, 225, 74, 0.55)) 0%,
+    transparent 70%
+  );
+}
+
+/* Element-scoped halo color — sets the radial gradient color via CSS var.
+ * Authoritative tokens; falls back to ember warm if a token is unset. */
+.bw-synergy-tier-5.bw-synergy-emblem--ember .bw-synergy-emblem-halo {
+  --bw-synergy-halo-color: rgba(255, 90, 58, 0.6);
+}
+.bw-synergy-tier-5.bw-synergy-emblem--tide .bw-synergy-emblem-halo {
+  --bw-synergy-halo-color: rgba(74, 219, 255, 0.6);
+}
+.bw-synergy-tier-5.bw-synergy-emblem--grove .bw-synergy-emblem-halo {
+  --bw-synergy-halo-color: rgba(122, 236, 74, 0.6);
+}
+.bw-synergy-tier-5.bw-synergy-emblem--solar .bw-synergy-emblem-halo {
+  --bw-synergy-halo-color: rgba(255, 225, 74, 0.65);
+}
+.bw-synergy-tier-5.bw-synergy-emblem--umbra .bw-synergy-emblem-halo {
+  --bw-synergy-halo-color: rgba(192, 106, 223, 0.6);
+}
+
+@keyframes bw-synergy-halo-5x {
+  0%   { transform: translate(-50%, -50%) scale(0.85); opacity: 0; }
+  30%  { opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(2.2);  opacity: 0; }
+}
+
+/* ─── prefers-reduced-motion — suppress ALL pulse + halo animations ──────── */
+@media (prefers-reduced-motion: reduce) {
+  .bw-synergy-emblem,
+  .bw-synergy-tier-3,
+  .bw-synergy-tier-5 {
+    transition: none;
+    animation: none !important;
+  }
+  .bw-synergy-tier-5 .bw-synergy-emblem-halo {
+    animation: none !important;
+    opacity: 0;                        /* halo invisible when motion suppressed */
+  }
+}
+
+/* ─── Small-device adjustments (iPhone SE) ───────────────────────────────── */
+@media (max-height: 700px) {
+  .bw-zone-synergy {
+    padding: 3px 10px 5px;
+  }
+  .bw-synergy-bar {
+    gap: 8px;
+    max-width: 320px;
+    height: 24px;
+  }
+  .bw-synergy-emblem {
+    width: 22px;
+    height: 24px;
+  }
+}
+
+/* ─── Large-device adjustments (iPhone Pro Max) ──────────────────────────── */
+@media (min-height: 900px) {
+  .bw-zone-synergy {
+    padding: 5px 14px 7px;
+  }
+  .bw-synergy-bar {
+    gap: 12px;
+    max-width: 420px;
+    height: 32px;
+  }
+  .bw-synergy-emblem {
+    width: 30px;
+    height: 32px;
+  }
+}

@@ -1,0 +1,185 @@
+/* 2026-05-16 — TASK-CP-003 (combat-polish-implementation-plan.md §9 Task 3):
+ *
+ * Top HUD — compact 44px chip row of resource indicators.
+ *
+ * Per plan §7.1:
+ *
+ *   ┌──────────────────────────────────────────────────────────┐
+ *   │ [← Back]  ❤ 97/100   🛡 6%   T 16   🔥 +30%            │   ≤ 44px
+ *   └──────────────────────────────────────────────────────────┘
+ *
+ * Contract:
+ *   - 44px max height (acceptance criterion plan §11.2)
+ *   - 8px gap between chips, 10px horizontal padding per chip
+ *   - 8px corner radius, transparent dark chip background
+ *   - 14px semibold values, 11px uppercase caps labels
+ *   - WCAG AA 4.5:1 minimum contrast (warm-white #f5e8d0 on
+ *     rgba(0,0,0,0.32) over deep-bg #050308 surface — passes AA)
+ *
+ * Sacred-cow protection (CLAUDE.md §2 + plan §12):
+ *   - Uses --a-text-* + --a-gold-* tokens only — no hex hardcodes.
+ *   - No animations on hot path (HUD is static layout).
+ *   - prefers-reduced-motion not needed (no animations).
+ *   - Never overrides .v-fx-* / .stagger-slow-mo / .boss-death-pause classes.
+ *   - SE / 16 / Pro Max height vars (40/44/44) inherit from battle-layout.css
+ *     (--bw-hud-h). This stylesheet never overrides --bw-hud-h.
+ */
+
+/* ─── HUD container — occupies .bw-zone-hud (grid-row 1) ──────────────────── */
+.bw-top-hud {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;                       /* plan §7.1 — 8px gap between chips */
+  padding: 0 10px;                /* plan §7.1 — 10px horizontal padding */
+  height: 100%;
+  max-height: 44px;               /* acceptance criterion plan §11.2 */
+  width: 100%;
+  box-sizing: border-box;
+  /* No background — chip backgrounds carry the dark surface. */
+}
+
+/* ─── Chip — shared resource-indicator pill ───────────────────────────────── */
+.bw-hud-chip {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;                       /* icon ↔ value gap inside chip */
+  padding: 4px 10px;              /* plan §7.1 — 10px horizontal chip padding */
+  height: 28px;
+  border-radius: 8px;             /* plan §7.1 — 8px corner radius */
+  background: rgba(0, 0, 0, 0.32); /* plan §7.1 — transparent dark */
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--a-text-primary, #f5e8d0);
+  font-family: inherit;
+  /* Values render at 14px semibold; labels (inside .label) override to 11px. */
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Back-chip is a button → reset default UA button styling. */
+button.bw-hud-chip {
+  cursor: pointer;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+button.bw-hud-chip:focus-visible {
+  border-color: var(--a-gold-300, #ffb84a);
+}
+
+/* ─── Chip subparts ───────────────────────────────────────────────────────── */
+.bw-hud-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Icon is intentionally one visual unit higher than label/value to feel
+   * balanced when paired with emoji glyphs (heart / shield / fire). */
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.bw-hud-chip-value {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--a-text-primary, #f5e8d0);
+}
+
+.bw-hud-chip-label {
+  /* Plan §7.1 — labels at 11px uppercase caps. Used by .bw-hud-chip--back
+   * (and reserved for future chips that need an explicit caps label). */
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: var(--a-text-primary, #f5e8d0);
+}
+
+/* ─── Back chip — arrow + caps label combo ─────────────────────────────────
+ * The back chip leads with an arrow glyph (← Back). The arrow is treated as
+ * the chip icon; the caps label sits to its right for accessibility (visible
+ * caption beyond the icon).
+ */
+.bw-hud-chip--back .bw-hud-chip-icon {
+  font-size: 16px;
+  font-weight: 400;
+  /* Slight optical lift so the arrow centres on the caps baseline. */
+  transform: translateY(-1px);
+}
+
+/* ─── Per-chip element accents — subtle visual differentiation ────────────── */
+/* HP — warm-white value remains; the heart glyph carries the colour. */
+.bw-hud-chip--hp .bw-hud-chip-icon {
+  /* Heart emoji renders coloured by the platform — no override needed.
+   * Slight glow keeps it readable against dark surface. */
+  filter: drop-shadow(0 0 1px rgba(255, 90, 58, 0.45));
+}
+
+/* Shield — gold accent on value for "mitigation engaged" feel. */
+.bw-hud-chip--shield .bw-hud-chip-value {
+  color: var(--a-gold-300, #ffb84a);
+}
+
+/* Turn — uses gold-100 (slightly brighter — turn counter is glanceable). */
+.bw-hud-chip--turn .bw-hud-chip-icon {
+  /* "T" letterform — use caps style + gold accent. */
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--a-gold-300, #ffb84a);
+}
+
+/* Fire-mult — ember-tinted value for stagger-state amplification. */
+.bw-hud-chip--firemult .bw-hud-chip-value {
+  color: var(--a-ember-lt, #ff8a4a);
+}
+.bw-hud-chip--firemult .bw-hud-chip-icon {
+  filter: drop-shadow(0 0 1px rgba(255, 90, 58, 0.55));
+}
+
+/* ─── Small-device adjustments (iPhone SE, hud-h = 40px) ──────────────────── */
+@media (max-height: 700px) {
+  .bw-top-hud {
+    gap: 6px;
+    padding: 0 8px;
+    max-height: 40px;
+  }
+  .bw-hud-chip {
+    height: 26px;
+    padding: 3px 8px;
+    font-size: 13px;
+  }
+  .bw-hud-chip-icon,
+  .bw-hud-chip-value {
+    font-size: 13px;
+  }
+  .bw-hud-chip-label {
+    font-size: 10px;
+  }
+}
+
+/* ─── Large-device adjustments (iPhone Pro Max) — chips stay at 44px but
+ *    breathe with slightly more padding for thumb reachability. ───────────── */
+@media (min-height: 900px) {
+  .bw-top-hud {
+    gap: 10px;
+    padding: 0 12px;
+  }
+  .bw-hud-chip {
+    height: 30px;
+    padding: 4px 12px;
+  }
+}

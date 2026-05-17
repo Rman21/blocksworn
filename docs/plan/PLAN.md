@@ -2,17 +2,19 @@
 
 ## Project Status
 
-- **Current phase:** 4 — Chia Integration ✅ **COMPLETE 13/13** 🎉 (2026-05-13)
-- **Overall progress:** All 4 phases code-complete (Phase 3 in PR #162; Phase 4 in `claude/phase4-chia-design`)
-- **Bundle:** ✅ **290 KB JS / 81 KB gzipped** (well under AAA+ 5MB cap)
-- **Total unit tests:** **974** on Phase 4 branch (was 581 at Phase 2 end)
-- **Sacred-cow mods across Phases 1-4:** **ZERO** (63+ tasks; 60+ commits)
-- **Architectural decision (ADR-004):** Hybrid coexistence — legacy + src/ co-runtime through Phase 2-4; full switchover deferred to future sprint
-- **CI status:** ✅ ALL GREEN
-- **Cumulative migrated:** 17,000+ LoC modular ES architecture + Phase 2 Identity Layer + Phase 3 Endgame Social + Phase 4 Chia Integration (all four phases shipped within ~3 sessions over 3 days)
-- **Tests:** lint 0, unit 37/37, smoke 2/2 (4 projects on Linux CI incl. WebKit + mobile-safari), visual 22/22 chromium
-- **Pending Roman action:** merge PR #158 (Phase 1 milestone) → Phase 2 starts
-- **Last updated:** 2026-05-12 by CTO (Phase 1 closeout)
+- **Current phase:** **5 — Vite Migration & Production Readiness** (started 2026-05-16, ETA Week 13 launch)
+- **Phases 1-4 code-complete; Phase 4.1 sidecar integration ROLLED BACK** (`docs/reports/03_SESSION_INCIDENTS.md`)
+- **Live runtime:** `play.blocksworm.com` serves pure legacy v2.1 (PR #178 rollback baseline + PR #179 save-version preseed + PR #180 music bundle). Verified by `tests/live/live-url.spec.js` on every push to main.
+- **Bundle (modular):** 290 KB JS / 81 KB gzipped on Phase 4 branch (well under AAA+ 5MB cap) — currently dormant in live runtime, becomes primary at Phase 5 Gate 3 cutover.
+- **Total unit tests:** 1758 passing (393 new on Phase 4 branch)
+- **Sacred-cow mods across Phases 1-4:** **ZERO** (75 task tags; 0 modifications verified by grep + git log)
+- **Architectural decision change (2026-05-16):** ADR-005 supersedes ADR-004 at Phase 5 Gate 3. Hybrid runtime retires; full Vite primary path becomes authoritative.
+- **CI status:** ✅ ALL GREEN. Live-URL Playwright gate active.
+- **Pending Roman actions:**
+  1. Hire part-time engineering lead (Option 3B; onboarding Week 0-2 of Phase 5)
+  2. Hire Mobile Game UI/UX Designer for parallel Figma audit + spec workstream (Week 2-3 audit; spec implementation Week 6-8)
+  3. Forward consultant review + this updated PLAN.md to director for visibility
+- **Last updated:** 2026-05-16 by CTO (Phase 5 kickoff, post-consultant-review)
 
 > **Source of truth:** `docs/plan/00_EXECUTION_PLAN.md` (full 2700-line spec)
 > **Working conventions:** `CLAUDE.md` (project root)
@@ -223,6 +225,176 @@ Pattern: when Game Dev agents stalled (watchdog timeout or permission denial), C
 - 100+ crypto user closed beta complete
 - Mobile builds with `CHIA_ENABLED=false` work
 
+> **Note (2026-05-16):** T4.11 and T4.12 are operationally **deferred until Phase 5 Gate 3 passes**. Sage SDK live wire-up, treasury wallet seed, Discord, Sentry/RevenueCat/Firebase env vars all hold until end of Phase 5 Week 5 cutover. Anti-P2W audit (T4.10) will run on REAL beta data, not synthetic, per Roman's directive 2026-05-16.
+
+---
+
+## Phase 5: Vite Migration & Production Readiness
+
+**Status:** **ACTIVE — kickoff 2026-05-16** (post-consultant review, Roman Decision 1 = Option C+)
+**Goal:** Retire legacy primary runtime; make modular Vite shell the authoritative `play.blocksworm.com` path; make Phase 2-4 features user-visible.
+**Architectural authority:** `docs/adr/005-full-vite-migration-with-gates.md` (ADR-005)
+**Sequencing principle:** STRICTLY sequential. No parallel migration + polish + beta-prep inside Weeks 1-5.
+**Duration:** 5 weeks migration + 3 weeks operational prep + 4 weeks closed beta + 1 week launch = 13 weeks total to T4.12 ship.
+
+### Gate structure
+
+| Gate | When | Blocks | Pass criteria |
+|---|---|---|---|
+| **Gate 1** | End of Week 1 | Migration sprint start | All 6 Execution Plan §10 golden-path smoke tests green on legacy + save migration framework tested on 10+ real snapshots |
+| **Gate 2** | End of Week 4 | Promotion to play.blocksworm.com | 72h `staging.blocksworm.com` zero-incident soak + Bug Tester integration-level GO verdict on Phase 2-4 user-visible features |
+| **Gate 3** | End of Week 5 | Safety net retirement | 24h `play.blocksworm.com` zero-incident soak on migrated build; `v1.blocksworm.com` rollback alias unused |
+
+### Week-by-week task structure
+
+**Week 1 — BLOCKING preparation (no migration code yet)**
+- [ ] T5.01.1 — `tests/smoke/ftue.spec.js` — full Chronicler intro → ▶ BEGIN → first board → first piece → first line clear → first crit, 0 console errors
+- [ ] T5.01.2 — `tests/smoke/ch1-boss1.spec.js` — Pyredrake fight to completion including reactivity events
+- [ ] T5.01.3 — `tests/smoke/tower.spec.js` — Tower run start → 5 floors → retry-with-gem ladder [100,200,400] → leaderboard submit
+- [ ] T5.01.4 — `tests/smoke/shop.spec.js` — all 6 GEM_PACKS render with correct prices+bonuses, Battle Pass widget, First Purchase Bonus copy
+- [ ] T5.01.5 — `tests/smoke/settings.spec.js` — audio toggle persistence, haptic toggle persistence, reset confirm flow
+- [ ] T5.01.6 — `tests/smoke/mythic.spec.js` — Mythic ascension commitment screen, one-per-save invariant, all 5 role fire paths
+- [ ] T5.02 — Save migration framework (legacy v2 → modular runtime). Reversible. 10+ real snapshots tested. Per-version transformations registered.
+- [ ] **GATE 1 review** — CTO + engineering lead joint sign-off. NO MIGRATION START WITHOUT THIS.
+
+**Week 2-3 — Full Vite migration sprint**
+- [ ] T5.03 — Migrate primary render path: `index.html` → Vite shell as the served entry for `/` (not `/shell`)
+- [ ] T5.04 — Migrate sacred runtime hooks: combat, FTUE, Tower, shop, settings, Mythic — each gated by corresponding T5.01.* smoke test green
+- [ ] T5.05 — Integrate Phase 2-4 user-visible UI: Codex, Adventures, Party Tower, Replay viewer, Friend leaderboard, Tower Seasonal banner
+- [ ] T5.06 — Integration tests (modular semantics vs legacy parity) — pixel-diff ≤2% on all 25 visual baselines
+- [ ] T5.07 — Daily green check: 6 golden paths must pass each day before any merge to main
+
+**Week 4 — Staging soak**
+- [ ] T5.08 — Provision `staging.blocksworm.com` Vercel alias
+- [ ] T5.09 — Deploy migrated build to staging only; legacy continues serving `play.blocksworm.com`
+- [ ] T5.10 — 72h soak + side-by-side comparison vs production legacy
+- [ ] T5.11 — Bug Tester integration-level cycle on Phase 2-4 user-visible features → GO/NO-GO verdict
+- [ ] **GATE 2 review** — Bug Tester GO + 72h zero-incident + ≤2% visual regression on all baselines
+
+**Week 5 — Cutover + safety net**
+- [ ] T5.12 — Provision `v1.blocksworm.com` Vercel alias pointing at frozen pre-migration deploy commit
+- [ ] T5.13 — Cutover: `play.blocksworm.com` rewrites point to migrated build. Sentry watch real-time.
+- [ ] T5.14 — 24h soak on migrated `play.blocksworm.com` with zero Sentry-class incidents
+- [ ] T5.15 — Retire legacy from deploy artifacts; simplify `vercel.json` rewrites
+- [ ] T5.16 — ADR-004 archive (mark superseded); update CLAUDE.md §1.4 structural map
+- [ ] **GATE 3 review** — 24h zero-incident + safety net unused → cutover complete
+
+**Weeks 6-8 — Operational provisioning + UI/UX polish integration**
+- [ ] T5.17 — Sentry DSN env var + verify error capture
+- [ ] T5.18 — RevenueCat API keys (sandbox first) + verify IAP mock → real flow
+- [ ] T5.19 — Firebase auth/Firestore live wiring for Adventures + Party Tower (replace stub mode)
+- [ ] T5.20 — Sage Wallet SDK live integration (replace TODO(T4.12) markers)
+- [ ] T5.21 — Anti-P2W audit dashboard UI
+- [ ] T5.22 — Audio CDN migration (84 MB MP3 → R2/Cloudinary) — half-day task, runs parallel here
+- [ ] T5.23 — UI/UX Designer Figma spec integration (Designer's audit work Week 2-3, spec implementation Weeks 6-8)
+
+**Weeks 6-8 — Combat Polish sub-roadmap (10 tasks per Roman 2026-05-13 plan)**
+
+> **Authoritative plan:** `/Users/rm/Downloads/game file/Instructions Game AAA+/combat-polish-implementation-plan.md`
+> **Pre-execution readiness:** `docs/design/ui-ux/combat-polish-readiness.md` — Roman rulings required on §3 + §4 before TASK-CP-001 starts
+> **Mechanical reference:** `docs/design/mechanics/combat-mechanics.md`
+> **Architecture:** all in `src/feel/*.{js,css}` + minimal `src/ui/battle-screen.js` mount wiring (NEVER `src/core/*` / `src/data/*` / `src/services/*`)
+
+Tier 1 — MVP (Week 6):
+- [ ] **TASK-CP-001** (BLOCKING) — Composition foundation + Boss scene (`src/feel/battle-layout.css`, `boss-scene.{js,css}`, `element-assets.js`)
+- [ ] TASK-CP-002 — Hero card (energy ring + 5-slot scaling) — parallel-OK after 001
+- [ ] TASK-CP-003 — Top HUD cleanup (44px chip row) — parallel-OK after 001
+- [ ] TASK-CP-004 — Pressure meter (Sekiro-style) — parallel-OK after 001
+- [ ] **MVP GATE** (end of Week 6) — game looks/feels new
+
+Tier 2 — Polish (Week 7):
+- [ ] TASK-CP-005 — Element emblems integration (`synergy-bar.js`)
+- [ ] TASK-CP-006 — Damage channel color coding (`damage-channel-fx.css`)
+- [ ] TASK-CP-007 — Stagger entry + chromatic shift
+- [ ] **POLISH GATE** (end of Week 7) — game feels premium
+
+Tier 3 — Identity (Week 8):
+- [ ] TASK-CP-008 — Race FX visual polish (6 races sequential: Pirate / Shark / Rock / Crocodile / Spark / Grove)
+- [ ] TASK-CP-009 — 5-beat boss death cinematic polish (within sacred durations)
+- [ ] TASK-CP-010 — Reactivity event telegraphs (22 handlers + 5 boss-reactive) — parallel-OK
+- [ ] **IDENTITY-COMPLETE GATE** (end of Week 8) — ship-ready for T4.11 beta
+
+Roman rulings 2026-05-16 (per readiness doc §3 + §4):
+- ✅ **Mount-call location:** Option A — `src/ui/battle-screen.js:setupBattleScreenEventListeners()` (NOT `src/core/battle.js`)
+- ✅ **Element backgrounds:** assets in hand at `/Users/rm/Downloads/game file/assets/backgrounds/` (5 PNG × 941×1672 × 7.13 MB total); TASK-CP-001 bundling sub-step copies to `public/assets/backgrounds/` with space→underscore rename
+
+Remaining open items (non-blocking for TASKS.md prep; blocking for TASK-CP-001 START):
+- Engineering Lead hire status (Phase 5 Week 0-2 onboarding deadline)
+- Designer hire status + Tier S Figma Boss Scene spec delivery (Phase 5 Week 5 end deadline)
+- Boss artwork roster gap (~10 of 25 bosses awaiting Designer's TASK-UX-002 audit verdict)
+- Phase 5 Gate 1 + Gate 3 passages
+
+**Weeks 9-12 — T4.11 closed beta**
+- [ ] T5.24 — `beta.blocksworm.com` provisioning + Discord + treasury wallet seed (Roman owns operational)
+- [ ] T5.25 — Recruit 100 firm / 200-300 soft / 500 hard testers per ESC-04 Q5
+- [ ] T5.26 — Run T4.11 closed beta per `docs/plan/T4_11_CLOSED_BETA_RUNBOOK.md`
+- [ ] T5.27 — Anti-P2W audit runs on REAL beta data (not synthetic) — must PASS
+- [ ] T5.28 — Closed beta GO/NO-GO for T4.12 launch
+
+**Week 13 — T4.12 production launch**
+- [ ] T5.29 — 3-wave launch per `docs/plan/T4_12_PRODUCTION_LAUNCH_SEQUENCE.md`
+- [ ] T5.30 — Founder Badge gift to closed-beta testers
+- [ ] T5.31 — Post-launch monitoring window (Sentry + KPI dashboards)
+
+### Phase 5 Gate Criteria (cumulative)
+
+- Gate 1: 6 golden paths green + save framework tested on 10+ snapshots
+- Gate 2: 72h staging soak + Bug Tester GO + ≤2% visual regression
+- Gate 3: 24h `play.blocksworm.com` migrated zero-incident + safety net unused
+- Operational: all env vars live, Sage SDK live, Firebase live, Designer's polish integrated
+- Closed beta: anti-P2W audit PASS on real data
+- Launch: 3-wave executed, Founder Badge minted to beta cohort
+
+### What is OUT of scope for Phase 5
+
+(Per Roman 2026-05-16: "Никаких шорткатов. Никакого parallel migration + polish + beta prep в Week 1.")
+
+- Adding new features
+- Balance tuning
+- Sacred cow modifications (continues as project-wide invariant)
+- "Just one quick patch" merges to main outside the 6-golden-path gate
+- PR merges without engineering lead approval (after Week 2 onboarding completes)
+
+### Engineering lead onboarding (Roman owns hiring)
+
+- **Profile:** Senior JavaScript / Vite / production-incident-response. Optional: crypto integrations.
+- **Time:** 10-20 hrs/week × $50-80/hr
+- **Onboarding:** Week 0-1 — reads `docs/reports/` (6 files) + `CLAUDE.md` + ADR-001..005 + this Phase 5 plan
+- **Active role from Week 2:** PR review gate + on-call discipline + sprint planning continuity
+- **Critical-path note:** if hire slips past end of Week 2, Roman + CTO decide whether to extend Week 1 (CTO recommends) or accept reduced gate (CTO does NOT recommend)
+
+### UI/UX Designer parallel workstream (Roman owns hiring)
+
+**Authoritative brief:** `/Users/rm/Downloads/game file/Instructions Game AAA+/Blocksworn_UI_UX_Polish_Strategy.md` (Roman 2026-05-13)
+**Designer onboarding doc:** `docs/design/ui-ux/README.md`
+
+- Works in Figma + assets, NEVER in code (communication via CTO gatekeeper)
+- **Week 0-1** Roman hires + contract; Designer reads CLAUDE.md sacred cows + Polish Strategy doc
+- **Week 2-3** Audit (existing art library + live game) + design system tokens + Figma spec creation
+- **Weeks 3-5** Asset creation push (animations, components, screen specs)
+- **Weeks 6-7** Engineering lead implements per Designer's Figma spec (Tier S then Tier A)
+- **Week 8** Designer QA on device matrix + sign-off in `docs/design/ui-ux/sign-off-week-8.md`
+- **Beta (Weeks 9-12)** sees the polished UI
+
+**Scope tiers (per Polish Strategy §4):**
+- **Tier S (must polish before beta):** HP indicator, damage numbers, pressure meter, 22 custom icons, primary CTAs, FTUE Chronicler typography, hero card hierarchy, Mythic ascension ceremony, boss panel archetypes, element icons
+- **Tier A (should polish before beta):** Home hub, shop bundles, Tower screen, Battle Pass rail, settings sections, hero portraits, race icons
+- **Tier B (post-launch):** Codex polish, profile customization, achievement icons, deeper audio settings
+- **Tier C (Phase 4 Chia scope):** NFT-hero visual identity, DAO UI, wallet flow, Founder Badge visual
+
+**Existing art library at `/Users/rm/Downloads/game/`** (Roman 2026-05-16 disclosure):
+- ✅ `ingame_icons_cropped/set2_*.png` — Blocksworm-aligned (ember/tide/grove/solar/umbra emblems + 8-12 UI icons; closes ~14 of 22 emoji-to-replace)
+- ✅ `ingame_icons_cropped/set1_*.png` — generic game UI (sword, shield, trophy, crown, hourglass, etc.)
+- ⚠️ `race emblems/` + `races/` — WRONG roster (dark elf, golem, orc, troll vs Blocksworm pirate/shark/rock/croc/spark/grove). Designer audit Week 2 decides re-use as flavor inspiration OR re-create.
+- ⚠️ `elements emblems/` — WRONG element set (generic 5 vs Blocksworm's poetic 5). Same decision.
+- ❓ `boss emblems/`, `boss/`, `new boss/`, `Game bosses/`, `Armor/`, `chapter emblems/`, `class emblem/`, `Modifications emblems/` — Designer audits whether bosses + chapters + classes match code roster (5 bosses: phoenix/lich/berserker/engineer/grovewarden; 5 roles: warrior/mage/hunter/tank/captain)
+
+**Budget (per Polish Strategy §7):** $6,000-$10,000 for full polish pass (~105 hours mid-to-senior). May skew lower if asset library covers significant Phase 2 work; rebalanced toward Figma component library + animations (which raw art can't cover).
+
+**Design system foundational decisions** will land as **ADR-006** when Designer commits to color tokens + typography scale + spacing system + animation easings. Authored by Designer + CTO joint, signed-off by Roman.
+
+**Risk register cross-reference:** R21 (Designer/migration workstream collision) + R24-R28 (Polish-Strategy-specific risks now in `docs/reports/04_RISK_REGISTER.md`)
+
 ---
 
 ## Tech Debt Backlog (outside current phase scope)
@@ -237,8 +409,10 @@ Captured here; raised to priority по решению Roman.
 
 - **Phase 1:** STRICT sequential. One Dev task at a time. No parallel feature work.
 - **Phase 2-4:** Phase-locked pipeline. Designer работает на N+1 пока Dev делает N.
-- **Bug Tester:** invoked at phase gates + after major refactors (T1.10, T1.13, T1.18, T1.20).
-- **Sacred cow change:** ALWAYS ESC to Roman (CLAUDE.md §2.7).
+- **Phase 5:** STRICTLY sequential migration sprint (Weeks 1-5). Hiring + Designer audit run in parallel as separate workstreams that don't gate or merge into the migration codebase until Weeks 6-8.
+- **Bug Tester:** invoked at phase gates + after major refactors (T1.10, T1.13, T1.18, T1.20, **Phase 5 Gate 2 integration cycle**).
+- **Sacred cow change:** ALWAYS ESC to Roman (CLAUDE.md §2.7). Zero modifications expectation extends through Phase 5.
+- **Phase 5 gate enforcement (ADR-005):** No migration PR merges before Gate 1; no staging→prod promotion before Gate 2; no safety-net retirement before Gate 3.
 
 ---
 

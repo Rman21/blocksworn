@@ -1,0 +1,275 @@
+/* 2026-05-16 — TASK-CP-006 (combat-polish-implementation-plan.md §9 Task 6):
+ *
+ * Damage channel color coding — visual identity for the 4 sacred damage
+ * channels (DEAD_ZONE / VOID / SIGNATURE / GRID_SATURATION) when boss
+ * attacks land on player HP.
+ *
+ * Per plan §9 Task 6 + §6.3 element-appearance table + combat-mechanics.md
+ * §9 (4-channel damage system, sacred values + colors).
+ *
+ * Two visual layers
+ * -----------------
+ *   1. Floating damage number — appears at the damage origin; color reads
+ *      the channel identity at a glance. Crit variant gets bigger size +
+ *      stronger glow.
+ *   2. Channel FX overlay — a brief tinted flash that fires at the moment
+ *      damage lands; per-channel class hook drives the cue choreography
+ *      (orange ember for DEAD_ZONE, purple tick for VOID, element burst
+ *      for SIGNATURE, amber bar for GRID_SATURATION).
+ *
+ * Sacred-cow protection (CLAUDE.md §2.5 + plan §12)
+ *   - Sacred channel colors (#FF4D1F deadzone + #9B59E8 void) declared as
+ *     module-local CSS custom properties; never written into tokens.css
+ *     (the additive-only floor for sacred SHA1 audit avoids any
+ *     unintended baseline drift).
+ *   - Animations on hot paths use only transform / opacity / filter (60fps).
+ *   - prefers-reduced-motion → numbers still appear but skip the float
+ *     (informational), channel FX flashes simplified.
+ *   - Never overrides .v-fx-crit-flash / .v-fx-shake / .stagger-slow-mo /
+ *     .boss-death-pause / .phase-2 / .phase-3 / .cell--engineer-welded.
+ */
+
+/* ─── Slot — invisible coordinator inside .bw-battle-root ───────────────── */
+/* The slot itself is a 0×0 anchor; visible content lives in the overlay
+ * layer + the floating-number layer (the latter is created lazily by
+ * damage-fx.js). pointer-events: none so the slot never blocks taps. */
+.bw-dmg-channel-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;                            /* above synergy bar (z-index:5), below floating text */
+}
+
+/* ─── Floating damage number layer ──────────────────────────────────────── */
+/* Created lazily by damage-fx.js on first call. Sits at the battle-root
+ * level so coordinates resolve relative to the battle viewport. */
+.bw-dmg-number-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 7;                            /* above channel-FX overlay */
+  overflow: visible;
+}
+
+/* ─── Floating damage number ─────────────────────────────────────────────── */
+/* Each number is a positioned div with its own animation lifetime (≈900ms).
+ * Color is set inline via --bw-dmg-color (per-channel resolution). */
+.bw-dmg-number {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-family: var(--a-font-num, 'Poppins', 'Inter', sans-serif);
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--bw-dmg-color, #FFC04A);
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--bw-dmg-color, #FFC04A) 60%, transparent),
+    0 2px 4px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: bw-dmg-number-float 900ms cubic-bezier(0.18, 0.5, 0.3, 1) forwards;
+}
+
+/* Crit variant — bigger + stronger glow. */
+.bw-dmg-number--crit {
+  font-size: 30px;
+  font-weight: 900;
+  text-shadow:
+    0 0 12px color-mix(in srgb, var(--bw-dmg-color, #FFC04A) 80%, transparent),
+    0 0 4px var(--bw-dmg-color, #FFC04A),
+    0 2px 6px rgba(0, 0, 0, 0.6);
+  animation: bw-dmg-number-float-crit 900ms cubic-bezier(0.18, 0.5, 0.3, 1) forwards;
+}
+
+@keyframes bw-dmg-number-float {
+  0%   { transform: translate(-50%, -50%) scale(0.85); opacity: 0; }
+  18%  { transform: translate(-50%, -65%) scale(1.0);  opacity: 1; }
+  85%  { transform: translate(-50%, -130%) scale(1.0); opacity: 1; }
+  100% { transform: translate(-50%, -160%) scale(0.95); opacity: 0; }
+}
+
+@keyframes bw-dmg-number-float-crit {
+  0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+  12%  { transform: translate(-50%, -65%) scale(1.25); opacity: 1; }
+  25%  { transform: translate(-50%, -70%) scale(1.0); opacity: 1; }
+  85%  { transform: translate(-50%, -145%) scale(1.0); opacity: 1; }
+  100% { transform: translate(-50%, -175%) scale(0.95); opacity: 0; }
+}
+
+/* ─── Channel FX overlay — brief cue at the damage moment ────────────────── */
+/* The overlay is a covering layer that hosts short-lived cue children
+ * (one per damage event). Each cue's CSS class hook drives its appearance. */
+.bw-dmg-channel-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Base cue — fills its parent and fades the channel-color tint. The
+ * channel-specific subclass below tunes the timing + secondary effects. */
+.bw-dmg-channel-overlay-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity, transform;
+}
+
+/* DEAD_ZONE — orange ember flash + fade. Sacred color #FF4D1F. */
+.bw-dmg-channel-overlay-layer--deadzone {
+  background: radial-gradient(
+    circle at 50% 60%,
+    color-mix(in srgb, var(--bw-dmg-channel-color, #FF4D1F) 35%, transparent) 0%,
+    transparent 55%
+  );
+  animation: bw-dmg-fx-deadzone 420ms ease-out forwards;
+}
+@keyframes bw-dmg-fx-deadzone {
+  0%   { opacity: 0;    transform: scale(1.0); }
+  18%  { opacity: 0.95; transform: scale(1.02); }
+  100% { opacity: 0;    transform: scale(1.08); }
+}
+
+/* VOID — purple tick pulse. Sacred color #9B59E8. */
+.bw-dmg-channel-overlay-layer--void-tick {
+  background: radial-gradient(
+    ellipse at 50% 55%,
+    color-mix(in srgb, var(--bw-dmg-channel-color, #9B59E8) 30%, transparent) 0%,
+    transparent 60%
+  );
+  filter: blur(1px);
+  animation: bw-dmg-fx-void 440ms ease-out forwards;
+}
+@keyframes bw-dmg-fx-void {
+  0%   { opacity: 0;   transform: scale(1.0); }
+  20%  { opacity: 0.7; transform: scale(1.0); }
+  50%  { opacity: 0.9; transform: scale(1.05); }
+  100% { opacity: 0;   transform: scale(1.08); }
+}
+
+/* SIGNATURE — full element-colored burst. Color = boss element. */
+.bw-dmg-channel-overlay-layer--signature {
+  background: radial-gradient(
+    circle at 50% 55%,
+    color-mix(in srgb, var(--bw-dmg-channel-color, #c06adf) 40%, transparent) 0%,
+    color-mix(in srgb, var(--bw-dmg-channel-color, #c06adf) 12%, transparent) 35%,
+    transparent 65%
+  );
+  animation: bw-dmg-fx-signature 480ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+@keyframes bw-dmg-fx-signature {
+  0%   { opacity: 0;    transform: scale(0.92); }
+  15%  { opacity: 1;    transform: scale(1.04); }
+  100% { opacity: 0;    transform: scale(1.12); }
+}
+
+/* GRID_SATURATION — amber warning bar across the grid. */
+.bw-dmg-channel-overlay-layer--saturation {
+  background: linear-gradient(
+    180deg,
+    transparent 30%,
+    color-mix(in srgb, var(--bw-dmg-channel-color, #FFC04A) 38%, transparent) 50%,
+    transparent 70%
+  );
+  animation: bw-dmg-fx-saturation 500ms ease-in-out forwards;
+}
+@keyframes bw-dmg-fx-saturation {
+  0%   { opacity: 0;   transform: scaleY(0.6); }
+  35%  { opacity: 1;   transform: scaleY(1.0); }
+  100% { opacity: 0;   transform: scaleY(1.0); }
+}
+
+/* Unknown channel — quiet fallback (no choreography, just a soft amber tint). */
+.bw-dmg-channel-overlay-layer--unknown {
+  background: radial-gradient(
+    circle at 50% 60%,
+    color-mix(in srgb, var(--bw-dmg-channel-color, #FFC04A) 22%, transparent) 0%,
+    transparent 55%
+  );
+  animation: bw-dmg-fx-deadzone 420ms ease-out forwards;
+}
+
+/* ─── MITIGATION chip ────────────────────────────────────────────────────── */
+/* Surfaces only when mitigation is non-trivial (≥10% per task brief).
+ * Sits in the corner of the overlay; subtle amber so it doesn't compete
+ * with the channel cue itself. */
+.bw-dmg-mitigation-chip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 4px 10px;
+  font-family: var(--a-font-num, 'Poppins', 'Inter', sans-serif);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #FFC04A;
+  background: rgba(20, 14, 6, 0.78);
+  border: 1px solid rgba(255, 192, 74, 0.35);
+  border-radius: 999px;
+  text-shadow: 0 0 6px rgba(255, 192, 74, 0.4);
+  pointer-events: none;
+  animation: bw-dmg-mitigation-fade-in 220ms ease-out forwards;
+}
+
+@keyframes bw-dmg-mitigation-fade-in {
+  0%   { opacity: 0; transform: translateY(-4px); }
+  100% { opacity: 1; transform: translateY(0);    }
+}
+
+/* ─── prefers-reduced-motion ─────────────────────────────────────────────── */
+/* Floating numbers still appear (informational — players need to read damage)
+ * but skip the float; pure brief flash + fade. Channel FX overlays simplified
+ * to a quick opacity tap. */
+@media (prefers-reduced-motion: reduce) {
+  .bw-dmg-number,
+  .bw-dmg-number--crit {
+    animation: bw-dmg-number-fade-reduced 600ms ease-out forwards;
+    transform: translate(-50%, -50%);
+  }
+
+  .bw-dmg-channel-overlay-layer--deadzone,
+  .bw-dmg-channel-overlay-layer--void-tick,
+  .bw-dmg-channel-overlay-layer--signature,
+  .bw-dmg-channel-overlay-layer--saturation,
+  .bw-dmg-channel-overlay-layer--unknown {
+    animation: bw-dmg-fx-reduced 320ms ease-out forwards;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  .bw-dmg-mitigation-chip {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+@keyframes bw-dmg-number-fade-reduced {
+  0%   { opacity: 0; }
+  18%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes bw-dmg-fx-reduced {
+  0%   { opacity: 0;   }
+  25%  { opacity: 0.7; }
+  100% { opacity: 0;   }
+}
+
+/* ─── Small-device adjustments (iPhone SE) ───────────────────────────────── */
+@media (max-height: 700px) {
+  .bw-dmg-number          { font-size: 18px; }
+  .bw-dmg-number--crit    { font-size: 25px; }
+  .bw-dmg-mitigation-chip { font-size: 10px; padding: 3px 8px; top: 10px; right: 10px; }
+}
+
+/* ─── Large-device adjustments (iPhone Pro Max) ──────────────────────────── */
+@media (min-height: 900px) {
+  .bw-dmg-number          { font-size: 26px; }
+  .bw-dmg-number--crit    { font-size: 36px; }
+  .bw-dmg-mitigation-chip { font-size: 12px; padding: 5px 12px; }
+}

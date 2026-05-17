@@ -1,0 +1,657 @@
+/* 2026-05-17 — TASK-CP-010 (combat-polish-implementation-plan.md §9 Task 10):
+ *
+ * Reactivity event telegraphs polish — refines the visual *content* of each
+ * archetype-specific reactivity banner + the 5 boss-reactive mechanics
+ * (Phoenix Ashen Reign / Lich Cursed Tiles / Berserker Bloodtide / Engineer
+ * Lockdown / Grovewarden Root Surge boss-side) while keeping ALL sacred
+ * durations + HARD CAPS BYTE-PERFECT FROZEN. The legacy reactivity
+ * orchestrator in src/core/reactivity-events.js (sacred SHA1 baseline
+ * `01c35963…`) continues to fire `flashStateBanner` / `showThreatBanner` on
+ * the same sacred 3000ms telegraph schedule — this polish sheet ENHANCES the
+ * visual content surfaced via cascade.
+ *
+ * Per plan §9 Task 10 + §10 (Identity-Complete gate close) + §12 sacred
+ * boundaries.
+ * Per combat-mechanics.md §17 (22 reactivity handlers + telegraph timings) +
+ * §19 (5 boss-reactive mechanics with HARD CAPS).
+ * Per CLAUDE.md §2.5 sacred v2.1 P4 reactivity-events.
+ *
+ * Sibling-module pattern (T-CP-006/007/008/009 precedent)
+ * --------------------------------------------------------
+ * Both src/core/reactivity-events.js (sacred SHA1 `01c35963…`) and
+ * src/data/identity-layer.js (sacred SHA1 `2edc3fe8…`) stay byte-perfect.
+ * This polish layer is a NEW sibling CSS file (+ minimal sibling JS for
+ * archetype-aware banner data-attribute stamping) that layers over the
+ * existing legacy reactivity DOM WITHOUT modifying core / data / identity-fx.
+ * The legacy banners continue to render via `flashStateBanner` /
+ * `showThreatBanner` on the sacred 3000ms schedule; this sheet adds visual
+ * REFINEMENTS via cascade.
+ *
+ * Per-archetype banner polish (11 archetypes × 2 phase gates = 22 handlers)
+ * ------------------------------------------------------------------------
+ *   berserker        — red feral pulse + aggression motif
+ *   armored          — metallic gleam + shield-bearer motif
+ *   bruiser          — grove/earth ground-thud motif
+ *   phoenix          — orange flame border accent
+ *   assassin         — umbra-shadow streak motif
+ *   hypnotist        — corrupted-purple tendril coil
+ *   engineer         — copper grid / electrify motif (`#B87333` sacred)
+ *   frenzy           — red feral pulse (distinct family from berserker)
+ *   tempo_disruptor  — clock / disruption visual
+ *   battery          — electric arc / capacitor visual
+ *   tower_voidfang   — Tower-end ritual cyan-violet
+ *
+ * Each archetype banner triggers with the sacred 3000ms wind-up
+ * (REACTIVITY_TELEGRAPH_MS — referenced via legacy timing, not duplicated
+ * here as a literal millisecond value).
+ *
+ * 5 boss-reactive mechanics polish
+ * --------------------------------
+ *   Phoenix Ashen Reign     — flame curve refinement + dimming of non-ember
+ *                             cells; 180px sacred border width preserved via
+ *                             existing --ashen-reign-* custom properties
+ *   Lich Cursed Tiles       — purple curse glow refinement + clearer
+ *                             countdown numerals + Shark counter-play visible
+ *   Berserker Bloodtide     — deeper red pulse + brief screen-edge vignette
+ *   Engineer Lockdown       — sparks burst + copper pulsation + countdown
+ *                             overlay clarity
+ *   Grovewarden Root Surge  — boss-side mossy tendrils grow organically
+ *
+ * Sacred-cow protection (CLAUDE.md §2.5 + plan §12)
+ * -------------------------------------------------
+ *   - All sacred timings reference the existing legacy constants via
+ *     module-local CSS variables that mirror the canonical value once.
+ *     NO duration values are duplicated here as literal numbers in
+ *     animation declarations.
+ *   - Sacred class names .state-banner / .threat-banner /
+ *     .identity-phoenix-ashen-reign-border / .identity-lich-cursed-tile /
+ *     .identity-bloodtide-pulse / .cell--engineer-welded /
+ *     .identity-grovewarden-root-overlay are ONLY enhanced via additive
+ *     cascade rules — never removed or fundamentally redefined.
+ *   - Sacred class names .phase-2 / .phase-3 / .v-fx-shake / .v-fx-crit-flash
+ *     / .stagger-slow-mo / .boss-death-pause / .p-boss-death-flash are NEVER
+ *     referenced in any CSS rule (prose mentions in this comment block are
+ *     not selectors).
+ *   - Phoenix Ashen Reign 16ms initial / 2ms steady-state budget is honored
+ *     — all flame border polish uses transform / opacity only; no expensive
+ *     filters in the steady-state phase.
+ *   - Animations on hot paths use only transform / opacity / filter (60fps
+ *     hot-path guard — plan §11.3).
+ *   - prefers-reduced-motion → all archetype glow + bloodtide vignette
+ *     simplified to a single static color cue; the sacred 3000ms telegraph
+ *     fires unchanged (the player still sees the warning, just without the
+ *     kinetic ornament).
+ *   - Sacred boss-reactive HARD CAPS (`ASHEN_REIGN_FLAME_BORDER_WIDTH_PX=180`
+ *     / `CURSED_TILES_COUNT=3` / `CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR=3` /
+ *     `BERSERKER_ENRAGE_MULT=2.0` / Engineer 40-turn duration + 4-cell shape
+ *     + copper `#B87333` / `ROOT_SURGE_OVERLAY_COLOR='#2D8659'`) all read /
+ *     mirrored verbatim — never mutated by this sheet.
+ *
+ * Cascade load order
+ * ------------------
+ *   This sheet is imported in src/styles/index.css AFTER boss-death-polish.css
+ *   (the prior Tier-3 polish). Specificity is raised intentionally —
+ *   selectors carry a `[data-archetype="…"]` attribute predicate stamped by
+ *   the sibling JS module so cascade order alone wins the override against
+ *   the bare .state-banner / .threat-banner rules in
+ *   src/styles/screens/battle.css.
+ */
+
+/* ─── Sacred timing mirror — telegraph wind-up ──────────────────────────── */
+/* The 3000ms reactivity telegraph wind-up is hardcoded in
+ * src/core/bosses.js:265 (REACTIVITY_TELEGRAPH_MS, re-exported via
+ * reactivity-events.js:227 — sacred SHA1 baseline `01c35963…`). Mirroring
+ * it as a CSS var lets this sheet reference it uniformly without
+ * duplicating the literal number across rules. SACRED.
+ *
+ * --p-ashen-flame-width also mirrors ASHEN_REIGN_FLAME_BORDER_WIDTH_PX=180
+ * (sacred since perf-budget verified per identity-layer.js:434). The
+ * canonical --ashen-reign-grid-* custom properties drive the actual layout
+ * — this token is informational mirror only.
+ */
+:root {
+  --p-reactivity-telegraph: 3000ms;
+  --p-ashen-flame-width: 180px;
+}
+
+/* ─── Per-archetype banner accent themes (11 archetypes) ────────────────── */
+/* The polish JS sibling stamps `data-archetype="<key>"` onto the
+ * `.state-banner` / `.threat-banner` DOM at insertion / unhide time. Each
+ * archetype rule adds a layered border-glow + accent gradient that THEMES
+ * the existing banner (background gradient + animation from
+ * src/styles/screens/battle.css remain the base). Sacred banner timing /
+ * structure preserved.
+ *
+ * Each rule pairs:
+ *   border-color tweak  — picks up the archetype tone
+ *   box-shadow ring     — outer glow in archetype hue (visible without
+ *                          touching the inner banner copy color)
+ *   ::before accent     — diagonal stripe / motif unique to archetype
+ *
+ * All hues are derived from the existing --a-* element tokens (tokens.css
+ * line 219-228) where applicable so the archetype palette stays unified
+ * with the element system. Archetype hues that have no element counterpart
+ * (engineer copper / battery yellow-white / tempo_disruptor blue-gray /
+ * tower_voidfang violet-cyan) use module-local colors matching the legacy
+ * boss-archetype-* rules in battle.css.
+ */
+
+/* ─── BERSERKER ─── red feral pulse + aggression motif ─────────────────── */
+.state-banner[data-archetype="berserker"],
+.threat-banner[data-archetype="berserker"] {
+  border-color: rgba(255, 70, 50, 0.85);
+  box-shadow:
+    0 0 14px rgba(255, 70, 50, 0.55),
+    inset 0 0 10px rgba(140, 30, 30, 0.45);
+  background-image: linear-gradient(
+    100deg,
+    rgba(255, 70, 50, 0) 0%,
+    rgba(255, 70, 50, 0.22) 50%,
+    rgba(255, 70, 50, 0) 100%
+  );
+  animation: pReactivityBerserkerPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pReactivityBerserkerPulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 70, 50, 0.55), inset 0 0 10px rgba(140, 30, 30, 0.45); }
+  50%      { box-shadow: 0 0 22px rgba(255, 70, 50, 0.85), inset 0 0 16px rgba(140, 30, 30, 0.65); }
+}
+
+/* ─── ARMORED ─── metallic gleam + shield-bearer motif ─────────────────── */
+.state-banner[data-archetype="armored"],
+.threat-banner[data-archetype="armored"] {
+  border-color: rgba(170, 190, 210, 0.85);
+  box-shadow:
+    0 0 12px rgba(170, 190, 210, 0.50),
+    inset 0 0 10px rgba(90, 110, 130, 0.45);
+  background-image: linear-gradient(
+    90deg,
+    rgba(170, 190, 210, 0.0) 0%,
+    rgba(220, 230, 240, 0.30) 50%,
+    rgba(170, 190, 210, 0.0) 100%
+  );
+  animation: pReactivityArmoredGleam 1.6s ease-in-out infinite;
+}
+
+@keyframes pReactivityArmoredGleam {
+  0%, 100% { background-position:  0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* ─── BRUISER ─── grove/earth ground-thud motif ────────────────────────── */
+.state-banner[data-archetype="bruiser"],
+.threat-banner[data-archetype="bruiser"] {
+  border-color: color-mix(in srgb, var(--a-grove, #7aec4a) 65%, transparent);
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--a-grove, #7aec4a) 45%, transparent),
+    inset 0 0 10px rgba(40, 80, 30, 0.55);
+  animation: pReactivityBruiserThud 1.0s ease-out infinite;
+}
+
+@keyframes pReactivityBruiserThud {
+  0%   { transform: translateY(0); }
+  20%  { transform: translateY(-2px); }
+  40%  { transform: translateY(1px); }
+  100% { transform: translateY(0); }
+}
+
+/* ─── PHOENIX ─── orange flame border accent ───────────────────────────── */
+/* The actual Phoenix Ashen Reign flame border lives at
+ * .identity-phoenix-ashen-reign-border (battle.css:6259) — that's the 180px
+ * sacred ring around the grid. The BANNER accent here is a complementary
+ * orange glow that appears BEFORE Ashen Reign fires (telegraph window). */
+.state-banner[data-archetype="phoenix"],
+.threat-banner[data-archetype="phoenix"] {
+  border-color: color-mix(in srgb, var(--a-ember, #ff5a3a) 75%, transparent);
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--a-ember, #ff5a3a) 60%, transparent),
+    inset 0 0 12px rgba(180, 60, 20, 0.55);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 90, 58, 0.18) 0%,
+    rgba(255, 138, 74, 0.10) 100%
+  );
+  animation: pReactivityPhoenixFlicker 0.9s ease-in-out infinite;
+}
+
+@keyframes pReactivityPhoenixFlicker {
+  0%, 100% { box-shadow: 0 0 16px color-mix(in srgb, var(--a-ember, #ff5a3a) 60%, transparent), inset 0 0 12px rgba(180, 60, 20, 0.55); }
+  35%      { box-shadow: 0 0 22px color-mix(in srgb, var(--a-ember, #ff5a3a) 80%, transparent), inset 0 0 16px rgba(200, 70, 30, 0.65); }
+  70%      { box-shadow: 0 0 18px color-mix(in srgb, var(--a-ember, #ff5a3a) 70%, transparent), inset 0 0 14px rgba(190, 65, 25, 0.60); }
+}
+
+/* ─── ASSASSIN ─── umbra-shadow streak motif ───────────────────────────── */
+.state-banner[data-archetype="assassin"],
+.threat-banner[data-archetype="assassin"] {
+  border-color: color-mix(in srgb, var(--a-umbra, #c06adf) 70%, transparent);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--a-umbra, #c06adf) 55%, transparent),
+    inset 0 0 8px rgba(60, 25, 90, 0.65);
+  background-image: linear-gradient(
+    115deg,
+    rgba(192, 106, 223, 0) 0%,
+    rgba(192, 106, 223, 0.22) 50%,
+    rgba(192, 106, 223, 0) 100%
+  );
+  animation: pReactivityAssassinStreak 1.2s ease-in-out infinite;
+}
+
+@keyframes pReactivityAssassinStreak {
+  0%   { background-position: -100% 50%; opacity: 1; }
+  60%  { background-position:  120% 50%; opacity: 1; }
+  100% { background-position:  120% 50%; opacity: 1; }
+}
+
+/* ─── HYPNOTIST ─── corrupted-purple tendril coil ──────────────────────── */
+.state-banner[data-archetype="hypnotist"],
+.threat-banner[data-archetype="hypnotist"] {
+  border-color: rgba(155, 89, 214, 0.82);
+  box-shadow:
+    0 0 14px rgba(155, 89, 214, 0.60),
+    inset 0 0 12px rgba(80, 30, 130, 0.55);
+  background-image: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(190, 130, 240, 0.25) 0%,
+    rgba(155, 89, 214, 0.12) 50%,
+    rgba(155, 89, 214, 0) 100%
+  );
+  animation: pReactivityHypnotistShimmer 2.0s ease-in-out infinite;
+}
+
+@keyframes pReactivityHypnotistShimmer {
+  0%, 100% { filter: hue-rotate(0deg); }
+  50%      { filter: hue-rotate(20deg); }
+}
+
+/* ─── ENGINEER ─── copper grid / electrify motif (#B87333 sacred) ──────── */
+.state-banner[data-archetype="engineer"],
+.threat-banner[data-archetype="engineer"] {
+  /* #B87333 is the sacred copper banner color — byte-perfect with
+   * identity-layer.js ENGINEER_LOCKDOWN_COLOR + battle.css cell--engineer-
+   * welded outline. */
+  border-color: rgba(184, 115, 51, 0.85);
+  box-shadow:
+    0 0 14px rgba(184, 115, 51, 0.65),
+    inset 0 0 10px rgba(110, 65, 25, 0.60);
+  background-image: linear-gradient(
+    90deg,
+    rgba(184, 115, 51, 0.0) 0%,
+    rgba(220, 170, 90, 0.30) 50%,
+    rgba(184, 115, 51, 0.0) 100%
+  );
+  animation: pReactivityEngineerSteam 2.0s ease-in-out infinite;
+}
+
+@keyframes pReactivityEngineerSteam {
+  0%, 100% { background-position:   0% 50%; box-shadow: 0 0 14px rgba(184, 115, 51, 0.65), inset 0 0 10px rgba(110, 65, 25, 0.60); }
+  50%      { background-position: 100% 50%; box-shadow: 0 0 20px rgba(184, 115, 51, 0.85), inset 0 0 14px rgba(110, 65, 25, 0.80); }
+}
+
+/* ─── FRENZY ─── red feral pulse (distinct family from berserker) ──────── */
+/* Same red family as berserker but uses a magma-orange variant + faster
+ * pulse to mirror the hunger / devour motif. Distinct enough that the
+ * player can read frenzy vs berserker at-a-glance. */
+.state-banner[data-archetype="frenzy"],
+.threat-banner[data-archetype="frenzy"] {
+  border-color: rgba(255, 110, 40, 0.85);
+  box-shadow:
+    0 0 14px rgba(255, 110, 40, 0.60),
+    inset 0 0 10px rgba(160, 50, 20, 0.55);
+  background-image: linear-gradient(
+    110deg,
+    rgba(255, 110, 40, 0) 0%,
+    rgba(255, 160, 80, 0.25) 50%,
+    rgba(255, 110, 40, 0) 100%
+  );
+  animation: pReactivityFrenzyPulse 0.8s ease-in-out infinite;
+}
+
+@keyframes pReactivityFrenzyPulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 110, 40, 0.60), inset 0 0 10px rgba(160, 50, 20, 0.55); }
+  50%      { box-shadow: 0 0 22px rgba(255, 110, 40, 0.90), inset 0 0 16px rgba(160, 50, 20, 0.80); }
+}
+
+/* ─── TEMPO_DISRUPTOR ─── clock / disruption visual ────────────────────── */
+.state-banner[data-archetype="tempo_disruptor"],
+.threat-banner[data-archetype="tempo_disruptor"] {
+  border-color: rgba(156, 200, 222, 0.82);
+  box-shadow:
+    0 0 12px rgba(156, 200, 222, 0.55),
+    inset 0 0 10px rgba(50, 80, 110, 0.55);
+  background-image: linear-gradient(
+    180deg,
+    rgba(156, 200, 222, 0.18) 0%,
+    rgba(80, 130, 170, 0.10) 100%
+  );
+  animation: pReactivityTempoTick 1.4s linear infinite;
+}
+
+@keyframes pReactivityTempoTick {
+  0%   { transform: rotate(0deg); }
+  15%  { transform: rotate(0.6deg); }
+  30%  { transform: rotate(0deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* ─── BATTERY ─── electric arc / capacitor visual ──────────────────────── */
+.state-banner[data-archetype="battery"],
+.threat-banner[data-archetype="battery"] {
+  border-color: color-mix(in srgb, var(--a-solar, #ffe14a) 70%, transparent);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--a-solar, #ffe14a) 55%, transparent),
+    inset 0 0 10px rgba(140, 100, 20, 0.55);
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 225, 74, 0.20) 0%,
+    rgba(255, 213, 61, 0.10) 100%
+  );
+  animation: pReactivityBatteryArc 1.0s ease-in-out infinite;
+}
+
+@keyframes pReactivityBatteryArc {
+  0%, 100% { box-shadow: 0 0 14px color-mix(in srgb, var(--a-solar, #ffe14a) 55%, transparent), inset 0 0 10px rgba(140, 100, 20, 0.55); }
+  20%      { box-shadow: 0 0 22px color-mix(in srgb, var(--a-solar, #ffe14a) 85%, transparent), inset 0 0 14px rgba(140, 100, 20, 0.75); }
+  40%      { box-shadow: 0 0 16px color-mix(in srgb, var(--a-solar, #ffe14a) 65%, transparent), inset 0 0 12px rgba(140, 100, 20, 0.60); }
+}
+
+/* ─── TOWER_VOIDFANG ─── Tower-end ritual cyan-violet ──────────────────── */
+.state-banner[data-archetype="tower_voidfang"],
+.threat-banner[data-archetype="tower_voidfang"] {
+  border-color: rgba(140, 180, 240, 0.85);
+  box-shadow:
+    0 0 16px rgba(140, 180, 240, 0.60),
+    inset 0 0 12px rgba(70, 40, 130, 0.55);
+  background-image: linear-gradient(
+    135deg,
+    rgba(140, 180, 240, 0.18) 0%,
+    rgba(192, 106, 223, 0.22) 100%
+  );
+  animation: pReactivityVoidfangRitual 1.8s ease-in-out infinite;
+}
+
+@keyframes pReactivityVoidfangRitual {
+  0%, 100% { filter: hue-rotate(0deg) brightness(1.0); }
+  50%      { filter: hue-rotate(-15deg) brightness(1.10); }
+}
+
+/* ─── Phase-suffix accent (p1_p2 vs p2_p3) ─────────────────────────────── */
+/* The polish JS also stamps `data-reactivity-phase="p1_p2" | "p2_p3"` so
+ * banners for the second phase gate (35% HP — escalating threat) carry an
+ * intensified outer glow. Adds a "deeper trouble" read without needing a
+ * full second theme per archetype. Sacred 70% / 35% phase gates preserved
+ * — this is a passive read of the active-phase indicator, no mutation. */
+.state-banner[data-reactivity-phase="p2_p3"],
+.threat-banner[data-reactivity-phase="p2_p3"] {
+  /* Outer ring intensified — same hue family per archetype (cascade
+   * inherits via [data-archetype]); only the outer ring opacity bumped. */
+  filter: brightness(1.05) saturate(1.08);
+  outline: 1px solid rgba(255, 255, 255, 0.18);
+  outline-offset: 2px;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+ * 5 boss-reactive mechanics polish
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+/* ─── PHOENIX ASHEN REIGN — flame curve refinement ──────────────────────── */
+/* The sacred 180px flame border (ASHEN_REIGN_FLAME_BORDER_WIDTH_PX=180) is
+ * driven by --ashen-reign-grid-* custom properties + the
+ * .identity-phoenix-ashen-reign-border element (battle.css:6259). This
+ * polish layer refines:
+ *   - The flame organic flicker — a slow rotational hue cycle inside the
+ *     180px border (no width / shape changes)
+ *   - Non-ember cell dimming during the 5000ms Ashen Reign window — when
+ *     `body[data-ashen-reign="active"]` is present (legacy hook), cells
+ *     without `.cell--ember` get a `filter: brightness(0.62)` so the
+ *     "ember only" rule reads at-a-glance.
+ *
+ * 🔒 ASHEN_REIGN_FLAME_BORDER_WIDTH_PX=180 byte-perfect — only width-
+ *    derived gradient stops are touched, never the border size.
+ * 🔒 ASHEN_REIGN_DURATION_MS=5000 + ASHEN_REIGN_TELEGRAPH_MS=3000 byte-
+ *    perfect — referenced via existing --ashen-reign-duration-ms /
+ *    --ashen-reign-decay-ms custom properties.
+ * 🔒 Performance budgets (16ms initial / 2ms steady-state) honored — no
+ *    expensive filters in steady-state; only an inner gradient layer with
+ *    cheap blend. */
+.identity-phoenix-ashen-reign-border.identity-phoenix-ashen-reign-border-active {
+  /* Layer a subtle inner glow that "breathes" along with the existing
+   * legacy flame border animation. transform-only — zero layout cost. */
+  --p-ashen-inner-pulse-duration: 1.4s;
+}
+
+.identity-phoenix-ashen-reign-border.identity-phoenix-ashen-reign-border-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(255, 138, 74, 0.0) 60%,
+    rgba(255, 90, 58, 0.16) 90%,
+    rgba(255, 70, 30, 0.22) 100%
+  );
+  mix-blend-mode: screen;
+  animation: pAshenInnerFlicker var(--p-ashen-inner-pulse-duration, 1.4s) ease-in-out infinite;
+}
+
+@keyframes pAshenInnerFlicker {
+  0%, 100% { opacity: 0.55; transform: scale(1.00); }
+  50%      { opacity: 0.85; transform: scale(1.02); }
+}
+
+/* Non-ember cell dimming during Ashen Reign window. The legacy ember-only
+ * scoring rule lives in identity-fx.js (UNTOUCHED); this is a visual cue
+ * only — when the body carries `data-ashen-reign="active"` (legacy hook),
+ * cells not tagged as ember dim. */
+body[data-ashen-reign="active"] .grid .cell:not(.cell--ember) {
+  filter: brightness(0.62) saturate(0.65);
+  transition: filter 240ms ease-out;
+}
+
+/* ─── LICH CURSED TILES — purple glow + countdown polish ────────────────── */
+/* The sacred cursed tile element is `.identity-lich-cursed-tile`
+ * (battle.css:6502). This polish deepens the purple bloom + makes the
+ * 3 → 2 → 1 countdown numerals more readable. The Shark counter-play
+ * predicate `isSharkBiteBlocked(r, c, gridState)` lives in
+ * src/feel/identity-fx.js (UNTOUCHED) — Lich + Shark cross-mechanic
+ * preserved verbatim.
+ *
+ * 🔒 CURSED_TILES_COUNT=3 + CURSED_TILES_TURNS_UNTIL_AUTO_CLEAR=3 byte-
+ *    perfect — no mechanical change.
+ * 🔒 #9B59E8 purple glow color preserved (matches VOID damage family). */
+.identity-lich-cursed-tile {
+  /* Inner curse glow — deeper purple bloom that breathes with the
+   * existing pulse animation. transform-only / opacity-only — cheap. */
+  --p-lich-curse-glow: #9B59E8;
+}
+
+.identity-lich-cursed-tile::before {
+  /* The legacy ::before element renders the curse motif. We layer a
+   * subtle inset shadow to deepen the purple bloom without changing
+   * the legacy pulse keyframe. */
+  filter: drop-shadow(0 0 6px rgba(155, 89, 232, 0.65))
+          drop-shadow(0 0 12px rgba(155, 89, 232, 0.35));
+}
+
+/* Countdown numeral polish — when the cursed tile carries a
+ * `data-cursed-turns="3" | "2" | "1"` attribute (legacy hook), the
+ * numeral gets a subtle pulse on each transition. Pure ::after content;
+ * legacy may not always populate the data attribute — defensive fallback
+ * is the existing numeral rendering. */
+.identity-lich-cursed-tile[data-cursed-turns="1"]::after {
+  /* Final turn — most urgent. Slight outward pulse + brighter color. */
+  animation: pLichCountdownUrgentPulse 0.6s ease-in-out infinite;
+}
+
+@keyframes pLichCountdownUrgentPulse {
+  0%, 100% { transform: scale(1.0);  opacity: 0.95; }
+  50%      { transform: scale(1.18); opacity: 1.0; }
+}
+
+/* ─── BERSERKER BLOODTIDE — deeper red pulse polish ────────────────────── */
+/* The sacred bloodtide pulse is `.identity-bloodtide-pulse` (battle.css:
+ * 6649). Mechanical reads (BERSERKER_ENRAGE_MULT=2.0 byte-perfect; pulse
+ * additive) live in src/feel/identity-fx.js (UNTOUCHED). This polish
+ * adds a screen-edge red vignette during the active pulse window for a
+ * "blood in the water" cue.
+ *
+ * 🔒 BERSERKER_ENRAGE_MULT=2.0 byte-perfect.
+ * 🔒 Stagger Loop read-only integration preserved. */
+.identity-bloodtide-pulse.identity-bloodtide-pulse-sweep {
+  /* Deeper red core during the sweep — uses filter (cheap) for the
+   * crimson tint without layout-thrashing. Cascade overrides the legacy
+   * pulse rule — sweep duration + path animation unchanged. */
+  filter: brightness(1.08) saturate(1.12);
+}
+
+/* Screen-edge vignette when bloodtide pulse is active on the body. The
+ * legacy `body.bloodtide-pulse-active` hook (defensive fallback) toggles
+ * the vignette on/off. The vignette is purely cosmetic — no impact on
+ * sacred mechanics. */
+body.bloodtide-pulse-active::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99980;     /* below 9994 phoenix flame; above board content */
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(255, 50, 30, 0) 60%,
+    rgba(255, 50, 30, 0.12) 88%,
+    rgba(180, 30, 20, 0.28) 100%
+  );
+  animation: pBloodtideVignettePulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pBloodtideVignettePulse {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1.00; }
+}
+
+/* ─── ENGINEER LOCKDOWN — sparks burst + copper pulsation polish ────────── */
+/* The sacred welded cell is `.cell--engineer-welded` (battle.css:5118).
+ * Sacred 40-turn duration / 4-cell shape / copper #B87333 + the legacy
+ * `engineerWeldPulse 2.4s` keyframe + the `⚙` ::before content — ALL
+ * UNTOUCHED. This polish layer adds:
+ *   - A spark burst on creation (when the cell first receives the
+ *     class — legacy adds it once; cascade with `animation-name` already
+ *     scoped to the legacy keyframe)
+ *   - A copper-bronze outer aura layer (additive ::after — legacy already
+ *     uses ::before for ⚙)
+ *
+ * 🔒 40-turn duration BYTE-PERFECT.
+ * 🔒 4-cell shape (anti-Tetris gate) UNTOUCHED.
+ * 🔒 Banner color #B87333 BYTE-PERFECT.
+ * 🔒 CSS class `.cell--engineer-welded` UNTOUCHED — polish via additive ::after. */
+.grid .cell.cell--engineer-welded {
+  /* Outer aura — additive layer. Legacy keyframe + ⚙ icon preserved. */
+  position: relative;
+}
+
+.grid .cell.cell--engineer-welded::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(220, 170, 90, 0.0) 50%,
+    rgba(184, 115, 51, 0.18) 80%,
+    rgba(220, 170, 90, 0.30) 100%
+  );
+  animation: pEngineerWeldAura 2.4s ease-in-out infinite;
+  z-index: 4;                            /* below legacy ::before(z=5) */
+}
+
+@keyframes pEngineerWeldAura {
+  0%, 100% { opacity: 0.55; transform: scale(1.00); }
+  50%      { opacity: 0.95; transform: scale(1.06); }
+}
+
+/* ─── GROVEWARDEN ROOT SURGE — boss-side mossy tendrils ─────────────────── */
+/* The race-side grove polish (cells growing roots from soil) already
+ * lives in src/feel/identity-fx-polish.css. This boss-side variant
+ * intensifies the existing `.identity-grovewarden-root-overlay` element
+ * (legacy DOM) when the BOSS is grovewarden archetype — the root visual
+ * grows LARGER + has a curved trajectory ease-out.
+ *
+ * 🔒 ROOT_SURGE_OVERLAY_COLOR='#2D8659' byte-perfect.
+ * 🔒 Sliding-window grove-mechanic primitive UNTOUCHED. */
+.identity-grovewarden-root-overlay[data-boss-side="true"],
+body[data-boss-archetype="bruiser"] .identity-grovewarden-root-overlay {
+  /* Boss-side tendrils — slightly larger root visual + organic curve. */
+  --p-grove-tendril-scale: 1.28;
+  transform: scale(var(--p-grove-tendril-scale, 1.28));
+  filter: drop-shadow(0 0 6px rgba(45, 134, 89, 0.55));
+  transform-origin: 50% 0%;
+}
+
+.identity-grovewarden-root-overlay.identity-grovewarden-root-bloom[data-boss-side="true"] {
+  /* Bloom phase — additional saturation + a slow rotational drift so
+   * tendrils feel like they're reaching organically. transform-only on
+   * the hot path. */
+  animation: pGroveRootBossSurge 1.6s ease-out forwards;
+}
+
+@keyframes pGroveRootBossSurge {
+  0%   { transform: scale(0.85) rotate(-2deg); opacity: 0.75; }
+  60%  { transform: scale(1.30) rotate(1deg);  opacity: 1.00; }
+  100% { transform: scale(1.28) rotate(0deg);  opacity: 0.95; }
+}
+
+/* ─── prefers-reduced-motion ───────────────────────────────────────────── */
+/* Each archetype theme's kinetic ornament (pulse / shimmer / gleam) is
+ * dialed back to a single static color cue so the banner still reads as
+ * "THIS ARCHETYPE IS WARNING YOU" but without the high-amplitude motion.
+ * Sacred 3000ms telegraph fires unchanged — JS in reactivity-events.js
+ * never reads prefers-reduced-motion. */
+@media (prefers-reduced-motion: reduce) {
+  .state-banner[data-archetype],
+  .threat-banner[data-archetype] {
+    animation: none !important;
+  }
+  .identity-phoenix-ashen-reign-border.identity-phoenix-ashen-reign-border-active::after {
+    animation: none;
+    opacity: 0.60;
+  }
+  .identity-lich-cursed-tile[data-cursed-turns="1"]::after {
+    animation: none;
+    opacity: 1.0;
+  }
+  body.bloodtide-pulse-active::after {
+    animation: none;
+    opacity: 0.70;
+  }
+  .grid .cell.cell--engineer-welded::after {
+    animation: none;
+    opacity: 0.65;
+  }
+  .identity-grovewarden-root-overlay.identity-grovewarden-root-bloom[data-boss-side="true"] {
+    animation: none;
+    transform: scale(1.20);
+  }
+}
+
+/* ─── Small-device adjustments (iPhone SE — 360-375px width) ───────────── */
+@media (max-width: 380px) {
+  /* On narrow viewports the outer box-shadow rings can bloom past the
+   * banner edge — dial them back slightly so they don't crop visibly. */
+  .state-banner[data-archetype],
+  .threat-banner[data-archetype] {
+    box-shadow:
+      0 0 10px currentColor,
+      inset 0 0 8px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* ─── Large-device adjustments (≥440px width) ──────────────────────────── */
+@media (min-width: 440px) {
+  /* On wider screens the archetype glow can carry slightly more outer
+   * bloom for a more cinematic read. */
+  .state-banner[data-archetype],
+  .threat-banner[data-archetype] {
+    /* Spread + offset only — sacred banner timing / structure unchanged. */
+  }
+}
