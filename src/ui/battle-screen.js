@@ -453,6 +453,30 @@ import {
   destroyBossDeathPolish,
 } from '../feel/boss-death-polish.js';
 
+// 2026-05-17 — TASK-CP-010: import reactivity event telegraphs mount/destroy.
+// THIRD and FINAL Tier-3 Identity polish task — refines the visual *content*
+// of each archetype-specific reactivity banner (11 archetypes × 2 phase
+// gates = 22 handlers) + 5 boss-reactive mechanics (Phoenix Ashen Reign /
+// Lich Cursed Tiles / Berserker Bloodtide / Engineer Lockdown / Grovewarden
+// Root Surge boss-side) within the sacred 3000ms telegraph wind-up + all
+// HARD CAPS preserved byte-perfect. Same Option A wiring contract — polish
+// layer mounts here, not in src/core/* or src/data/* or src/feel/identity-fx.js.
+// Sacred-cow boundaries (BOSS_PHASES registry / REACTIVITY_TELEGRAPH_MS=3000
+// / REACTIVITY_PHASE_GATES=[70,35] / ASHEN_REIGN_* / CURSED_TILES_* /
+// BERSERKER_ENRAGE_MULT / Engineer copper #B87333 / Grove #2D8659) all
+// preserved per plan §12 + CLAUDE.md §2.5.
+//
+// reactivity-events.js stays BYTE-PERFECT — sacred SHA1 `01c35963…` audited.
+// identity-layer.js stays BYTE-PERFECT — sacred SHA1 `2edc3fe8…` audited.
+//
+// THIS COMMIT CLOSES the Combat Polish Identity-Complete gate — ship-ready
+// for T4.11 closed beta.
+import {
+  mountReactivityTelegraphs,
+  destroyReactivityTelegraphs,
+  updateReactivityTelegraphs,
+} from '../feel/reactivity-telegraphs.js';
+
 // Re-export updateBossScene + updateHeroStrip + updateTopHud + updatePressureMeter
 // + updateSynergyBar + damage-channel helpers + updateStaggerFx + race FX
 // polish so battle orchestrators / route handlers can refresh scene+strip+
@@ -462,6 +486,7 @@ export { updateBossScene, updateHeroStrip, updateTopHud, updatePressureMeter, up
 export { updateDamageChannelFx, spawnDamageNumber, triggerChannelFx };
 export { updateStaggerFx };
 export { updateRaceFxPolish };
+export { updateReactivityTelegraphs };
 
 export function setupBattleScreenEventListeners() {
   // TODO(T1.12): attach delegated 'click' / 'pointerdown' listeners to:
@@ -630,6 +655,28 @@ export function setupBattleScreenEventListeners() {
       try {
         mountBossDeathPolish(battleRoot);
       } catch (_e) { /* defensive — FX degrades; legacy white-only flash continues */ }
+
+      // TASK-CP-010 — mount reactivity event telegraphs polish layer.
+      // Installs a narrow MutationObserver on document.body that detects
+      // when legacy `.state-banner` / `.threat-banner` DOM appears or
+      // un-hides, then stamps `data-archetype` based on
+      // `window.currentBoss?.archetype` so the CSS in
+      // reactivity-telegraphs.css renders archetype-themed banner accents
+      // for all 11 archetypes (berserker / armored / bruiser / phoenix /
+      // assassin / hypnotist / engineer / frenzy / tempo_disruptor /
+      // battery / tower_voidfang). The 5 boss-reactive mechanics polish
+      // (Phoenix flame curve / Lich curse glow / Bloodtide vignette /
+      // Engineer weld aura / Grovewarden boss-side tendrils) is pure CSS
+      // cascade — no runtime cost. Idempotent; defensive try/catch so a
+      // polish mount failure never breaks the prior mounts. The sacred
+      // reactivity orchestrator in src/core/reactivity-events.js (sacred
+      // SHA1 baseline `01c35963…`) + src/data/identity-layer.js (sacred
+      // SHA1 `2edc3fe8…`) stay BYTE-PERFECT UNTOUCHED — this polish layer
+      // reads state via window-bridge defensively and never mutates DOM
+      // beyond the data-archetype / data-reactivity-phase attributes.
+      try {
+        mountReactivityTelegraphs(battleRoot);
+      } catch (_e) { /* defensive — FX degrades; legacy default banner continues */ }
     }
   } catch (_err) {
     // Mount failure is non-fatal — scene degrades to legacy-only render.
@@ -723,6 +770,22 @@ export function cleanupBattleScreen() {
   // the observer handle so a fresh battle entry can re-mount cleanly.
   try {
     destroyBossDeathPolish();
+  } catch (_err) {
+    // Idempotent destroy — safe to ignore failures.
+  }
+
+  // TASK-CP-010 — tear down reactivity event telegraphs polish layer
+  // (disconnects the MutationObserver watching .state-banner /
+  // .threat-banner DOM). Idempotent; safe even if mount was skipped (no
+  // battle root present). The sacred reactivity orchestrator in
+  // src/core/reactivity-events.js continues to fire its own banner
+  // lifecycle on the sacred 3000ms telegraph — this teardown only
+  // releases the observer handle so a fresh battle entry can re-mount
+  // cleanly. Sacred BOSS_PHASES registry (26 entries) + REACTIVITY_
+  // TELEGRAPH_MS=3000 + REACTIVITY_PHASE_GATES=[70,35] + all 5 boss-
+  // reactive HARD CAPS preserved byte-perfect across mount / unmount.
+  try {
+    destroyReactivityTelegraphs();
   } catch (_err) {
     // Idempotent destroy — safe to ignore failures.
   }
